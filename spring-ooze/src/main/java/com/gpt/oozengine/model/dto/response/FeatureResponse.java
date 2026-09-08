@@ -9,7 +9,9 @@ import java.util.UUID;
 
 /**
  * One capability. The rolls it makes are in {@link #steps} — usually one, two
- * where the book chains an attack into a follow-up save.
+ * where the book chains an attack into a follow-up save. {@link #components} is
+ * non-empty only for a Multiattack, which makes no rolls of its own and instead
+ * names the creature's other actions.
  */
 public record FeatureResponse(
     UUID id,
@@ -24,7 +26,8 @@ public record FeatureResponse(
     Integer rechargeMax,
     AreaShape areaShape,
     Integer areaSizeFeet,
-    List<FeatureStepResponse> steps) {
+    List<FeatureStepResponse> steps,
+    List<FeatureComponentResponse> components) {
 
   public static FeatureResponse from(Feature f) {
     return new FeatureResponse(
@@ -40,6 +43,7 @@ public record FeatureResponse(
         f.getRechargeMax(),
         f.getAreaShape(),
         f.getAreaSizeFeet(),
-        f.getSteps().stream().map(FeatureStepResponse::from).toList());
+        f.getSteps().stream().map(FeatureStepResponse::from).toList(),
+        f.getComponents().stream().map(FeatureComponentResponse::from).toList());
   }
 }

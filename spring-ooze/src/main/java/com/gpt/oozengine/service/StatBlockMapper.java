@@ -8,6 +8,7 @@ import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.EffectRequest;
 import com.gpt.oozengine.model.dto.request.FeatureComponentRequest;
 import com.gpt.oozengine.constant.rules.Activation;
+import com.gpt.oozengine.constant.rules.ComponentMode;
 import com.gpt.oozengine.constant.rules.Delivery;
 import com.gpt.oozengine.constant.rules.StepTrigger;
 import com.gpt.oozengine.constant.rules.UsesReset;
@@ -164,6 +165,9 @@ public class StatBlockMapper {
     s.getFeatures().forEach(f -> existing.put(f.getId(), f));
 
     List<Feature> next = new ArrayList<>();
+    // What the request called each feature, so a Multiattack can be resolved
+    // against the features of this same save — see below.
+    Map<UUID, Feature> requestedIds = new HashMap<>();
     int ordinal = 0;
     for (FeatureRequest fr : requested) {
       Feature f = fr.id() == null ? new Feature() : existing.get(fr.id());
@@ -173,11 +177,21 @@ public class StatBlockMapper {
       applyFeature(fr, f);
       f.setOrdinal(ordinal++);
       next.add(f);
+      if (fr.id() != null) {
+        requestedIds.put(fr.id(), f);
+      }
     }
     // Mutate in place: replacing the list instance defeats orphanRemoval, so
     // dropped features would be orphaned rather than deleted.
     s.getFeatures().clear();
     s.getFeatures().addAll(next);
+
+    // Second pass, once every feature of this stat block exists: a Multiattack
+    // refers to its siblings, and on the first save of an override those
+    // siblings are new objects that the request's ids don't name yet.
+    for (int i = 0; i < requested.size(); i++) {
+      syncComponents(requested.get(i).components(), next.get(i), requestedIds, next);
+    }
   }
 
   private void applyFeature(FeatureRequest r, Feature f) {
@@ -201,7 +215,6 @@ public class StatBlockMapper {
     f.setAreaSizeFeet(r.areaSizeFeet());
     f.setAreaHeightFeet(r.areaHeightFeet());
     syncSteps(r.steps(), f);
-    syncComponents(r.components(), f);
   }
 
   /** Steps are matched on id for the same reason features are: they are the
@@ -269,21 +282,40 @@ public class StatBlockMapper {
     step.getEffects().addAll(next);
   }
 
-  private void syncComponents(List<FeatureComponentRequest> requested, Feature f) {
+  /**
+   * A Multiattack's lines, resolved against the stat block being saved.
+   *
+   * <p>The request names each target by id, and on a copy-on-write override
+   * those ids belong to the *base* creature — following them would give a DM's
+   * ogre a Multiattack that swings the shared ogre's club, and edits to one
+   * would show up in the other. So the id is looked up among the features of
+   * this same save first, and a target from anywhere else is dropped.
+   */
+  private void syncComponents(
+      List<FeatureComponentRequest> requested,
+      Feature f,
+      Map<UUID, Feature> requestedIds,
+      List<Feature> siblings) {
     if (requested == null) {
       return;
     }
     List<FeatureComponent> next = new ArrayList<>();
     int ordinal = 0;
     for (FeatureComponentRequest cr : requested) {
-      Feature target = lookup(cr.referencedFeatureId(), features::findById);
+      Feature target = requestedIds.get(cr.referencedFeatureId());
       if (target == null) {
-        continue; // a component pointing at nothing is not worth persisting
+        Feature stored = lookup(cr.referencedFeatureId(), features::findById);
+        target = stored != null && siblings.contains(stored) ? stored : null;
+      }
+      if (target == null || target == f) {
+        continue; // points at nothing here, or at itself — either way a loop
       }
       FeatureComponent c = new FeatureComponent();
       c.setReferencedFeature(target);
       c.setCount(Math.max(1, cr.count()));
       c.setOptional(cr.optional());
+      c.setMode(orDefault(cr.mode(), ComponentMode.FIXED));
+      c.setChoiceGroup(cr.choiceGroup());
       c.setOrdinal(ordinal++);
       next.add(c);
     }

@@ -1,0 +1,54 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 032 — the Multiattack components 029 never emitted.
+  #
+  # 178 creatures have a Multiattack and `feature_components` was empty, so the
+  # one action most monsters take every turn existed only as a sentence. 177 of
+  # them are structured here as 324 component rows.
+  #
+  # `mode` and `choice_group` are new, and load-bearing: half the book's
+  # Multiattacks are a choice, a replacement or an alternative rather than a
+  # fixed list. Without them "three attacks, using Shortsword or Light Crossbow
+  # in any combination" stores the same rows as three of each, which is six
+  # attacks instead of three.
+  # ==========================================================================
+
+  - changeSet:
+      id: 032-component-mode
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: feature_components
+            columns:
+              - column: {name: mode, type: VARCHAR(16), defaultValue: "FIXED", constraints: {nullable: false}}
+              - column: {name: choice_group, type: INT}
+        - createIndex:
+            tableName: feature_components
+            indexName: idx_feature_components_owner
+            columns: [{column: {name: feature_id}}]
+
+  - changeSet:
+      id: 032-load-feature-components
+      author: oozengine
+      preConditions:
+        onFail: MARK_RAN
+        sqlCheck: {expectedResult: 0, sql: SELECT COUNT(*) FROM feature_components}
+      changes:
+        - loadData:
+            tableName: feature_components
+            file: db/changelog/data/032/feature-components.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: feature_id, type: UUID}
+              - column: {name: references_feature_id, type: UUID}
+              - column: {name: count, type: NUMERIC}
+              - column: {name: optional, type: BOOLEAN}
+              - column: {name: mode, type: STRING}
+              - column: {name: choice_group, type: NUMERIC}
+              - column: {name: ordinal, type: NUMERIC}

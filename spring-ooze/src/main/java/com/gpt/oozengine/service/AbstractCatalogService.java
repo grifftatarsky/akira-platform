@@ -132,9 +132,22 @@ public abstract class AbstractCatalogService<E extends CatalogContent, REQ, RES>
     return toResponse(repo().save(e));
   }
 
+  /**
+   * A hook for content whose deletion Hibernate can't work out on its own. Most
+   * types need nothing here; a stat block does, because its features refer to
+   * each other and the order those come apart in matters.
+   */
+  protected void beforeDelete(E entity) {}
+
   @Transactional
   public RES revert(UUID baseId, UUID userId) {
-    repo().findByOwnerIdAndOverridesId(userId, baseId).ifPresent(repo()::delete);
+    repo()
+        .findByOwnerIdAndOverridesId(userId, baseId)
+        .ifPresent(
+            override -> {
+              beforeDelete(override);
+              repo().delete(override);
+            });
     E base =
         repo().findById(baseId).filter(CatalogContent::isBaseContent).orElseThrow(AbstractCatalogService::notFound);
     return toResponse(base);
@@ -146,6 +159,7 @@ public abstract class AbstractCatalogService<E extends CatalogContent, REQ, RES>
     if (e.isBaseContent() || !userId.equals(e.getOwnerId())) {
       throw forbidden();
     }
+    beforeDelete(e);
     repo().delete(e);
   }
 

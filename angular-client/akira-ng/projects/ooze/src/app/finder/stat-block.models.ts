@@ -48,6 +48,9 @@ export const EFFECT_OUTCOMES = ['ALWAYS', 'HIT', 'CRITICAL_HIT', 'MISS', 'HIT_OR
   'SAVE_FAILURE', 'SAVE_SUCCESS', 'SAVE_EITHER', 'FIRST_FAILURE', 'SECOND_FAILURE',
   'SUBSEQUENT_FAILURES', 'FAILURE_BY_5_OR_MORE'] as const;
 
+/** How one line of a Multiattack combines with the others. */
+export const COMPONENT_MODES = ['FIXED', 'CHOICE', 'REPLACEMENT', 'ALTERNATIVE'] as const;
+
 /** Why a step happens: a follow-up save only fires if the attack before it hit. */
 export const STEP_TRIGGERS = ['ALWAYS', 'ON_PREVIOUS_HIT', 'ON_PREVIOUS_MISS',
   'ON_PREVIOUS_FAILURE', 'ON_PREVIOUS_SUCCESS'] as const;
@@ -109,6 +112,53 @@ export interface FeatureView {
   readonly areaSizeFeet: number | null;
   /** One per roll the book asks for; a chained attack-then-save is two. */
   readonly steps: readonly FeatureStepView[];
+  /** Non-empty only on a Multiattack, which names the creature's own actions. */
+  readonly components: readonly FeatureComponentView[];
+}
+
+export interface FeatureComponentView {
+  readonly id: string;
+  readonly referencedFeatureId: string;
+  readonly referencedFeatureName: string;
+  readonly count: number;
+  readonly optional: boolean;
+  readonly mode: string;
+  readonly choiceGroup: number | null;
+}
+
+/**
+ * A Multiattack written as the plan it is — "2 x Tentacle, then one of Consume
+ * Memories or Dominate Mind" — rather than as the sentence it came from.
+ *
+ * The modes are not decoration: read additively, "three attacks using Shortsword
+ * or Light Crossbow in any combination" becomes six attacks, and the Medusa's
+ * alternative plan becomes a Medusa that takes both.
+ */
+export function multiattackLine(components: readonly FeatureComponentView[]): string {
+  if (!components.length) return '';
+  const groups: FeatureComponentView[][] = [];
+  for (const c of components) {
+    const open = c.choiceGroup === null ? null
+      : groups.find(g => g[0].choiceGroup === c.choiceGroup && g[0].mode === c.mode);
+    if (open) open.push(c);
+    else groups.push([c]);
+  }
+  const main: string[] = [];
+  const tail: string[] = [];
+  for (const g of groups) {
+    const names = g.map(c => c.referencedFeatureName);
+    const { count, mode, optional } = g[0];
+    const what = names.length > 1 ? `any of ${names.join(', ')}` : names[0];
+    const times = count > 1 ? `${count} × ` : '';
+    if (mode === 'REPLACEMENT') {
+      tail.push(`may replace ${count} with ${what}`);
+    } else if (mode === 'ALTERNATIVE') {
+      tail.push(`or ${times}${what}`);
+    } else {
+      main.push(`${times}${what}${optional ? ' (if available)' : ''}`);
+    }
+  }
+  return [main.join(' + '), ...tail].filter(Boolean).join('; ');
 }
 
 export interface FeatureStepView {

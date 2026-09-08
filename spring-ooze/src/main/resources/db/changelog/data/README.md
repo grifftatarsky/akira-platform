@@ -49,6 +49,33 @@ Constitution save — keeps both rolls rather than collapsing to the first. Ever
 feature also keeps the book's sentence in `description`, and an effect keeps
 anything the columns couldn't hold in `notes`.
 
+### Multiattack (`032`)
+
+178 creatures have one, and it is the action most of them take every turn. It
+parses into `feature_components`, which point at the creature's other features:
+
+| | count |
+|---|---|
+| Multiattack features | 178 |
+| structured | 177 |
+| components | 324 |
+
+`mode` is what makes them executable rather than decorative. Half the book's
+Multiattacks are not a fixed list:
+
+* `FIXED` — "makes two Rend attacks" (175 components)
+* `CHOICE` — "three attacks, using Shortsword or Light Crossbow in any
+  combination" (93). Every member of a choice group carries the same count: it
+  is the whole allowance, not a per-member limit. Read additively this is six
+  attacks instead of three.
+* `REPLACEMENT` — "it can replace one attack with a use of Spellcasting" (53).
+  Swaps an attack out; adds nothing to the total.
+* `ALTERNATIVE` — the Barbed Devil's "or it makes two Hurl Flame attacks" (3).
+
+The one creature left unstructured is the Hydra: "as many Bite attacks as it has
+heads" has no fixed count, and reading five off its Multiple Heads trait would
+be our number rather than the book's. Its sentence is still in `description`.
+
 ## Equipment and magic items — `031`
 
 ```

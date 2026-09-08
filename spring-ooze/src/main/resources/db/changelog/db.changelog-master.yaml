@@ -97,3 +97,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/031-seed-items.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/changes/032-multiattack-components.yaml
+      relativeToChangelogFile: false

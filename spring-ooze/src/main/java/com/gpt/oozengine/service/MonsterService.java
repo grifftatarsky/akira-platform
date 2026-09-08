@@ -6,6 +6,7 @@ import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.MonsterRequest;
 import com.gpt.oozengine.model.dto.response.MonsterResponse;
 import com.gpt.oozengine.repository.CatalogRepository;
+import com.gpt.oozengine.repository.FeatureComponentRepository;
 import com.gpt.oozengine.repository.HiddenContentRepository;
 import com.gpt.oozengine.repository.MonsterRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,7 @@ public class MonsterService extends AbstractCatalogService<Monster, MonsterReque
   private final MonsterRepository monsters;
   private final StatBlockMapper statBlocks;
   private final HiddenContentRepository hidden;
+  private final FeatureComponentRepository components;
 
   @Override
   protected CatalogRepository<Monster> repo() {
@@ -52,6 +54,23 @@ public class MonsterService extends AbstractCatalogService<Monster, MonsterReque
       m.setStatBlock(s);
     }
     statBlocks.apply(r.statBlock(), s);
+  }
+
+  /**
+   * Take a creature's Multiattack apart before deleting it — see
+   * {@link FeatureComponentRepository#deleteForStatBlock}, which explains why
+   * this cannot be left to the cascade.
+   */
+  @Override
+  protected void beforeDelete(Monster m) {
+    StatBlock block = m.getStatBlock();
+    if (block == null) {
+      return;
+    }
+    components.deleteForStatBlock(block.getId());
+    // The rows are gone; drop them from the session too, or the delete that
+    // follows tries to update rows that no longer exist.
+    block.getFeatures().forEach(f -> f.getComponents().clear());
   }
 
   @Override

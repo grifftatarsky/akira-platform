@@ -21,7 +21,12 @@ import { CatalogItem, ContentTypeDef, FieldDef, titleCase } from './ooze-content
 import { ContentService } from './content.service';
 import { ItemEditor } from './item-editor';
 import { StatBlockEditor } from './stat-block-editor';
-import { FeatureStepView, FeatureView, StatBlockView } from './stat-block.models';
+import {
+  FeatureStepView,
+  FeatureView,
+  StatBlockView,
+  multiattackLine,
+} from './stat-block.models';
 
 /**
  * Generic detail + editor for any catalog item, rendered from its
@@ -254,6 +259,14 @@ export class ContentPanel {
     return (f.steps ?? []).map(stepLine).filter(Boolean).join(' \u2192 ');
   }
 
+  /**
+   * A Multiattack's plan, from its components rather than its sentence — the
+   * quickest way to see that a choice didn't import as one-of-each.
+   */
+  protected planLine(f: FeatureView): string {
+    return multiattackLine(f.components ?? []);
+  }
+
   protected booleanChips(item: CatalogItem): string[] {
     return this.def()
       .fields.filter(f => f.kind === 'boolean' && item[f.key] === true)
@@ -352,5 +365,6 @@ function stepLine(s: FeatureStepView): string {
     .filter(e => e.kind === 'APPLY_CONDITION' && e.conditionName)
     .map(e => e.conditionName + (e.escapeDc ? ` (escape DC ${e.escapeDc})` : ''));
   if (conditions.length) parts.push(conditions.join(', '));
-  return parts.join('. ');
+  // "reach 15 ft." already ends the clause; joining on ". " would double it.
+  return parts.map(p => (p.endsWith('.') ? p.slice(0, -1) : p)).join('. ');
 }

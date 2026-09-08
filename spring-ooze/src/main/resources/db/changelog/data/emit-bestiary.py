@@ -10,16 +10,21 @@ import json
 import os
 import uuid
 
-SCRATCH = os.path.dirname(os.path.abspath(__file__))
-DATA = SCRATCH
+HERE = os.path.dirname(os.path.abspath(__file__))
+# 029's files are published and immutable, so a later model's data goes in its
+# own directory rather than rewriting files 029 checksums. 030 is the step
+# model; 032 is the Multiattack components.
+STEPS = os.path.join(HERE, '030')
+COMPONENTS = os.path.join(HERE, '032')
 NS = uuid.UUID('5bd10000-0000-4000-a000-000000000000')  # "SRD" namespace for this import
 # Liquibase's loadData DATE parser wants ISO_LOCAL_DATE_TIME; a trailing Z
 # makes it give up and inline the value as a bare SQL literal.
 STAMP = '2026-09-08T00:00:00'
 
-blocks = json.load(open(f'{SCRATCH}/bestiary.json'))
-condition_ids = json.load(open(f'{SCRATCH}/condition_ids.json'))
-os.makedirs(DATA, exist_ok=True)
+blocks = json.load(open(os.path.join(HERE, 'bestiary.json')))
+# Conditions are seeded by 012 under fixed ids; a stat block's immunities and an
+# effect that applies one both join on them by name.
+condition_ids = json.load(open(os.path.join(HERE, 'condition-ids.json')))
 
 
 def uid(*parts):
@@ -34,9 +39,10 @@ def n(v):
     return NULL if v is None or v == '' else v
 
 
-def write(name, header, rows):
+def write(directory, name, header, rows):
     rows = [[n(c) for c in r] for r in rows]
-    path = f'{DATA}/{name}'
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, name)
     with open(path, 'w', newline='') as fh:
         w = csv.writer(fh, quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
         w.writerow(header)
@@ -46,7 +52,7 @@ def write(name, header, rows):
 
 monsters, stat_blocks = [], []
 speeds, saves, skills, senses, damage, immunities = [], [], [], [], [], []
-features, effects, gear = [], [], []
+features, steps, effects, gear, components = [], [], [], [], []
 
 for b in blocks:
     sb = uid('statblock', b['name'])
@@ -87,8 +93,22 @@ for b in blocks:
     for g in b['gear']:
         gear.append([sb, g['name'], g['quantity']])
 
+    # A Multiattack's components point at the block's other features by name;
+    # this is how a name becomes the id the foreign key needs.
+    ordinals = {}
+    for f in b['features']:
+        ordinals.setdefault(f['name'], f['ordinal'])
+
     for f in b['features']:
         fid = uid('feature', b['name'], f['ordinal'], f['name'])
+        for ci, c in enumerate(f.get('components', [])):
+            target = c['feature']
+            components.append([
+                uid('component', b['name'], f['ordinal'], f['name'], ci),
+                STAMP, STAMP, 0, fid,
+                uid('feature', b['name'], ordinals[target], target),
+                c['count'], 'true' if c['optional'] else 'false', c['mode'],
+                c['choiceGroup'] if c['choiceGroup'] is not None else '', ci])
         features.append([
             fid, STAMP, STAMP, 0, f['name'], f['description'], f['ordinal'], sb,
             f['activation'],
@@ -97,58 +117,47 @@ for b in blocks:
             f['usesReset'], f['usesMax'] if f['usesMax'] is not None else '',
             f['rechargeMin'] if f['rechargeMin'] is not None else '',
             f['rechargeMax'] if f['rechargeMax'] is not None else '',
-            f['rangeFeet'] if f['rangeFeet'] is not None else '',
-            f['rangeLongFeet'] if f['rangeLongFeet'] is not None else '',
-            f['reachFeet'] if f['reachFeet'] is not None else '',
-            f['delivery'], f['attackKind'] or '',
-            f['attackBonus'] if f['attackBonus'] is not None else '',
-            'FIXED' if f['attackBonus'] is not None else '',
-            f['saveAbility'] or '', f['saveDc'] if f['saveDc'] is not None else '',
-            'FIXED' if f['saveDc'] is not None else '',
         ])
-        for k, e in enumerate(f['effects']):
-            effects.append([
-                uid('effect', b['name'], f['ordinal'], f['name'], k),
-                STAMP, STAMP, 0, fid, e['outcome'], e['kind'], k,
-                e['diceCount'] if e['diceCount'] is not None else '',
-                e['diceFaces'] if e['diceFaces'] is not None else '',
-                e['diceBonus'] if e['diceBonus'] is not None else '',
-                e['diceAverage'] if e['diceAverage'] is not None else '',
-                e['damageType'] or '',
-                'true' if e['halfDamage'] else 'false',
-                condition_ids.get(e['conditionName'] or '', ''),
-                e['escapeDc'] if e['escapeDc'] is not None else '',
-                e['notes'] or '',
+        for si, st in enumerate(f['steps']):
+            sid = uid('step', b['name'], f['ordinal'], f['name'], si)
+            steps.append([
+                sid, STAMP, STAMP, 0, fid, si, st['precondition'], st['targetFilter'] or '',
+                st['delivery'], st['attackKind'] or '',
+                st['attackBonus'] if st['attackBonus'] is not None else '',
+                'FIXED' if st['attackBonus'] is not None else '',
+                st['reachFeet'] if st['reachFeet'] is not None else '',
+                st['rangeFeet'] if st['rangeFeet'] is not None else '',
+                st['rangeLongFeet'] if st['rangeLongFeet'] is not None else '',
+                st['saveAbility'] or '', st['saveDc'] if st['saveDc'] is not None else '',
+                'FIXED' if st['saveDc'] is not None else '',
             ])
+            for k, e in enumerate(st['effects']):
+                effects.append([
+                    uid('effect', b['name'], f['ordinal'], f['name'], si, k),
+                    STAMP, STAMP, 0, sid, e['outcome'], e['kind'], k,
+                    e['diceCount'] if e['diceCount'] is not None else '',
+                    e['diceFaces'] if e['diceFaces'] is not None else '',
+                    e['diceBonus'] if e['diceBonus'] is not None else '',
+                    e['diceAverage'] if e['diceAverage'] is not None else '',
+                    e['damageType'] or '',
+                    'true' if e['halfDamage'] else 'false',
+                    condition_ids.get(e['conditionName'] or '', ''),
+                    e['escapeDc'] if e['escapeDc'] is not None else '',
+                    e['notes'] or '',
+                ])
 
 print('writing CSVs:')
-write('bestiary-monsters.csv',
-      ['id', 'created_at', 'updated_at', 'version', 'srd_version', 'name', 'stat_block_id'],
-      monsters)
-write('bestiary-stat-blocks.csv',
-      ['id', 'created_at', 'updated_at', 'version', 'size', 'creature_type', 'creature_subtype',
-       'alignment', 'armor_class', 'initiative_bonus', 'hp_average', 'hp_dice_count',
-       'hp_dice_faces', 'hp_dice_bonus', 'can_hover', 'score_strength', 'score_dexterity',
-       'score_constitution', 'score_intelligence', 'score_wisdom', 'score_charisma',
-       'passive_perception', 'languages', 'telepathy_feet', 'challenge_rating',
-       'experience_points', 'proficiency_bonus', 'legendary_action_uses'],
-      stat_blocks)
-write('bestiary-speeds.csv', ['stat_block_id', 'movement_type', 'speed_feet'], speeds)
-write('bestiary-saves.csv', ['stat_block_id', 'ability', 'bonus'], saves)
-write('bestiary-skills.csv', ['stat_block_id', 'skill', 'bonus'], skills)
-write('bestiary-senses.csv', ['stat_block_id', 'sense_type', 'range_feet'], senses)
-write('bestiary-damage-responses.csv', ['stat_block_id', 'damage_type', 'response'], damage)
-write('bestiary-condition-immunities.csv', ['stat_block_id', 'condition_id'], immunities)
-write('bestiary-features.csv',
-      ['id', 'created_at', 'updated_at', 'version', 'name', 'description', 'ordinal',
-       'stat_block_id', 'activation', 'legendary_cost', 'trigger_text', 'ritual', 'uses_reset',
-       'uses_max', 'recharge_min', 'recharge_max', 'range_feet', 'range_long_feet', 'reach_feet',
-       'delivery', 'attack_kind', 'attack_bonus', 'attack_bonus_source', 'save_ability',
-       'save_dc', 'save_dc_source'],
-      features)
-write('bestiary-effects.csv',
-      ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'outcome', 'kind', 'ordinal',
+write(STEPS, 'feature-steps.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'ordinal', 'step_trigger',
+       'target_filter', 'delivery', 'attack_kind', 'attack_bonus', 'attack_bonus_source',
+       'reach_feet', 'range_feet', 'range_long_feet', 'save_ability', 'save_dc', 'save_dc_source'],
+      steps)
+write(COMPONENTS, 'feature-components.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'references_feature_id',
+       'count', 'optional', 'mode', 'choice_group', 'ordinal'],
+      components)
+write(STEPS, 'effects.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'step_id', 'outcome', 'kind', 'ordinal',
        'dice_count', 'dice_faces', 'dice_bonus', 'dice_average', 'damage_type', 'half_damage',
        'condition_id', 'escape_dc', 'notes'],
       effects)
-write('bestiary-gear.csv', ['stat_block_id', 'item_name', 'quantity'], gear)

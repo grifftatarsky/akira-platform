@@ -145,95 +145,140 @@ def parse_uses(name):
 ATTACK = re.compile(
     r'(?P<kind>Melee or Ranged|Melee|Ranged) Attack Roll: \+(?P<bonus>\d+)'
     r'(?:\s*\([^)]*\))?,\s*(?P<reach>[^.]*?)\.')
+
 SAVE = re.compile(
     r'(?P<ability>Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) '
     r'Saving Throw: DC (?P<dc>\d+)(?P<targets>[^.]*)\.')
 
 
-def parse_effects(text):
-    """Damage, conditions and half-damage clauses, per outcome branch."""
+OUTCOMES = [
+    ('Failure by 5 or More', 'FAILURE_BY_5_OR_MORE'),
+    ('Failure or Success', 'SAVE_EITHER'),
+    ('Subsequent Failures', 'SUBSEQUENT_FAILURES'),
+    ('First Failure', 'FIRST_FAILURE'),
+    ('Second Failure', 'SECOND_FAILURE'),
+    ('Hit or Miss', 'HIT_OR_MISS'),
+    ('Failure', 'SAVE_FAILURE'),
+    ('Success', 'SAVE_SUCCESS'),
+    ('Miss', 'MISS'),
+    ('Hit', 'HIT'),
+]
+OUTCOME_RE = re.compile(r'\b(%s):' % '|'.join(label for label, _ in OUTCOMES))
+DELIVERY_RE = re.compile(
+    r'((?:Melee or Ranged|Melee|Ranged) Attack Roll:'
+    r'|(?:Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) Saving Throw:)')
+
+
+def damage_effects(segment, outcome):
+    out = []
+    for m in re.finditer(DICE + r' (\w+) damage', segment):
+        if m.group(3) not in DAMAGE_TYPES:
+            continue
+        count, faces, bonus = split_dice(m.group(2))
+        out.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': count, 'diceFaces': faces,
+                    'diceBonus': bonus, 'diceAverage': int(m.group(1)),
+                    'damageType': m.group(3).upper(), 'halfDamage': False,
+                    'conditionName': None, 'escapeDc': None, 'notes': None})
+    return out
+
+
+def condition_effects(segment, outcome):
+    out = []
+    esc = re.search(r'escape DC (\d+)', segment)
+    for m in re.finditer(r'has the (%s) condition' % '|'.join(CONDITIONS), segment):
+        out.append({'outcome': outcome, 'kind': 'APPLY_CONDITION', 'diceCount': None,
+                    'diceFaces': None, 'diceBonus': None, 'diceAverage': None, 'damageType': None,
+                    'halfDamage': False, 'conditionName': m.group(1),
+                    'escapeDc': int(esc.group(1)) if esc else None, 'notes': None})
+    return out
+
+
+def branch_effects(text):
+    """Effects per labelled outcome branch within one resolution step."""
+    marks = [(m.start(), m.group(1)) for m in OUTCOME_RE.finditer(text)]
     effects = []
-
-    def damages(segment, outcome):
-        found = []
-        for m in re.finditer(DICE + r' (\w+) damage', segment):
-            if m.group(3) not in DAMAGE_TYPES:
-                continue
-            count, faces, bonus = split_dice(m.group(2))
-            found.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': count,
-                          'diceFaces': faces, 'diceBonus': bonus,
-                          'diceAverage': int(m.group(1)), 'damageType': m.group(3).upper(),
-                          'halfDamage': False, 'conditionName': None, 'escapeDc': None,
-                          'notes': None})
-        return found
-
-    def conditions(segment, outcome):
-        found = []
-        for m in re.finditer(r'has the (%s) condition' % '|'.join(CONDITIONS), segment):
-            esc = re.search(r'escape DC (\d+)', segment)
-            found.append({'outcome': outcome, 'kind': 'APPLY_CONDITION', 'diceCount': None,
-                          'diceFaces': None, 'diceBonus': None, 'diceAverage': None,
-                          'damageType': None, 'halfDamage': False,
-                          'conditionName': m.group(1),
-                          'escapeDc': int(esc.group(1)) if esc else None, 'notes': None})
-        return found
-
-    hit = re.search(r'\bHit:(.*?)(?=(?:Failure:|Success:|$))', text, re.S)
-    if hit:
-        effects += damages(hit.group(1), 'HIT') + conditions(hit.group(1), 'HIT')
-    fail = re.search(r'\bFailure:(.*?)(?=(?:Success:|Failure or Success:|$))', text, re.S)
-    if fail:
-        effects += damages(fail.group(1), 'SAVE_FAILURE') + conditions(fail.group(1), 'SAVE_FAILURE')
-    succ = re.search(r'\bSuccess:(.*?)(?=(?:Failure or Success:|$))', text, re.S)
-    if succ:
-        seg = succ.group(1)
-        if re.search(r'Half damage', seg, re.I):
-            effects.append({'outcome': 'SAVE_SUCCESS', 'kind': 'DAMAGE', 'diceCount': None,
+    if not marks:
+        return damage_effects(text, 'ALWAYS') + condition_effects(text, 'ALWAYS')
+    for i, (pos, label) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        seg = text[pos + len(label) + 1:end]
+        outcome = dict(OUTCOMES)[label]
+        if outcome == 'SAVE_SUCCESS' and re.search(r'Half damage', seg, re.I):
+            effects.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': None,
                             'diceFaces': None, 'diceBonus': None, 'diceAverage': None,
                             'damageType': None, 'halfDamage': True, 'conditionName': None,
                             'escapeDc': None, 'notes': None})
-        else:
-            effects += damages(seg, 'SAVE_SUCCESS')
-    # A feature with no branch labels still deals damage sometimes ("regains 5 (1d10)").
-    if not effects and not hit and not fail:
-        effects += damages(text, 'ALWAYS')
+            continue
+        effects += damage_effects(seg, outcome) + condition_effects(seg, outcome)
     return effects
+
+
+def parse_steps(text):
+    """One resolution step per delivery clause.
+
+    The book chains them: "Melee Attack Roll: +5 ... Hit: 8 (1d10 + 3) Slashing
+    damage. If the target is a creature ... Constitution Saving Throw: DC 12.
+    Failure: ..." is an attack and then, on a hit, a save. Each is its own step
+    with its own numbers and its own outcome branches.
+    """
+    marks = [(m.start(), m.group(1)) for m in DELIVERY_RE.finditer(text)]
+    if not marks:
+        return [{'precondition': 'ALWAYS', 'delivery': 'AUTOMATIC', 'attackKind': None,
+                 'attackBonus': None, 'reachFeet': None, 'rangeFeet': None, 'rangeLongFeet': None,
+                 'saveAbility': None, 'saveDc': None, 'targetFilter': None,
+                 'effects': branch_effects(text)}]
+    steps = []
+    for i, (pos, marker) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        seg = text[pos:end]
+        gate = text[marks[i - 1][0]:pos] if i else ''
+        step = {'precondition': 'ALWAYS', 'delivery': 'AUTOMATIC', 'attackKind': None,
+                'attackBonus': None, 'reachFeet': None, 'rangeFeet': None, 'rangeLongFeet': None,
+                'saveAbility': None, 'saveDc': None, 'targetFilter': None, 'effects': []}
+        if i:
+            # A later step only happens because the one before it landed.
+            step['precondition'] = ('ON_PREVIOUS_HIT' if 'Attack Roll:' in marks[i - 1][1]
+                                    else 'ON_PREVIOUS_FAILURE')
+            cond = re.search(r'(If the target[^.]*?),? it (?:is subjected to|must make)', gate)
+            if cond:
+                step['targetFilter'] = cond.group(1).strip()
+        a = ATTACK.match(seg)
+        if a:
+            step['delivery'] = 'ATTACK_ROLL'
+            step['attackKind'] = {'Melee': 'MELEE', 'Ranged': 'RANGED',
+                                  'Melee or Ranged': 'MELEE_OR_RANGED'}[a.group('kind')]
+            step['attackBonus'] = int(a.group('bonus'))
+            reach = re.search(r'reach (\d+) ?ft', a.group('reach'))
+            rng = re.search(r'range (\d+)/(\d+) ?ft', a.group('reach'))
+            if reach:
+                step['reachFeet'] = int(reach.group(1))
+            if rng:
+                step['rangeFeet'], step['rangeLongFeet'] = int(rng.group(1)), int(rng.group(2))
+        else:
+            sv = SAVE.match(seg)
+            if sv:
+                step['delivery'] = 'SAVING_THROW'
+                step['saveAbility'] = sv.group('ability').upper()
+                step['saveDc'] = int(sv.group('dc'))
+                rng = re.search(r'within (\d+) feet', sv.group('targets'))
+                if rng:
+                    step['rangeFeet'] = int(rng.group(1))
+        step['effects'] = branch_effects(seg)
+        steps.append(step)
+    return steps
 
 
 def parse_feature(name, text, activation, ordinal):
     base, reset, uses, rmin, rmax = parse_uses(name)
-    f = {'name': base, 'description': text.strip(), 'ordinal': ordinal,
-         'activation': activation, 'legendaryCost': None, 'usesReset': reset, 'usesMax': uses,
-         'rechargeMin': rmin, 'rechargeMax': rmax, 'delivery': 'AUTOMATIC', 'attackKind': None,
-         'attackBonus': None, 'reachFeet': None, 'rangeFeet': None, 'rangeLongFeet': None,
-         'saveAbility': None, 'saveDc': None, 'triggerText': None, 'effects': []}
-    a = ATTACK.search(text)
-    if a:
-        f['delivery'] = 'ATTACK_ROLL'
-        f['attackKind'] = {'Melee': 'MELEE', 'Ranged': 'RANGED',
-                           'Melee or Ranged': 'MELEE_OR_RANGED'}[a.group('kind')]
-        f['attackBonus'] = int(a.group('bonus'))
-        reach = re.search(r'reach (\d+) ?ft', a.group('reach'))
-        rng = re.search(r'range (\d+)/(\d+) ?ft', a.group('reach'))
-        if reach:
-            f['reachFeet'] = int(reach.group(1))
-        if rng:
-            f['rangeFeet'], f['rangeLongFeet'] = int(rng.group(1)), int(rng.group(2))
-    else:
-        s = SAVE.search(text)
-        if s:
-            f['delivery'] = 'SAVING_THROW'
-            f['saveAbility'] = s.group('ability').upper()
-            f['saveDc'] = int(s.group('dc'))
-            rng = re.search(r'within (\d+) feet', s.group('targets'))
-            if rng:
-                f['rangeFeet'] = int(rng.group(1))
-    if activation == 'REACTION':
-        t = re.search(r'Trigger:([^.]*\.)', text)
-        if t:
-            f['triggerText'] = t.group(1).strip()
-    f['effects'] = parse_effects(text)
-    return f
+    trigger = None
+    body = text
+    t = re.search(r'Trigger:\s*(.*?)(?:\s*Response:\s*(.*))?$', text, re.S)
+    if t and t.group(2):
+        trigger, body = t.group(1).strip(), t.group(2).strip()
+    return {'name': base, 'description': text.strip(), 'ordinal': ordinal,
+            'activation': activation, 'legendaryCost': None, 'usesReset': reset, 'usesMax': uses,
+            'rechargeMin': rmin, 'rechargeMax': rmax, 'triggerText': trigger,
+            'steps': parse_steps(body)}
 
 
 def parse_block(name, body):
@@ -400,6 +445,154 @@ def parse_block(name, body):
     return b
 
 
+# region Multiattack
+#
+# A Multiattack is a sentence that refers to the creature's other actions, so
+# it is resolved after the whole stat block is parsed and its feature names are
+# known. Half the book's Multiattacks are a choice, a replacement or an
+# alternative rather than a fixed list, and flattening those loses the count:
+# "three attacks, using Shortsword or Light Crossbow in any combination" is not
+# three of each.
+
+WORD_NUMBERS = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+                'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10}
+# Spelled out rather than \w+: "The dragon makes three Rend attacks" otherwise
+# matches with "The" as the count, swallowing the sentence, and finditer never
+# retries the real match inside the span it just consumed.
+NUM = '(?:%s)' % '|'.join(WORD_NUMBERS)
+NAME = r"[\w'’-][\w'’ -]*?"
+
+
+def count_of(word):
+    return WORD_NUMBERS.get((word or '').lower())
+
+
+def names_in(text, names):
+    """Feature names appearing in a fragment, in the order the book lists them.
+
+    Longest first, so "Infernal Glaive" doesn't also match as "Glaive"; a matched
+    span is blanked so a shorter name can't be found inside a longer one.
+    """
+    found, remaining = [], text
+    for name in sorted(names, key=len, reverse=True):
+        for m in re.finditer(re.escape(name), remaining):
+            found.append((m.start(), name))
+        remaining = re.sub(re.escape(name), lambda m: '\0' * len(m.group()), remaining)
+    return [n for _, n in sorted(found)]
+
+
+def parse_multiattack(desc, names, self_name='Multiattack'):
+    """(components, unparsed) — the structured plan, and any clause left over."""
+    others = [n for n in names if n != self_name]
+    components, leftover, counter = [], [], [0]
+
+    def add(name, count, mode, at, optional=False, choice=None):
+        components.append({'feature': name, 'count': count, 'mode': mode,
+                           'optional': optional, 'choiceGroup': choice, '_at': at})
+
+    def group():
+        counter[0] += 1
+        return counter[0] - 1
+
+    def plan(fragment, mode, base):
+        """One attack plan: fixed attacks, or a free combination among a set."""
+        used = False
+        # "makes three attacks, using ..." and the Tarrasque's "one Bite attack
+        # and three other attacks, using ..." — the clause doesn't need "makes".
+        m = re.search(r'\b(%s) (?:other )?attacks?, using (.+?) in any combination' % NUM,
+                      fragment)
+        if m:
+            picks = names_in(m.group(2), others)
+            if picks:
+                g = group()
+                for p in picks:
+                    add(p, count_of(m.group(1)), 'CHOICE', base + m.start(), choice=g)
+                used = True
+            # Blanked rather than cut, so the offsets of what follows still line
+            # up with the sentence — components read in the book's order.
+            fragment = fragment[:m.start()] + ' ' * (m.end() - m.start()) + fragment[m.end():]
+        # "makes two Rend attacks", "one Claw attack and one Tail attack",
+        # "two Javelin or Morningstar attacks"
+        for m in re.finditer(r'\b(%s) (%s(?: or %s)?) attacks?\b' % (NUM, NAME, NAME), fragment):
+            n, picks = count_of(m.group(1)), names_in(m.group(2), others)
+            if not n or not picks:
+                continue
+            if len(picks) > 1:
+                g = group()
+                for p in picks:
+                    add(p, n, 'CHOICE' if mode == 'FIXED' else mode, base + m.start(), choice=g)
+            else:
+                add(picks[0], n, mode, base + m.start(),
+                    choice=group() if mode == 'ALTERNATIVE' else None)
+            used = True
+        return used
+
+    def uses(fragment, base):
+        """The "and uses X" tail: a non-attack action folded into the same turn."""
+        m = re.search(r'\b(?:and (?:it )?)?(?:uses|can use) (?:either )?(.+?)'
+                      r'(?: if available)?\.?$', fragment)
+        if not m:
+            return False
+        picks = names_in(m.group(1), others)
+        if not picks:
+            return False
+        optional = bool(re.search(r'can use|if available', fragment))
+        if len(picks) > 1:
+            g = group()
+            for p in picks:
+                add(p, 1, 'CHOICE', base + m.start(), optional=optional, choice=g)
+        else:
+            add(picks[0], 1, 'FIXED', base + m.start(), optional=optional)
+        return True
+
+    at = 0
+    for sentence in re.split(r'(?<=\.)\s+', desc.strip()):
+        at += len(sentence) + 1
+        if not sentence.strip():
+            continue
+        # "It can replace one attack with a use of Spellcasting"
+        m = re.match(r'It can replace (?:the |(%s) |any )?(?:%s )?attacks? with '
+                     r'(?:a use of |an? )?(.+?)\.?$' % (NUM, NAME), sentence)
+        if m:
+            picks = names_in(m.group(2), others)
+            if picks:
+                g = group() if len(picks) > 1 else None
+                for p in picks:
+                    add(p, count_of(m.group(1)) or 1, 'REPLACEMENT', at, optional=True, choice=g)
+                continue
+            leftover.append(sentence)
+            continue
+        # ", or it makes two Hurl Flame attacks" — a whole alternative plan.
+        handled, offset = False, at
+        for i, part in enumerate(re.split(r',? or it (?=makes\b)', sentence)):
+            if plan(part, 'FIXED' if i == 0 else 'ALTERNATIVE', offset):
+                handled = True
+            if uses(part, offset):
+                handled = True
+            offset += len(part)
+        if not handled:
+            leftover.append(sentence)
+    # The book's reading order, which is what `ordinal` renders.
+    components.sort(key=lambda c: c.pop('_at'))
+    return components, leftover
+
+
+def link_multiattacks(block):
+    """Attach components to any feature that refers to the block's own actions."""
+    names = [f['name'] for f in block['features']]
+    for f in block['features']:
+        f['components'] = []
+        if not f['name'].lower().startswith('multiattack'):
+            continue
+        components, unparsed = parse_multiattack(f['description'], names, f['name'])
+        f['components'] = components
+        for clause in unparsed:
+            print('unstructured multiattack: %s: %s' % (block['name'], clause),
+                  file=sys.stderr)
+
+# endregion
+
+
 def main():
     lines = load_lines()
     lines = [l for l in lines if not re.match(r'^\d{1,3} System Reference Document', l)]
@@ -409,12 +602,17 @@ def main():
     blocks = []
     for n, i in enumerate(starts):
         end = starts[n + 1] - 1 if n + 1 < len(starts) else len(lines)
-        blocks.append(parse_block(lines[i - 1].strip(), lines[i:end]))
+        block = parse_block(lines[i - 1].strip(), lines[i:end])
+        link_multiattacks(block)
+        blocks.append(block)
     json.dump(blocks, open(OUT, 'w'), indent=1)
 
     feats = sum(len(b['features']) for b in blocks)
-    effs = sum(len(f['effects']) for b in blocks for f in b['features'])
-    print(f'stat blocks {len(blocks)}  features {feats}  effects {effs}', file=sys.stderr)
+    steps = sum(len(f['steps']) for b in blocks for f in b['features'])
+    effs = sum(len(st['effects']) for b in blocks for f in b['features'] for st in f['steps'])
+    comps = sum(len(f['components']) for b in blocks for f in b['features'])
+    print(f'stat blocks {len(blocks)}  features {feats}  steps {steps}  effects {effs}  '
+          f'components {comps}', file=sys.stderr)
     return blocks
 
 

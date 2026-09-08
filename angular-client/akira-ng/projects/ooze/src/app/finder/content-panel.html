@@ -146,6 +146,9 @@
             @if (attackLine(ft); as line) {
               <p class="font-mono text-[0.7rem] text-accent">{{ line }}</p>
             }
+            @if (planLine(ft); as plan) {
+              <p class="font-mono text-[0.7rem] text-accent">{{ plan }}</p>
+            }
             @if (ft.description) {
               <p class="whitespace-pre-line text-sm/6 text-fg-muted">{{ ft.description }}</p>
             }
