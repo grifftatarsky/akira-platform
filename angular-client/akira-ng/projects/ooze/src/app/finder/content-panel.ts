@@ -20,6 +20,7 @@ import {
 import { CatalogItem, ContentTypeDef, FieldDef, titleCase } from './ooze-content.models';
 import { ContentService } from './content.service';
 import { ClassDetail } from './class-detail';
+import { ClassEditor } from './class-editor';
 import { ItemEditor } from './item-editor';
 import { StatBlockEditor } from './stat-block-editor';
 import {
@@ -39,7 +40,7 @@ import {
  */
 @Component({
   selector: 'ooze-content-panel',
-  imports: [ReactiveFormsModule, ClassDetail, ItemEditor, StatBlockEditor],
+  imports: [ReactiveFormsModule, ClassDetail, ClassEditor, ItemEditor, StatBlockEditor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './content-panel.html',
 })
@@ -91,6 +92,7 @@ export class ContentPanel {
 
   private readonly blockEditor = viewChild(StatBlockEditor);
   private readonly itemEditor = viewChild(ItemEditor);
+  private readonly classEditor = viewChild(ClassEditor);
 
   protected readonly form = signal<FormGroup>(new FormGroup({}));
   protected readonly editing = signal(false);
@@ -165,6 +167,10 @@ export class ContentPanel {
     const item = this.itemEditor();
     if (item) {
       Object.assign(body, item.value());
+    }
+    const vocation = this.classEditor();
+    if (vocation) {
+      Object.assign(body, vocation.value());
     }
     const path = this.def().apiPath;
     const current = this.item();

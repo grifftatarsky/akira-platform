@@ -369,34 +369,3 @@ but it is a cheap step and it makes the `@Cacheable` placement work reusable.
 in item 1, which today are `count(*)` queries against `sticker`. Not a reason to
 do it sooner — the counts are cheap and correctness matters more than speed
 there — but if Redis lands, that is the second thing to move onto it.
-
----
-
-## 8. An editor for the class, the last catalog type that can only be read
-
-**The Multiattack half is done.** `stat-block-editor` now nests a third list
-under each feature — which of the creature's own actions it makes, how many, and
-how that combines — and `stat-block-editor.spec.ts` asserts what it sends,
-including the case the mode exists for. That also gave the `ooze` remote a test
-target it did not have.
-
-**Today.** `class-detail` renders the twenty-row level table, the features and
-the subclass, all read-only. `VocationRequest` carries the header — hit die,
-saves, skills, armor training, proficiencies, starting equipment — and a new
-override takes its levels and features from the class it shadows via
-`AbstractCatalogService.copyOnWrite`. **There is no request path for levels or
-class features at all**, so unlike the Multiattack this needs plumbing before any
-UI.
-
-**What it becomes.** `VocationLevelRequest` and a class-feature request on
-`VocationRequest`, a `VocationMapper` that matches levels on level number and
-features on id the way `StatBlockMapper` matches features and steps, and then a
-grid editor. The level table is the hard part — up to fifteen columns, and the
-class-specific ones are a labelled list whose order is the book's, so the grid
-has to be built from the data rather than declared.
-
-**What makes it urgent.** Not urgent for reading the SRD; urgent the moment
-somebody writes a class that isn't in it. There is no simulator trigger the way
-there was for the Multiattack — a homebrew class is a character sheet concern,
-and characters are not what the simulator runs first.
-

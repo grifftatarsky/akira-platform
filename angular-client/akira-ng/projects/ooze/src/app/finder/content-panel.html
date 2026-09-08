@@ -60,6 +60,10 @@
       <ooze-item-editor [item]="item()" [category]="editedCategory()" />
     }
 
+    @if (usesClassDetail()) {
+      <ooze-class-editor [item]="item()" />
+    }
+
     @for (f of proseFields(); track f.key) {
       <label class="grid gap-1 text-xs font-medium text-fg-subtle">
         {{ f.label }}

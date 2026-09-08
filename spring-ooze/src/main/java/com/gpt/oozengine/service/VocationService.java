@@ -21,6 +21,7 @@ public class VocationService extends AbstractCatalogService<Vocation, VocationRe
   private final VocationRepository vocations;
   private final HiddenContentRepository hidden;
   private final SubclassRepository subclasses;
+  private final VocationMapper levels;
 
   @Override
   protected CatalogRepository<Vocation> repo() {
@@ -43,9 +44,12 @@ public class VocationService extends AbstractCatalogService<Vocation, VocationRe
   }
 
   /**
-   * A class's level table and its features are not in the request — twenty rows
-   * of spell slots and two dozen features are not something an edit form sends
-   * back — so a new override takes its copies from the base class.
+   * Seed a new override from the class it shadows.
+   *
+   * <p>The request may carry levels and features, and then this is overwritten
+   * a moment later by {@link #apply}. It matters for the request that doesn't:
+   * a client renaming a class sends no level table, and without this the
+   * override would be a class with no levels rather than a renamed one.
    */
   @Override
   protected void copyOnWrite(Vocation base, Vocation override) {
@@ -90,6 +94,8 @@ public class VocationService extends AbstractCatalogService<Vocation, VocationRe
     replace(v.getSavingThrowProficiencies(), r.savingThrowProficiencies());
     replace(v.getSkillOptions(), r.skillOptions());
     replace(v.getArmorTraining(), r.armorTraining());
+    levels.applyLevels(VocationMapper.ordered(r.levels()), v);
+    levels.applyFeatures(r.features(), v);
   }
 
   /** Replaces a managed collection in place; clearing and re-adding keeps
