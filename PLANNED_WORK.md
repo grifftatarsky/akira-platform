@@ -372,48 +372,31 @@ there — but if Redis lands, that is the second thing to move onto it.
 
 ---
 
-## 8. Editors for the two catalog types that can only be read
+## 8. An editor for the class, the last catalog type that can only be read
 
-**Today.** Oozengine's finder can author a creature (`stat-block-editor`) and an
-item (`item-editor`). Two things it shows, it cannot change:
+**The Multiattack half is done.** `stat-block-editor` now nests a third list
+under each feature — which of the creature's own actions it makes, how many, and
+how that combines — and `stat-block-editor.spec.ts` asserts what it sends,
+including the case the mode exists for. That also gave the `ooze` remote a test
+target it did not have.
 
-* **A Multiattack's components.** `content-panel` prints the plan — "2 × Tentacle
-  + any of Consume Memories, Dominate Mind (if available)" — and there is no
-  control for it. The wire underneath is finished and tested: `FeatureRequest`
-  carries `components`, `FeatureComponentRequest` carries `mode` and
-  `choiceGroup`, and `StatBlockMapper.syncComponents` resolves each target
-  against the features of the same save so a copy-on-write override links to its
-  own copies rather than the shared creature's.
-  `MultiattackTests.componentsRoundTripThroughTheRequest` asserts exactly the
-  payload an editor would send. **This one is UI only.**
-* **A class.** `class-detail` renders the twenty-row level table, the features
-  and the subclass, all read-only. `VocationRequest` carries the header — hit
-  die, saves, skills, armor training, proficiencies, starting equipment — and a
-  new override takes its levels and features from the class it shadows via
-  `AbstractCatalogService.copyOnWrite`. **There is no request path for levels or
-  class features at all**, so this one needs plumbing before UI.
+**Today.** `class-detail` renders the twenty-row level table, the features and
+the subclass, all read-only. `VocationRequest` carries the header — hit die,
+saves, skills, armor training, proficiencies, starting equipment — and a new
+override takes its levels and features from the class it shadows via
+`AbstractCatalogService.copyOnWrite`. **There is no request path for levels or
+class features at all**, so unlike the Multiattack this needs plumbing before any
+UI.
 
-**What it becomes.** For the Multiattack: a component list inside each feature in
-`stat-block-editor`, offering the block's own features as targets, with the mode,
-the count and the choice group. The stat block editor already nests steps inside
-features and effects inside steps; components are a third list at the feature
-level, and the panel already merges the editor's `value()` into the save.
-
-For classes: `VocationLevelRequest` and a class-feature request on
+**What it becomes.** `VocationLevelRequest` and a class-feature request on
 `VocationRequest`, a `VocationMapper` that matches levels on level number and
 features on id the way `StatBlockMapper` matches features and steps, and then a
 grid editor. The level table is the hard part — up to fifteen columns, and the
-class-specific ones are a labelled list whose order is the book's.
+class-specific ones are a labelled list whose order is the book's, so the grid
+has to be built from the data rather than declared.
 
-**What makes it urgent.** Neither is urgent for reading the SRD, and both are
-urgent the moment somebody builds a creature or a class that isn't in it. The
-sharper trigger is the simulator: a battle plan picks *which* attacks a
-Multiattack makes, so a DM's homebrew monster whose Multiattack cannot be
-authored is a monster the simulator cannot run. That makes the component editor
-the one to do first, and it is also the cheap one — the plumbing is done and
-tested, so it is a list control and a save.
-
-**Do the Multiattack one first, and separately.** They share no code, the class
-editor is several times the size, and shipping the small one proves the pattern
-for nesting a third list in the stat block editor.
+**What makes it urgent.** Not urgent for reading the SRD; urgent the moment
+somebody writes a class that isn't in it. There is no simulator trigger the way
+there was for the Multiattack — a homebrew class is a character sheet concern,
+and characters are not what the simulator runs first.
 
