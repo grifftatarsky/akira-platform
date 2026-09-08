@@ -1,6 +1,6 @@
 # SRD load data
 
-The CSVs the `029`-`034` changesets load, and the scripts that produce them from
+The CSVs the `029`-`036` changesets load, and the scripts that produce them from
 the SRD 5.2.1 PDF. `srdtext.py` is the shared reader every parser uses; the three
 ways it gets text out of the book, and when each one is right, are documented at
 the top of it.
@@ -18,7 +18,7 @@ Liquibase's checksum** — correct data in a new changeset instead.
 curl -o srd521.pdf https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf
 ```
 
-## Bestiary — `029`, `030`
+## Bestiary — `029`
 
 ```
 for p in $(seq 258 364); do
@@ -45,13 +45,14 @@ and the result is unparseable.
 | `has the X condition` | 222 | 210 |
 | Skills / Senses / Gear / Immunities lines | all | all |
 
-A feature resolves as an ordered list of `feature_steps`, so a chained
+A feature resolves as an ordered list of `feature_steps` (created in `027` with
+the rest of the rules model), so a chained
 attack-then-save — the Cockatrice's bite, which hits and *then* asks for a
 Constitution save — keeps both rolls rather than collapsing to the first. Every
 feature also keeps the book's sentence in `description`, and an effect keeps
 anything the columns couldn't hold in `notes`.
 
-### Multiattack (`032`)
+### Multiattack
 
 178 creatures have one, and it is the action most of them take every turn. It
 parses into `feature_components`, which point at the creature's other features:
@@ -123,6 +124,36 @@ items in "Maul or Warhammer" but sits inside one in "Map or Scroll Case".
 Gear lines when it was written and now links 98. The two that remain are a plain
 "Wand", which is not an item in the book: Magic Items A–Z has thirteen specific
 wands and no generic one.
+
+## Species — `035`
+
+```
+python3 parse-species.py    # -> species.json
+python3 emit-rules.py       # -> 033/, 034/, 035/, 036/
+```
+
+Nine species on pp. 83-86: 33 named traits, plus 8 options nested in two of
+them. The book ranks a trait above an option by the type it sets them in — a
+trait's name is bold *and* italic, an option's is bold alone — and that is the
+only signal, so `srdtext` reports both. The options join their parent by a
+CHOICE component: a Goliath takes one giant ancestry of six, not all six.
+
+## Gameplay Toolbox — `036`
+
+```
+python3 parse-toolbox.py    # -> toolbox.json
+python3 emit-rules.py
+```
+
+Most of pp. 192-208 is procedure — budgeting an encounter, building a background
+— and is not catalog content. Four things in it are:
+
+| | count | lands in |
+|---|---|---|
+| sample poisons | 14 | `items`, category POISON, priced per dose |
+| example traps | 8 | `traps` |
+| magical contagions | 3 | `glossary_entries`, category CONTAGION |
+| environmental effects | 9 | `glossary_entries`, category ENVIRONMENT |
 
 ## Rules Glossary — `033`
 

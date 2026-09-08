@@ -59,23 +59,12 @@ databaseChangeLog:
               - column: {name: recharge_max, type: INT}
               # reach
               - column: {name: range_type, type: VARCHAR(16)}
-              - column: {name: range_feet, type: INT}
-              - column: {name: range_long_feet, type: INT}
-              - column: {name: reach_feet, type: INT}
               - column: {name: target_kind, type: VARCHAR(24)}
               - column: {name: target_count, type: INT}
               - column: {name: target_filter, type: TEXT}
               - column: {name: area_shape, type: VARCHAR(16)}
               - column: {name: area_size_feet, type: INT}
               - column: {name: area_height_feet, type: INT}
-              # landing
-              - column: {name: delivery, type: VARCHAR(20), defaultValue: "AUTOMATIC", constraints: {nullable: false}}
-              - column: {name: attack_kind, type: VARCHAR(20)}
-              - column: {name: attack_bonus, type: INT}
-              - column: {name: attack_bonus_source, type: VARCHAR(24)}
-              - column: {name: save_ability, type: VARCHAR(16)}
-              - column: {name: save_dc, type: INT}
-              - column: {name: save_dc_source, type: VARCHAR(24)}
         - createIndex: {tableName: features, indexName: idx_features_stat_block, columns: [{column: {name: stat_block_id}}]}
         - createIndex: {tableName: features, indexName: idx_features_item, columns: [{column: {name: item_id}}]}
         - createIndex: {tableName: features, indexName: idx_features_spell, columns: [{column: {name: spell_id}}]}
@@ -99,6 +88,46 @@ databaseChangeLog:
             rollback: ALTER TABLE features DROP CONSTRAINT ck_features_single_owner
 
   - changeSet:
+      id: 027-feature-steps-create
+      author: oozengine
+      # One roll the book asks for. A feature can ask for two — the Cockatrice
+      # bites, and only on a hit does its victim make a Constitution save — so
+      # the roll is a row under the feature rather than columns on it.
+      changes:
+        - createTable:
+            tableName: feature_steps
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: step_trigger, type: VARCHAR(24), defaultValue: "ALWAYS", constraints: {nullable: false}}
+              - column: {name: target_filter, type: TEXT}
+              - column: {name: delivery, type: VARCHAR(20), defaultValue: "AUTOMATIC", constraints: {nullable: false}}
+              - column: {name: attack_kind, type: VARCHAR(20)}
+              - column: {name: attack_bonus, type: INT}
+              - column: {name: attack_bonus_source, type: VARCHAR(24)}
+              - column: {name: reach_feet, type: INT}
+              - column: {name: range_feet, type: INT}
+              - column: {name: range_long_feet, type: INT}
+              - column: {name: save_ability, type: VARCHAR(16)}
+              - column: {name: save_dc, type: INT}
+              - column: {name: save_dc_source, type: VARCHAR(24)}
+        - addForeignKeyConstraint:
+            constraintName: fk_feature_steps_feature
+            baseTableName: feature_steps
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            tableName: feature_steps
+            indexName: idx_feature_steps_feature
+            columns: [{column: {name: feature_id}}, {column: {name: ordinal}}]
+
+  - changeSet:
       id: 027-effects-create
       author: oozengine
       changes:
@@ -109,7 +138,7 @@ databaseChangeLog:
               - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
               - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
               - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
-              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: step_id, type: UUID, constraints: {nullable: false}}
               - column: {name: outcome, type: VARCHAR(20), defaultValue: "ALWAYS", constraints: {nullable: false}}
               - column: {name: kind, type: VARCHAR(28), constraints: {nullable: false}}
               - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
@@ -128,10 +157,10 @@ databaseChangeLog:
               - column: {name: movement_feet, type: INT}
               - column: {name: notes, type: TEXT}
         - addForeignKeyConstraint:
-            constraintName: fk_effects_feature
+            constraintName: fk_effects_step
             baseTableName: effects
-            baseColumnNames: feature_id
-            referencedTableName: features
+            baseColumnNames: step_id
+            referencedTableName: feature_steps
             referencedColumnNames: id
             onDelete: CASCADE
         - addForeignKeyConstraint:
@@ -141,7 +170,7 @@ databaseChangeLog:
             referencedTableName: conditions
             referencedColumnNames: id
             onDelete: SET NULL
-        - createIndex: {tableName: effects, indexName: idx_effects_feature, columns: [{column: {name: feature_id}}]}
+        - createIndex: {tableName: effects, indexName: idx_effects_step, columns: [{column: {name: step_id}}]}
 
   - changeSet:
       id: 027-feature-components-create
@@ -158,6 +187,12 @@ databaseChangeLog:
               - column: {name: references_feature_id, type: UUID, constraints: {nullable: false}}
               - column: {name: count, type: INT, defaultValueNumeric: 1, constraints: {nullable: false}}
               - column: {name: optional, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+              # Half the book's Multiattacks are a choice, a replacement or an
+              # alternative rather than a fixed list. Without the mode, "three
+              # attacks, using Shortsword or Light Crossbow in any combination"
+              # stores the same rows as three of each — which is six attacks.
+              - column: {name: mode, type: VARCHAR(16), defaultValue: "FIXED", constraints: {nullable: false}}
+              - column: {name: choice_group, type: INT}
               - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
         - addForeignKeyConstraint:
             constraintName: fk_feature_components_owner

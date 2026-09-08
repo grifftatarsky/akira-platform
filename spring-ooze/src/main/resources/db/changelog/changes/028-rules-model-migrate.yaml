@@ -149,9 +149,9 @@ databaseChangeLog:
         - sql:
             sql: |
               INSERT INTO features (id, created_at, updated_at, version, name, description,
-                                    ordinal, item_id, activation, uses_reset, delivery, ritual)
+                                    ordinal, item_id, activation, uses_reset, ritual)
               SELECT gen_random_uuid(), now(), now(), 0, 'Properties', properties,
-                     0, id, 'PASSIVE', 'AT_WILL', 'AUTOMATIC', false
+                     0, id, 'PASSIVE', 'AT_WILL', false
               FROM items
               WHERE properties IS NOT NULL AND properties <> '';
 
@@ -172,9 +172,9 @@ databaseChangeLog:
               WHERE speed ~ '[0-9]';
 
               INSERT INTO features (id, created_at, updated_at, version, name, description,
-                                    ordinal, species_id, activation, uses_reset, delivery, ritual)
+                                    ordinal, species_id, activation, uses_reset, ritual)
               SELECT gen_random_uuid(), now(), now(), 0, name || ' Traits', traits,
-                     0, id, 'PASSIVE', 'AT_WILL', 'AUTOMATIC', false
+                     0, id, 'PASSIVE', 'AT_WILL', false
               FROM species
               WHERE traits IS NOT NULL AND traits <> '';
 
@@ -310,15 +310,15 @@ databaseChangeLog:
               WHERE s.feet IS NOT NULL;
 
               INSERT INTO features (id, created_at, updated_at, version, name, description,
-                                    ordinal, stat_block_id, activation, uses_reset, delivery, ritual)
+                                    ordinal, stat_block_id, activation, uses_reset, ritual)
               SELECT gen_random_uuid(), now(), now(), 0, 'Traits', m.traits,
-                     0, m.stat_block_id, 'PASSIVE', 'AT_WILL', 'AUTOMATIC', false
+                     0, m.stat_block_id, 'PASSIVE', 'AT_WILL', false
               FROM monsters m WHERE m.traits IS NOT NULL AND m.traits <> '';
 
               INSERT INTO features (id, created_at, updated_at, version, name, description,
-                                    ordinal, stat_block_id, activation, uses_reset, delivery, ritual)
+                                    ordinal, stat_block_id, activation, uses_reset, ritual)
               SELECT gen_random_uuid(), now(), now(), 0, 'Actions', m.actions,
-                     1, m.stat_block_id, 'ACTION', 'AT_WILL', 'AUTOMATIC', false
+                     1, m.stat_block_id, 'ACTION', 'AT_WILL', false
               FROM monsters m WHERE m.actions IS NOT NULL AND m.actions <> '';
 
   - changeSet:

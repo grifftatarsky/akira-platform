@@ -11,11 +11,6 @@ import os
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# 029's files are published and immutable, so a later model's data goes in its
-# own directory rather than rewriting files 029 checksums. 030 is the step
-# model; 032 is the Multiattack components.
-STEPS = os.path.join(HERE, '030')
-COMPONENTS = os.path.join(HERE, '032')
 NS = uuid.UUID('5bd10000-0000-4000-a000-000000000000')  # "SRD" namespace for this import
 # Liquibase's loadData DATE parser wants ISO_LOCAL_DATE_TIME; a trailing Z
 # makes it give up and inline the value as a bare SQL literal.
@@ -147,16 +142,39 @@ for b in blocks:
                 ])
 
 print('writing CSVs:')
-write(STEPS, 'feature-steps.csv',
+write(HERE, 'bestiary-monsters.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'srd_version', 'name', 'stat_block_id'],
+      monsters)
+write(HERE, 'bestiary-stat-blocks.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'size', 'creature_type', 'creature_subtype',
+       'alignment', 'armor_class', 'initiative_bonus', 'hp_average', 'hp_dice_count',
+       'hp_dice_faces', 'hp_dice_bonus', 'can_hover', 'score_strength', 'score_dexterity',
+       'score_constitution', 'score_intelligence', 'score_wisdom', 'score_charisma',
+       'passive_perception', 'languages', 'telepathy_feet', 'challenge_rating',
+       'experience_points', 'proficiency_bonus', 'legendary_action_uses'],
+      stat_blocks)
+write(HERE, 'bestiary-speeds.csv', ['stat_block_id', 'movement_type', 'speed_feet'], speeds)
+write(HERE, 'bestiary-saves.csv', ['stat_block_id', 'ability', 'bonus'], saves)
+write(HERE, 'bestiary-skills.csv', ['stat_block_id', 'skill', 'bonus'], skills)
+write(HERE, 'bestiary-senses.csv', ['stat_block_id', 'sense_type', 'range_feet'], senses)
+write(HERE, 'bestiary-damage-responses.csv', ['stat_block_id', 'damage_type', 'response'], damage)
+write(HERE, 'bestiary-condition-immunities.csv', ['stat_block_id', 'condition_id'], immunities)
+write(HERE, 'bestiary-features.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'name', 'description', 'ordinal',
+       'stat_block_id', 'activation', 'legendary_cost', 'trigger_text', 'ritual', 'uses_reset',
+       'uses_max', 'recharge_min', 'recharge_max'],
+      features)
+write(HERE, 'bestiary-gear.csv', ['stat_block_id', 'item_name', 'quantity'], gear)
+write(HERE, 'bestiary-feature-steps.csv',
       ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'ordinal', 'step_trigger',
        'target_filter', 'delivery', 'attack_kind', 'attack_bonus', 'attack_bonus_source',
        'reach_feet', 'range_feet', 'range_long_feet', 'save_ability', 'save_dc', 'save_dc_source'],
       steps)
-write(COMPONENTS, 'feature-components.csv',
+write(HERE, 'bestiary-feature-components.csv',
       ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'references_feature_id',
        'count', 'optional', 'mode', 'choice_group', 'ordinal'],
       components)
-write(STEPS, 'effects.csv',
+write(HERE, 'bestiary-effects.csv',
       ['id', 'created_at', 'updated_at', 'version', 'step_id', 'outcome', 'kind', 'ordinal',
        'dice_count', 'dice_faces', 'dice_bonus', 'dice_average', 'damage_type', 'half_damage',
        'condition_id', 'escape_dc', 'notes'],

@@ -92,13 +92,7 @@ databaseChangeLog:
       file: db/changelog/changes/029-seed-bestiary.yaml
       relativeToChangelogFile: false
   - include:
-      file: db/changelog/changes/030-feature-steps.yaml
-      relativeToChangelogFile: false
-  - include:
       file: db/changelog/changes/031-seed-items.yaml
-      relativeToChangelogFile: false
-  - include:
-      file: db/changelog/changes/032-multiattack-components.yaml
       relativeToChangelogFile: false
   - include:
       file: db/changelog/changes/033-rules-glossary.yaml

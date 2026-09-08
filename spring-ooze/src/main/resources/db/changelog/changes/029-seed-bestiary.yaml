@@ -1,7 +1,8 @@
 databaseChangeLog:
   # ==========================================================================
-  # 029 — the SRD 5.2.1 bestiary: 330 stat blocks, 1,323 features, 1,003
-  # effects, structured rather than transcribed as prose.
+  # 029 — the SRD 5.2.1 bestiary: 330 stat blocks, 1,323 features resolving in
+  # 1,337 steps to 1,013 effects, and the 324 components of 177 Multiattacks —
+  # structured rather than transcribed as prose.
   #
   # Loaded from CSV rather than written as inserts. At this volume the YAML
   # would be several megabytes of boilerplate and unreviewable; a CSV is the
@@ -16,9 +17,9 @@ databaseChangeLog:
   # NULL is the null placeholder: an empty CSV cell loads as an empty string,
   # which for an enum column is a value Hibernate cannot map back.
   #
-  # Not included: Gear. It references 21 items the catalog doesn't hold yet, and
-  # stat_block_gear.item_id is a real foreign key. 029-link-bestiary-gear joins
-  # on name for whatever exists, and re-runs as new items land.
+  # Gear is staged rather than linked here: it names items the equipment import
+  # brings in 031, and stat_block_gear.item_id is a real foreign key.
+  # 029-link-bestiary-gear links whatever exists, and 031 re-runs the join.
   # ==========================================================================
 
   - changeSet:
@@ -177,13 +178,36 @@ databaseChangeLog:
               - column: {name: uses_max, type: NUMERIC}
               - column: {name: recharge_min, type: NUMERIC}
               - column: {name: recharge_max, type: NUMERIC}
-              - column: {name: range_feet, type: NUMERIC}
-              - column: {name: range_long_feet, type: NUMERIC}
-              - column: {name: reach_feet, type: NUMERIC}
+
+
+  - changeSet:
+      id: 029-load-feature-steps
+      author: oozengine
+      # One row per roll the book asks for, in the order it asks: the Cockatrice
+      # bites, and only on a hit does its victim make a Constitution save.
+      changes:
+        - loadData:
+            tableName: feature_steps
+            file: db/changelog/data/bestiary-feature-steps.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: feature_id, type: UUID}
+              - column: {name: ordinal, type: NUMERIC}
+              - column: {name: step_trigger, type: STRING}
+              - column: {name: target_filter, type: STRING}
               - column: {name: delivery, type: STRING}
               - column: {name: attack_kind, type: STRING}
               - column: {name: attack_bonus, type: NUMERIC}
               - column: {name: attack_bonus_source, type: STRING}
+              - column: {name: reach_feet, type: NUMERIC}
+              - column: {name: range_feet, type: NUMERIC}
+              - column: {name: range_long_feet, type: NUMERIC}
               - column: {name: save_ability, type: STRING}
               - column: {name: save_dc, type: NUMERIC}
               - column: {name: save_dc_source, type: STRING}
@@ -202,7 +226,7 @@ databaseChangeLog:
               - column: {name: created_at, type: DATE}
               - column: {name: updated_at, type: DATE}
               - column: {name: version, type: NUMERIC}
-              - column: {name: feature_id, type: UUID}
+              - column: {name: step_id, type: UUID}
               - column: {name: outcome, type: STRING}
               - column: {name: kind, type: STRING}
               - column: {name: ordinal, type: NUMERIC}
@@ -215,6 +239,31 @@ databaseChangeLog:
               - column: {name: condition_id, type: UUID}
               - column: {name: escape_dc, type: NUMERIC}
               - column: {name: notes, type: STRING}
+
+  - changeSet:
+      id: 029-load-feature-components
+      author: oozengine
+      # A Multiattack refers to the creature's other actions rather than
+      # restating them, so it loads after every feature exists.
+      changes:
+        - loadData:
+            tableName: feature_components
+            file: db/changelog/data/bestiary-feature-components.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: feature_id, type: UUID}
+              - column: {name: references_feature_id, type: UUID}
+              - column: {name: count, type: NUMERIC}
+              - column: {name: optional, type: BOOLEAN}
+              - column: {name: mode, type: STRING}
+              - column: {name: choice_group, type: NUMERIC}
+              - column: {name: ordinal, type: NUMERIC}
 
   - changeSet:
       id: 029-link-bestiary-gear
