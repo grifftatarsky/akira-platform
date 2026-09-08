@@ -7,8 +7,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
-import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import lombok.Getter;
@@ -22,10 +24,11 @@ import lombok.Setter;
  * {@code {1: 4, 2: 3, 3: 2}} is directly the resource pool the simulator spends.
  *
  * <p>{@link #classValues} is the deliberate escape hatch. Every class table has
- * columns nobody else has — Rages, Sneak Attack, Ki Points, Martial Arts die —
- * and inventing a column per class would mean a migration every time a class is
- * added, including homebrew ones. A label/value map keeps the level table
- * faithful without pretending those columns are shared.
+ * columns nobody else has — Rages, Sneak Attack, Focus Points, Martial Arts die
+ * — and inventing a column per class would mean a migration every time a class
+ * is added, including homebrew ones. A labelled list keeps the level table
+ * faithful without pretending those columns are shared, and keeps them in the
+ * order the book prints them.
  */
 @Entity
 @Table(name = "vocation_levels")
@@ -39,6 +42,15 @@ public class VocationLevel extends BaseEntity {
 
   @Column(name = "proficiency_bonus", nullable = false)
   private int proficiencyBonus;
+
+  /**
+   * The Class Features cell as the book prints it — "Action Surge (two uses)",
+   * "Subclass feature", "—". The features themselves are rows of their own, but
+   * this cell says things they don't: which use of an escalating feature this
+   * level grants, and where a subclass slots in.
+   */
+  @Column(name = "feature_summary")
+  private String featureSummary;
 
   @Column(name = "cantrips_known")
   private Integer cantripsKnown;
@@ -58,7 +70,6 @@ public class VocationLevel extends BaseEntity {
   @CollectionTable(
       name = "vocation_level_values",
       joinColumns = @JoinColumn(name = "vocation_level_id"))
-  @MapKeyColumn(name = "label", length = 64)
-  @Column(name = "value", nullable = false, length = 32)
-  private Map<String, String> classValues = new LinkedHashMap<>();
+  @OrderColumn(name = "ordinal")
+  private List<ClassValue> classValues = new ArrayList<>();
 }

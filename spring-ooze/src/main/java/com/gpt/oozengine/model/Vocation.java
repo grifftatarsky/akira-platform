@@ -1,6 +1,7 @@
 package com.gpt.oozengine.model;
 
 import com.gpt.oozengine.constant.rules.Ability;
+import com.gpt.oozengine.constant.rules.ArmorCategory;
 import com.gpt.oozengine.constant.rules.CasterProgression;
 import com.gpt.oozengine.constant.rules.Skill;
 import com.gpt.oozengine.model.mechanics.Feature;
@@ -58,6 +59,32 @@ public class Vocation extends CatalogContent {
 
   @Column(name = "skill_choices")
   private Integer skillChoices;
+
+  /**
+   * Which armor the class is trained in. Structured rather than left as the
+   * book's sentence because it decides whether a wearer has Disadvantage on
+   * every Strength and Dexterity D20 test — a Monk's empty set is a rule, not a
+   * missing value.
+   */
+  @ElementCollection(fetch = FetchType.LAZY)
+  @CollectionTable(name = "vocation_armor_training", joinColumns = @JoinColumn(name = "vocation_id"))
+  @Enumerated(EnumType.STRING)
+  @Column(name = "armor_category", nullable = false, length = 16)
+  private Set<ArmorCategory> armorTraining = EnumSet.noneOf(ArmorCategory.class);
+
+  /**
+   * Kept as the book's sentence: the Rogue's is "Simple weapons and Martial
+   * weapons that have the Finesse or Light property", which is a rule about
+   * properties rather than a list of categories.
+   */
+  @Column(name = "weapon_proficiencies")
+  private String weaponProficiencies;
+
+  @Column(name = "tool_proficiencies")
+  private String toolProficiencies;
+
+  @Column(name = "starting_equipment", columnDefinition = "text")
+  private String startingEquipment;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "caster_progression", length = 16)

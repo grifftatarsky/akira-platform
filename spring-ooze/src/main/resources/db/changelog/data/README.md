@@ -1,7 +1,9 @@
 # SRD load data
 
-The CSVs `029`, `030` and `031` load, and the scripts that produce them from the
-SRD 5.2.1 PDF.
+The CSVs the `029`-`034` changesets load, and the scripts that produce them from
+the SRD 5.2.1 PDF. `srdtext.py` is the shared reader every parser uses; the three
+ways it gets text out of the book, and when each one is right, are documented at
+the top of it.
 
 Keep the scripts with the data. The CSVs are generated, and the only way to
 review a correction to one of them — or to re-derive the lot when the book is
@@ -122,6 +124,63 @@ Gear lines when it was written and now links 98. The two that remain are a plain
 "Wand", which is not an item in the book: Magic Items A–Z has thirteen specific
 wands and no generic one.
 
+## Rules Glossary — `033`
+
+```
+python3 parse-glossary.py   # -> glossary.json
+python3 emit-rules.py       # -> 033/*.csv and 034/*.csv
+```
+
+155 entries on pp. 176-191, found by font like everything else with prose. 140
+become glossary rows; the other 15 are the [Condition] entries, which already
+have rows of their own because an effect points at a condition by id — so those
+refresh `conditions.description` on a name join rather than storing the same
+rule in two tables that could then drift.
+
+The book's other bracketed tags become `glossary_entries.category`: 12 [Action],
+6 [Area of Effect], 5 [Hazard], 3 [Attitude], and 114 plain terms.
+
+## Classes — `034`
+
+```
+python3 parse-classes.py    # -> classes.json
+python3 emit-rules.py       # -> 034/*.csv
+```
+
+Twelve classes on pp. 28-82, each printed identically: a Core Traits table, a
+twenty-row Features table, `Level N: Name` features, one subclass, and — for the
+eight casters — a spell list.
+
+| | count |
+|---|---|
+| classes | 12 |
+| level rows | 240 |
+| class features | 174 |
+| subclass features | 58 |
+| subclasses | 12 |
+| spell/class links | 875 |
+
+Three things the rendered text can't give you, and the positioned cells can:
+
+* the Class Features cell **wraps**, so a row can't be split on whitespace;
+* a class column can hold a value with a space in it (the Monk's `+30 ft.`);
+* a column label can wrap onto two lines — `Rage` above `Damage` — so the label
+  is read by joining the header line with whatever sits directly above it.
+
+The columns no other class has (Rages, Sneak Attack, Focus Points, Martial Arts)
+are an ordered list of label/value pairs rather than a column per class, which
+would mean a migration every time a class is added, homebrew included.
+
+### Coverage, measured against the book
+
+Every feature named in a class's Features table resolves to a parsed feature —
+that is the check that the feature extraction is complete, and it passes for all
+twelve once the book's own parentheticals are stripped (`Action Surge (two
+uses)` is level 17's cell for the feature defined at level 2; the cell is kept
+in `vocation_levels.feature_summary`, which is the only place that escalation is
+recorded). All 875 spell names on the eight class lists resolve to one of the
+339 seeded spells.
+
 ### Known gaps
 
 * **Weapons, armor and most tack carry no `description`.** That is the book:
@@ -134,6 +193,13 @@ wands and no generic one.
   would be interpretation rather than transcription. The prose is kept whole.
 * **Lifestyle expenses, food, lodging, hirelings and spellcasting services** are
   prices for services, not things you can own, and have no item rows.
+* **A class's starting equipment is prose.** "Choose A or B: (A) Greataxe, 4
+  Handaxes, Explorer's Pack, and 15 GP; or (B) 75 GP" is a choice between
+  bundles, which needs an equipment-choice model rather than an item list.
+* **Weapon proficiency is prose too.** The Rogue's is "Simple weapons and
+  Martial weapons that have the Finesse or Light property" — a rule about
+  properties, not a list. Armor training *is* structured, because those four
+  values map onto `ArmorCategory` exactly.
 * **Four of a tool's Craft entries name a category, not a row** ("Any Melee
   weapon (except Club, Greatclub, Quarterstaff, and Whip)", "Heavy armor"), so
   they stay in the description and link to nothing.

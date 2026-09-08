@@ -41,6 +41,7 @@ public class GlossaryEntryService
   @Override
   protected void apply(GlossaryEntryRequest r, GlossaryEntry g) {
     g.setName(r.name());
+    g.setCategory(r.category());
     g.setDescription(r.description());
   }
 

@@ -130,7 +130,13 @@
       }
     }
 
-    @if (features().length) {
+    @if (usesClassDetail()) {
+      <div class="border-t border-rule pt-3">
+        <ooze-class-detail [item]="it" />
+      </div>
+    }
+
+    @if (!usesClassDetail() && features().length) {
       <div class="grid gap-2 border-t border-rule pt-3">
         @for (ft of features(); track ft.id) {
           <div>

@@ -110,6 +110,9 @@ export interface FeatureView {
   readonly rechargeMax: number | null;
   readonly areaShape: string | null;
   readonly areaSizeFeet: number | null;
+  /** Set on class features: the level that grants it, and whose subclass. */
+  readonly vocationLevel?: number | null;
+  readonly subclassId?: string | null;
   /** One per roll the book asks for; a chained attack-then-save is two. */
   readonly steps: readonly FeatureStepView[];
   /** Non-empty only on a Multiattack, which names the creature's own actions. */

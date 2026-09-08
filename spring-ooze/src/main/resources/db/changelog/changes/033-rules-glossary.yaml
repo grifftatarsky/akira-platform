@@ -1,0 +1,82 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 033 — the SRD 5.2.1 Rules Glossary: 155 entries, of which we held 24.
+  #
+  # 140 of them become glossary rows. The other 15 are the conditions, which
+  # already have rows of their own because an effect points at one by id — so
+  # this refreshes their text from the book rather than storing the same rule
+  # in two tables where the two could drift.
+  # ==========================================================================
+
+  - changeSet:
+      id: 033-glossary-category
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: glossary_entries
+            columns:
+              # The book's own bracketed tag — [Action], [Hazard], [Area of
+              # Effect], [Attitude] — null for the 114 plain entries.
+              - column: {name: category, type: VARCHAR(24)}
+
+  - changeSet:
+      id: 033-clear-seeded-glossary
+      author: oozengine
+      # 013's two dozen are hand-written summaries; the import brings the book's
+      # own definitions, under ids derived from the term.
+      changes:
+        - sql:
+            sql: |
+              DELETE FROM hidden_content WHERE content_type = 'GLOSSARY' AND base_id IN (
+                SELECT id FROM glossary_entries WHERE owner_id IS NULL);
+              UPDATE glossary_entries SET overrides_id = NULL WHERE overrides_id IN (
+                SELECT id FROM glossary_entries WHERE owner_id IS NULL);
+              DELETE FROM glossary_entries WHERE owner_id IS NULL;
+
+  - changeSet:
+      id: 033-load-glossary
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: glossary_entries
+            file: db/changelog/data/033/glossary-entries.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: category, type: STRING}
+              - column: {name: description, type: STRING}
+
+  - changeSet:
+      id: 033-refresh-condition-text
+      author: oozengine
+      # Matched on name so the ids 012 fixed — and every effect that points at
+      # one — survive. Only base rows: a DM's edited copy of a condition is
+      # theirs and is left alone.
+      changes:
+        - createTable:
+            tableName: condition_text_staging
+            columns:
+              - column: {name: name, type: VARCHAR(255)}
+              - column: {name: description, type: TEXT}
+        - loadData:
+            tableName: condition_text_staging
+            file: db/changelog/data/033/condition-text.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: name, type: STRING}
+              - column: {name: description, type: STRING}
+        - sql:
+            sql: |
+              UPDATE conditions c
+              SET description = s.description, updated_at = now()
+              FROM condition_text_staging s
+              WHERE c.owner_id IS NULL AND c.name = s.name;
+        - dropTable: {tableName: condition_text_staging}

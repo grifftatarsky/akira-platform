@@ -151,6 +151,10 @@ const ITEM_CATEGORY_OPTIONS: readonly FieldOption[] = [
 
 const TOOL_ABILITY_OPTIONS = optional(ABILITY_OPTIONS);
 
+const GLOSSARY_CATEGORY_OPTIONS = optional(
+  enumOptions('ACTION', 'HAZARD', 'AREA_OF_EFFECT', 'ATTITUDE'),
+);
+
 const RARITY_OPTIONS = optional(
   enumOptions('COMMON', 'UNCOMMON', 'RARE', 'VERY_RARE', 'LEGENDARY', 'ARTIFACT', 'VARIES'),
 );
@@ -300,16 +304,22 @@ export const CONTENT_TYPES: readonly ContentTypeDef[] = [
     title: 'Classes',
     apiPath: 'vocation',
     iconPath: 'M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z',
-    description: 'Vocations, hit dice, and saves.',
+    description: 'The twelve classes, level by level.',
     implemented: true,
     fields: [
       { key: 'primaryAbilities', label: 'Primary ability', kind: 'list', group: 'meta' },
       { key: 'hitDie', label: 'Hit die (d)', kind: 'number', group: 'meta', min: 4, max: 12 },
       { key: 'savingThrowProficiencies', label: 'Saving throws', kind: 'list', group: 'meta' },
+      { key: 'skillChoices', label: 'Skill choices', kind: 'number', group: 'meta', min: 0, max: 18 },
+      { key: 'skillOptions', label: 'Skills', kind: 'list', group: 'meta' },
+      { key: 'armorTraining', label: 'Armor training', kind: 'list', group: 'meta' },
+      { key: 'weaponProficiencies', label: 'Weapons', kind: 'text', group: 'meta' },
+      { key: 'toolProficiencies', label: 'Tools', kind: 'text', group: 'meta' },
       { key: 'casterProgression', label: 'Spellcasting', kind: 'select', group: 'meta', options: CASTER_OPTIONS },
       { key: 'spellcastingAbility', label: 'Casting ability', kind: 'select', group: 'meta', options: optional(ABILITY_OPTIONS) },
       { key: 'complexity', label: 'Complexity', kind: 'text', group: 'meta' },
       { key: 'likes', label: 'Likes', kind: 'text', group: 'meta' },
+      { key: 'startingEquipment', label: 'Starting equipment', kind: 'textarea', group: 'prose' },
       { key: 'description', label: 'Description', kind: 'textarea', group: 'prose' },
     ],
     subtitle: i => {
@@ -318,6 +328,11 @@ export const CONTENT_TYPES: readonly ContentTypeDef[] = [
         : '';
       const die = i['hitDie'] ? `d${i['hitDie']}` : '';
       return [abilities, die].filter(Boolean).join(' · ');
+    },
+    group: i => {
+      const caster = String(i['casterProgression'] ?? 'NONE');
+      const label = caster === 'NONE' ? 'Martial' : 'Spellcasters';
+      return { key: label, label, order: caster === 'NONE' ? 0 : 1 };
     },
   },
   {
@@ -398,9 +413,18 @@ export const CONTENT_TYPES: readonly ContentTypeDef[] = [
     title: 'Rules glossary',
     apiPath: 'glossary',
     iconPath: 'M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V4zM9 4v16',
-    description: 'Quick reference for key rules terms.',
+    description: 'The 140 rules terms the SRD defines.',
     implemented: true,
-    fields: [{ key: 'description', label: 'Definition', kind: 'textarea', group: 'prose', required: true }],
+    fields: [
+      { key: 'category', label: 'Kind', kind: 'select', group: 'meta', options: GLOSSARY_CATEGORY_OPTIONS },
+      { key: 'description', label: 'Definition', kind: 'textarea', group: 'prose', required: true },
+    ],
+    subtitle: i => (i['category'] ? titleCase(String(i['category'])) : ''),
+    group: i => {
+      // The book's own bracketed tags first, the plain terms after them.
+      const c = i['category'] ? titleCase(String(i['category'])) : 'Terms';
+      return { key: c, label: c, order: c === 'Terms' ? 1 : 0 };
+    },
   },
   {
     key: 'characters',

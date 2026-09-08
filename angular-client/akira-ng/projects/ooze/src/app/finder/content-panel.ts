@@ -19,6 +19,7 @@ import {
 } from '@angular/forms';
 import { CatalogItem, ContentTypeDef, FieldDef, titleCase } from './ooze-content.models';
 import { ContentService } from './content.service';
+import { ClassDetail } from './class-detail';
 import { ItemEditor } from './item-editor';
 import { StatBlockEditor } from './stat-block-editor';
 import {
@@ -37,7 +38,7 @@ import {
  */
 @Component({
   selector: 'ooze-content-panel',
-  imports: [ReactiveFormsModule, ItemEditor, StatBlockEditor],
+  imports: [ReactiveFormsModule, ClassDetail, ItemEditor, StatBlockEditor],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './content-panel.html',
 })
@@ -64,6 +65,12 @@ export class ContentPanel {
    * armor rows are not.
    */
   protected readonly usesItemDetail = computed(() => this.def().key === 'items');
+
+  /**
+   * A class is a twenty-row table and two dozen features, which the label/value
+   * grid can't show — so it brings its own read-only view beside the form.
+   */
+  protected readonly usesClassDetail = computed(() => this.def().key === 'classes');
 
   /** The category the form currently holds, so the editor shows the right block. */
   protected readonly editedCategory = signal('');

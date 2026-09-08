@@ -1,0 +1,1175 @@
+id,created_at,updated_at,version,name,description,ordinal,vocation_id,subclass_id,vocation_level,activation,uses_reset
+6c98ece7-33c7-56d4-8167-973bfe60d1f5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Rage,"You can imbue yourself with a primal power called Rage, a force that grants you extraordinary might and resilience. You can enter it as a Bonus Action if you aren't wearing Heavy armor.
+
+You can enter your Rage the number of times shown for your Barbarian level in the Rages column of the Barbarian Features table. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.
+
+Rage  Weapon
+Rages  Damage  Mastery
+2  +2  2
+2  +2  2
+3  +2  2
+3  +2  3
+3  +2  3
+4  +2  3
+4  +2  3
+4  +2  3
+4  +3  3
+4  +3  4
+4  +3  4
+5  +3  4
+5  +3  4
+5  +3  4
+5  +3  4
+5  +4  4
+6  +4  4
+6  +4  4
+6  +4  4
+6  +4  4
+
+While active, your Rage follows the rules below.
+
+Damage Resistance. You have Resistance to Bludgeoning, Piercing, and Slashing damage.
+
+Rage Damage. When you make an attack using Strength—with either a weapon or an Unarmed Strike—and deal damage to the target, you gain a bonus to the damage that increases as you gain levels as a Barbarian, as shown in the Rage Damage column of the Barbarian Features table.
+
+Strength Advantage. You have Advantage on Strength checks and Strength saving throws.
+
+No Concentration or Spells. You can't maintain Concentration, and you can't cast spells.
+
+Duration. The Rage lasts until the end of your next turn, and it ends early if you don Heavy armor or have the Incapacitated condition. If your Rage is still active on your next turn, you can extend the Rage for another round by doing one of the following: •  Make an attack roll against an enemy. •  Force an enemy to make a saving throw. •  Take a Bonus Action to extend your Rage. Each time the Rage is extended, it lasts until the end of your next turn. You can maintain a Rage for up to 10 minutes.",0,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,1,PASSIVE,AT_WILL
+378303fa-bb49-5383-bdc8-a297b9c96cb1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Unarmored Defense,"While you aren't wearing any armor, your base Armor Class equals 10 plus your Dexterity and Constitution modifiers. You can use a Shield and still gain this benefit.",1,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,1,PASSIVE,AT_WILL
+6fc320bd-605a-5e1d-b36d-78183dbc71bb,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Weapon Mastery,"Your training with weapons allows you to use the mastery properties of two kinds of Simple or Martial Melee weapons of your choice, such as Greataxes and Handaxes. Whenever you finish a Long Rest, you can practice weapon drills and change one of those weapon choices.
+
+When you reach certain Barbarian levels, you gain the ability to use the mastery properties of more kinds of weapons, as shown in the Weapon Mastery column of the Barbarian Features table.",2,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,1,PASSIVE,AT_WILL
+e4faf70b-e8d3-56e1-831e-4f7541e1c5b6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Danger Sense,"You gain an uncanny sense of when things aren't as they should be, giving you an edge when you dodge perils. You have Advantage on Dexterity saving throws unless you have the Incapacitated condition.",3,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,2,PASSIVE,AT_WILL
+e9025f4b-9f40-55d2-ab73-67ce87e703d7,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Reckless Attack,"You can throw aside all concern for defense to attack with increased ferocity. When you make your first attack roll on your turn, you can decide to attack recklessly. Doing so gives you Advantage on attack rolls using Strength until the start of your next turn, but attack rolls against you have Advantage during that time.",4,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,2,PASSIVE,AT_WILL
+5310edcc-b663-5a07-b8ae-76f6ce4144bb,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Barbarian Subclass,"You gain a Barbarian subclass of your choice. The Path of the Berserker subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Barbarian levels. For the rest of your career, you gain each of your subclass's features that are of your Barbarian level or lower.",5,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,3,PASSIVE,AT_WILL
+09de8107-f0fb-5844-b28f-df2b4e1202fc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Primal Knowledge,"You gain proficiency in another skill of your choice from the skill list available to Barbarians at level 1.
+
+In addition, while your Rage is active, you can channel primal power when you attempt certain tasks; whenever you make an ability check using one of the following skills, you can make it as a Strength check even if it normally uses a different ability: Acrobatics, Intimidation, Perception, Stealth, or Survival. When you use this ability, your Strength represents primal power coursing through you, honing your agility, bearing, and senses.",6,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,3,PASSIVE,AT_WILL
+16df121e-3508-540f-bcdd-4f238f42d7d3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Barbarian levels 8, 12, and 16.",7,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,4,PASSIVE,AT_WILL
+e5fac9c4-4ad2-5735-aaf8-2bad0fc42d91,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Extra Attack,You can attack twice instead of once whenever you take the Attack action on your turn.,8,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,5,PASSIVE,AT_WILL
+011bfff1-6483-53ba-9f0b-8c3789dcd31c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fast Movement,Your speed increases by 10 feet while you aren't wearing Heavy armor.,9,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,5,PASSIVE,AT_WILL
+cad92050-df39-594d-a724-cc2f21d8dcdf,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Feral Instinct,Your instincts are so honed that you have Advantage on Initiative rolls.,10,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,7,PASSIVE,AT_WILL
+5eea4b10-d2b1-5263-ab58-aa7f1ee4e3a1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Instinctive Pounce,"As part of the Bonus Action you take to enter your Rage, you can move up to half your Speed.",11,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,7,PASSIVE,AT_WILL
+736a59ce-9035-53dd-8f07-623643161b78,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Brutal Strike,"If you use Reckless Attack, you can forgo any Advantage on one Strength-based attack roll of your choice on your turn. The chosen attack roll mustn't have Disadvantage. If the chosen attack roll hits, the target takes an extra 1d10 damage of the same type dealt by the weapon or Unarmed Strike, and you can cause one Brutal Strike effect of your choice. You have the following effect options.
+
+Forceful Blow. The target is pushed 15 feet straight away from you. You can then move up to half your Speed straight toward the target without provoking Opportunity Attacks.
+
+Hamstring Blow. The target's Speed is reduced by 15 feet until the start of your next turn. A target can be affected by only one Hamstring Blow at a time— the most recent one.",12,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,9,PASSIVE,AT_WILL
+f5bb89f2-8880-52c3-9bd3-d700ddd25588,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Relentless Rage,"Your Rage can keep you fighting despite grievous wounds. If you drop to 0 Hit Points while your Rage is active and don't die outright, you can make a DC 10 Constitution saving throw. If you succeed, your Hit Points instead change to a number equal to twice your Barbarian level.
+
+Each time you use this feature after the first, the DC increases by 5. When you finish a Short or Long Rest, the DC resets to 10.",13,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,11,PASSIVE,AT_WILL
+06c31fb0-70bb-500e-b3eb-f7bad3f0d58e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Improved Brutal Strike,"You have honed new ways to attack furiously. The following effects are now among your Brutal Strike options.
+
+Staggering Blow. The target has Disadvantage on the next saving throw it makes, and it can't make Opportunity Attacks until the start of your next turn.
+
+Sundering Blow. Before the start of your next turn, the next attack roll made by another creature against the target gains a +5 bonus to the roll. An attack roll can gain only one Sundering Blow bonus.",14,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,13,PASSIVE,AT_WILL
+85fc435d-d275-5450-8c9f-7bf1e0c1a7f7,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Persistent Rage,"When you roll Initiative, you can regain all expended uses of Rage. After you regain uses of Rage in this way, you can't do so again until you finish a Long Rest.
+
+In addition, your Rage is so fierce that it now lasts for 10 minutes without you needing to do anything to extend it from round to round. Your Rage ends early if you have the Unconscious condition (not just the Incapacitated condition) or don Heavy armor.",15,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,15,PASSIVE,AT_WILL
+a330485d-fce0-531e-bbbb-a78624e884d2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Improved Brutal Strike,"The extra damage of your Brutal Strike increases to 2d10. In addition, you can use two different Brutal Strike effects whenever you use your Brutal Strike feature.",16,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,17,PASSIVE,AT_WILL
+e5a382d8-eac9-5a58-9081-76d89a4a9a6f,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Indomitable Might,"If your total for a Strength check or Strength saving throw is less than your Strength score, you can use that score in place of the total.",17,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,18,PASSIVE,AT_WILL
+00da7f67-afa9-54f3-9bb2-bff2885978e4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Irresistible Offense is recommended.",18,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,19,PASSIVE,AT_WILL
+8d868e19-f7c9-5eef-a62e-c146ab78baa5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Primal Champion,"You embody primal power. Your Strength and Constitution scores increase by 4, to a maximum of 25.",19,9f6a6acf-2d56-5990-9e11-65ad14cc0724,NULL,20,PASSIVE,AT_WILL
+e8d8f594-1ff8-5ff5-89ef-39c1ad8e911e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Frenzy,"If you use Reckless Attack while your Rage is active, you deal extra damage to the first target you hit on your turn with a Strength-based attack. To determine the extra damage, roll a number of d6s equal to your Rage Damage bonus, and add them together. The damage has the same type as the weapon or Unarmed Strike used for the attack.",20,9f6a6acf-2d56-5990-9e11-65ad14cc0724,da2a1d48-ef45-5ea9-bba8-7e7579e0805a,3,PASSIVE,AT_WILL
+b532ae1c-26ed-55be-bffe-eb8fbeabeb0b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Mindless Rage,"You have Immunity to the Charmed and Frightened conditions while your Rage is active. If you're Charmed or Frightened when you enter your Rage, the condition ends on you.",21,9f6a6acf-2d56-5990-9e11-65ad14cc0724,da2a1d48-ef45-5ea9-bba8-7e7579e0805a,6,PASSIVE,AT_WILL
+9c866890-bf58-50ab-a693-aa70df1661cd,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Retaliation,"When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike.",22,9f6a6acf-2d56-5990-9e11-65ad14cc0724,da2a1d48-ef45-5ea9-bba8-7e7579e0805a,10,PASSIVE,AT_WILL
+30840249-24f4-59a0-8375-320d87a71eb8,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Intimidating Presence,"As a Bonus Action, you can strike terror into others with your menacing presence and primal power. When you do so, each creature of your choice in a 30-foot Emanation originating from you must make a Wisdom saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, a creature has the Frightened condition for 1 minute. At the end of each of the Frightened creature's turns, the creature repeats the save, ending the effect on itself on a success.
+
+Once you use this feature, you can't use it again until you finish a Long Rest unless you expend a use of your Rage (no action required) to restore your use of it.",23,9f6a6acf-2d56-5990-9e11-65ad14cc0724,da2a1d48-ef45-5ea9-bba8-7e7579e0805a,14,PASSIVE,AT_WILL
+4cf4c06c-c426-530d-83b2-5770c9e8269f,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Bardic Inspiration,"You can supernaturally inspire others through words, music, or dance. This inspiration is represented by your Bardic Inspiration die, which is a d6.
+
+Using Bardic Inspiration. As a Bonus Action, you can inspire another creature within 60 feet of yourself who can see or hear you. That creature gains
+
+Prepared  ——Spell Slots per Spell Level——
+Cantrips  Spells  1  2  3  4  5  6  7  8  9
+2  4  2 — — — — — — — —
+2  5  3 — — — — — — — —
+2  6  4  2 — — — — — — —
+3  7  4  3 — — — — — — —
+3  9  4  3  2 — — — — — —
+3  10  4  3  3 — — — — — —
+3  11  4  3  3  1 — — — — —
+3  12  4  3  3  2 — — — — —
+3  14  4  3  3  3  1 — — — —
+4  15  4  3  3  3  2 — — — —
+4  16  4  3  3  3  2  1 — — —
+4  16  4  3  3  3  2  1 — — —
+4  17  4  3  3  3  2  1  1 — —
+4  17  4  3  3  3  2  1  1 — —
+4  18  4  3  3  3  2  1  1  1 —
+4  18  4  3  3  3  2  1  1  1 —
+4  19  4  3  3  3  2  1  1  1  1
+4  20  4  3  3  3  3  1  1  1  1
+4  21  4  3  3  3  3  2  1  1  1
+4  22  4  3  3  3  3  2  2  1  1
+
+one of your Bardic Inspiration dice. A creature can have only one Bardic Inspiration die at a time.
+
+Once within the next hour when the creature fails a D20 Test, the creature can roll the Bardic Inspiration die and add the number rolled to the d20, potentially turning the failure into a success. A Bardic Inspiration die is expended when it's rolled.
+
+Number of Uses. You can confer a Bardic Inspiration die a number of times equal to your Charisma modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.
+
+At Higher Levels. Your Bardic Inspiration die changes when you reach certain Bard levels, as shown in the Bardic Die column of the Bard Features table. The die becomes a d8 at level 5, a d10 at level 10, and a d12 at level 15.",0,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,1,PASSIVE,AT_WILL
+85f0e3dc-610a-5139-a541-9ad97a4d1f48,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"You have learned to cast spells through your bardic arts. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Bard spells, which appear in the Bard spell list later in the class's description. Cantrips. You know two cantrips of your choice from the Bard spell list. Dancing Lights and Vicious Mockery are recommended.
+
+Whenever you gain a Bard level, you can replace one of your cantrips with another cantrip of your choice from the Bard spell list.
+
+When you reach Bard levels 4 and 10, you learn another cantrip of your choice from the Bard spell list, as shown in the Cantrips column of the Bard Features table.
+
+Spell Slots. The Bard Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 spells from the Bard spell list. Charm Person, Color Spray, Dissonant Whispers, and Healing Word are recommended.
+
+The number of spells on your list increases as you gain Bard levels, as shown in the Prepared Spells column of the Bard Features table. Whenever that number increases, choose additional spells from the Bard spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Bard, your list of prepared spells can include six spells of levels 1 and 2 in any combination.
+
+If another Bard feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Bard spells for you.
+
+Changing Your Prepared Spells. Whenever you gain a Bard level, you can replace one spell on your list with another Bard spell for which you have spell slots.
+
+Spellcasting Ability. Charisma is your spellcasting ability for your Bard spells.
+
+Spellcasting Focus. You can use a Musical Instrument as a Spellcasting Focus for your Bard spells.",1,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,1,PASSIVE,AT_WILL
+2bac56b4-2736-5b59-a9ed-baf72932b17f,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Expertise,"You gain Expertise (see ""Rules Glossary"") in two of your skill proficiencies of your choice. Performance and Persuasion are recommended if you have proficiency in them.
+
+At Bard level 9, you gain Expertise in two more of your skill proficiencies of your choice.",2,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,2,PASSIVE,AT_WILL
+3a75a36a-3992-56db-a90f-15acae938a7d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Jack of All Trades,"You can add half your Proficiency Bonus (round down) to any ability check you make that uses a skill proficiency you lack and that doesn't otherwise use your Proficiency Bonus.
+
+For example, if you make a Strength (Athletics) check and lack Athletics proficiency, you can add half your Proficiency Bonus to the check.",3,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,2,PASSIVE,AT_WILL
+36ddf899-9bf4-585f-95c0-f53c62fa8011,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Bard Subclass,"You gain a Bard subclass of your choice. The College of Lore subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Bard levels. For the rest of your career, you gain each of your subclass's features that are of your Bard level or lower.",4,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,3,PASSIVE,AT_WILL
+4b67a0c3-3c6d-547a-9365-70572be1fd98,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Bard levels 8, 12, and 16.",5,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,4,PASSIVE,AT_WILL
+c42aa48a-8f1d-54d9-9aad-cb1ff83a506a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Font of Inspiration,"You now regain all your expended uses of Bardic Inspiration when you finish a Short or Long Rest.
+
+In addition, you can expend a spell slot (no action required) to regain one expended use of Bardic Inspiration.",6,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,5,PASSIVE,AT_WILL
+6d2e595a-e6f7-5371-90a2-f7fe9113ecef,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Countercharm,"You can use musical notes or words of power to disrupt mind-influencing effects. If you or a creature within 30 feet of you fails a saving throw against an effect that applies the Charmed or Frightened condition, you can take a Reaction to cause the save to be rerolled, and the new roll has Advantage.",7,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,7,PASSIVE,AT_WILL
+fa1a044d-ba81-5c40-9bb7-4280328e68c2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Magical Secrets,"You've learned secrets from various magical traditions. Whenever you reach a Bard level (including this level) and the Prepared Spells number in the Bard Features table increases, you can choose any of your new prepared spells from the Bard, Cleric, Druid, and Wizard spell lists, and the chosen spells count as Bard spells for you (see a class's section for its spell list). In addition, whenever you replace a spell prepared for this class, you can replace it with a spell from those lists.",8,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,10,PASSIVE,AT_WILL
+685540b8-0525-55b8-97ce-971a95d15a1d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Superior Inspiration,"When you roll Initiative, you regain expended uses of Bardic Inspiration until you have two if you have fewer than that.",9,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,18,PASSIVE,AT_WILL
+85269b7c-b423-5441-91e6-7fdd2812a5e0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Spell Recall is recommended.",10,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,19,PASSIVE,AT_WILL
+ecdde924-57d6-5b06-be98-81b62603b5b4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Words of Creation,"You have mastered two of the Words of Creation: the words of life and death. You therefore always have the Power Word Heal and Power Word Kill spells prepared. When you cast either spell, you can target a second creature with it if that creature is within 10 feet of the first target.",11,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,NULL,20,PASSIVE,AT_WILL
+565f673a-a9e8-57e2-93b0-e8cf6dd8b7bb,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Bonus Proficiencies,You gain proficiency with three skills of your choice.,12,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,bb6a1fe0-4123-52a8-a565-c76e876c250a,3,PASSIVE,AT_WILL
+e14ca986-804b-54a2-b4c8-e9564ed3a2c5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Cutting Words,"You learn to use your wit to supernaturally distract, confuse, and otherwise sap the confidence and competence of others. When a creature that you can see within 60 feet of yourself makes a damage roll or succeeds on an ability check or attack roll, you can take a Reaction to expend one use of your Bardic Inspiration; roll your Bardic Inspiration die, and subtract the number rolled from the creature's roll, reducing the damage or potentially turning the success into a failure.",13,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,bb6a1fe0-4123-52a8-a565-c76e876c250a,3,PASSIVE,AT_WILL
+08ef5b96-b9c5-503c-8094-c830bce5f6cb,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Magical Discoveries,"You learn two spells of your choice. These spells can come from the Cleric, Druid, or Wizard spell list or any combination thereof (see a class's section for its spell list). A spell you choose must be a cantrip or a spell for which you have spell slots, as shown in the Bard Features table.
+
+You always have the chosen spells prepared, and whenever you gain a Bard level, you can replace one of the spells with another spell that meets these requirements.",14,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,bb6a1fe0-4123-52a8-a565-c76e876c250a,6,PASSIVE,AT_WILL
+bb6d0043-a7ff-548e-8dae-265ad6583f7d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Peerless Skill,"When you make an ability check or attack roll and fail, you can expend one use of Bardic Inspiration; roll the Bardic Inspiration die, and add the number rolled to the d20, potentially turning a failure into a success. On a failure, the Bardic Inspiration isn't expended.",15,3dbe561c-5bcb-5d63-9d45-b138153ed9d7,bb6a1fe0-4123-52a8-a565-c76e876c250a,14,PASSIVE,AT_WILL
+097dc219-b064-5fa4-b9e5-32a283ef22e8,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"You have learned to cast spells through prayer and meditation. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Cleric spells, which appear on the Cleric spell list later in the class's description. Cantrips. You know three cantrips of your choice from the Cleric spell list. Guidance, Sacred Flame, and Thaumaturgy are recommended.
+
+Whenever you gain a Cleric level, you can replace one of your cantrips with another cantrip of your choice from the Cleric spell list.
+
+——Spell Slots per Spell Level——
+Prepared
+Cantrips  Spells  1  2  3  4  5  6  7  8  9
+3  4  2 — — — — — — — —
+3  5  3 — — — — — — — —
+3  6  4  2 — — — — — — —
+4  7  4  3 — — — — — — —
+4  9  4  3  2 — — — — — —
+4  10  4  3  3 — — — — — —
+4  11  4  3  3  1 — — — — —
+4  12  4  3  3  2 — — — — —
+4  14  4  3  3  3  1 — — — —
+5  15  4  3  3  3  2 — — — —
+5  16  4  3  3  3  2  1 — — —
+5  16  4  3  3  3  2  1 — — —
+5  17  4  3  3  3  2  1  1 — —
+5  17  4  3  3  3  2  1  1 — —
+5  18  4  3  3  3  2  1  1  1 —
+5  18  4  3  3  3  2  1  1  1 —
+5  19  4  3  3  3  2  1  1  1  1
+5  20  4  3  3  3  3  1  1  1  1
+5  21  4  3  3  3  3  2  1  1  1
+5  22  4  3  3  3  3  2  2  1  1
+
+When you reach Cleric levels 4 and 10, you learn another cantrip of your choice from the Cleric spell list, as shown in the Cantrips column of the Cleric Features table.
+
+Spell Slots. The Cleric Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 spells from the Cleric spell list. Bless, Cure Wounds, Guiding Bolt, and Shield of Faith are recommended.
+
+The number of spells on your list increases as you gain Cleric levels, as shown in the Prepared Spells column of the Cleric Features table. Whenever that number increases, choose additional spells from the Cleric spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Cleric, your list of prepared spells can include six spells of levels 1 and 2 in any combination.
+
+If another Cleric feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Cleric spells for you.
+
+Changing Your Prepared Spells. Whenever you finish a Long Rest, you can change your list of prepared spells, replacing any of the spells there with other Cleric spells for which you have spell slots.
+
+Spellcasting Ability. Wisdom is your spellcasting ability for your Cleric spells.
+
+Spellcasting Focus. You can use a Holy Symbol as a Spellcasting Focus for your Cleric spells.",0,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,1,PASSIVE,AT_WILL
+aee0a5b9-f1bf-5022-8378-33ca035c8697,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Divine Order,"You have dedicated yourself to one of the following sacred roles of your choice. Protector. Trained for battle, you gain proficiency with Martial weapons and training with Heavy armor. Thaumaturge. You know one extra cantrip from the Cleric spell list. In addition, your mystical connection to the divine gives you a bonus to your Intelligence (Arcana or Religion) checks. The bonus equals your Wisdom modifier (minimum of +1).",1,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,1,PASSIVE,AT_WILL
+ed796d0a-1976-59bf-8fbc-203ee47f29e3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Channel Divinity,"You can channel divine energy directly from the Outer Planes to fuel magical effects. You start with two such effects: Divine Spark and Turn Undead, each of which is described below. Each time you use this class's Channel Divinity, choose which Channel Divinity effect from this class to create. You gain additional effect options at higher Cleric levels.
+
+You can use this class's Channel Divinity twice. You regain one of its expended uses when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest. You gain additional uses when you reach certain Cleric levels, as shown in the Channel Divinity column of the Cleric Features table.
+
+If a Channel Divinity effect requires a saving throw, the DC equals the spell save DC from this class's Spellcasting feature.
+
+Divine Spark. As a Magic action, you point your Holy Symbol at another creature you can see within 30 feet of yourself and focus divine energy at it. Roll 1d8 and add your Wisdom modifier. You either restore Hit Points to the creature equal to that total or force the creature to make a Constitution saving throw. On a failed save, the creature takes Necrotic or Radiant damage (your choice) equal to that total. On a successful save, the creature takes half as much damage (round down).
+
+You roll an additional d8 when you reach Cleric levels 7 (2d8), 13 (3d8), and 18 (4d8).
+
+Turn Undead. As a Magic action, you present your Holy Symbol and censure Undead creatures. Each Undead of your choice within 30 feet of you must make a Wisdom saving throw. If the creature fails its save, it has the Frightened and Incapacitated conditions for 1 minute. For that duration, it tries to move as far from you as it can on its turns. This effect ends early on the creature if it takes any damage, if you have the Incapacitated condition, or if you die.",2,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,2,PASSIVE,AT_WILL
+38f8236f-41cc-5bfb-b65e-8da39aa5fa67,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Cleric Subclass,"You gain a Cleric subclass of your choice. The Life Domain subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Cleric levels. For the rest of your career, you gain each of your subclass's features that are of your Cleric level or lower.",3,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,3,PASSIVE,AT_WILL
+f737e471-d0f1-5e51-9549-40cacc574a49,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Cleric levels 8, 12, and 16.",4,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,4,PASSIVE,AT_WILL
+3e412d11-2a5e-566d-9b5e-5fb4983839c5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sear Undead,"Whenever you use Turn Undead, you can roll a number of d8s equal to your Wisdom modifier (minimum of 1d8) and add the rolls together. Each Undead that fails its saving throw against that use of Turn Undead takes Radiant damage equal to the roll's total. This damage doesn't end the turn effect.",5,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,5,PASSIVE,AT_WILL
+83bf18ab-589f-5f62-b98f-6b25ed66349d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Blessed Strikes,"Divine power infuses you in battle. You gain one of the following options of your choice (if you get either option from a Cleric subclass in an older book, use only the option you choose for this feature).
+
+Divine Strike. Once on each of your turns when you hit a creature with an attack roll using a weapon, you can cause the target to take an extra 1d8 Necrotic or Radiant damage (your choice).
+
+Potent Spellcasting. Add your Wisdom modifier to the damage you deal with any Cleric cantrip.",6,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,7,PASSIVE,AT_WILL
+7533afb8-d6c5-59aa-85d1-b44916fd1af8,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Divine Intervention,"You can call on your deity or pantheon to intervene on your behalf. As a Magic action, choose any Cleric spell of level 5 or lower that doesn't require a Reaction to cast. As part of the same action, you cast that spell without expending a spell slot or needing Material components. You can't use this feature again until you finish a Long Rest.",7,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,10,PASSIVE,AT_WILL
+934409b5-069b-5fd9-8f55-6b36c6082444,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Improved Blessed Strikes,"The option you chose for Blessed Strikes grows more powerful.
+
+Divine Strike. The extra damage of your Divine Strike increases to 2d8.
+
+Potent Spellcasting. When you cast a Cleric cantrip and deal damage to a creature with it, you can give vitality to yourself or another creature within 60 feet of yourself, granting a number of Temporary Hit Points equal to twice your Wisdom modifier.",8,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,14,PASSIVE,AT_WILL
+9cf46550-b2d6-5c73-bb99-1cac3d77c888,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Fate is recommended.",9,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,19,PASSIVE,AT_WILL
+94394c7c-91d9-5f64-85da-ba6c0672924e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Greater Divine Intervention,"You can call on even more powerful divine intervention. When you use your Divine Intervention feature, you can choose Wish when you select a spell. If you do so, you can't use Divine Intervention again until you finish 2d4 Long Rests.",10,5a766548-3c4f-5273-89ee-11a90d1e7ce1,NULL,20,PASSIVE,AT_WILL
+540fde7b-5818-58d0-92bf-7ccba42d4809,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Disciple of Life,"When a spell you cast with a spell slot restores Hit Points to a creature, that creature regains additional Hit Points on the turn you cast the spell. The additional Hit Points equal 2 plus the spell slot's level.",11,5a766548-3c4f-5273-89ee-11a90d1e7ce1,b55218ca-2de8-5705-af1d-24acbfe2f75c,3,PASSIVE,AT_WILL
+757a29f3-672a-5ecd-bd17-7b62d7ce3368,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Life Domain Spells,"Your connection to this divine domain ensures you always have certain spells ready. When you reach a Cleric level specified in the Life Domain Spells table, you thereafter always have the listed spells prepared.
+
+Life Domain Spells
+Cleric Level  Prepared Spells
+3  Aid, Bless, Cure Wounds,
+Lesser Restoration
+5  Mass Healing Word, Revivify
+7  Aura of Life, Death Ward
+9  Greater Restoration, Mass Cure Wounds",12,5a766548-3c4f-5273-89ee-11a90d1e7ce1,b55218ca-2de8-5705-af1d-24acbfe2f75c,3,PASSIVE,AT_WILL
+4d28f9e3-851e-5ceb-9d5a-e3b9cc58622e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Preserve Life,"As a Magic action, you present your Holy Symbol and expend a use of your Channel Divinity to evoke healing energy that can restore a number of Hit Points equal to five times your Cleric level. Choose Bloodied creatures within 30 feet of yourself (which can include you), and divide those Hit Points among them. This feature can restore a creature to no more than half its Hit Point maximum.",13,5a766548-3c4f-5273-89ee-11a90d1e7ce1,b55218ca-2de8-5705-af1d-24acbfe2f75c,3,PASSIVE,AT_WILL
+c058bfd9-7ac9-5743-83da-9bfa9aa21ed6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Blessed Healer,"The healing spells you cast on others heal you as well. Immediately after you cast a spell with a spell slot that restores Hit Points to one or more creatures other than yourself, you regain Hit Points equal to 2 plus the spell slot's level.",14,5a766548-3c4f-5273-89ee-11a90d1e7ce1,b55218ca-2de8-5705-af1d-24acbfe2f75c,6,PASSIVE,AT_WILL
+194a1836-523e-5c4d-ab72-ea584f739dd1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Supreme Healing,"When you would normally roll one or more dice to restore Hit Points to a creature with a spell or Channel Divinity, don't roll those dice for the healing; instead use the highest number possible for each die. For example, instead of restoring 2d6 Hit Points to a creature with a spell, you restore 12.",15,5a766548-3c4f-5273-89ee-11a90d1e7ce1,b55218ca-2de8-5705-af1d-24acbfe2f75c,17,PASSIVE,AT_WILL
+66ee3d45-9cdc-538c-8ea4-3542d25445ee,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"You have learned to cast spells through studying the mystical forces of nature. See ""Spells"" for the rules on spellcasting. The information below details
+
+——Spell Slots per Spell Level——
+Prepared
+Cantrips  Spells  1  2  3  4  5  6  7  8  9
+2  4  2 — — — — — — — —
+2  5  3 — — — — — — — —
+2  6  4  2 — — — — — — —
+3  7  4  3 — — — — — — —
+3  9  4  3  2 — — — — — —
+3  10  4  3  3 — — — — — —
+3  11  4  3  3  1 — — — — —
+3  12  4  3  3  2 — — — — —
+3  14  4  3  3  3  1 — — — —
+4  15  4  3  3  3  2 — — — —
+4  16  4  3  3  3  2  1 — — —
+4  16  4  3  3  3  2  1 — — —
+4  17  4  3  3  3  2  1  1 — —
+4  17  4  3  3  3  2  1  1 — —
+4  18  4  3  3  3  2  1  1  1 —
+4  18  4  3  3  3  2  1  1  1 —
+4  19  4  3  3  3  2  1  1  1  1
+4  20  4  3  3  3  3  1  1  1  1
+4  21  4  3  3  3  3  2  1  1  1
+4  22  4  3  3  3  3  2  2  1  1
+
+how you use those rules with Druid spells, which appear on the Druid spell list later in the class's description.
+
+Cantrips. You know two cantrips of your choice from the Druid spell list. Druidcraft and Produce Flame are recommended.
+
+Whenever you gain a Druid level, you can replace one of your cantrips with another cantrip of your choice from the Druid spell list.
+
+When you reach Druid levels 4 and 10, you learn another cantrip of your choice from the Druid spell list, as shown in the Cantrips column of the Druid Features table.
+
+Spell Slots. The Druid Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose four level 1 spells from the Druid spell list. Animal Friendship, Cure Wounds, Faerie Fire, and Thunderwave are recommended.
+
+The number of spells on your list increases as you gain Druid levels, as shown in the Prepared Spells column of the Druid Features table. Whenever that number increases, choose additional spells from the Druid spell list until the number of spells on your list matches the number on the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Druid, your list of prepared spells can include six spells of levels 1 and 2 in any combination.
+
+If another Druid feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Druid spells for you.
+
+Changing Your Prepared Spells. Whenever you finish a Long Rest, you can change your list of prepared spells, replacing any of the spells with other Druid spells for which you have spell slots.
+
+Spellcasting Ability. Wisdom is your spellcasting ability for your Druid spells.
+
+Spellcasting Focus. You can use a Druidic Focus as a Spellcasting Focus for your Druid spells.",0,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,1,PASSIVE,AT_WILL
+88928424-80cc-5071-81db-18008c18003a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Druidic,"You know Druidic, the secret language of Druids. While learning this ancient tongue, you also unlocked the magic of communicating with animals; you always have the Speak with Animals spell prepared.
+
+You can use Druidic to leave hidden messages. You and others who know Druidic automatically spot such a message. Others spot the message's presence with a successful DC 15 Intelligence (Investigation) check but can't decipher it without magic.",1,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,1,PASSIVE,AT_WILL
+2f6f0d13-3dd3-516c-a265-7d059f35af46,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Primal Order,"You have dedicated yourself to one of the following sacred roles of your choice. Magician. You know one extra cantrip from the Druid spell list. In addition, your mystical connection to nature gives you a bonus to your Intelligence (Arcana or Nature) checks. The bonus equals your Wisdom modifier (minimum bonus of +1). Warden. Trained for battle, you gain proficiency with Martial weapons and training with Medium armor.",2,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,1,PASSIVE,AT_WILL
+15b8a84f-5785-5924-9a28-366395de37e2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Wild Shape,"The power of nature allows you to assume the form of an animal. As a Bonus Action, you shape-shift into a Beast form that you have learned for this feature (see ""Known Forms"" below). You stay in that form for a number of hours equal to half your Druid level or until you use Wild Shape again, have the Incapacitated condition, or die. You can also leave the form early as a Bonus Action.
+
+Number of Uses. You can use Wild Shape twice. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.
+
+You gain additional uses when you reach certain Druid levels, as shown in the Wild Shape column of the Druid Features table.
+
+Known Forms. You know four Beast forms for this feature, chosen from among Beast stat blocks that have a maximum Challenge Rating of 1/4 and that lack a Fly Speed (see ""Animals"" in ""Monsters"" for stat block options). The Rat, Riding Horse, Spider, and Wolf are recommended. Whenever you finish a Long Rest, you can replace one of your known forms with another eligible form.
+
+When you reach certain Druid levels, your number of known forms and the maximum Challenge Rating for those forms increases, as shown in the Beast Shapes table. In addition, starting at level 8, you can adopt a form that has a Fly Speed.
+
+When choosing known forms, you may look in other sources for eligible Beasts if the Game Master permits you to do so.
+
+Beast Shapes
+Druid  Known  Max  Fly
+Level  Forms  CR  Speed
+2  4  1/4  No
+4  6  1/2  No
+8  8  1  Yes
+
+Rules While Shape-Shifted. While in a form, you retain your personality, memories, and ability to speak, and the following rules apply: Temporary Hit Points. When you assume a Wild Shape form, you gain a number of Temporary Hit Points equal to your Druid level. Game Statistics. Your game statistics are replaced by the Beast's stat block, but you retain your creature type; Hit Points; Hit Point Dice; Intelligence, Wisdom, and Charisma scores; class features; languages; and feats. You also retain your skill and saving throw proficiencies and use your Proficiency Bonus for them, in addition to gaining the proficiencies of the creature. If a skill or saving throw modifier in the Beast's stat block is higher than yours, use the one in the stat block. No Spellcasting. You can't cast spells, but shapeshifting doesn't break your Concentration or otherwise interfere with a spell you've already cast. Objects. Your ability to handle objects is determined by the form's limbs rather than your own. In addition, you choose whether your equipment falls in your space, merges into your new form, or is worn by it. Worn equipment functions as normal, but the GM decides whether it's practical for the new form to wear a piece of equipment based on the creature's size and shape. Your equipment doesn't change size or shape to match the new form, and any equipment that the new form can't wear must either fall to the ground or merge with the form. Equipment that merges with the form has no effect while you're in that form.",3,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,2,PASSIVE,AT_WILL
+01de7358-9f25-51f1-9b1a-a5786537ab55,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Wild Companion,"You can summon a nature spirit that assumes an animal form to aid you. As a Magic action, you can expend a spell slot or a use of Wild Shape to cast the Find Familiar spell without Material components.
+
+When you cast the spell in this way, the familiar is Fey and disappears when you finish a Long Rest.",4,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,2,PASSIVE,AT_WILL
+dec9f3d9-26a7-57d2-9860-0559be5237ba,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Druid Subclass,"You gain a Druid subclass of your choice. The Circle of the Land subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Druid levels. For the rest of your career, you gain each of your subclass's features that are of your Druid level or lower.",5,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,3,PASSIVE,AT_WILL
+6f459f54-0f76-5d1a-b7d7-c4c08868d99d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Druid levels 8, 12, and 16.",6,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,4,PASSIVE,AT_WILL
+55fd5d64-2ce6-55e8-8278-e4c4d61d4651,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Wild Resurgence,"Once on each of your turns, if you have no uses of Wild Shape left, you can give yourself one use by expending a spell slot (no action required).
+
+In addition, you can expend one use of Wild Shape (no action required) to give yourself a level 1 spell slot, but you can't do so again until you finish a Long Rest.",7,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,5,PASSIVE,AT_WILL
+72106860-9114-5e85-a136-2a35efbd1473,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Elemental Fury,"The might of the elements flows through you. You gain one of the following options of your choice.
+
+Potent Spellcasting. Add your Wisdom modifier to the damage you deal with any Druid cantrip.
+
+Primal Strike. Once on each of your turns when you hit a creature with an attack roll using a weapon or a Beast form's attack in Wild Shape, you can cause the target to take an extra 1d8 Cold, Fire, Lightning, or Thunder damage (choose when you hit).",8,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,7,PASSIVE,AT_WILL
+d39ca060-2e87-5c4c-b946-6dcef96a101c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Improved Elemental Fury,"The option you chose for Elemental Fury grows more powerful, as detailed below.
+
+Potent Spellcasting. When you cast a Druid cantrip with a range of 10 feet or greater, the spell's range increases by 300 feet.
+
+Primal Strike. The extra damage of your Primal Strike increases to 2d8.",9,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,15,PASSIVE,AT_WILL
+7ac1e779-3e34-5c52-ac06-e663d8d6278a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Beast Spells,"While using Wild Shape, you can cast spells in Beast form, except for any spell that has a Material component with a cost specified or that consumes its Material component.",10,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,18,PASSIVE,AT_WILL
+f6850e2c-6894-521c-b360-8de97bc4c53d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Dimensional Travel is recommended.",11,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,19,PASSIVE,AT_WILL
+29531860-0dae-5515-aa56-23062132b81a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Archdruid,"The vitality of nature constantly blooms within you, granting you the following benefits.
+
+Evergreen Wild Shape. Whenever you roll Initiative and have no uses of Wild Shape left, you regain one expended use of it.
+
+Nature Magician. You can convert uses of Wild Shape into a spell slot (no action required). Choose a number of your unexpended uses of Wild Shape and convert them into a single spell slot, with each use contributing 2 spell levels. For example, if you convert two uses of Wild Shape, you produce a level 4 spell slot. Once you use this benefit, you can't do so again until you finish a Long Rest. Longevity. The primal magic that you wield causes you to age more slowly. For every ten years that pass, your body ages only one year.",12,d328bebd-d404-53ab-a8e1-30020cfac6e6,NULL,20,PASSIVE,AT_WILL
+6cbed208-8b70-585f-b5c6-8e0ff8bbc3a3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Circle of the Land Spells,"Whenever you finish a Long Rest, choose one type of land: arid, polar, temperate, or tropical. Consult the table below that corresponds to the chosen type; you have the spells listed for your Druid level and lower prepared.
+
+Arid Land
+Druid Level  Circle Spells
+3  Blur, Burning Hands, Fire Bolt
+5  Fireball
+7  Blight
+9  Wall of Stone
+Polar Land
+Druid Level  Circle Spells
+3  Fog Cloud, Hold Person, Ray of Frost
+5  Sleet Storm
+7  Ice Storm
+9  Cone of Cold
+Temperate Land
+Druid Level  Circle Spells
+3  Misty Step, Shocking Grasp, Sleep
+5  Lightning Bolt
+7  Freedom of Movement
+9  Tree Stride
+Tropical Land
+Druid Level  Circle Spells
+3  Acid Splash, Ray of Sickness, Web
+5  Stinking Cloud
+7  Polymorph
+9  Insect Plague",13,d328bebd-d404-53ab-a8e1-30020cfac6e6,7514ab83-4164-5d75-9d7a-4770b10bbe5d,3,PASSIVE,AT_WILL
+cf9caa0a-e7e2-5688-bea9-251f40125a03,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Land's Aid,"As a Magic action, you can expend a use of your Wild Shape and choose a point within 60 feet of yourself. Vitality-giving flowers and life-draining thorns appear for a moment in a 10-foot-radius Sphere centered on that point. Each creature of your choice in the Sphere must make a Constitution saving throw against your spell save DC, taking 2d6 Necrotic damage on a failed save or half as much damage on a successful one. One creature of your choice in that area regains 2d6 Hit Points.
+
+The damage and healing increase by 1d6 when you reach Druid levels 10 (3d6) and 14 (4d6).",14,d328bebd-d404-53ab-a8e1-30020cfac6e6,7514ab83-4164-5d75-9d7a-4770b10bbe5d,3,PASSIVE,AT_WILL
+f92d2577-e209-5e72-9213-90a175e1add5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Natural Recovery,"You can cast one of the level 1+ spells that you have prepared from your Circle Spells feature without expending a spell slot, and you must finish a Long Rest before you do so again.
+
+In addition, when you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level that is equal to or less than half your Druid level (round up), and none of them can be level 6+. For example, if you're a level 6 Druid, you can recover up to three levels' worth of spell slots. You can recover a level 3 spell slot, a level 2 and a level 1 spell slot, or three level 1 spell slots. Once you recover spell slots with this feature, you can't do so again until you finish a Long Rest.",15,d328bebd-d404-53ab-a8e1-30020cfac6e6,7514ab83-4164-5d75-9d7a-4770b10bbe5d,6,PASSIVE,AT_WILL
+a5a6d642-3f05-5e4d-bb76-b9ce70b2f868,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Nature's Ward,"You are immune to the Poisoned condition, and you have Resistance to a damage type associated with your current land choice in the Circle Spells feature, as shown in the Nature's Ward table.
+
+Nature's Ward
+Land Type  Resistance  Land Type  Resistance
+Arid  Fire  Temperate  Lightning
+Polar  Cold  Tropical  Poison",16,d328bebd-d404-53ab-a8e1-30020cfac6e6,7514ab83-4164-5d75-9d7a-4770b10bbe5d,10,PASSIVE,AT_WILL
+32fad063-3a2f-59a5-8af7-b0370838a8b1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Nature's Sanctuary,"As a Magic action, you can expend a use of your Wild Shape and cause spectral trees and vines to appear in a 15-foot Cube on the ground within 120 feet of yourself. They last there for 1 minute or until you have the Incapacitated condition or die. You and your allies have Half Cover while in that area, and your allies gain the current Resistance of your Nature's Ward while there.
+
+As a Bonus Action, you can move the Cube up to 60 feet to ground within 120 feet of yourself.",17,d328bebd-d404-53ab-a8e1-30020cfac6e6,7514ab83-4164-5d75-9d7a-4770b10bbe5d,14,PASSIVE,AT_WILL
+ed7e32c3-1eb5-5777-9d66-fc540695cebd,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fighting Style,"You have honed your martial prowess and gain a Fighting Style feat of your choice (see ""Feats""). Defense is recommended.
+
+Whenever you gain a Fighter level, you can replace the feat you chose with a different Fighting Style feat.
+
+Second  Weapon
+Wind  Mastery
+2  3
+2  3
+2  3
+3  4
+3  4
+3  4
+3  4
+3  4
+3  4
+4  5
+4  5
+4  5
+4  5
+4  5
+4  5
+4  6
+4  6
+4  6
+4  6
+4  6",0,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,1,PASSIVE,AT_WILL
+8b3db7d7-1e74-5b0c-94c1-b60286558cd5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Second Wind,"You have a limited well of physical and mental stamina that you can draw on. As a Bonus Action, you can use it to regain Hit Points equal to 1d10 plus your Fighter level.
+
+You can use this feature twice. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.
+
+When you reach certain Fighter levels, you gain more uses of this feature, as shown in the Second Wind column of the Fighter Features table.",1,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,1,PASSIVE,AT_WILL
+4e50ab33-29f6-572a-9d58-8321f31340b7,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Weapon Mastery,"Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice. Whenever you finish a Long Rest, you can practice weapon drills and change one of those weapon choices.
+
+When you reach certain Fighter levels, you gain the ability to use the mastery properties of more kinds of weapons, as shown in the Weapon Mastery column of the Fighter Features table.",2,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,1,PASSIVE,AT_WILL
+2f55ac60-a3e4-5c04-9ec4-bd6d4cae0c2c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Action Surge,"You can push yourself beyond your normal limits for a moment. On your turn, you can take one additional action, except the Magic action.
+
+Once you use this feature, you can't do so again until you finish a Short or Long Rest. Starting at level 17, you can use it twice before a rest but only once on a turn.",3,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,2,PASSIVE,AT_WILL
+e5a4627e-b2df-5518-92b7-e11a10690559,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Tactical Mind,"You have a mind for tactics on and off the battlefield. When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check, potentially turning it into a success. If the check still fails, this use of Second Wind isn't expended.",4,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,2,PASSIVE,AT_WILL
+7f3a56e1-cba1-537b-8d37-79fd5fd69b6c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fighter Subclass,"You gain a Fighter subclass of your choice. The Champion subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Fighter levels. For the rest of your career, you gain each of your subclass's features that are of your Fighter level or lower.",5,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,3,PASSIVE,AT_WILL
+77df2bba-fe1b-54ea-856d-099fcfd46f55,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Fighter levels 6, 8, 12, 14, and 16.",6,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,4,PASSIVE,AT_WILL
+ba460c67-7ab6-5524-bdbc-2865419b1bb9,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Extra Attack,You can attack twice instead of once whenever you take the Attack action on your turn.,7,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,5,PASSIVE,AT_WILL
+4319cc7d-cfd1-59b0-b26e-5d3e582bb853,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Tactical Shift,"Whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks.",8,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,5,PASSIVE,AT_WILL
+4c88f47b-3154-58fc-8a37-2f82cda73658,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Indomitable,"If you fail a saving throw, you can reroll it with a bonus equal to your Fighter level. You must use the new roll, and you can't use this feature again until you finish a Long Rest.
+
+You can use this feature twice before a Long Rest starting at level 13 and three times before a Long Rest starting at level 17.",9,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,9,PASSIVE,AT_WILL
+1aa2bb83-acc4-5bea-b1fd-1e91dba781a0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Tactical Master,"When you attack with a weapon whose mastery property you can use, you can replace that property with the Push, Sap, or Slow property for that attack.",10,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,9,PASSIVE,AT_WILL
+e7e82bf2-4d86-5959-973b-61f3482c8559,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Two Extra Attacks,You can attack three times instead of once whenever you take the Attack action on your turn.,11,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,11,PASSIVE,AT_WILL
+087ea89c-4eb2-53d5-9622-668fd34ec101,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Studied Attacks,"You study your opponents and learn from each attack you make. If you make an attack roll against a creature and miss, you have Advantage on your next attack roll against that creature before the end of your next turn.",12,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,13,PASSIVE,AT_WILL
+c9769f4a-90c2-5607-94c1-2853f762b1a3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Combat Prowess is recommended.",13,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,19,PASSIVE,AT_WILL
+67c06963-8f93-53d0-a3c4-2a5aea6d972e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Three Extra Attacks,You can attack four times instead of once whenever you take the Attack action on your turn.,14,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,NULL,20,PASSIVE,AT_WILL
+b52d3b78-3cc3-57cc-bd58-88f7bc786b81,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Improved Critical,Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20.,15,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,f1304d31-ec62-5275-8331-c8977c999cc9,3,PASSIVE,AT_WILL
+862759c4-a1e8-5d6c-882c-c3ea81af8d9d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Remarkable Athlete,"Thanks to your athleticism, you have Advantage on Initiative rolls and Strength (Athletics) checks.
+
+In addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks.",16,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,f1304d31-ec62-5275-8331-c8977c999cc9,3,PASSIVE,AT_WILL
+8d55e80e-1e4d-5de9-9b89-f2141f33f728,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Additional Fighting Style,You gain another Fighting Style feat of your choice.,17,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,f1304d31-ec62-5275-8331-c8977c999cc9,7,PASSIVE,AT_WILL
+9642d856-7a2c-5414-b038-f94615afec6d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Heroic Warrior,"The thrill of battle drives you toward victory. During combat, you can give yourself Heroic Inspiration whenever you start your turn without it.",18,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,f1304d31-ec62-5275-8331-c8977c999cc9,10,PASSIVE,AT_WILL
+a6b5884f-e1b1-5245-9c54-ed162810985b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Superior Critical,Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18-20 on the d20.,19,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,f1304d31-ec62-5275-8331-c8977c999cc9,15,PASSIVE,AT_WILL
+4401c538-2adb-528e-8d13-d35fb0124dda,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Survivor,"You attain the pinnacle of resilience in battle, giving you these benefits.
+
+Defy Death. You have Advantage on Death Saving Throws. Moreover, when you roll 18-20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.
+
+Heroic Rally. At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point.",20,b3a53882-ce37-5c3f-b5eb-8498bf6fe14a,f1304d31-ec62-5275-8331-c8977c999cc9,18,PASSIVE,AT_WILL
+4060a767-a32c-55d0-93ea-2bd0d49eba23,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Martial Arts,"Your practice of martial arts gives you mastery of combat styles that use your Unarmed Strike and Monk weapons, which are the following: •  Simple Melee weapons •  Martial Melee weapons that have the Light property You gain the following benefits while you are unarmed or wielding only Monk weapons and you aren't wearing armor or wielding a Shield.
+
+Bonus Unarmed Strike. You can make an Unarmed Strike as a Bonus Action.
+
+Martial Arts Die. You can roll 1d6 in place of the normal damage of your Unarmed Strike or Monk weapons. This die changes as you gain Monk levels, as shown in the Martial Arts column of the Monk Features table.
+
+Dexterous Attacks. You can use your Dexterity modifier instead of your Strength modifier for the attack and damage rolls of your Unarmed Strikes and Monk weapons. In addition, when you use the Grapple or Shove option of your Unarmed Strike, you can use your Dexterity modifier instead of your Strength modifier to determine the save DC.
+
+Martial  Focus  Unarmored
+Arts  Points  Movement
+1d6  —  —
+1d6  2  +10 ft.
+1d6  3  +10 ft.
+1d6  4  +10 ft.
+1d8  5  +10 ft.
+1d8  6  +15 ft.
+1d8  7  +15 ft.
+1d8  8  +15 ft.
+1d8  9  +15 ft.
+1d8  10  +20 ft.
+1d10  11  +20 ft.
+1d10  12  +20 ft.
+1d10  13  +20 ft.
+1d10  14  +25 ft.
+1d10  15  +25 ft.
+1d10  16  +25 ft.
+1d12  17  +25 ft.
+1d12  18  +30 ft.
+1d12  19  +30 ft.
+1d12  20  +30 ft.",0,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,1,PASSIVE,AT_WILL
+ae6659aa-3a33-5b52-9916-6de3d8081f83,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Unarmored Defense,"While you aren't wearing armor or wielding a Shield, your base Armor Class equals 10 plus your Dexterity and Wisdom modifiers.",1,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,1,PASSIVE,AT_WILL
+141568c0-f295-5b38-a10a-b3a935afd7dd,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Monk's Focus,"Your focus and martial training allow you to harness a well of extraordinary energy within yourself. This energy is represented by Focus Points. Your Monk level determines the number of points you have, as shown in the Focus Points column of the Monk Features table.
+
+You can expend these points to enhance or fuel certain Monk features. You start knowing three such features: Flurry of Blows, Patient Defense, and Step of the Wind, each of which is detailed below.
+
+When you expend a Focus Point, it is unavailable until you finish a Short or Long Rest, at the end of which you regain all your expended points.
+
+Some features that use Focus Points require your target to make a saving throw. The save DC equals 8 plus your Wisdom modifier and Proficiency Bonus.
+
+Flurry of Blows. You can expend 1 Focus Point to make two Unarmed Strikes as a Bonus Action.
+
+Patient Defense. You can take the Disengage action as a Bonus Action. Alternatively, you can expend 1 Focus Point to take both the Disengage and the Dodge actions as a Bonus Action.
+
+Step of the Wind. You can take the Dash action as a Bonus Action. Alternatively, you can expend 1 Focus Point to take both the Disengage and Dash actions as a Bonus Action, and your jump distance is doubled for the turn.",2,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,2,PASSIVE,AT_WILL
+84856729-e253-575e-bc21-ab1326ed486c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Unarmored Movement,"Your speed increases by 10 feet while you aren't wearing armor or wielding a Shield. This bonus increases when you reach certain Monk levels, as shown on the Monk Features table.",3,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,2,PASSIVE,AT_WILL
+a538ba2b-2e7e-5cca-8484-2c3a340fab80,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Uncanny Metabolism,"When you roll Initiative, you can regain all expended Focus Points. When you do so, roll your Martial Arts die, and regain a number of Hit Points equal to your Monk level plus the number rolled.
+
+Once you use this feature, you can't use it again until you finish a Long Rest.",4,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,2,PASSIVE,AT_WILL
+c5a15a93-a823-567b-8b2a-2da1cb979bba,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Deflect Attacks,"When an attack roll hits you and its damage includes Bludgeoning, Piercing, or Slashing damage, you can take a Reaction to reduce the attack's total damage against you. The reduction equals 1d10 plus your Dexterity modifier and Monk level.
+
+If you reduce the damage to 0, you can expend 1 Focus Point to redirect some of the attack's force. If you do so, choose a creature you can see within 5 feet of yourself if the attack was a melee attack or a creature you can see within 60 feet of yourself that isn't behind Total Cover if the attack was a ranged attack. That creature must succeed on a Dexterity saving throw or take damage equal to two rolls of your Martial Arts die plus your Dexterity modifier. The damage is the same type dealt by the attack.",5,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,3,PASSIVE,AT_WILL
+266e0238-e7d8-5f43-92ce-1880cc618da2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Monk Subclass,"You gain a Monk subclass of your choice. The Warrior of the Open Hand subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Monk levels. For the rest of your career, you gain each of your subclass's features that are of your Monk level or lower.",6,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,3,PASSIVE,AT_WILL
+a1fbb68c-dc88-573e-aca6-b2357c51cee1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Monk levels 8, 12, and 16.",7,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,4,PASSIVE,AT_WILL
+eb8cde88-01e1-5604-b617-8fff06a5a96a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Slow Fall,You can take a Reaction when you fall to reduce any damage you take from the fall by an amount equal to five times your Monk level.,8,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,4,PASSIVE,AT_WILL
+e42dbf85-6625-510b-b789-26bad9910226,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Extra Attack,You can attack twice instead of once whenever you take the Attack action on your turn.,9,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,5,PASSIVE,AT_WILL
+5ea6440f-bb05-527e-a4ce-68fa7991a6a4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Stunning Strike,"Once per turn when you hit a creature with a Monk weapon or an Unarmed Strike, you can expend 1 Focus Point to attempt a stunning strike. The target must make a Constitution saving throw. On a failed save, the target has the Stunned condition until the start of your next turn. On a successful save, the target's Speed is halved until the start of your next turn, and the next attack roll made against the target before then has Advantage.",10,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,5,PASSIVE,AT_WILL
+f8bc9b08-4084-510a-a8d4-e1ab5431dc60,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Empowered Strikes,"Whenever you deal damage with your Unarmed Strike, it can deal your choice of Force damage or its normal damage type.",11,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,6,PASSIVE,AT_WILL
+d261f059-c4aa-5b87-8798-0b0ffba770b2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Evasion,"When you're subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the saving throw and only half damage if you fail.
+
+You don't benefit from this feature if you have the Incapacitated condition.",12,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,7,PASSIVE,AT_WILL
+dcf1a8be-2556-584a-a583-f6b19f501557,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Acrobatic Movement,"While you aren't wearing armor or wielding a Shield, you gain the ability to move along vertical surfaces and across liquids on your turn without falling during the movement.",13,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,9,PASSIVE,AT_WILL
+301248a1-c2da-55b7-9e3d-478392065a7d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Heightened Focus,"Your Flurry of Blows, Patient Defense, and Step of the Wind gain the following benefits.
+
+Flurry of Blows. You can expend 1 Focus Point to use Flurry of Blows and make three Unarmed Strikes with it instead of two.
+
+Patient Defense. When you expend a Focus Point to use Patient Defense, you gain a number of Temporary Hit Points equal to two rolls of your Martial Arts die.
+
+Step of the Wind. When you expend a Focus Point to use Step of the Wind, you can choose a willing creature within 5 feet of yourself that is Large or smaller. You move the creature with you until the end of your turn. The creature's movement doesn't provoke Opportunity Attacks.",14,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,10,PASSIVE,AT_WILL
+41eb1cc6-582c-5e87-a501-2bb40c6a3cad,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Self-Restoration,"Through sheer force of will, you can remove one of the following conditions from yourself at the end of each of your turns: Charmed, Frightened, or Poisoned.
+
+In addition, forgoing food and drink doesn't give you levels of Exhaustion.",15,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,10,PASSIVE,AT_WILL
+dfac98b4-fea2-5b51-aa30-4ec7b30f824b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Deflect Energy,"You can now use your Deflect Attacks feature against attacks that deal any damage type, not just Bludgeoning, Piercing, or Slashing.",16,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,13,PASSIVE,AT_WILL
+f13ae43d-7e73-5967-8e7c-87631c17f7f9,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Disciplined Survivor,"Your physical and mental discipline grant you proficiency in all saving throws.
+
+Additionally, whenever you make a saving throw and fail, you can expend 1 Focus Point to reroll it, and you must use the new roll.",17,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,14,PASSIVE,AT_WILL
+20f5cba4-aea4-501a-9d45-4d26a73a52e2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Perfect Focus,"When you roll Initiative and don't use Uncanny Metabolism, you regain expended Focus Points until you have 4 if you have 3 or fewer.",18,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,15,PASSIVE,AT_WILL
+f272a8a3-410c-5dad-975e-8f4234aca425,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Superior Defense,"At the start of your turn, you can expend 3 Focus Points to bolster yourself against harm for 1 minute or until you have the Incapacitated condition. During that time, you have Resistance to all damage except Force damage.",19,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,18,PASSIVE,AT_WILL
+25e28bf9-f2fe-52ef-9aa1-bc42d4a130bc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Irresistible Offense is recommended.",20,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,19,PASSIVE,AT_WILL
+40b950f3-1aca-59b9-a8a1-1821b45f50bf,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Body and Mind,"You have developed your body and mind to new heights. Your Dexterity and Wisdom scores increase by 4, to a maximum of 25.",21,29f83bd3-fe5f-5fa3-889f-c685c82ea177,NULL,20,PASSIVE,AT_WILL
+418fb31c-25aa-5218-9afa-4bf392dd5e26,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Open Hand Technique,"Whenever you hit a creature with an attack granted by your Flurry of Blows, you can impose one of the following effects on that target. Addle. The target can't make Opportunity Attacks until the start of its next turn. Push. The target must succeed on a Strength saving throw or be pushed up to 15 feet away from you. Topple. The target must succeed on a Dexterity saving throw or have the Prone condition.",22,29f83bd3-fe5f-5fa3-889f-c685c82ea177,65614fa5-20bb-590d-b163-756208d5da21,3,PASSIVE,AT_WILL
+793d66f3-11d4-5e0d-a22e-c2ea477bcd25,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Wholeness of Body,"You gain the ability to heal yourself. As a Bonus Action, you can roll your Martial Arts die. You regain a number of Hit Points equal to the number rolled plus your Wisdom modifier (minimum of 1 Hit Point regained).
+
+You can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",23,29f83bd3-fe5f-5fa3-889f-c685c82ea177,65614fa5-20bb-590d-b163-756208d5da21,6,PASSIVE,AT_WILL
+d31a5b21-58b4-55e4-9170-5c591be87406,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fleet Step,"When you take a Bonus Action other than Step of the Wind, you can also use Step of the Wind immediately after that Bonus Action.",24,29f83bd3-fe5f-5fa3-889f-c685c82ea177,65614fa5-20bb-590d-b163-756208d5da21,11,PASSIVE,AT_WILL
+86bae122-8e34-5bdf-aa46-ad509d0e2ae1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Quivering Palm,"You gain the ability to set up lethal vibrations in someone's body. When you hit a creature with an Unarmed Strike, you can expend 4 Focus Points to start these imperceptible vibrations, which last for a number of days equal to your Monk level. The vibrations are harmless unless you take an action to end them. Alternatively, when you take the Attack action on your turn, you can forgo one of the attacks to end the vibrations. To end them, you and the target must be on the same plane of existence. When you end them, the target must make a Constitution saving throw, taking 10d12 Force damage on a failed save or half as much damage on a successful one.
+
+You can have only one creature under the effect of this feature at a time. You can end the vibrations harmlessly (no action required).",25,29f83bd3-fe5f-5fa3-889f-c685c82ea177,65614fa5-20bb-590d-b163-756208d5da21,17,PASSIVE,AT_WILL
+e92f2e44-5de5-5bd9-9863-80c50e663c61,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Lay On Hands,"Your blessed touch can heal wounds. You have a pool of healing power that replenishes when you finish a Long Rest. With that pool, you can restore a total number of Hit Points equal to five times your Paladin level.
+
+—Spell Slots per Spell Level—
+Channel  Prepared
+Divinity  Spells  1  2  3  4  5
+—  2  2  —  —  —  —
+—  3  2  —  —  —  —
+2  4  3  —  —  —  —
+2  5  3  —  —  —  —
+2  6  4  2  —  —  —
+2  6  4  2  —  —  —
+2  7  4  3  —  —  —
+2  7  4  3  —  —  —
+2  9  4  3  2  —  —
+2  9  4  3  2  —  —
+3  10  4  3  3  —  —
+3  10  4  3  3  —  —
+3  11  4  3  3  1  —
+3  11  4  3  3  1  —
+3  12  4  3  3  2  —
+3  12  4  3  3  2  —
+3  14  4  3  3  3  1
+3  14  4  3  3  3  1
+3  15  4  3  3  3  2
+3  15  4  3  3  3  2
+
+As a Bonus Action, you can touch a creature (which could be yourself) and draw power from the pool of healing to restore a number of Hit Points to that creature, up to the maximum amount remaining in the pool.
+
+You can also expend 5 Hit Points from the pool of healing power to remove the Poisoned condition from the creature; those points don't also restore Hit Points to the creature.",0,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,1,PASSIVE,AT_WILL
+b04594ad-f0d5-5476-abea-a948860cdf24,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"You have learned to cast spells through prayer and meditation. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Paladin spells, which appear in the Paladin spell list later in the class's description.
+
+Spell Slots. The Paladin Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Paladin spells. Heroism and Searing Smite are recommended.
+
+The number of spells on your list increases as you gain Paladin levels, as shown in the Prepared Spells column of the Paladin Features table. Whenever that number increases, choose additional Paladin spells until the number of spells on your list matches the number in the Paladin Features table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 5 Paladin, your list of prepared spells can include six Paladin spells of level 1 or 2 in any combination.
+
+If another Paladin feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Paladin spells for you.
+
+Changing Your Prepared Spells. Whenever you finish a Long Rest, you can replace one spell on your list with another Paladin spell for which you have spell slots.
+
+Spellcasting Ability. Charisma is your spellcasting ability for your Paladin spells.
+
+Spellcasting Focus. You can use a Holy Symbol as a Spellcasting Focus for your Paladin spells.",1,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,1,PASSIVE,AT_WILL
+5fe7d4c8-93e3-5495-8817-3cdbb7fc897c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Weapon Mastery,"Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Longswords and Javelins.
+
+Whenever you finish a Long Rest, you can change the kinds of weapons you chose. For example, you could switch to using the mastery properties of Halberds and Flails.",2,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,1,PASSIVE,AT_WILL
+c6e3737c-9f66-5c03-82fe-7e4ab9f53f46,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fighting Style,"You gain a Fighting Style feat of your choice (see ""Feats"" for feats). Instead of choosing one of those feats, you can choose the option below.
+
+Blessed Warrior. You learn two Cleric cantrips of your choice (see the Cleric class's section for a list of Cleric spells). Guidance and Sacred Flame are recommended. The chosen cantrips count as Paladin spells for you, and Charisma is your spellcasting ability for them. Whenever you gain a Paladin level, you can replace one of these cantrips with another Cleric cantrip.",3,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,2,PASSIVE,AT_WILL
+4e0f6741-02b8-5a15-9090-3244441167c7,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Paladin's Smite,"You always have the Divine Smite spell prepared. In addition, you can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again.",4,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,2,PASSIVE,AT_WILL
+19876065-7d47-5ad6-94b0-5dea468fef25,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Channel Divinity,"You can channel divine energy directly from the Outer Planes, using it to fuel magical effects. You start with one such effect: Divine Sense, which is described below. Other Paladin features give additional Channel Divinity effect options. Each time you use this class's Channel Divinity, you choose which effect from this class to create.
+
+You can use this class's Channel Divinity twice. You regain one of its expended uses when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest. You gain an additional use when you reach Paladin level 11.
+
+B  y  o
+rEakinG  our  atH
+A Paladin tries to hold to the highest standards of
+conduct, but even the most dedicated are fallible.
+Sometimes a Paladin transgresses their oath.
+A Paladin who has broken a vow typically seeks
+absolution, spending an all-night vigil as a sign of pen-
+itence or undertaking a fast. After a rite of forgive-
+ness, the Paladin starts fresh.
+If your Paladin unrepentantly violates their oath,
+talk to your GM. Your Paladin should probably take a
+more appropriate subclass or even abandon the class
+and adopt another one.
+
+If a Channel Divinity effect requires a saving throw, the DC equals the spell save DC from this class's Spellcasting feature.
+
+Divine Sense. As a Bonus Action, you can open your awareness to detect Celestials, Fiends, and Undead. For the next 10 minutes or until you have the Incapacitated condition, you know the location of any creature of those types within 60 feet of yourself, and you know its creature type. Within the same radius, you also detect the presence of any place or object that has been consecrated or desecrated, as with the Hallow spell.",5,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,3,PASSIVE,AT_WILL
+79b1e60b-b240-5cfb-a5ee-e7a2db32823c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Paladin Subclass,"You gain a Paladin subclass of your choice. The Oath of Devotion subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Paladin levels. For the rest of your career, you gain each of your subclass's features that are of your Paladin level or lower.",6,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,3,PASSIVE,AT_WILL
+47211790-5a9c-50db-a519-aadb441adece,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Paladin levels 8, 12, and 16.",7,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,4,PASSIVE,AT_WILL
+5132fa59-a8ef-5400-b5d8-6193c235ec71,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Extra Attack,You can attack twice instead of once whenever you take the Attack action on your turn.,8,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,5,PASSIVE,AT_WILL
+de05acf3-bba7-5177-be42-57f8ba4ed5ad,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Faithful Steed,"You can call on the aid of an otherworldly steed. You always have the Find Steed spell prepared.
+
+You can also cast the spell once without expending a spell slot, and you regain the ability to do so when you finish a Long Rest.",9,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,5,PASSIVE,AT_WILL
+aa5de821-7d5e-5644-8221-68c04fb71c9e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Aura of Protection,"You radiate a protective, unseeable aura in a 10-foot Emanation that originates from you. The aura is inactive while you have the Incapacitated condition.
+
+You and your allies in the aura gain a bonus to saving throws equal to your Charisma modifier (minimum bonus of +1).
+
+If another Paladin is present, a creature can benefit from only one Aura of Protection at a time; the creature chooses which aura while in them.",10,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,6,PASSIVE,AT_WILL
+73546519-9515-5f7a-a7a8-adddf399cfd5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Abjure Foes,"As a Magic action, you can expend one use of this class's Channel Divinity to overwhelm foes with awe. As you present your Holy Symbol or weapon, you can target a number of creatures equal to your Charisma modifier (minimum of one creature) that you can see within 60 feet of yourself. Each target must succeed on a Wisdom saving throw or have the Frightened condition for 1 minute or until it takes any damage. While Frightened in this way, a target can do only one of the following on its turns: move, take an action, or take a Bonus Action.",11,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,9,PASSIVE,AT_WILL
+e41e0799-26e2-5032-ac53-4279be7abe5c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Aura of Courage,"You and your allies have Immunity to the Frightened condition while in your Aura of Protection. If a Frightened ally enters the aura, that condition has no effect on that ally while there.",12,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,10,PASSIVE,AT_WILL
+8a1df204-07aa-52ea-98a9-79bc2a37d4ff,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Radiant Strikes,"Your strikes now carry supernatural power. When you hit a target with an attack roll using a Melee weapon or an Unarmed Strike, the target takes an extra 1d8 Radiant damage.",13,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,11,PASSIVE,AT_WILL
+a42b1b02-c60b-5bbc-86e3-62090c3abe43,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Restoring Touch,"When you use Lay On Hands on a creature, you can also remove one or more of the following conditions from the creature: Blinded, Charmed, Deafened, Frightened, Paralyzed, or Stunned. You must expend 5 Hit Points from the healing pool of Lay On Hands for each of these conditions you remove; those points don't also restore Hit Points to the creature.",14,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,14,PASSIVE,AT_WILL
+7ca0039f-b3db-53b5-821b-0f5cdce7ce4c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Aura Expansion,Your Aura of Protection is now a 30-foot Emanation.,15,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,18,PASSIVE,AT_WILL
+80b7df3e-e518-5e89-bf5d-b37063245fe4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Truesight is recommended.",16,eeb719a0-134e-5484-837c-c2ca360facaf,NULL,19,PASSIVE,AT_WILL
+edb25fe6-1815-565b-9eed-de8bd74bbb02,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Oath of Devotion Spells,"The magic of your oath ensures you always have certain spells ready; when you reach a Paladin level specified in the Oath of Devotion Spells table, you thereafter always have the listed spells prepared.
+
+Oath of Devotion Spells
+Paladin Level Spells
+3  Protection from Evil and Good,
+Shield of Faith
+5  Aid, Zone of Truth
+9  Beacon of Hope, Dispel Magic
+13  Freedom of Movement,
+Guardian of Faith
+17  Commune, Flame Strike",17,eeb719a0-134e-5484-837c-c2ca360facaf,1a8b5a6e-ba1b-57c2-836b-4f0eb24e9601,3,PASSIVE,AT_WILL
+797944bd-ea99-55eb-921a-f596d410afe2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sacred Weapon,"When you take the Attack action, you can expend one use of your Channel Divinity to imbue one Melee weapon that you are holding with positive energy. For 10 minutes or until you use this feature again, you add your Charisma modifier to attack rolls you make with that weapon (minimum bonus of +1), and each time you hit with it, you cause it to deal its normal damage type or Radiant damage.
+
+The weapon also emits Bright Light in a 20-foot radius and Dim Light 20 feet beyond that.
+
+You can end this effect early (no action required). This effect also ends if you aren't carrying the weapon.",18,eeb719a0-134e-5484-837c-c2ca360facaf,1a8b5a6e-ba1b-57c2-836b-4f0eb24e9601,3,PASSIVE,AT_WILL
+fb88c133-370d-5bef-9257-774ed1d7f669,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Aura of Devotion,"You and your allies have Immunity to the Charmed condition while in your Aura of Protection. If a Charmed ally enters the aura, that condition has no effect on that ally while there.",19,eeb719a0-134e-5484-837c-c2ca360facaf,1a8b5a6e-ba1b-57c2-836b-4f0eb24e9601,7,PASSIVE,AT_WILL
+7146638c-813e-5ce7-af9f-492ddc722c65,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Smite of Protection,"Your magical smite now radiates protective energy. Whenever you cast Divine Smite, you and your allies have Half Cover while in your Aura of Protection. The aura has this benefit until the start of your next turn.",20,eeb719a0-134e-5484-837c-c2ca360facaf,1a8b5a6e-ba1b-57c2-836b-4f0eb24e9601,15,PASSIVE,AT_WILL
+8128befc-65dd-5ca8-81f0-51509656c096,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Holy Nimbus,"As a Bonus Action, you can imbue your Aura of Protection with holy power, granting the benefits below for 10 minutes or until you end them (no action required). Once you use this feature, you can't use it again until you finish a Long Rest. You can also restore your use of it by expending a level 5 spell slot (no action required).
+
+Holy Ward. You have Advantage on any saving throw you are forced to make by a Fiend or an Undead.
+
+Radiant Damage. Whenever an enemy starts its turn in the aura, that creature takes Radiant damage equal to your Charisma modifier plus your Proficiency Bonus. Sunlight. The aura is filled with Bright Light that is sunlight.",21,eeb719a0-134e-5484-837c-c2ca360facaf,1a8b5a6e-ba1b-57c2-836b-4f0eb24e9601,20,PASSIVE,AT_WILL
+7d9f93b5-3a98-55f0-8a2e-78ca72173691,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"You have learned to channel the magical essence of nature to cast spells. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Ranger spells, which appear in the Ranger spell list later in the class's description.
+
+Spell Slots. The Ranger Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.
+
+Ranger Features
+Proficiency
+Level  Bonus  Class Features
+1  +2  Spellcasting, Favored Enemy,
+Weapon Mastery
+2  +2  Deft Explorer, Fighting Style
+3  +2  Ranger Subclass
+4  +2  Ability Score Improvement
+5  +3  Extra Attack
+6  +3  Roving
+7  +3  Subclass feature
+8  +3  Ability Score Improvement
+9  +4  Expertise
+10  +4  Tireless
+11  +4  Subclass feature
+12  +4  Ability Score Improvement
+13  +5  Relentless Hunter
+14  +5  Nature's Veil
+15  +5  Subclass feature
+16  +5  Ability Score Improvement
+17  +6  Precise Hunter
+18  +6  Feral Senses
+19  +6  Epic Boon
+20  +6  Foe Slayer
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Ranger spells. Cure Wounds and Ensnaring Strike are recommended.
+
+The number of spells on your list increases as you gain Ranger levels, as shown in the Prepared Spells column of the Ranger Features table. Whenever that number increases, choose additional Ranger spells until the number of spells on your list matches the number in the Ranger Features table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 5 Ranger, your list of prepared spells can include six Ranger spells of level 1 or 2 in any combination.
+
+If another Ranger feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Ranger spells for you.
+
+—Spell Slots per Spell Level—
+Favored  Prepared
+Enemy  Spells  1  2  3  4  5
+2  2  2  —  —  —  —
+2  3  2  —  —  —  —
+2  4  3  —  —  —  —
+2  5  3  —  —  —  —
+3  6  4  2  —  —  —
+3  6  4  2  —  —  —
+3  7  4  3  —  —  —
+3  7  4  3  —  —  —
+4  9  4  3  2  —  —
+4  9  4  3  2  —  —
+4  10  4  3  3  —  —
+4  10  4  3  3  —  —
+5  11  4  3  3  1  —
+5  11  4  3  3  1  —
+5  12  4  3  3  2  —
+5  12  4  3  3  2  —
+6  14  4  3  3  3  1
+6  14  4  3  3  3  1
+6  15  4  3  3  3  2
+6  15  4  3  3  3  2
+
+Changing Your Prepared Spells. Whenever you finish a Long Rest, you can replace one spell on your list with another Ranger spell for which you have spell slots.
+
+Spellcasting Ability. Wisdom is your spellcasting ability for your Ranger spells.
+
+Spellcasting Focus. You can use a Druidic Focus as a Spellcasting Focus for your Ranger spells.",0,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,1,PASSIVE,AT_WILL
+d7ce0d58-8154-581e-a14f-e5844ebbbbcf,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Favored Enemy,"You always have the Hunter's Mark spell prepared. You can cast it twice without expending a spell slot, and you regain all expended uses of this ability when you finish a Long Rest.
+
+The number of times you can cast the spell without a spell slot increases when you reach certain Ranger levels, as shown in the Favored Enemy column of the Ranger Features table.",1,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,1,PASSIVE,AT_WILL
+421db714-56aa-5f47-9dd7-9d5a9304134c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Weapon Mastery,"Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Longbows and Shortswords.
+
+Whenever you finish a Long Rest, you can change the kinds of weapons you chose. For example, you could switch to using the mastery properties of Scimitars and Longswords.",2,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,1,PASSIVE,AT_WILL
+ae41900c-5da9-5b2a-9a40-79e87f99b8fc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Deft Explorer,"Thanks to your travels, you gain the following benefits. Expertise. Choose one of your skill proficiencies with which you lack Expertise. You gain Expertise in that skill. Languages. You know two languages of your choice from the language tables in ""Character Creation.""",3,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,2,PASSIVE,AT_WILL
+93f082b1-5104-521a-9f36-8f5b3c9343ca,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fighting Style,"You gain a Fighting Style feat of your choice (see ""Feats""). Instead of choosing one of those feats, you can choose the option below.
+
+Druidic Warrior. You learn two Druid cantrips of your choice (see the Druid class's section for a list of Druid spells). Guidance and Starry Wisp are recommended. The chosen cantrips count as Ranger spells for you, and Wisdom is your spellcasting ability for them. Whenever you gain a Ranger level, you can replace one of these cantrips with another Druid cantrip.",4,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,2,PASSIVE,AT_WILL
+5b012736-9321-5988-a962-614377bd0af9,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ranger Subclass,"You gain a Ranger subclass of your choice. The Hunter subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Ranger levels. For the rest of your career, you gain each of your subclass's features that are of your Ranger level or lower.",5,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,3,PASSIVE,AT_WILL
+c9fac27a-9eab-5bef-9d91-cd5c62d6a8be,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Ranger levels 8, 12, and 16.",6,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,4,PASSIVE,AT_WILL
+848c7810-9ae0-57c7-bd46-237d256368e6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Extra Attack,You can attack twice instead of once whenever you take the Attack action on your turn.,7,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,5,PASSIVE,AT_WILL
+71166589-35f3-5833-9b07-8eb46d9effdc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Roving,Your Speed increases by 10 feet while you aren't wearing Heavy armor. You also have a Climb Speed and a Swim Speed equal to your Speed.,8,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,6,PASSIVE,AT_WILL
+ea46ab8d-42ac-54e6-b243-0f0bb91ab05c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Expertise,Choose two of your skill proficiencies with which you lack Expertise. You gain Expertise in those skills.,9,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,9,PASSIVE,AT_WILL
+1bdef13f-398b-5610-82d6-5289d40261df,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Tireless,"Primal forces now help fuel you on your journeys, granting you the following benefits.
+
+Temporary Hit Points. As a Magic action, you can give yourself a number of Temporary Hit Points equal to 1d8 plus your Wisdom modifier (minimum of 1). You can use this action a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.
+
+Decrease Exhaustion. Whenever you finish a Short Rest, your Exhaustion level, if any, decreases by 1.",10,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,10,PASSIVE,AT_WILL
+5daa11b9-bd0e-5807-ad53-4c58052be8c5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Relentless Hunter,Taking damage can't break your Concentration on Hunter's Mark.,11,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,13,PASSIVE,AT_WILL
+a92660df-0e14-5db6-aee7-1070eca3a648,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Nature's Veil,"You invoke spirits of nature to magically hide yourself. As a Bonus Action, you can give yourself the Invisible condition until the end of your next turn.
+
+You can use this feature a number of times equal to your Wisdom modifier (minimum of once), and you regain all expended uses when you finish a Long Rest.",12,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,14,PASSIVE,AT_WILL
+c38bbba0-e3ed-5760-a67b-f27fbdefe508,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Precise Hunter,You have Advantage on attack rolls against the creature currently marked by your Hunter's Mark.,13,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,17,PASSIVE,AT_WILL
+14de9a9c-023b-5684-9eb3-089d8f62bb55,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Feral Senses,Your connection to the forces of nature grants you Blindsight with a range of 30 feet.,14,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,18,PASSIVE,AT_WILL
+eb9549e3-7618-522d-a1ad-2cc39f9ce690,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Dimensional Travel is recommended.",15,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,19,PASSIVE,AT_WILL
+b5f35340-db4d-5a7d-a046-1dfaa5a71016,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Foe Slayer,The damage die of your Hunter's Mark is a d10 rather than a d6.,16,bfb29762-cbb4-532e-a82f-54808c7e209d,NULL,20,PASSIVE,AT_WILL
+47527873-f3b6-5bd0-80cc-71e5c1362cc4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Hunter's Lore,"You can call on the forces of nature to reveal certain strengths and weaknesses of your prey. While a creature is marked by your Hunter's Mark, you know whether that creature has any Immunities, Resistances, or Vulnerabilities, and if the creature has any, you know what they are.",17,bfb29762-cbb4-532e-a82f-54808c7e209d,9972cb16-24c1-508d-8f5a-67fd522d3a3a,3,PASSIVE,AT_WILL
+51696e9e-c576-56e7-af39-7a56291e19a6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Hunter's Prey,"You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.
+
+Colossus Slayer. Your tenacity can wear down even the most resilient foes. When you hit a creature with a weapon, the weapon deals an extra 1d8 damage to the target if it's missing any of its Hit Points. You can deal this extra damage only once per turn.
+
+Horde Breaker. Once on each of your turns when you make an attack with a weapon, you can make another attack with the same weapon against a different creature that is within 5 feet of the original target, that is within the weapon's range, and that you haven't attacked this turn.",18,bfb29762-cbb4-532e-a82f-54808c7e209d,9972cb16-24c1-508d-8f5a-67fd522d3a3a,3,PASSIVE,AT_WILL
+a71a4737-3fb6-5deb-ba9b-9a001d18d1ac,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Defensive Tactics,"You gain one of the following feature options of your choice. Whenever you finish a Short or Long Rest, you can replace the chosen option with the other one.
+
+Escape the Horde. Opportunity Attacks have Disadvantage against you.
+
+Multiattack Defense. When a creature hits you with an attack roll, that creature has Disadvantage on all other attack rolls against you this turn.",19,bfb29762-cbb4-532e-a82f-54808c7e209d,9972cb16-24c1-508d-8f5a-67fd522d3a3a,7,PASSIVE,AT_WILL
+5e024eb5-e6ab-5482-94af-b068ef3068a2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Superior Hunter's Prey,"Once per turn when you deal damage to a creature marked by your Hunter's Mark, you can also deal that spell's extra damage to a different creature that you can see within 30 feet of the first creature.",20,bfb29762-cbb4-532e-a82f-54808c7e209d,9972cb16-24c1-508d-8f5a-67fd522d3a3a,11,PASSIVE,AT_WILL
+02cb0693-093b-5b57-a731-1eb5b982c855,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Superior Hunter's Defense,"When you take damage, you can take a Reaction to give yourself Resistance to that damage and any other damage of the same type until the end of the current turn.",21,bfb29762-cbb4-532e-a82f-54808c7e209d,9972cb16-24c1-508d-8f5a-67fd522d3a3a,15,PASSIVE,AT_WILL
+5d40a54f-4dd5-576b-881c-a5270cfbf6ca,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Expertise,"You gain Expertise in two of your skill proficiencies of your choice. Sleight of Hand and Stealth are recommended if you have proficiency in them.
+
+At Rogue level 6, you gain Expertise in two more of your skill proficiencies of your choice.",0,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,1,PASSIVE,AT_WILL
+d68fe3c2-113d-57f2-98a6-68a8ef56f9d1,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sneak Attack,"You know how to strike subtly and exploit a foe's distraction. Once per turn, you can deal an extra 1d6 damage to one creature you hit with an attack
+
+Rogue Features
+Proficiency
+Level  Bonus  Class Features
+1  +2  Expertise, Sneak Attack, Thieves' Cant, Weapon Mastery
+2  +2  Cunning Action
+3  +2  Rogue Subclass, Steady Aim
+4  +2  Ability Score Improvement
+5  +3  Cunning Strike, Uncanny Dodge
+6  +3  Expertise
+7  +3  Evasion, Reliable Talent
+8  +3  Ability Score Improvement
+9  +4  Subclass feature
+10  +4  Ability Score Improvement
+11  +4  Improved Cunning Strike
+12  +4  Ability Score Improvement
+13  +5  Subclass feature
+14  +5  Devious Strikes
+15  +5  Slippery Mind
+16  +5  Ability Score Improvement
+17  +6  Subclass feature
+18  +6  Elusive
+19  +6  Epic Boon
+20  +6  Stroke of Luck
+
+roll if you have Advantage on the roll and the attack uses a Finesse or a Ranged weapon. The extra damage's type is the same as the weapon's type.
+
+You don't need Advantage on the attack roll if at least one of your allies is within 5 feet of the target, the ally doesn't have the Incapacitated condition, and you don't have Disadvantage on the attack roll.
+
+The extra damage increases as you gain Rogue levels, as shown in the Sneak Attack column of the Rogue Features table.",1,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,1,PASSIVE,AT_WILL
+ff93d809-d9be-57fc-af68-ff9db40adbbc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Thieves' Cant,"You picked up various languages in the communities where you plied your roguish talents. You know Thieves' Cant and one other language of your choice, which you choose from the language tables in ""Character Creation.""",2,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,1,PASSIVE,AT_WILL
+e5ff11d5-70d5-5b63-b062-5f0c6df7c55d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Weapon Mastery,"Your training with weapons allows you to use the mastery properties of two kinds of weapons of your choice with which you have proficiency, such as Daggers and Shortbows.
+
+Sneak Attack
+1d6
+1d6
+2d6
+2d6
+3d6
+3d6
+4d6
+4d6
+5d6
+5d6
+6d6
+6d6
+7d6
+7d6
+8d6
+8d6
+9d6
+9d6
+10d6
+10d6
+
+Whenever you finish a Long Rest, you can change the kinds of weapons you chose. For example, you could switch to using the mastery properties of Scimitars and Shortswords.",3,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,1,PASSIVE,AT_WILL
+cbf14975-adae-5167-9517-9c58d0c15553,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Cunning Action,"Your quick thinking and agility allow you to move and act quickly. On your turn, you can take one of the following actions as a Bonus Action: Dash, Disengage, or Hide.",4,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,2,PASSIVE,AT_WILL
+caebc658-cb9b-53d1-ad01-8064ea399d30,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Rogue Subclass,"You gain a Rogue subclass of your choice. The Thief subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Rogue levels. For the rest of your career, you gain each of your subclass's features that are of your Rogue level or lower.",5,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,3,PASSIVE,AT_WILL
+6644c602-b614-5c2f-a009-98fe601c05e4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Steady Aim,"As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven't moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.",6,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,3,PASSIVE,AT_WILL
+06610966-f51c-5158-a285-2c26fbe962a5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Rogue levels 8, 10, 12, and 16.",7,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,4,PASSIVE,AT_WILL
+40bde4a1-2f6f-5af4-a17e-a8dc999d37d6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Cunning Strike,"You've developed cunning ways to use your Sneak Attack. When you deal Sneak Attack damage, you can add one of the following Cunning Strike effects. Each effect has a die cost, which is the number of Sneak Attack damage dice you must forgo to add the effect. You remove the die before rolling, and the effect occurs immediately after the attack's damage is dealt. For example, if you add the Poison effect, remove 1d6 from the Sneak Attack's damage before rolling.
+
+If a Cunning Strike effect requires a saving throw, the DC equals 8 plus your Dexterity modifier and Proficiency Bonus.
+
+Poison (Cost: 1d6). You add a toxin to your strike, forcing the target to make a Constitution saving throw. On a failed save, the target has the Poisoned condition for 1 minute. At the end of each of its turns, the Poisoned target repeats the save, ending the effect on itself on a success.
+
+To use this effect, you must have a Poisoner's Kit on your person.
+
+Trip (Cost: 1d6). If the target is Large or smaller, it must succeed on a Dexterity saving throw or have the Prone condition.
+
+Withdraw (Cost: 1d6). Immediately after the attack, you move up to half your Speed without provoking Opportunity Attacks.",8,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,5,PASSIVE,AT_WILL
+9aa47308-fa3f-5717-891f-9bfeda978e48,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Uncanny Dodge,"When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack's damage against you (round down).",9,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,5,PASSIVE,AT_WILL
+a9ce6fb9-9a39-58a0-b152-e0dd2ffa6924,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Evasion,"You can nimbly dodge out of the way of certain dangers. When you're subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the saving throw and only half damage if you fail. You can't use this feature if you have the Incapacitated condition.",10,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,7,PASSIVE,AT_WILL
+ccb1634f-0eb0-5da5-b722-03bb0a6a460e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Reliable Talent,"Whenever you make an ability check that uses one of your skill or tool proficiencies, you can treat a d20 roll of 9 or lower as a 10.",11,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,7,PASSIVE,AT_WILL
+3d6e7710-cac4-5f95-941c-b8e51e86911a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Improved Cunning Strike,"You can use up to two Cunning Strike effects when you deal Sneak Attack damage, paying the die cost for each effect.",12,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,11,PASSIVE,AT_WILL
+cf53f37a-88f9-5a86-ae6e-d6400bc5d61e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Devious Strikes,"You've practiced new ways to use your Sneak Attack deviously. The following effects are now among your Cunning Strike options.
+
+Daze (Cost: 2d6). The target must succeed on a Constitution saving throw, or on its next turn, it can do only one of the following: move or take an action or a Bonus Action.
+
+Knock Out (Cost: 6d6). The target must succeed on a Constitution saving throw, or it has the Unconscious condition for 1 minute or until it takes any damage. The Unconscious target repeats the save at the end of each of its turns, ending the effect on itself on a success.
+
+Obscure (Cost: 3d6). The target must succeed on a Dexterity saving throw, or it has the Blinded condition until the end of its next turn.",13,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,14,PASSIVE,AT_WILL
+aa61c8bd-dc5d-5925-aaa9-374263350260,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Slippery Mind,Your cunning mind is exceptionally difficult to control. You gain proficiency in Wisdom and Charisma saving throws.,14,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,15,PASSIVE,AT_WILL
+208f5d34-d6dd-569f-b46c-a46fe457d88a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Elusive,You're so evasive that attackers rarely gain the upper hand against you. No attack roll can have Advantage against you unless you have the Incapacitated condition.,15,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,18,PASSIVE,AT_WILL
+2e98359a-6cf8-52f2-8a06-ae99a95e3818,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of the Night Spirit is recommended.",16,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,19,PASSIVE,AT_WILL
+7faa2e9b-6564-5e82-9e8f-89ee37428f2a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Stroke of Luck,"You have a marvelous knack for succeeding when you need to. If you fail a D20 Test, you can turn the roll into a 20.
+
+Once you use this feature, you can't use it again until you finish a Short or Long Rest.",17,12b7133c-16a4-5974-93f6-f5a3b65bd670,NULL,20,PASSIVE,AT_WILL
+f287390b-1ce0-560d-a4ef-ed6597c0249b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fast Hands,"As a Bonus Action, you can do one of the following.
+
+Sleight of Hand. Make a Dexterity (Sleight of Hand) check to pick a lock or disarm a trap with Thieves' Tools or to pick a pocket.
+
+Use an Object. Take the Utilize action, or take the Magic action to use a magic item that requires that action.",18,12b7133c-16a4-5974-93f6-f5a3b65bd670,15489081-068c-52af-bf7b-f3e48ae5fd6f,3,PASSIVE,AT_WILL
+c53def2c-a90b-5148-95d7-e6a3353c8b3c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Second-Story Work,"You've trained to get into especially hard-to-reach places, granting you these benefits. Climber. You gain a Climb Speed equal to your Speed. Jumper. You can determine your jump distance using your Dexterity rather than your Strength.",19,12b7133c-16a4-5974-93f6-f5a3b65bd670,15489081-068c-52af-bf7b-f3e48ae5fd6f,3,PASSIVE,AT_WILL
+ed65902f-91d2-5dd0-a444-035d6f3ac8f4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Supreme Sneak,"You gain the following Cunning Strike option.
+
+Stealth Attack (Cost: 1d6). If you have the Hide action's Invisible condition, this attack doesn't end that condition on you if you end the turn behind Three-Quarters Cover or Total Cover.",20,12b7133c-16a4-5974-93f6-f5a3b65bd670,15489081-068c-52af-bf7b-f3e48ae5fd6f,9,PASSIVE,AT_WILL
+8dd0dedb-4880-5e1e-bd63-14db49436f19,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Use Magic Device,"You've learned how to maximize use of magic items, granting you the following benefits. Attunement. You can attune to up to four magic items at once. Charges. Whenever you use a magic item property that expends charges, roll 1d6. On a roll of 6, you use the property without expending the charges. Scrolls. You can use any Spell Scroll, using Intelligence as your spellcasting ability for the spell. If the spell is a cantrip or a level 1 spell, you can cast it reliably. If the scroll contains a higher-level spell, you must first succeed on an Intelligence (Arcana) check (DC 10 plus the spell's level). On a successful check, you cast the spell from the scroll. On a failed check, the scroll disintegrates.",21,12b7133c-16a4-5974-93f6-f5a3b65bd670,15489081-068c-52af-bf7b-f3e48ae5fd6f,13,PASSIVE,AT_WILL
+576e2908-7b8a-5d89-8019-45ab69762310,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Thief's Reflexes,You are adept at laying ambushes and quickly escaping danger. You can take two turns during the first round of any combat. You take your first turn at your normal Initiative and your second turn at your Initiative minus 10.,22,12b7133c-16a4-5974-93f6-f5a3b65bd670,15489081-068c-52af-bf7b-f3e48ae5fd6f,17,PASSIVE,AT_WILL
+1332a2b2-78e6-5954-9f0d-43e50a65bd0f,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"Drawing from your innate magic, you can cast spells. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Sorcerer spells, which appear in the Sorcerer spell list later in the class's description.
+
+Cantrips. You know four Sorcerer cantrips of your choice. Light, Prestidigitation, Shocking Grasp, and Sorcerous Burst are recommended. Whenever you gain a Sorcerer level, you can replace one of your cantrips from this feature with another Sorcerer cantrip of your choice.
+
+When you reach Sorcerer levels 4 and 10, you learn another Sorcerer cantrip of your choice, as shown in the Cantrips column of the Sorcerer Features table.
+
+Spell Slots. The Sorcerer Features table shows how many spell slots you have to cast your level 1+
+
+Sorcerer Features
+Proficiency  Sorcery
+Level  Bonus  Class Features  Points  Cantrips
+1  +2  Spellcasting,  —
+Innate Sorcery
+2  +2  Font of Magic,  2
+Metamagic
+3  +2  Sorcerer Subclass  3
+4  +2  Ability Score  4
+Improvement
+5  +3  Sorcerous  5
+Restoration
+6  +3  Subclass feature  6
+7  +3  Sorcery Incarnate  7
+8  +3  Ability Score  8
+Improvement
+9  +4  —  9
+10  +4  Metamagic  10
+11  +4  —  11
+12  +4  Ability Score  12
+Improvement
+13  +5  —  13
+14  +5  Subclass feature  14
+15  +5  —  15
+16  +5  Ability Score  16
+Improvement
+17  +6  Metamagic  17
+18  +6  Subclass feature  18
+19  +6  Epic Boon  19
+20  +6  Arcane Apotheosis  20
+
+spells. You regain all expended slots when you finish a Long Rest.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Sorcerer spells. Burning Hands and Detect Magic are recommended.
+
+The number of spells on your list increases as you gain Sorcerer levels, as shown in the Prepared Spells column of the Sorcerer Features table. Whenever that number increases, choose additional Sorcerer spells until the number of spells on your list matches the number in the Sorcerer Features table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Sorcerer, your list of prepared spells can include six Sorcerer spells of level 1 or 2 in any combination.
+
+If another Sorcerer feature gives you spells that you always have prepared, those spells don't count
+
+——Spell Slots per Spell Level——
+Prepared
+Spells  1  2  3  4  5  6  7  8  9
+4  2  2 — — — — — — — —
+4  4  3 — — — — — — — —
+4  6  4  2 — — — — — — —
+5  7  4  3 — — — — — — —
+5  9  4  3  2 — — — — — —
+5  10  4  3  3 — — — — — —
+5  11  4  3  3  1 — — — — —
+5  12  4  3  3  2 — — — — —
+5  14  4  3  3  3  1 — — — —
+6  15  4  3  3  3  2 — — — —
+6  16  4  3  3  3  2  1 — — —
+6  16  4  3  3  3  2  1 — — —
+6  17  4  3  3  3  2  1  1 — —
+6  17  4  3  3  3  2  1  1 — —
+6  18  4  3  3  3  2  1  1  1 —
+6  18  4  3  3  3  2  1  1  1 —
+6  19  4  3  3  3  2  1  1  1  1
+6  20  4  3  3  3  3  1  1  1  1
+6  21  4  3  3  3  3  2  1  1  1
+6  22  4  3  3  3  3  2  2  1  1
+
+against the number of spells you can prepare with this feature, but those spells otherwise count as Sorcerer spells for you.
+
+Changing Your Prepared Spells. Whenever you gain a Sorcerer level, you can replace one spell on your list with another Sorcerer spell for which you have spell slots.
+
+Spellcasting Ability. Charisma is your spellcasting ability for your Sorcerer spells.
+
+Spellcasting Focus. You can use an Arcane Focus as a Spellcasting Focus for your Sorcerer spells.",0,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,1,PASSIVE,AT_WILL
+e5121f75-ad84-5073-84de-44aa8e6c4bbb,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Innate Sorcery,"An event in your past left an indelible mark on you, infusing you with simmering magic. As a Bonus Action, you can unleash that magic for 1 minute, during which you gain the following benefits: •  The spell save DC of your Sorcerer spells increases by 1. •  You have Advantage on the attack rolls of Sorcerer spells you cast. You can use this feature twice, and you regain all expended uses of it when you finish a Long Rest.",1,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,1,PASSIVE,AT_WILL
+af5f0421-672f-54d7-8c95-0488d005e5b8,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Font of Magic,"You can tap into the wellspring of magic within yourself. This wellspring is represented by Sorcery Points, which allow you to create a variety of magical effects.
+
+You have 2 Sorcery Points, and you gain more as you reach higher levels, as shown in the Sorcery Points column of the Sorcerer Features table. You can't have more Sorcery Points than the number shown in the table for your level. You regain all expended Sorcery Points when you finish a Long Rest.
+
+You can use your Sorcery Points to fuel the options below, along with other features, such as Metamagic, that use those points.
+
+Converting Spell Slots to Sorcery Points. You can expend a spell slot to gain a number of Sorcery Points equal to the slot's level (no action required).
+
+Creating Spell Slots. As a Bonus Action, you can transform unexpended Sorcery Points into one spell slot. The Creating Spell Slots table shows the cost of creating a spell slot of a given level, and it lists the minimum Sorcerer level you must be to create a slot. You can create a spell slot no higher than level 5.
+
+Any spell slot you create with this feature vanishes when you finish a Long Rest.
+
+Creating Spell Slots
+Spell Slot  Sorcery Point  Min. Sorcerer
+Level  Cost  Level
+1  2  2
+2  3  3
+3  5  5
+4  6  7
+5  7  9",2,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,2,PASSIVE,AT_WILL
+ac6d027e-7e8e-50cb-8878-0b5e611afbf0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Metamagic,"Because your magic flows from within, you can alter your spells to suit your needs; you gain two Metamagic options of your choice from ""Meta magic Options"" later in this class's description. You use the chosen options to temporarily modify spells you cast. To use an option, you must spend the number of Sorcery Points that it costs.
+
+You can use only one Metamagic option on a spell when you cast it unless otherwise noted in one of those options.
+
+Whenever you gain a Sorcerer level, you can replace one of your Metamagic options with one you don't know. You gain two more options at Sorcerer level 10 and two more at Sorcerer level 17.",3,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,2,PASSIVE,AT_WILL
+8de78216-04f5-56f2-8b4f-beb13870080a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sorcerer Subclass,"You gain a Sorcerer subclass of your choice. The Draconic Sorcery subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Sorcerer levels. For the rest of your career, you gain each of your subclass's features that are of your Sorcerer level or lower.",4,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,3,PASSIVE,AT_WILL
+8835681c-650d-5d86-b6da-915b4d212eb0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Sorcerer levels 8, 12, and 16.",5,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,4,PASSIVE,AT_WILL
+35d32f40-56ac-563c-9ff8-ce3a61d6aa9e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sorcerous Restoration,"When you finish a Short Rest, you can regain expended Sorcery Points, but no more than a number equal to half your Sorcerer level (round down). Once you use this feature, you can't do so again until you finish a Long Rest.",6,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,5,PASSIVE,AT_WILL
+c356d4a9-210a-5b6f-9932-463be9c5582e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sorcery Incarnate,"If you have no uses of Innate Sorcery left, you can use it if you spend 2 Sorcery Points when you take the Bonus Action to activate it.
+
+In addition, while your Innate Sorcery feature is active, you can use up to two of your Metamagic options on each spell you cast.",7,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,7,PASSIVE,AT_WILL
+b003ed42-bd21-5a49-aae8-635dcbf76a56,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Dimensional Travel is recommended.",8,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,19,PASSIVE,AT_WILL
+22a99f8a-17f3-5cb0-95cb-ff3492088dac,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Arcane Apotheosis,"While your Innate Sorcery feature is active, you can use one Metamagic option on each of your turns without spending Sorcery Points on it.",9,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,NULL,20,PASSIVE,AT_WILL
+a1c7e118-ebf4-51c7-a3dc-7610b8c000e5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Draconic Resilience,"The magic in your body manifests physical traits of your draconic gift. Your Hit Point maximum increases by 3, and it increases by 1 whenever you gain another Sorcerer level.
+
+Parts of you are also covered by dragon-like scales. While you aren't wearing armor, your base Armor Class equals 10 plus your Dexterity and Charisma modifiers.",10,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,11584b2d-4f1c-566e-b181-2dc30d8b55fe,3,PASSIVE,AT_WILL
+7c2dd942-f7f2-5b1b-9e0c-ea68c4e791d4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Draconic Spells,"When you reach a Sorcerer level specified in the Draconic Spells table, you thereafter always have the listed spells prepared.
+
+Draconic Spells
+Sorcerer
+Level  Spells
+3  Alter Self, Chromatic Orb, Command,
+Dragon's Breath
+5  Fear, Fly
+7  Arcane Eye, Charm Monster
+9  Legend Lore, Summon Dragon",11,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,11584b2d-4f1c-566e-b181-2dc30d8b55fe,3,PASSIVE,AT_WILL
+cc3d56dc-f3a7-5cd6-9f30-ceffb007bafc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Elemental Affinity,"Your draconic magic has an affinity with a damage type associated with dragons. Choose one of those types: Acid, Cold, Fire, Lightning, or Poison.
+
+You have Resistance to that damage type, and when you cast a spell that deals damage of that type, you can add your Charisma modifier to one damage roll of that spell.",12,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,11584b2d-4f1c-566e-b181-2dc30d8b55fe,6,PASSIVE,AT_WILL
+04d26b68-d6df-52ce-a506-5cd06697a521,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Dragon Wings,"As a Bonus Action, you can cause draconic wings to appear on your back. The wings last for 1 hour or until you dismiss them (no action required). For the duration, you have a Fly Speed of 60 feet.
+
+Once you use this feature, you can't use it again until you finish a Long Rest unless you spend 3 Sorcery Points (no action required) to restore your use of it.",13,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,11584b2d-4f1c-566e-b181-2dc30d8b55fe,14,PASSIVE,AT_WILL
+49a65280-0175-5a21-93c8-8917139b8a4e,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Dragon Companion,"You can cast Summon Dragon without a Material component. You can also cast it once without a spell slot, and you regain the ability to cast it in this way when you finish a Long Rest.
+
+Whenever you start casting the spell, you can modify it so that it doesn't require Concentration. If you do so, the spell's duration becomes 1 minute for that casting.",14,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be,11584b2d-4f1c-566e-b181-2dc30d8b55fe,18,PASSIVE,AT_WILL
+920e38b1-9083-5e00-a914-becfc331cb52,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Eldritch Invocations,"You have unearthed Eldritch Invocations, pieces of forbidden knowledge that imbue you with an abiding magical ability or other lessons. You gain one invocation of your choice, such as Pact of the Tome. Invocations are described in the ""Eldritch Invocation Options"" section later in this class's description.
+
+Prerequisites. If an invocation has a prerequisite, you must meet it to learn that invocation. For example, if an invocation requires you to be a level 5+ Warlock, you can select the invocation once you reach Warlock level 5.
+
+Replacing and Gaining Invocations. Whenever you gain a Warlock level, you can replace one of your invocations with another one for which you
+
+Warlock Features
+Proficiency
+Level Bonus  Class Features
+1  +2  Eldritch Invocations, Pact Magic
+2  +2  Magical Cunning
+3  +2  Warlock Subclass
+4  +2  Ability Score Improvement
+5  +3  —
+6  +3  Subclass feature
+7  +3  —
+8  +3  Ability Score Improvement
+9  +4  Contact Patron
+10  +4  Subclass feature
+11  +4  Mystic Arcanum (level 6 spell)
+12  +4  Ability Score Improvement
+13  +5  Mystic Arcanum (level 7 spell)
+14  +5  Subclass feature
+15  +5  Mystic Arcanum (level 8 spell)
+16  +5  Ability Score Improvement
+17  +6  Mystic Arcanum (level 9 spell)
+18  +6  —
+19  +6  Epic Boon
+20  +6  Eldritch Master
+
+qualify. You can't replace an invocation if it's a prerequisite for another invocation that you have.
+
+When you gain certain Warlock levels, you gain more invocations of your choice, as shown in the Invocations column of the Warlock Features table.
+
+You can't pick the same invocation more than once unless its description says otherwise.",0,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,1,PASSIVE,AT_WILL
+e2fdca71-a4b0-54c9-8a53-6585f49eac74,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Pact Magic,"Through occult ceremony, you have formed a pact with a mysterious entity to gain magical powers. The entity is a voice in the shadows—its identity unclear—but its boon to you is concrete: the ability to cast spells. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Warlock spells, which appear in the Warlock spell list later in the class's description.
+
+Cantrips. You know two Warlock cantrips of your choice. Eldritch Blast and Prestidigitation are recommended. Whenever you gain a Warlock level, you can replace one of your cantrips from this feature with another Warlock cantrip of your choice.
+
+When you reach Warlock levels 4 and 10, you learn another Warlock cantrip of your choice, as shown in the Cantrips column of the Warlock Features table.
+
+Eldritch  Prepared  Spell  Slot
+Invocations  Cantrips  Spells  Slots  Level
+1  2  2  1  1
+3  2  3  2  1
+3  2  4  2  2
+3  3  5  2  2
+5  3  6  2  3
+5  3  7  2  3
+6  3  8  2  4
+6  3  9  2  4
+7  3  10  2  5
+7  4  10  2  5
+7  4  11  3  5
+8  4  11  3  5
+8  4  12  3  5
+8  4  12  3  5
+9  4  13  3  5
+9  4  13  3  5
+9  4  14  4  5
+10  4  14  4  5
+10  4  15  4  5
+10  4  15  4  5
+
+Spell Slots. The Warlock Features table shows how many spell slots you have to cast your Warlock spells of levels 1-5. The table also shows the level of those slots, all of which are the same level. You regain all expended Pact Magic spell slots when you finish a Short or Long Rest.
+
+For example, when you're a level 5 Warlock, you have two level 3 spell slots. To cast the level 1 spell Charm Person, you must spend one of those slots, and you cast it as a level 3 spell.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To start, choose two level 1 Warlock spells. Charm Person and Hex are recommended.
+
+The number of spells on your list increases as you gain Warlock levels, as shown in the Prepared Spells column of the Warlock Features table. Whenever that number increases, choose additional Warlock spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level no higher than what's shown in the table's Slot Level column for your level. When you reach level 6, for example, you learn a new Warlock spell, which can be of levels 1-3.
+
+If another Warlock feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Warlock spells for you.
+
+Changing Your Prepared Spells. Whenever you gain a Warlock level, you can replace one spell on your list with another Warlock spell of an eligible level.
+
+Spellcasting Ability. Charisma is the spellcasting ability for your Warlock spells.
+
+Spellcasting Focus. You can use an Arcane Focus as a Spellcasting Focus for your Warlock spells.",1,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,1,PASSIVE,AT_WILL
+118577bc-0bac-5546-a735-538ca5611b39,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Magical Cunning,"You can perform an esoteric rite for 1 minute. At the end of it, you regain expended Pact Magic spell slots but no more than a number equal to half your maximum (round up). Once you use this feature, you can't do so again until you finish a Long Rest.",2,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,2,PASSIVE,AT_WILL
+31743954-af64-5afa-a619-323a47772f6b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Warlock Subclass,"You gain a Warlock subclass of your choice. The Fiend Patron subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Warlock levels. For the rest of your career, you gain each of your subclass's features that are of your Warlock level or lower.",3,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,3,PASSIVE,AT_WILL
+4431684d-7d99-52f0-97ed-9facbbb35150,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Warlock levels 8, 12, and 16.",4,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,4,PASSIVE,AT_WILL
+e177d425-3878-56bc-953e-3ac9d84f34e8,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Contact Patron,"In the past, you usually contacted your patron through intermediaries. Now you can communicate directly; you always have the Contact Other Plane spell prepared. With this feature, you can cast the spell without expending a spell slot to contact your patron, and you automatically succeed on the spell's saving throw.
+
+Once you cast the spell with this feature, you can't do so in this way again until you finish a Long Rest.",5,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,9,PASSIVE,AT_WILL
+5c7f78db-0091-5af6-ac45-53ee9ea5db0a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Mystic Arcanum,"Your patron grants you a magical secret called an arcanum. Choose one level 6 Warlock spell as this arcanum.
+
+You can cast your arcanum spell once without expending a spell slot, and you must finish a Long Rest before you can cast it in this way again.
+
+As shown in the Warlock Features table, you gain another Warlock spell of your choice that can be cast in this way when you reach Warlock levels 13 (level 7 spell), 15 (level 8 spell), and 17 (level 9 spell). You regain all uses of your Mystic Arcanum when you finish a Long Rest.
+
+Whenever you gain a Warlock level, you can replace one of your arcanum spells with another Warlock spell of the same level.",6,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,11,PASSIVE,AT_WILL
+391909b7-9279-5aa0-97bd-e1975c38ebc3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Fate is recommended.",7,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,19,PASSIVE,AT_WILL
+ae83f4fd-f568-582e-8465-296720224eca,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Eldritch Master,"When you use your Magical Cunning feature, you regain all your expended Pact Magic spell slots.",8,d5dabf61-a3cb-5dde-a75e-9667de1e6294,NULL,20,PASSIVE,AT_WILL
+8ddefccb-903f-5950-a821-d06785caa545,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Dark One's Blessing,"When you reduce an enemy to 0 Hit Points, you gain Temporary Hit Points equal to your Charisma modifier plus your Warlock level (minimum of 1 Temporary Hit Point). You also gain this benefit if someone else reduces an enemy within 10 feet of you to 0 Hit Points.",9,d5dabf61-a3cb-5dde-a75e-9667de1e6294,b570867e-a55b-5c00-a63e-f1b724152b99,3,PASSIVE,AT_WILL
+adabfeb1-3bbe-52d3-88a7-7827f54dfdf5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fiend Spells,"The magic of your patron ensures you always have certain spells ready; when you reach a Warlock level specified in the Fiend Spells table, you thereafter always have the listed spells prepared.
+
+Fiend Spells
+Warlock Level Spells
+3  Burning Hands, Command,
+Scorching Ray, Suggestion
+5  Fireball, Stinking Cloud
+7  Fire Shield, Wall of Fire
+9  Geas, Insect Plague",10,d5dabf61-a3cb-5dde-a75e-9667de1e6294,b570867e-a55b-5c00-a63e-f1b724152b99,3,PASSIVE,AT_WILL
+b09ea272-e339-55eb-b516-8d355a2e2e49,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Dark One's Own Luck,"You can call on your fiendish patron to alter fate in your favor. When you make an ability check or a saving throw, you can use this feature to add 1d10 to your roll. You can do so after seeing the roll but before any of the roll's effects occur.
+
+You can use this feature a number of times equal to your Charisma modifier (minimum of once), but you can use it no more than once per roll. You regain all expended uses when you finish a Long Rest.",11,d5dabf61-a3cb-5dde-a75e-9667de1e6294,b570867e-a55b-5c00-a63e-f1b724152b99,6,PASSIVE,AT_WILL
+c2cc0f18-2211-5897-b745-974a004fa577,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fiendish Resilience,"Choose one damage type, other than Force, whenever you finish a Short or Long Rest. You have Resistance to that damage type until you choose a different one with this feature.",12,d5dabf61-a3cb-5dde-a75e-9667de1e6294,b570867e-a55b-5c00-a63e-f1b724152b99,10,PASSIVE,AT_WILL
+cdc1d913-4c96-5627-bf74-a721c6044fc4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Hurl Through Hell,"Once per turn when you hit a creature with an attack roll, you can try to instantly transport the target through the Lower Planes. The target must succeed on a Charisma saving throw against your spell save DC, or the target disappears and hurtles through a nightmare landscape. The target takes 8d10 Psychic damage if it isn't a Fiend, and it has the Incapacitated condition until the end of your next turn, when it returns to the space it previously occupied or the nearest unoccupied space.
+
+Once you use this feature, you can't use it again until you finish a Long Rest unless you expend a Pact Magic spell slot (no action required) to restore your use of it.",13,d5dabf61-a3cb-5dde-a75e-9667de1e6294,b570867e-a55b-5c00-a63e-f1b724152b99,14,PASSIVE,AT_WILL
+50c7e857-6204-589c-ae22-c88d56817378,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spellcasting,"As a student of arcane magic, you have learned to cast spells. See ""Spells"" for the rules on spellcasting. The information below details how you use those rules with Wizard spells, which appear in the Wizard spell list later in the class's description.
+
+Cantrips. You know three Wizard cantrips of your choice. Light, Mage Hand, and Ray of Frost are recommended. Whenever you finish a Long Rest, you can replace one of your cantrips from this feature with another Wizard cantrip of your choice.
+
+——Spell Slots per Spell Level——
+Prepared
+Spells  1  2  3  4  5  6  7  8  9
+3  4  2 — — — — — — — —
+3  5  3 — — — — — — — —
+3  6  4  2 — — — — — — —
+4  7  4  3 — — — — — — —
+4  9  4  3  2 — — — — — —
+4  10  4  3  3 — — — — — —
+4  11  4  3  3  1 — — — — —
+4  12  4  3  3  2 — — — — —
+4  14  4  3  3  3  1 — — — —
+5  15  4  3  3  3  2 — — — —
+5  16  4  3  3  3  2  1 — — —
+5  16  4  3  3  3  2  1 — — —
+5  17  4  3  3  3  2  1  1 — —
+5  18  4  3  3  3  2  1  1 — —
+5  19  4  3  3  3  2  1  1  1 —
+5  21  4  3  3  3  2  1  1  1 —
+5  22  4  3  3  3  2  1  1  1  1
+5  23  4  3  3  3  3  1  1  1  1
+5  24  4  3  3  3  3  2  1  1  1
+5  25  4  3  3  3  3  2  2  1  1
+
+When you reach Wizard levels 4 and 10, you learn another Wizard cantrip of your choice, as shown in the Cantrips column of the Wizard Features table.
+
+Spellbook. Your wizardly apprenticeship culminated in the creation of a unique book: your spellbook. It is a Tiny object that weighs 3 pounds, contains 100 pages, and can be read only by you or someone casting Identify. You determine the book's appearance and materials, such as a gilt-edged tome or a collection of vellum bound with twine.
+
+The book contains the level 1+ spells you know. It starts with six level 1 Wizard spells of your choice. Detect Magic, Feather Fall, Mage Armor, Magic Missile, Sleep, and Thunderwave are recommended.
+
+Whenever you gain a Wizard level after 1, add two Wizard spells of your choice to your spellbook. Each of these spells must be of a level for which you have spell slots, as shown in the Wizard Features table. The spells are the culmination of arcane research you do regularly.
+
+Spell Slots. The Wizard Features table shows how many spell slots you have to cast your level 1+ spells. You regain all expended slots when you finish a Long Rest.
+
+Prepared Spells of Level 1+. You prepare the list of level 1+ spells that are available for you to cast with this feature. To do so, choose four spells from your spellbook. The chosen spells must be of a level for which you have spell slots.
+
+The number of spells on your list increases as you gain Wizard levels, as shown in the Prepared Spells column of the Wizard Features table. Whenever that number increases, choose additional Wizard spells until the number of spells on your list matches the number in the table. The chosen spells must be of a level for which you have spell slots. For example, if you're a level 3 Wizard, your list of prepared spells can include six spells of levels 1 and 2 in any combination, chosen from your spellbook.
+
+If another Wizard feature gives you spells that you always have prepared, those spells don't count against the number of spells you can prepare with this feature, but those spells otherwise count as Wizard spells for you.
+
+Changing Your Prepared Spells. Whenever you finish a Long Rest, you can change your list of prepared spells, replacing any of the spells there with spells from your spellbook.
+
+Spellcasting Ability. Intelligence is your spellcasting ability for your Wizard spells.
+
+Spellcasting Focus. You can use an Arcane Focus or your spellbook as a Spellcasting Focus for your Wizard spells.",0,809eb721-f97d-511f-8874-9bfe81c64628,NULL,1,PASSIVE,AT_WILL
+468cf323-ee75-57c1-8875-cf88d531fb9b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ritual Adept,"You can cast any spell as a Ritual if that spell has the Ritual tag and the spell is in your spellbook. You needn't have the spell prepared, but you must read from the book to cast a spell in this way.",1,809eb721-f97d-511f-8874-9bfe81c64628,NULL,1,PASSIVE,AT_WILL
+10e9dad5-ba6b-54f2-87f9-602721745aa7,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Arcane Recovery,"You can regain some of your magical energy by studying your spellbook. When you finish a Short Rest, you can choose expended spell slots to recover. The spell slots can have a combined level equal to no more than half your Wizard level (round up), and none of the slots can be level 6 or higher. For example, if you're a level 4 Wizard, you can recover up to two levels' worth of spell slots, regaining either one level 2 spell slot or two level 1 spell slots.
+
+Once you use this feature, you can't do so again until you finish a Long Rest.",2,809eb721-f97d-511f-8874-9bfe81c64628,NULL,1,PASSIVE,AT_WILL
+465d25e7-a2f8-59cb-8c66-6e20e6678087,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Scholar,"While studying magic, you also specialized in another field of study. Choose one of the following skills in which you have proficiency: Arcana, History, Investigation, Medicine, Nature, or Religion. You have Expertise in the chosen skill.",3,809eb721-f97d-511f-8874-9bfe81c64628,NULL,2,PASSIVE,AT_WILL
+1803f30d-ae15-5ca7-897c-6ab3153f96ef,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Wizard Subclass,"You gain a Wizard subclass of your choice. The Evoker subclass is detailed after this class's description. A subclass is a specialization that grants you features at certain Wizard levels. For the rest
+
+E  r  s
+xpandinG and  EplacinG a  pEllBook
+The spells you add to your spellbook as you gain
+levels reflect your ongoing magical research, but you
+might find other spells during your adventures that
+you can add to the book. You could discover a Wiz-
+ard spell on a it into your spellbook. Copying a Spell into the Book. When you find a level 1+ Wizard spell, you can copy it into your spellbook if it's of a level you can prepare and if you have time to copy it. For each level of the spell, theSpell Scroll, for example, and then copy
+transcription takes 2 hours and costs 50 GP. After ward you can prepare the spell like the other spells in your spellbook.-
+Copying the Book. your spellbook into another book. This is like copy- ing a new spell into your spellbook but faster, since you already know how to cast the spell. You need spend only 1 hour and 10 GP for each level of the copied spell. If you lose your spellbook, you can use the same procedure to transcribe the Wizard spells that you have prepared into a new spellbook. Filling out the remainder of the new book requires you to find new spells to do so. For this reason, many wizards keep a backup spellbook. You can copy a spell from
+
+of your career, you gain each of your subclass's features that are of your Wizard level or lower.",4,809eb721-f97d-511f-8874-9bfe81c64628,NULL,3,PASSIVE,AT_WILL
+43597c03-e2b3-5f0b-afb6-00a7499c18c0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Ability Score Improvement,"You gain the Ability Score Improvement feat (see ""Feats"") or another feat of your choice for which you qualify. You gain this feature again at Wizard levels 8, 12, and 16.",5,809eb721-f97d-511f-8874-9bfe81c64628,NULL,4,PASSIVE,AT_WILL
+a1105d3a-3ade-5825-8911-52181eb3ff98,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Memorize Spell,"Whenever you finish a Short Rest, you can study your spellbook and replace one of the level 1+ Wizard spells you have prepared for your Spellcasting feature with another level 1+ spell from the book.",6,809eb721-f97d-511f-8874-9bfe81c64628,NULL,5,PASSIVE,AT_WILL
+39b610a8-1d2a-5514-80ba-050d7ceb769d,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Spell Mastery,"You have achieved such mastery over certain spells that you can cast them at will. Choose a level 1 and a level 2 spell in your spellbook that have a casting time of an action. You always have those spells prepared, and you can cast them at their lowest level without expending a spell slot. To cast either spell at a higher level, you must expend a spell slot.
+
+Whenever you finish a Long Rest, you can study your spellbook and replace one of those spells with an eligible spell of the same level from the book.",7,809eb721-f97d-511f-8874-9bfe81c64628,NULL,18,PASSIVE,AT_WILL
+68d64471-20fc-5af2-9bfa-74bea694f25f,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Epic Boon,"You gain an Epic Boon feat (see ""Feats"") or another feat of your choice for which you qualify. Boon of Spell Recall is recommended.",8,809eb721-f97d-511f-8874-9bfe81c64628,NULL,19,PASSIVE,AT_WILL
+bab4b93b-bb81-5b9d-8d57-ade84c47d07b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Signature Spells,"Choose two level 3 spells in your spellbook as your signature spells. You always have these spells prepared, and you can cast each of them once at level 3 without expending a spell slot. When you do so, you can't cast them in this way again until you finish a Short or Long Rest. To cast either spell at a higher level, you must expend a spell slot.",9,809eb721-f97d-511f-8874-9bfe81c64628,NULL,20,PASSIVE,AT_WILL
+62f2ec89-15ac-5f64-9f97-ca3360f325b3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Evocation Savant,"Choose two Wizard spells from the Evocation school, each of which must be no higher than level 2, and add them to your spellbook for free.
+
+In addition, whenever you gain access to a new level of spell slots in this class, you can add one Wizard spell from the Evocation school to your spellbook for free. The chosen spell must be of a level for which you have spell slots.",10,809eb721-f97d-511f-8874-9bfe81c64628,fa71eb5a-10ad-57e4-940b-33fb87030145,3,PASSIVE,AT_WILL
+f133cb79-e6dc-5e3c-aee3-8c60d71d7783,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Potent Cantrip,"Your damaging cantrips affect even creatures that avoid the brunt of the effect. When you cast a cantrip at a creature and you miss with the attack roll or the target succeeds on a saving throw against the cantrip, the target takes half the cantrip's damage (if any) but suffers no additional effect from the cantrip.",11,809eb721-f97d-511f-8874-9bfe81c64628,fa71eb5a-10ad-57e4-940b-33fb87030145,3,PASSIVE,AT_WILL
+4be28cfa-78aa-5055-8f2c-af2b492e1348,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Sculpt Spells,"You can create pockets of relative safety within the effects of your evocations. When you cast an Evocation spell that affects other creatures that you can see, you can choose a number of them equal to 1 plus the spell's level. The chosen creatures automatically succeed on their saving throws against the spell, and they take no damage if they would normally take half damage on a successful save.",12,809eb721-f97d-511f-8874-9bfe81c64628,fa71eb5a-10ad-57e4-940b-33fb87030145,6,PASSIVE,AT_WILL
+3f3a0b45-5cb0-5e5e-9d1d-dc34a4ec1adc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Empowered Evocation,"Whenever you cast a Wizard spell from the Evocation school, you can add your Intelligence modifier to one damage roll of that spell.",13,809eb721-f97d-511f-8874-9bfe81c64628,fa71eb5a-10ad-57e4-940b-33fb87030145,10,PASSIVE,AT_WILL
+1b4e3e83-d231-534d-97d9-340d839fe01b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Overchannel,"You can increase the power of your spells. When you cast a Wizard spell with a spell slot of levels 1-5 that deals damage, you can deal maximum damage with that spell on the turn you cast it.
+
+The first time you do so, you suffer no adverse effect. If you use this feature again before you finish a Long Rest, you take 2d12 Necrotic damage for each level of the spell slot immediately after you cast it. This damage ignores Resistance and Immunity.
+
+Each time you use this feature again before finishing a Long Rest, the Necrotic damage per spell level increases by 1d12.",14,809eb721-f97d-511f-8874-9bfe81c64628,fa71eb5a-10ad-57e4-940b-33fb87030145,14,PASSIVE,AT_WILL

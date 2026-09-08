@@ -114,7 +114,14 @@ public abstract class AbstractCatalogService<E extends CatalogContent, REQ, RES>
     E e = repo().findById(id).orElseThrow(AbstractCatalogService::notFound);
     if (e.isBaseContent()) {
       // Copy-on-write: edit (or create) this user's override of the base row.
-      E override = repo().findByOwnerIdAndOverridesId(userId, id).orElseGet(this::instantiate);
+      E existing = repo().findByOwnerIdAndOverridesId(userId, id).orElse(null);
+      E override = existing != null ? existing : instantiate();
+      if (existing == null) {
+        // The "copy" in copy-on-write. Anything the request can't carry has to
+        // be taken from the base row, or a DM correcting a class's description
+        // would get a class with no levels and no features.
+        copyOnWrite(e, override);
+      }
       apply(req, override);
       override.setOwnerId(userId);
       override.setOverridesId(id);
@@ -138,6 +145,12 @@ public abstract class AbstractCatalogService<E extends CatalogContent, REQ, RES>
    * each other and the order those come apart in matters.
    */
   protected void beforeDelete(E entity) {}
+
+  /**
+   * Seed a fresh override from the row it shadows, for the parts the request
+   * doesn't carry. Most types need nothing: their request is the whole row.
+   */
+  protected void copyOnWrite(E base, E override) {}
 
   @Transactional
   public RES revert(UUID baseId, UUID userId) {

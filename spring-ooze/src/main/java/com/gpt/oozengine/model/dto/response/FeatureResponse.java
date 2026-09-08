@@ -26,6 +26,9 @@ public record FeatureResponse(
     Integer rechargeMax,
     AreaShape areaShape,
     Integer areaSizeFeet,
+    /** Set on a class feature: the level that grants it, and whose subclass. */
+    Integer vocationLevel,
+    UUID subclassId,
     List<FeatureStepResponse> steps,
     List<FeatureComponentResponse> components) {
 
@@ -43,6 +46,8 @@ public record FeatureResponse(
         f.getRechargeMax(),
         f.getAreaShape(),
         f.getAreaSizeFeet(),
+        f.getVocationLevel(),
+        f.getSubclassId(),
         f.getSteps().stream().map(FeatureStepResponse::from).toList(),
         f.getComponents().stream().map(FeatureComponentResponse::from).toList());
   }
