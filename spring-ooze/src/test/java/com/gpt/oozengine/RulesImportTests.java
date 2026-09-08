@@ -5,17 +5,27 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.gpt.oozengine.constant.rules.Ability;
 import com.gpt.oozengine.constant.rules.ArmorCategory;
 import com.gpt.oozengine.constant.rules.CasterProgression;
+import com.gpt.oozengine.constant.rules.ComponentMode;
+import com.gpt.oozengine.constant.rules.CreatureSize;
+import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.constant.rules.ConditionCode;
 import com.gpt.oozengine.constant.rules.GlossaryCategory;
+import com.gpt.oozengine.constant.rules.ItemCategory;
+import com.gpt.oozengine.constant.rules.PoisonType;
+import com.gpt.oozengine.constant.rules.TrapSeverity;
 import com.gpt.oozengine.constant.rules.Skill;
 import com.gpt.oozengine.model.ClassValue;
 import com.gpt.oozengine.model.GlossaryEntry;
+import com.gpt.oozengine.model.Species;
 import com.gpt.oozengine.model.Vocation;
 import com.gpt.oozengine.model.VocationLevel;
 import com.gpt.oozengine.model.mechanics.Feature;
 import com.gpt.oozengine.repository.ConditionRepository;
 import com.gpt.oozengine.repository.GlossaryEntryRepository;
+import com.gpt.oozengine.repository.ItemRepository;
+import com.gpt.oozengine.repository.SpeciesRepository;
 import com.gpt.oozengine.repository.SubclassRepository;
+import com.gpt.oozengine.repository.TrapRepository;
 import com.gpt.oozengine.repository.VocationRepository;
 import jakarta.persistence.EntityManager;
 import java.util.Map;
@@ -25,6 +35,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -41,6 +52,9 @@ class RulesImportTests {
   @Autowired private ConditionRepository conditions;
   @Autowired private VocationRepository vocations;
   @Autowired private SubclassRepository subclasses;
+  @Autowired private SpeciesRepository species;
+  @Autowired private ItemRepository items;
+  @Autowired private TrapRepository traps;
   @Autowired private EntityManager em;
 
   private Vocation vocation(String name) {
@@ -56,7 +70,8 @@ class RulesImportTests {
     var entries = glossary.findByOwnerIdIsNull();
 
     // 155 entries in the chapter; the 15 [Condition] ones are conditions rows.
-    assertThat(entries).hasSize(140);
+    // 036 adds 12 more from the Gameplay Toolbox.
+    assertThat(entries).hasSize(152);
     assertThat(entries).allSatisfy(e -> assertThat(e.getDescription()).isNotBlank());
     assertThat(entries)
         .extracting(GlossaryEntry::getName)
@@ -215,5 +230,123 @@ class RulesImportTests {
     // — which is the check that both imports agree on what a spell is called.
     assertThat(links).isEqualTo(875);
     assertThat(wizardSpells).isEqualTo(217);
+  }
+
+  @Test
+  @DisplayName("species traits are named, and a trait's options are a choice")
+  void speciesTraits() {
+    var all = species.findByOwnerIdIsNull();
+    assertThat(all).hasSize(9);
+
+    long features =
+        ((Number) em.createNativeQuery("select count(*) from features where species_id is not null")
+                .getSingleResult())
+            .longValue();
+    // 33 traits, plus the 8 options nested inside two of them.
+    assertThat(features).isEqualTo(41);
+
+    Species dwarf =
+        all.stream().filter(s -> s.getName().equals("Dwarf")).findFirst().orElseThrow();
+    // Was one feature called "Dwarf Traits" with the whole entry in it.
+    assertThat(dwarf.getFeatures())
+        .extracting(Feature::getName)
+        .containsExactly("Darkvision", "Dwarven Resilience", "Dwarven Toughness", "Stonecunning");
+    assertThat(dwarf.getSize()).isEqualTo(CreatureSize.MEDIUM);
+    assertThat(dwarf.getSpeeds()).containsEntry(MovementType.WALK, 30);
+
+    Species human =
+        all.stream().filter(s -> s.getName().equals("Human")).findFirst().orElseThrow();
+    assertThat(human.getAlternateSize()).isEqualTo(CreatureSize.SMALL);
+  }
+
+  @Test
+  @DisplayName("a Goliath picks one giant ancestry, not all six")
+  void goliathAncestryIsAChoice() {
+    Species goliath =
+        species.findByOwnerIdIsNull().stream()
+            .filter(s -> s.getName().equals("Goliath"))
+            .findFirst()
+            .orElseThrow();
+    Feature ancestry =
+        goliath.getFeatures().stream()
+            .filter(f -> f.getName().equals("Giant Ancestry"))
+            .findFirst()
+            .orElseThrow();
+
+    // The book sets the six in bold inside the trait that offers them, and you
+    // take one. As siblings they would read as a Goliath with all six.
+    assertThat(ancestry.getComponents()).hasSize(6);
+    assertThat(ancestry.getComponents())
+        .allSatisfy(
+            c -> {
+              assertThat(c.getMode()).isEqualTo(ComponentMode.CHOICE);
+              assertThat(c.getCount()).isEqualTo(1);
+              assertThat(c.getChoiceGroup()).isZero();
+            });
+    assertThat(ancestry.getComponents())
+        .extracting(c -> c.getReferencedFeature().getName())
+        .contains("Cloud's Jaunt (Cloud Giant)", "Storm's Thunder (Storm Giant)");
+  }
+
+  @Test
+  @DisplayName("the toolbox's poisons are items, priced per dose")
+  void poisons() {
+    var poisons =
+        items.findByOwnerIdIsNullAndItemCategory(ItemCategory.POISON, Sort.by("name"));
+
+    assertThat(poisons).hasSize(14);
+    assertThat(poisons).allSatisfy(
+        p -> {
+          assertThat(p.getCostGp()).isNotNull();
+          assertThat(p.getPoisonType()).isNotNull();
+          assertThat(p.getDescription()).isNotBlank();
+        });
+    var wyvern =
+        poisons.stream().filter(p -> p.getName().equals("Wyvern Poison")).findFirst().orElseThrow();
+    assertThat(wyvern.getCostGp()).isEqualByComparingTo("1200");
+    assertThat(wyvern.getPoisonType()).isEqualTo(PoisonType.INJURY);
+  }
+
+  @Test
+  @DisplayName("traps carry a severity, a trigger and a duration")
+  void traps() {
+    var all = traps.findByOwnerIdIsNull();
+
+    assertThat(all).hasSize(8);
+    assertThat(all).allSatisfy(
+        t -> {
+          assertThat(t.getSeverity()).isNotNull();
+          assertThat(t.getTrigger()).isNotBlank();
+          assertThat(t.getDescription()).isNotBlank();
+        });
+
+    var stone = all.stream().filter(t -> t.getName().equals("Rolling Stone")).findFirst()
+        .orElseThrow();
+    assertThat(stone.getSeverity()).isEqualTo(TrapSeverity.DEADLY);
+    assertThat(stone.getLevelBand()).isEqualTo("11-16");
+    // One trap is two: deadly to one tier, a nuisance to another. The severity
+    // column can only hold the first, so the printed line is kept whole.
+    assertThat(stone.getSeverityNote()).isEqualTo(
+        "Deadly Trap (Levels 11-16) or Nuisance Trap (Levels 17-20)");
+    assertThat(stone.getDuration()).isEqualTo("Until the stone stops rolling");
+  }
+
+  @Test
+  @DisplayName("the toolbox's named rules join the glossary under their own categories")
+  void toolboxReference() {
+    var entries = glossary.findByOwnerIdIsNull();
+
+    assertThat(entries)
+        .filteredOn(e -> e.getCategory() == GlossaryCategory.ENVIRONMENT)
+        .hasSize(9)
+        .extracting(GlossaryEntry::getName)
+        .contains("Extreme Cold", "Thin Ice", "High Altitude");
+    assertThat(entries)
+        .filteredOn(e -> e.getCategory() == GlossaryCategory.CONTAGION)
+        .hasSize(3)
+        .extracting(GlossaryEntry::getName)
+        .containsExactlyInAnyOrder("Cackle Fever", "Sewer Plague", "Sight Rot");
+    // 140 from the glossary chapter plus the 12 the toolbox contributes.
+    assertThat(entries).hasSize(152);
   }
 }

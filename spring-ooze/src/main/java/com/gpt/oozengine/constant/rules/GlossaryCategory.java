@@ -11,5 +11,9 @@ public enum GlossaryCategory {
   ACTION,
   HAZARD,
   AREA_OF_EFFECT,
-  ATTITUDE
+  ATTITUDE,
+  /** From the Gameplay Toolbox rather than the glossary: named rules a DM looks
+   * up the same way, kept in the same table so one search finds them. */
+  ENVIRONMENT,
+  CONTAGION
 }

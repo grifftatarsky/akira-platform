@@ -2,6 +2,7 @@ package com.gpt.oozengine.model.dto.request;
 
 import com.gpt.oozengine.constant.rules.Ability;
 import com.gpt.oozengine.constant.rules.ItemCategory;
+import com.gpt.oozengine.constant.rules.PoisonType;
 import com.gpt.oozengine.constant.rules.Rarity;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -30,6 +31,7 @@ public record ItemRequest(
     String attunementNote,
     String description,
     Ability toolAbility,
+    PoisonType poisonType,
     @Valid WeaponDetailRequest weapon,
     @Valid ArmorDetailRequest armor,
     List<UUID> craftIds,

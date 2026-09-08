@@ -142,6 +142,7 @@ const FEAT_CATEGORY_OPTIONS = enumOptions('ORIGIN', 'GENERAL', 'FIGHTING_STYLE',
 const ITEM_CATEGORY_OPTIONS: readonly FieldOption[] = [
   ...enumOptions('WEAPON', 'ARMOR', 'SHIELD', 'AMMUNITION'),
   { value: 'ADVENTURING_GEAR', label: 'Adventuring Gear' },
+  { value: 'POISON', label: 'Poison' },
   { value: 'TOOL', label: 'Tool' },
   { value: 'MOUNT_OR_VEHICLE', label: 'Mount or Vehicle' },
   ...enumOptions('POTION', 'RING', 'ROD', 'SCROLL', 'STAFF', 'WAND'),
@@ -152,8 +153,12 @@ const ITEM_CATEGORY_OPTIONS: readonly FieldOption[] = [
 const TOOL_ABILITY_OPTIONS = optional(ABILITY_OPTIONS);
 
 const GLOSSARY_CATEGORY_OPTIONS = optional(
-  enumOptions('ACTION', 'HAZARD', 'AREA_OF_EFFECT', 'ATTITUDE'),
+  enumOptions('ACTION', 'HAZARD', 'AREA_OF_EFFECT', 'ATTITUDE', 'ENVIRONMENT', 'CONTAGION'),
 );
+
+const POISON_TYPE_OPTIONS = optional(enumOptions('CONTACT', 'INGESTED', 'INHALED', 'INJURY'));
+
+const TRAP_SEVERITY_OPTIONS = optional(enumOptions('NUISANCE', 'BANE', 'DEADLY'));
 
 const RARITY_OPTIONS = optional(
   enumOptions('COMMON', 'UNCOMMON', 'RARE', 'VERY_RARE', 'LEGENDARY', 'ARTIFACT', 'VARIES'),
@@ -217,6 +222,7 @@ export const CONTENT_TYPES: readonly ContentTypeDef[] = [
       { key: 'attunement', label: 'Requires attunement', kind: 'boolean', group: 'meta' },
       { key: 'attunementNote', label: 'Attunement', kind: 'text', group: 'meta' },
       { key: 'toolAbility', label: 'Tool ability', kind: 'select', group: 'meta', options: TOOL_ABILITY_OPTIONS },
+      { key: 'poisonType', label: 'Delivery', kind: 'select', group: 'meta', options: POISON_TYPE_OPTIONS },
       // Display-only: the item editor owns these, because none of them is a
       // value one input could put back.
       { key: 'weaponCategory', label: 'Weapon', kind: 'list', group: 'meta',
@@ -409,11 +415,37 @@ export const CONTENT_TYPES: readonly ContentTypeDef[] = [
     ],
   },
   {
+    key: 'traps',
+    title: 'Traps',
+    apiPath: 'trap',
+    iconPath: 'M4 6h16M6 6v4l6 8 6-8V6M9 6v3M15 6v3',
+    description: 'Triggers, severities, and what they do to you.',
+    implemented: true,
+    fields: [
+      { key: 'severity', label: 'Severity', kind: 'select', group: 'meta', options: TRAP_SEVERITY_OPTIONS },
+      { key: 'levelBand', label: 'Levels', kind: 'text', group: 'meta' },
+      { key: 'severityNote', label: 'As printed', kind: 'text', group: 'meta' },
+      { key: 'duration', label: 'Duration', kind: 'text', group: 'meta' },
+      { key: 'trigger', label: 'Trigger', kind: 'textarea', group: 'prose' },
+      { key: 'description', label: 'Description', kind: 'textarea', group: 'prose', required: true },
+    ],
+    subtitle: i => {
+      const severity = i['severity'] ? titleCase(String(i['severity'])) : '';
+      const levels = i['levelBand'] ? `Levels ${i['levelBand']}` : '';
+      return [severity, levels].filter(Boolean).join(' · ');
+    },
+    group: i => {
+      const s = titleCase(String(i['severity'] ?? 'Other'));
+      // Deadliest first: a DM picking a trap is picking a threat for a tier.
+      return { key: s, label: s, order: { Deadly: 0, Bane: 1, Nuisance: 2 }[s] ?? 3 };
+    },
+  },
+  {
     key: 'glossary',
     title: 'Rules glossary',
     apiPath: 'glossary',
     iconPath: 'M5 4h13a1 1 0 0 1 1 1v15H6a2 2 0 0 1-2-2V4zM9 4v16',
-    description: 'The 140 rules terms the SRD defines.',
+    description: 'Rules terms, hazards, and the toolbox reference.',
     implemented: true,
     fields: [
       { key: 'category', label: 'Kind', kind: 'select', group: 'meta', options: GLOSSARY_CATEGORY_OPTIONS },

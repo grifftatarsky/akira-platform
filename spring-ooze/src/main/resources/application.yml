@@ -89,6 +89,7 @@ com:
             - /condition/**
             - /weapon-mastery/**
             - /glossary/**
+            - /trap/**
 # Log Levels #######################################################################################
 logging:
   level:

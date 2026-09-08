@@ -38,7 +38,8 @@ LEVEL_FEATURE = re.compile(r'^Level (\d+):\s*(.+)$')
 def class_sections(first, last):
     """The chapter as (class name, [(kind, page, indented, text)]) per class."""
     classes, current, pending_section = [], None, None
-    for page, kind, indented, _italic, text in xml_lines(first, last):
+    for line in xml_lines(first, last):
+        page, kind, indented, text = line.page, line.kind, line.indented, line.text
         if kind == 'chapter':
             if text == 'Classes':
                 continue

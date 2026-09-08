@@ -8,6 +8,7 @@ public enum ItemCategory {
   SHIELD,
   AMMUNITION,
   ADVENTURING_GEAR,
+  POISON,
   TOOL,
   MOUNT_OR_VEHICLE,
   POTION,

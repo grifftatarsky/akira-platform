@@ -2,6 +2,7 @@
 # JSON the emitters read. Both are regenerated from the PDF by the recipe in
 # README.md, so they are reviewed as the CSVs they produce, not as themselves.
 srd521.pdf
+__pycache__/
 mon521full.txt
 bestiary.json
 items.json

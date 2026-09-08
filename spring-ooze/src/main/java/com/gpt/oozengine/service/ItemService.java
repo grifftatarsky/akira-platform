@@ -64,6 +64,7 @@ public class ItemService extends AbstractCatalogService<Item, ItemRequest, ItemR
     i.setAttunementNote(r.attunementNote());
     i.setDescription(r.description());
     i.setToolAbility(r.toolAbility());
+    i.setPoisonType(r.poisonType());
     applyWeapon(r.weapon(), i);
     applyArmor(r.armor(), i);
     replace(i.getCrafts(), r.craftIds());

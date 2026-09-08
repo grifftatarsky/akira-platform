@@ -22,7 +22,8 @@ TAG = re.compile(r'^(?P<name>.+?)\s*\[(?P<tag>[^\]]+)\]$')
 
 def main():
     entries, cur, prev = [], None, None
-    for _page, kind, indented, _italic, text in xml_lines(*GLOSSARY_PAGES):
+    for line in xml_lines(*GLOSSARY_PAGES):
+        kind, indented, text = line.kind, line.indented, line.text
         if kind == 'chapter' or kind == 'section':
             continue
         if kind == 'head':

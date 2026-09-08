@@ -72,13 +72,16 @@ class ItemCatalogTests {
         items.findByOwnerIdIsNull().stream()
             .collect(Collectors.groupingBy(Item::getItemCategory, Collectors.counting()));
 
-    assertThat(items.findByOwnerIdIsNull()).hasSize(440);
+    // 440 from Equipment and Magic Items A-Z, plus the Gameplay Toolbox's 14
+    // sample poisons, which the book prices per dose and so are items.
+    assertThat(items.findByOwnerIdIsNull()).hasSize(440 + 14);
     // The book's own tables: 38 weapons, 12 armors and a Shield, 5 kinds of
     // ammunition, 17 artisan's tools plus 8 others, 24 mounts and vehicles.
     assertThat(byCategory)
         .containsEntry(ItemCategory.AMMUNITION, 5L)
         .containsEntry(ItemCategory.TOOL, 25L)
-        .containsEntry(ItemCategory.MOUNT_OR_VEHICLE, 24L);
+        .containsEntry(ItemCategory.MOUNT_OR_VEHICLE, 24L)
+        .containsEntry(ItemCategory.POISON, 14L);
     // Three categories are fed by both chapters — the equipment table and
     // Magic Items A-Z, which files a Dwarven Plate under Armor like any other.
     assertThat(byCategory.get(ItemCategory.WEAPON)).isEqualTo(38 + 32);
@@ -230,6 +233,7 @@ class ItemCatalogTests {
                 before.attunementNote(),
                 "My table's longsword is a little heavier.",
                 before.toolAbility(),
+                before.poisonType(),
                 new WeaponDetailRequest(
                     WeaponCategory.valueOf(before.weapon().category()),
                     before.weapon().diceCount(),

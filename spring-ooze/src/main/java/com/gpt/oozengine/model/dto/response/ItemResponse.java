@@ -3,6 +3,7 @@ package com.gpt.oozengine.model.dto.response;
 import com.gpt.oozengine.constant.SrdVersion;
 import com.gpt.oozengine.constant.rules.Ability;
 import com.gpt.oozengine.constant.rules.ItemCategory;
+import com.gpt.oozengine.constant.rules.PoisonType;
 import com.gpt.oozengine.constant.rules.Rarity;
 import com.gpt.oozengine.model.Item;
 import com.gpt.oozengine.model.item.ArmorDetail;
@@ -25,6 +26,7 @@ public record ItemResponse(
     String attunementNote,
     String description,
     Ability toolAbility,
+    PoisonType poisonType,
     WeaponView weapon,
     ArmorView armor,
     List<ItemRef> crafts,
@@ -148,6 +150,7 @@ public record ItemResponse(
         i.getAttunementNote(),
         description,
         i.getToolAbility(),
+        i.getPoisonType(),
         WeaponView.of(i.getWeapon()),
         ArmorView.of(i.getArmor()),
         crafts,

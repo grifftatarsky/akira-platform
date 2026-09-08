@@ -239,7 +239,8 @@ def parse_mounts():
 def prose_entries(first, last, chapters):
     """Headed entries from a prose chapter: (chapter, section, heading, lines)."""
     entries, chapter, section, cur, prev = [], None, None, None, None
-    for _page, kind, indented, _italic, text in xml_lines(first, last):
+    for line in xml_lines(first, last):
+        kind, indented, text = line.kind, line.indented, line.text
         if kind == 'chapter':
             chapter, section, cur = text, None, None
         elif kind == 'section':
@@ -353,7 +354,8 @@ def parse_type_line(text):
 
 def parse_magic_items():
     items, cur, prev = [], None, None
-    for _page, kind, indented, italic, text in xml_lines(*MAGIC_PAGES):
+    for line in xml_lines(*MAGIC_PAGES):
+        kind, indented, italic, text = line.kind, line.indented, line.italic, line.text
         if kind in ('chapter', 'section'):
             continue
         if kind == 'head':

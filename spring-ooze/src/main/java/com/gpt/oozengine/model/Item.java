@@ -2,6 +2,7 @@ package com.gpt.oozengine.model;
 
 import com.gpt.oozengine.constant.rules.Ability;
 import com.gpt.oozengine.constant.rules.ItemCategory;
+import com.gpt.oozengine.constant.rules.PoisonType;
 import com.gpt.oozengine.constant.rules.Rarity;
 import com.gpt.oozengine.model.item.ArmorDetail;
 import com.gpt.oozengine.model.item.WeaponDetail;
@@ -82,6 +83,11 @@ public class Item extends CatalogContent {
    */
   @Column(columnDefinition = "text")
   private String description;
+
+  /** How a poison is delivered. Null for everything that isn't one. */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "poison_type", length = 16)
+  private PoisonType poisonType;
 
   /** The ability a tool's checks use. Null for everything that isn't a tool. */
   @Enumerated(EnumType.STRING)
