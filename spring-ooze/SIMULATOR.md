@@ -1,8 +1,7 @@
 # The combat simulator
 
-A design proposal, not yet built. Numbers in here were measured against the
-seeded database on 2026-09-08; rules quotes are from our own SRD 5.2 glossary
-import, not from memory.
+A design, not yet built. Numbers were measured against the seeded database;
+rules quotes come from our own SRD 5.2 import, not from memory.
 
 ---
 
@@ -10,223 +9,317 @@ import, not from memory.
 
 | Noun | What it is | Lifetime |
 |---|---|---|
-| **Encounter** | The saved setup: a map, its terrain, and everything placed on it with its per-encounter modifications. | Reusable, edited freely |
-| **Battle** | One playthrough of an Encounter. Initiative order, current state, and the log. | Created at "start", never edited by hand |
+| **Encounter** | The saved setup: a map, its terrain, and everything placed on it. | Reusable, edited freely |
+| **Battle** | One playthrough of an Encounter. Initiative order, live state, and the log. | Created at "start", never hand-edited |
 | **BattleEvent** | One thing that happened, with its dice. Append-only. | Immutable |
 
-"Run this encounter three times" is three Battles against one Encounter. That
-separation is what keeps a saved encounter reusable after you have played it.
+"Run this encounter three times" is three Battles against one Encounter.
 
 ---
 
-## The decisions that matter
+## Geometry: continuous positions, Chebyshev distance
 
-### 1. The log is the engine, not a side effect
+A grid is the wrong thing to store and the right thing to measure with. So we do
+both, and they are different layers.
 
-A Battle **is** its event log. Current state is a fold over that log, materialised
-into tables so reads stay cheap.
+**Positions are continuous.** A token's location is `x`, `y`, `elevation` in
+feet, as decimals. Nothing snaps. Put the rogue half behind the pillar if that is
+where the rogue is.
 
-The obvious alternative — mutate state, write a log line about it — is cheaper to
-build and cannot support what this simulator is for:
+**Distance is Chebyshev** — `max(|dx|, |dy|, |dz|)`. This is usually described as
+a grid metric, but it is perfectly well defined on continuous space, and it is
+exactly the rule D&D plays by: a diagonal costs the same as a straight line.
+Three consequences fall out for free:
 
-- **Counterspell forces the pipeline.** A reaction that interrupts a spell
-  *before it resolves* means an action cannot be a function that atomically
-  mutates state. It has to be declare → open a reaction window → resolve. Once
-  that exists, the event pipeline exists; the only question is whether we also
-  get the other three benefits for free.
-- **Undo is truncate-and-refold.** A DM who wants to see how a round would have
-  gone differently is the entire point of a simulator.
-- **The log the DM reads is the state**, so the two cannot drift.
-- **A seeded RNG plus a full roll record makes a Battle replayable**, which is
-  what later buys "run this 200 times, show me the damage spread" almost free.
+- 30 ft across and 30 ft up is **30 ft**, not 42 — which is how the game treats
+  flying, without a special case.
+- On tokens that happen to sit on 5-ft centres it reproduces square counting
+  exactly, so a DM who thinks in squares is never surprised.
+- No fractional feet anywhere, so it never fights the rest of the book.
 
-Cost: real machinery up front, and a fold that has to stay correct. Accepted.
+**Terrain is a raster.** Terrain is *painted*, so it stores as a grid of cells —
+but placement does not have to share that resolution. Looking up the ground under
+a token is sampling the raster at a continuous point. `cellFeet` (default 5) is
+the terrain resolution and nothing more.
 
-### 2. The engine proposes, the DM disposes
+**Creatures occupy space, not points.** A Large creature is a 10-ft box, not a
+dot. Reach, cover, and "is it adjacent" measure **edge to edge**. This is what
+makes granular placement actually mean something rather than being cosmetic.
 
-**Measured, against the 1,323 monster features we imported:**
+Per cell, all sparse — a row exists only where it differs from the map default,
+because a 40×40 board is 1,600 cells and nearly all of them are plain floor:
 
-| | Count |
+| Field | Why |
 |---|---|
-| Features carrying structured effects (engine can resolve) | 604 |
-| Prose only | 719 |
-| — of those, passive traits | 303 |
-| — of those, **actions the engine cannot execute** | **416** |
+| `elevationFeet` | Falling is real damage: *"1d6 Bludgeoning for every 10 feet, max 20d6"*, Prone on landing. Slope derives from neighbours. |
+| `movementCost` | *"every foot of movement in that space costs 1 extra foot… isn't cumulative"* |
+| `cover` | NONE / HALF / THREE_QUARTERS / TOTAL → +2 AC, +5 AC, cannot be targeted |
+| `opaque` | blocks line of sight |
+| `light` | BRIGHT / DIM / DARKNESS — we import Lightly and Heavily Obscured and Darkvision, so obscurement is combat geometry and lives here |
+| `terrain` | FLOOR / WATER / LAVA / PIT / WALL … |
 
-So of the 988 actionable features in the bestiary, roughly **4 in 10 will never
-auto-resolve** from the text we have. A design that treats "cannot execute this"
-as an error fails on 40% of the book.
+### Everything is computed live
 
-Prose features are therefore a **first-class path**: the engine offers the
-feature, prints the book's text, and records the DM's stated outcome as an event.
-Same log, same undo, same replay — a human simply occupies the resolution step.
+No caching, anywhere, until something is measured slow. Pathfinding, line of
+sight, cover and threatened area are computed per query against live battle
+state.
 
-This is also what makes the whole epic tractable. **The engine's job is
-bookkeeping and offering legal options, not adjudication.**
+That is not only a scheduling preference — the book forces part of it. A space is
+Difficult Terrain if it contains *"a creature that isn't Tiny or your ally"*, so
+the cost of entering a cell depends on **who is standing there right now** and on
+**who is asking**. A cached cost would be wrong for the next creature to look.
 
-### 3. Reaction windows, not just a pause between turns
+---
 
-A visible pause between turns is necessary and not sufficient: counterspell and
-opportunity attacks fire mid-action.
+## The instance model: the SRD row is never copied to play
 
-The engine advances until it needs a decision, then stops:
+Three layers, and the important part is that the middle one exists.
 
 ```
-advance(battle) -> COMPLETE | PENDING(prompt)
+StatBlock (shared, SRD)        ← never mutated, never cloned to play
+   ↑ references
+Combatant (design-time)        ← the Encounter's shell: base + sheet + placement
+   ↓ instantiates per Battle
+Participant (run-time)         ← current HP, spent slots, conditions, position
 ```
 
-Windows open at:
+**`Combatant`** is what you place on the board. It points at a base and carries
+its own sheet: display name, HP override, inventory, prepared spells and slots,
+and any stat deltas. An unmodified goblin points straight at the SRD row — no
+clone, no copy, no drift.
 
-| Trigger | Real example |
+**`Participant`** is created fresh when a Battle starts and holds everything that
+changes during the fight. Damage taken, slots spent, conditions, reaction
+available, position. It never touches the Combatant, so an Encounter can be run
+ten times without accumulating scars.
+
+**So cloning is only ever for stat surgery** — "this goblin has 40 HP and a
+different attack." That is the existing `AbstractCatalogService` copy-on-write:
+an override row keeping `overridesId` back to the SRD original, not a copy of the
+catalog. Almost nobody will need it, because the sheet covers what people
+actually change.
+
+### An NPC wraps a monster the way a character wraps a species
+
+`GameCharacter` already carries `species`, `vocation`, `subclass`, `background`,
+`level` and a `statBlock`. Let a **monster stat block stand in the base slot
+where a species normally goes**, and "Grish, goblin boss, three levels of
+Fighter, carrying a magic sword" is a `GameCharacter` — with an inventory, spell
+slots and hit points of its own — rather than a new kind of thing.
+
+The payoff is that PCs, NPCs and monsters are one type to the engine. The
+initiative tracker, the action menu and the log do not care which they are
+looking at.
+
+### Scaling is a descriptor, not baked numbers
+
+"Make this a CR 3 goblin" stores the transform — HP multiplier, AC delta, damage
+multiplier — and applies it when the Battle starts. One small row instead of a
+clone, and still legible and re-tunable afterwards, which a set of baked numbers
+would not be.
+
+---
+
+## The log is the engine
+
+A Battle **is** its event log; live state is a fold over it, materialised into
+tables so reads stay cheap.
+
+The cheaper alternative — mutate state, write a log line about it — cannot
+support what this is for. **Counterspell forces the pipeline**: a reaction that
+interrupts a spell *before it resolves* means an action cannot be a function that
+atomically mutates state. It has to be declare → open a window → resolve. Once
+that exists, the pipeline exists, and undo-by-truncation, a log that cannot drift
+from state, and seeded replay all come with it.
+
+### What carries it — the comparison
+
+| Option | Gives | Costs | Verdict |
+|---|---|---|---|
+| **Plain append-only table, Spring Data JDBC** | Ordered, queryable, replayable. `jsonb` payload. No identity map, no dirty checking, no lazy loading on a table that is insert-only plus range scan. | We write the fold ourselves | **This is the event store** |
+| Same table via **JPA** | Already in the module | Every piece of ORM machinery is overhead here, and none of it is wanted | No — for the log specifically |
+| **Spring Modulith 2.1.1** *(resolves clean against Boot 4.1.1 — verified)* | Module boundary verification, `@ApplicationModuleListener`, Event Publication Registry | The registry is a **delivery outbox keyed by listener**, not an ordered aggregate log — using it as the event store means fighting it on ordering, querying and replay | **Yes — for boundaries. Not as the store.** |
+| **Spring Statemachine** | A formal FSM with guards and transitions | A persisted FSM is a *second* source of truth beside the log, free to disagree with it. The fold already **is** the state machine. | No |
+| **Axom / Axon-style ES framework** | Full event sourcing and CQRS | Heavyweight, its own conventions, not Spring-supported | No |
+
+Modulith earns its place for a different reason than events: the tracker has to
+be **shippable on its own** (below), and that is a module boundary. Modulith
+turns "the tracker must not reach into the map" from a good intention into a
+failing test.
+
+The rest of the modern-Boot surface that actually buys something here:
+`spring.threads.virtual.enabled` (Boot 4 on Java 26), `jsonb` + GIN on the event
+payload, `@Version` on Battle plus a row lock so two concurrent `advance()` calls
+serialise instead of interleaving, and SSE to push state to watchers.
+
+### Dice are recorded, not just rolled
+
+Every roll is an event carrying its inputs and its result, and a Battle carries a
+seed. `RollSource` is RANDOM, MANUAL (the DM rolled a real die and typed it) or
+AVERAGE (use the book's printed average — the fast path). This is what makes a
+Battle reproducible, and it is what later buys "run this 200 times, show me the
+damage spread" almost free.
+
+---
+
+## The engine proposes, the DM disposes
+
+The engine never decides what a creature does. Each turn it hands the DM a menu
+of legal options **with the numbers already worked out**; the DM picks; the
+engine does the arithmetic and the bookkeeping.
+
+**The engine owns what is countable. The DM owns what is judgment.**
+
+| Engine | DM |
+|---|---|
+| Whose turn, what round, what is left of the movement budget | Which creature does what |
+| What this creature can legally do right now | Which of those to pick |
+| Who is in range, who has cover, what the DC is | Whether an unusual thing should work at all |
+| Roll, compare, subtract, apply, expire | Rule on anything the book left as prose |
+
+### Walkthrough 1 — a turn the engine resolves end to end
+
+DM clicks **Advance**. The engine stops on the Owlbear and shows:
+
+> **Round 2 — Owlbear (47/59 HP)** · 40 ft movement left
+> **Actions**
+> - **Rend** — melee, reach 5 ft · *in range:* Thalia (AC 16 — 15 ft away, needs 10 ft of movement), Bram (AC 18, adjacent, **half cover → AC 20**)
+> - **Multiattack** — 2 × Rend
+
+The DM drags the Owlbear 10 ft and clicks **Rend → Thalia**:
+
+1. `d20+7` → **19 vs AC 16, hit** — logged with the die, the bonus, and Thalia's AC *at that moment*
+2. `2d8+5` → **14 Slashing**
+3. Thalia 31 → **17 HP**
+
+The DM was asked one thing: who. Every number came from the imported stat block
+(Owlbear Rend really is `ATTACK_ROLL +7`, `2d8+5` Slashing).
+
+### Walkthrough 2 — a turn the engine cannot resolve: the prose part
+
+Same battle, the Oni's turn. Its **Shape-Shift** reads:
+
+> "The oni shape-shifts into a Small or Medium Humanoid or a Large Giant, or it
+> returns to its true form. Other than its size, its game statistics are the same
+> in each form."
+
+There is nothing to roll. No attack, no save, no damage, no condition — the book
+wrote a **rule**, not a **procedure**. Our parser produced zero effects for it,
+correctly, because there are none to find.
+
+So the engine offers it differently:
+
+> **Oni (Large) — Actions**
+> - Claw *(engine resolves)*
+> - **Shape-Shift** *(you resolve)* — "The oni shape-shifts into a Small or Medium Humanoid or a Large Giant…"
+>   → [ set size ▾ ] [ note ] [ done ]
+
+The DM picks Medium. The engine records the change, shrinks the token's footprint
+on the map — which changes reach and cover for everyone around it — and moves on.
+
+**That is the prose part.** The feature is still in the menu, still spends the
+action, still lands in the log, still undoes cleanly. The only difference is that
+the outcome came from the DM instead of from dice.
+
+**Why it is load-bearing:** 416 of the bestiary's 988 actionable features are
+like Shape-Shift. If "cannot execute" were an error, four in ten monster actions
+would be unusable. Supporting it as a normal path is what makes the simulator
+work against the data we actually have.
+
+### Walkthrough 3 — the interrupt
+
+Thalia casts Hold Person on the Bandit Captain. The engine does **not** resolve
+it. It appends `ACTION_DECLARED` and stops:
+
+> **Reaction window — Hold Person, Thalia → Bandit Captain**
+> - **Bandit Captain — Parry** — *"Trigger: The bandit is hit by a melee attack roll while holding a weapon."*
+> - Cultist — Counterspell *(reaction available)*
+> [ let it resolve ] [ take a reaction ▾ ]
+
+Two things to notice. The engine **listed Parry even though its trigger plainly
+does not match** — it does not parse trigger text, it shows the book's words and
+lets the DM judge, and it will not hide an option from you on the strength of a
+regex.
+
+And this window opened **mid-action**, not between turns. Counterspell has to
+land after "I cast Hold Person" and before the save is rolled. That is precisely
+why a pause between turns is not sufficient on its own, and the main reason the
+log-first design earns its cost.
+
+### Where windows open
+
+| Trigger | Example |
 |---|---|
 | `ACTION_DECLARED` | Counterspell, Shield |
-| `LEAVING_REACH` | Opportunity Attack |
+| `LEAVING_REACH` | Opportunity Attack — the SRD is specific: *"The attack occurs right before the creature leaves your reach"* |
 | `DAMAGE_PENDING` | Absorb Elements, Uncanny Dodge |
 | `TURN_ENDED` | the general pause |
 
-`LEAVING_REACH` is not a design flourish; the SRD is specific: *"The attack
-occurs right before the creature leaves your reach."* You cannot get that right
-by resolving movement and then logging it.
-
-Each window lists eligible reactors: participants holding an unspent Reaction and
-a feature with `activation = REACTION` (there are 24 in the bestiary).
-`Feature.triggerText` already carries the book's prose for what provokes each.
-**The engine never parses trigger text** — it offers the candidates and shows the
-words.
-
-### 4. Surprise is an initiative modifier; on-deck is a separate axis
-
-From our own glossary import:
-
-> "If a creature is caught unawares by the start of combat, that creature is
-> surprised, which causes it to have Disadvantage on its Initiative roll."
-
-That is the 2024 rule, and it is far smaller than the 2014 "lose your first turn"
-that most people reach for: a boolean on the participant, consumed once, at
-initiative.
-
-Three independent axes, deliberately not collapsed into one enum:
-
-- **Presence** — `ACTIVE` (in the fight, rolls initiative) or `ON_DECK` (on the
-  board or in the wings, not in combat). The DM promotes an on-deck combatant at
-  any point; they roll initiative and slot into the order. That one mechanism
-  covers reinforcements, the ambush from the balcony, and "the ogre wakes up on
-  round 3".
-- **Surprised** — consumed at initiative.
-- **Hidden** — under 2024 rules a successful Hide confers the Invisible
-  condition, so this rides the existing condition model.
-
-### 5. Customisation is copy-on-write; scaling is a descriptor
-
-Two things that look alike and should not share a mechanism:
-
-- **Hand edits** ("this goblin carries a longbow and has 4 more HP") clone the
-  StatBlock into an encounter-private row, keeping `overridesId` pointing at the
-  original so provenance survives. This is the copy-on-write machinery
-  `AbstractCatalogService` already implements; its scope widens from user to
-  encounter.
-- **Scaling** ("make this a CR 3 goblin") stores the *descriptor* — HP multiplier,
-  AC delta, damage multiplier — and applies it at battle start. One row instead
-  of a clone, and it stays legible and re-tunable afterwards.
-
-Clone lazily: an unmodified combatant just points at the shared catalog row.
-
-**The trade-off to accept deliberately:** until it is cloned, editing the
-compendium goblin changes every saved encounter that uses it. Usually that is
-what you want (a fix propagates), but it is a choice, not an accident.
-
 ---
 
-## The board
+## Surprise, and who is in the fight
 
-### The SRD is gridless, so the grid is ours
+From our glossary import:
 
-Worth stating plainly, because it is easy to assume otherwise: **SRD 5.2 contains
-no grid rules.** It speaks in feet and *spaces*. Searching the whole glossary
-import for "grid" or "square" returns one entry, and it is Thin Ice. Grid
-movement is an optional variant in the PHB, which is not SRD content.
+> "If a creature is caught unawares by the start of combat, that creature is
+> surprised, which causes it to have **Disadvantage on its Initiative roll**."
 
-So a square grid is our imposition — defensible for a tactical simulator that
-wants real geometry, but we own the distance rule rather than citing it. Three
-options, and I would take the first:
+That is the 2024 rule, and it is far smaller than the 2014 "lose your first turn"
+most people reach for: a boolean consumed once, at initiative.
 
-| Rule | Diagonal cost | Note |
-|---|---|---|
-| **Chebyshev** | 5 ft | The PHB's own simplification. Cheap, and what most tables actually play. |
-| Alternating | 5/10/5/10 | The 3.5e rule. More accurate, annoying to explain in a UI. |
-| Euclidean | 7.07 ft | Truest, but fractional feet fight every other rule in the book. |
+Three independent axes, deliberately not one enum:
 
-### Storage is sparse
-
-`BattleMap`: `width`, `height`, `cellFeet` (default 5), and a default terrain.
-
-`MapCell` rows exist **only where a cell differs from the default**. A 40×40 board
-is 1,600 cells and nearly all of them are plain floor.
-
-Per cell:
-
-| Field | Why it is there |
-|---|---|
-| `elevationFeet` | Falling is real damage: *"1d6 Bludgeoning for every 10 feet, max 20d6"*, and Prone on landing. Slope derives from neighbours; a ramp *within* one square can wait. |
-| `movementCost` | Difficult Terrain, per the book: *"every foot of movement in that space costs 1 extra foot… isn't cumulative"* |
-| `cover` | NONE / HALF / THREE_QUARTERS / TOTAL → +2 AC, +5 AC, cannot be targeted |
-| `opaque` | blocks line of sight |
-| `light` | BRIGHT / DIM / DARKNESS. We already import Bright Light, Dim Light, Darkness, Lightly Obscured, Heavily Obscured and Darkvision — obscurement *is* combat geometry, and the cell is where it lives. |
-| `terrain` | FLOOR / WATER / LAVA / PIT / WALL … |
-
-### Movement cost is not purely static
-
-The book again: a space is Difficult Terrain if it contains *"a creature that
-isn't Tiny or your ally."* So the cost of entering a cell depends on **who is
-standing in it right now**. Cost is therefore `static cell cost + dynamic
-occupancy`, computed at move time, never cached on the cell.
-
-That single sentence is the reason pathfinding has to run against live battle
-state rather than against the saved map.
-
-### Caps
-
-40 combatants, 60×60 cells (a 300-foot square). Configurable. Past roughly 20
-an initiative order stops being usable at a real table, so this is a usability
-guardrail more than a technical one.
+- **Presence** — `ACTIVE` (in the fight, rolls initiative) or `ON_DECK` (on the
+  board or in the wings, not yet in combat). The DM promotes an on-deck combatant
+  at any moment; they roll initiative and slot into the order. One mechanism
+  covers reinforcements, the ambush from the balcony, and the ogre waking up in
+  round 3.
+- **Surprised** — consumed at initiative.
+- **Hidden** — a successful Hide confers the Invisible condition under 2024
+  rules, so this rides the condition model we already have.
 
 ---
 
 ## Phases
 
-Each ships something usable on its own.
-
-| # | What | Why it stands alone |
+| # | What | Ships as |
 |---|---|---|
-| 1 | `Encounter`, `BattleMap`, `MapCell`, `Combatant`, placement, CRUD | A DM can build and save a tactical map with monsters on it |
-| 2 | Encounter-scoped copy-on-write; scaling descriptors | "A beefed-up goblin" without polluting the compendium |
-| 3 | `Battle`, `Participant`, `BattleEvent`, initiative, turn order, state machine, the pause — **no action resolution** | An initiative tracker with a map. Useful at a table immediately |
-| 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, HP, movement | The simulator proper |
-| 5 | Reaction windows, on-deck promotion, surprise, concentration and duration ticking | The part the epic is actually for |
-| 6 | WebGL board, reusing what JPSS taught us about deck.gl | The table |
+| 1 | `Encounter`, map, terrain, `Combatant`, placement, CRUD | A DM can build and save a tactical map |
+| 2 | Sheets, scaling descriptors, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
+| 3 | **`tracker` module** — `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
+| 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, movement | The simulator proper |
+| 5 | Reaction windows, on-deck promotion, surprise, duration ticking | The part the epic is for |
+| 6 | WebGL board, reusing what JPSS taught us | The table |
 
-Backend through 1–5 with a plain functional UI to drive it; 6 is the real board.
+**Phase 3 is a module, not a step.** The tracker owns turn order and the log and
+knows nothing about maps or terrain; the simulator supplies combatants and a map
+to a tracker that would work just as well without either. That is what makes it
+shippable alone, and it is the boundary Modulith verifies.
 
 ---
 
-## Four gaps found while grounding this
+## Import gaps
 
-These are defects in what is already imported, not new work invented for the
-simulator. All four bite in phase 4 or 5.
+Four found while grounding this, all now fixed — see the commit "Fix four
+bestiary import gaps the simulator would have hit". A fifth I reported was not a
+defect at all: the 2024 stat blocks dropped "Costs 2 Actions", so a NULL
+`legendary_cost` is the book, not a parser bug.
 
-1. **`legendary_cost` is NULL on all 82 legendary actions.** The importer set
-   `activation = LEGENDARY` but never the cost, so a legendary action budget
-   cannot be spent. Parser fix, needed before phase 4.
-2. **303 passive traits have no mechanical representation.** Pack Tactics, Magic
-   Resistance, Amphibious — they modify *other* creatures' rolls rather than
-   being invoked, and nothing in the model expresses "advantage when an ally is
-   within 5 feet." This needs a modifier/rider concept that does not exist yet,
-   and it is the largest genuinely-new modelling work in the epic.
-3. **Only two `EffectKind`s are populated** — DAMAGE (793) and APPLY_CONDITION
-   (220). HEALING, MOVEMENT, TEMPORARY_HIT_POINTS, SUMMON and AREA_TERRAIN are
-   declared but unused, so those code paths will be written without real data to
-   test them against.
-4. **Nothing models a creature's threatened area.** Opportunity attacks need
-   "this creature threatens these cells", derived from its best melee
-   `FeatureStep.reachFeet` — the SRD default being *"a reach of 5 feet unless a
-   rule says otherwise."*
+What is still open, and matters before phase 4:
+
+1. **303 passive traits have no mechanical representation.** Pack Tactics, Magic
+   Resistance, Amphibious modify *other* rolls rather than being invoked, and
+   nothing expresses "advantage when an ally is within 5 feet". This needs a
+   modifier/rider concept that does not exist, and it is the largest genuinely
+   new modelling work in the epic. It is also why 182 of the 220 condition
+   effects have no duration: many of those riders are Advantage and Disadvantage,
+   which are not conditions.
+2. **Duration has no anchor.** "Until the *end* of its next turn" and "until the
+   *start* of its next turn" both store as one round. Wants a `durationAnchor`
+   before the engine ticks on it.
+3. **Forced movement has no direction.** Push, pull and slide store the verb in
+   `notes`; `movementType` names a *speed*, so it stays null rather than claiming
+   the target spent its own movement. Wants a small enum.
+4. **Threatened area is not modelled.** Opportunity attacks need "this creature
+   threatens these cells", derived from its best melee reach — *"a creature has a
+   reach of 5 feet unless a rule says otherwise."*
