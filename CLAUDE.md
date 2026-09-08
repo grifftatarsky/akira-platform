@@ -198,9 +198,9 @@ authorities → `/me` → `canEdit`). Without it the compendium renders read-onl
 which looks like a broken editor rather than a permissions state.
 
 **`--import-realm` skips a realm that already exists.** Keycloak keeps its data
-in Postgres here, not in a container volume, so editing
+in `auth-db` on the shared Postgres, not in a container volume, so editing
 `keycloak/local-keycloak-realm.json` changes nothing on a stack that has already
-run. To pick up a realm edit locally:
+run — the edit sits there looking applied. To pick it up:
 
 ```
 docker compose stop keycloak
@@ -208,6 +208,12 @@ docker compose run --rm keycloak import \
   --file /opt/keycloak/data/import/local-keycloak-realm.json --override true
 docker compose up -d keycloak
 ```
+
+`--override true` **drops the realm and recreates it** ("Realm 'local-keycloak'
+already exists. Removing it before import"). Anything added through the admin
+console and not written back to the export is gone. That is the intended
+direction — the file is the source of truth — but export first if you have been
+clicking around.
 
 `.env` is tracked and holds **local defaults only**. Production values live in
 the deploy repo's own `.env`; never copy a real credential into this one.
