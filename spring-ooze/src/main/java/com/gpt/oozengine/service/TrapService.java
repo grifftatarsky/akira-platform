@@ -8,7 +8,6 @@ import com.gpt.oozengine.repository.CatalogRepository;
 import com.gpt.oozengine.repository.HiddenContentRepository;
 import com.gpt.oozengine.repository.TrapRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -36,12 +35,6 @@ public class TrapService extends AbstractCatalogService<Trap, TrapRequest, TrapR
   @Override
   protected Trap instantiate() {
     return new Trap();
-  }
-
-  /** Deadliest first: a DM picking a trap is picking for a tier and a threat. */
-  @Override
-  protected Sort defaultSort() {
-    return Sort.by(Sort.Order.desc("severity"), Sort.Order.asc("name").ignoreCase());
   }
 
   @Override

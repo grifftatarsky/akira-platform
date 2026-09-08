@@ -436,7 +436,8 @@ export const CONTENT_TYPES: readonly ContentTypeDef[] = [
     },
     group: i => {
       const s = titleCase(String(i['severity'] ?? 'Other'));
-      // Deadliest first: a DM picking a trap is picking a threat for a tier.
+      // Deadliest first. Severity can't be a server-side sort key — it is
+      // stored as its name, so ordering by it runs Nuisance, Deadly, Bane.
       return { key: s, label: s, order: { Deadly: 0, Bane: 1, Nuisance: 2 }[s] ?? 3 };
     },
   },

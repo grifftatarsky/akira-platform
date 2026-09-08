@@ -14,6 +14,7 @@ import com.gpt.oozengine.model.dto.request.FeatureComponentRequest;
 import com.gpt.oozengine.model.dto.request.FeatureRequest;
 import com.gpt.oozengine.model.dto.request.MonsterRequest;
 import com.gpt.oozengine.model.dto.request.StatBlockRequest;
+import com.gpt.oozengine.model.dto.response.FeatureComponentResponse;
 import com.gpt.oozengine.model.dto.response.FeatureResponse;
 import com.gpt.oozengine.model.dto.response.MonsterResponse;
 import com.gpt.oozengine.model.mechanics.FeatureComponent;
@@ -276,6 +277,83 @@ class MultiattackTests {
       assertThat(stillBase.statBlock().features())
           .filteredOn(f -> f.name().equals("Multiattack"))
           .allSatisfy(f -> assertThat(f.components()).hasSize(3));
+    } finally {
+      monsterService.revert(baseId, user);
+    }
+  }
+
+  @Test
+  @DisplayName("a Multiattack can be authored: the wire carries mode and choice group")
+  void componentsRoundTripThroughTheRequest() {
+    UUID user = UUID.randomUUID();
+    UUID baseId =
+        monsters.findByOwnerIdIsNull().stream()
+            .filter(m -> m.getName().equals("Assassin"))
+            .findFirst()
+            .orElseThrow()
+            .getId();
+    MonsterResponse original = monsterService.get(baseId, null);
+    UUID shortsword = featureId(original, "Shortsword");
+
+    // What an editor will send once it has controls: two lines of one
+    // Multiattack, sharing a choice group, three attacks between them. This
+    // asserts the request can say it before any UI is built on top.
+    FeatureRequest sword =
+        new FeatureRequest(
+            featureId(original, "Shortsword"), "Shortsword", null, Activation.ACTION, null,
+            null, null, null, false, UsesReset.AT_WILL, null, null, null, null, null, null,
+            null, null, null, null, List.of(), List.of());
+    FeatureRequest crossbow =
+        new FeatureRequest(
+            featureId(original, "Light Crossbow"), "Light Crossbow", null, Activation.ACTION,
+            null, null, null, null, false, UsesReset.AT_WILL, null, null, null, null, null,
+            null, null, null, null, null, List.of(), List.of());
+    FeatureRequest multiattack =
+        new FeatureRequest(
+            null, "Multiattack", "The assassin makes three attacks.", Activation.ACTION, null,
+            null, null, null, false, UsesReset.AT_WILL, null, null, null, null, null, null,
+            null, null, null, null,
+            List.of(),
+            List.of(
+                new FeatureComponentRequest(null, shortsword, 3, false, ComponentMode.CHOICE, 0),
+                new FeatureComponentRequest(
+                    null, featureId(original, "Light Crossbow"), 3, false,
+                    ComponentMode.CHOICE, 0)));
+
+    MonsterResponse saved =
+        monsterService.update(
+            baseId,
+            new MonsterRequest(original.name(), null,
+                new StatBlockRequest(
+                    CreatureSize.MEDIUM, CreatureType.HUMANOID, null, null,
+                    16, null, 4, 78, 12, 8, 30, Map.of(MovementType.WALK, 30), false,
+                    11, 16, 14, 13, 11, 10, Map.of(), Map.of(), Map.of(), 13,
+                    List.of(), Set.of(), "Common, Thieves' cant", null,
+                    new BigDecimal("8"), 3900, 3, null, null, null, null,
+                    List.of(sword, crossbow, multiattack))),
+            user);
+    try {
+      var components =
+          saved.statBlock().features().stream()
+              .filter(f -> f.name().equals("Multiattack"))
+              .findFirst()
+              .orElseThrow()
+              .components();
+
+      assertThat(components).hasSize(2);
+      assertThat(components).allSatisfy(
+          c -> {
+            assertThat(c.mode()).isEqualTo(ComponentMode.CHOICE);
+            assertThat(c.count()).isEqualTo(3);
+            assertThat(c.choiceGroup()).isZero();
+          });
+      assertThat(components)
+          .extracting(FeatureComponentResponse::referencedFeatureName)
+          .containsExactlyInAnyOrder("Shortsword", "Light Crossbow");
+      // Resolved against this save's own features, not the shared Assassin's.
+      assertThat(components)
+          .extracting(FeatureComponentResponse::referencedFeatureId)
+          .doesNotContain(shortsword);
     } finally {
       monsterService.revert(baseId, user);
     }

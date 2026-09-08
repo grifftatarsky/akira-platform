@@ -369,3 +369,51 @@ but it is a cheap step and it makes the `@Cacheable` placement work reusable.
 in item 1, which today are `count(*)` queries against `sticker`. Not a reason to
 do it sooner — the counts are cheap and correctness matters more than speed
 there — but if Redis lands, that is the second thing to move onto it.
+
+---
+
+## 8. Editors for the two catalog types that can only be read
+
+**Today.** Oozengine's finder can author a creature (`stat-block-editor`) and an
+item (`item-editor`). Two things it shows, it cannot change:
+
+* **A Multiattack's components.** `content-panel` prints the plan — "2 × Tentacle
+  + any of Consume Memories, Dominate Mind (if available)" — and there is no
+  control for it. The wire underneath is finished and tested: `FeatureRequest`
+  carries `components`, `FeatureComponentRequest` carries `mode` and
+  `choiceGroup`, and `StatBlockMapper.syncComponents` resolves each target
+  against the features of the same save so a copy-on-write override links to its
+  own copies rather than the shared creature's.
+  `MultiattackTests.componentsRoundTripThroughTheRequest` asserts exactly the
+  payload an editor would send. **This one is UI only.**
+* **A class.** `class-detail` renders the twenty-row level table, the features
+  and the subclass, all read-only. `VocationRequest` carries the header — hit
+  die, saves, skills, armor training, proficiencies, starting equipment — and a
+  new override takes its levels and features from the class it shadows via
+  `AbstractCatalogService.copyOnWrite`. **There is no request path for levels or
+  class features at all**, so this one needs plumbing before UI.
+
+**What it becomes.** For the Multiattack: a component list inside each feature in
+`stat-block-editor`, offering the block's own features as targets, with the mode,
+the count and the choice group. The stat block editor already nests steps inside
+features and effects inside steps; components are a third list at the feature
+level, and the panel already merges the editor's `value()` into the save.
+
+For classes: `VocationLevelRequest` and a class-feature request on
+`VocationRequest`, a `VocationMapper` that matches levels on level number and
+features on id the way `StatBlockMapper` matches features and steps, and then a
+grid editor. The level table is the hard part — up to fifteen columns, and the
+class-specific ones are a labelled list whose order is the book's.
+
+**What makes it urgent.** Neither is urgent for reading the SRD, and both are
+urgent the moment somebody builds a creature or a class that isn't in it. The
+sharper trigger is the simulator: a battle plan picks *which* attacks a
+Multiattack makes, so a DM's homebrew monster whose Multiattack cannot be
+authored is a monster the simulator cannot run. That makes the component editor
+the one to do first, and it is also the cheap one — the plumbing is done and
+tested, so it is a list control and a save.
+
+**Do the Multiattack one first, and separately.** They share no code, the class
+editor is several times the size, and shipping the small one proves the pattern
+for nesting a third list in the stat block editor.
+
