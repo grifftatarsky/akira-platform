@@ -355,4 +355,68 @@ class RulesImportTests {
         .extracting(GlossaryEntry::getName)
         .contains("Fear Effects", "Mental Stress Effects");
   }
+
+  @Test
+  @DisplayName("Legendary actions carry the once-per-round lock the prose states")
+  void legendaryLockout() {
+    // The 2024 stat blocks dropped "Costs 2 Actions" entirely — every legendary
+    // action spends one use from the creature's pool — but half of them add
+    // "can't take this action again until the start of its next turn" in prose
+    // only. Parsed as AT_WILL, a dragon could spend all three uses on the same
+    // action, so this asserts the prose was read.
+    long legendary = count("select count(f) from Feature f where f.statBlockId is not null"
+        + " and f.activation = com.gpt.oozengine.constant.rules.Activation.LEGENDARY");
+    long locked = count("select count(f) from Feature f where f.statBlockId is not null"
+        + " and f.usesReset = com.gpt.oozengine.constant.rules.UsesReset.PER_ROUND");
+    // The phrase has to be the whole lockout sentence. "until the start of its
+    // next turn" on its own is five times a condition's *duration* ("has the
+    // Poisoned condition until the start of its next turn"), which is a
+    // different thing that must not be read as a lock on the action.
+    long stated = count("select count(f) from Feature f where f.statBlockId is not null"
+        + " and lower(f.description) like"
+        + " '%take this action again until the start of its next turn%'");
+
+    assertThat(legendary).isEqualTo(82);
+    assertThat(locked).isEqualTo(41).isEqualTo(stated);
+    assertThat(count("select count(f) from Feature f where f.usesReset ="
+        + " com.gpt.oozengine.constant.rules.UsesReset.PER_ROUND and f.usesMax <> 1")).isZero();
+  }
+
+  @Test
+  @DisplayName("Regained hit points and forced movement are effects, not just prose")
+  void healingAndForcedMovement() {
+    // Both forms of healing: the wisp's "regains 10 (3d6) Hit Points" and the
+    // troll's flat "regains 15 Hit Points". Only the dice form used to parse,
+    // which silently dropped five of the nine.
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.HEALING")).isEqualTo(9);
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.HEALING and e.amount.count is null"))
+        .isEqualTo(5);
+
+    // Forced movement is not the target spending its own Speed, so movementType
+    // — which names a speed — stays null and the verb rides in notes.
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.MOVEMENT")).isEqualTo(8);
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.MOVEMENT and e.movementFeet is null"))
+        .isZero();
+  }
+
+  @Test
+  @DisplayName("A condition the book time-limits carries that limit")
+  void conditionDurations() {
+    // Nothing populated these columns before, so every condition the engine
+    // applied would have lasted for the rest of the battle. 38 of the 220 say
+    // how long they last; the remainder are open-ended in the book itself.
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.APPLY_CONDITION"
+        + " and e.durationAmount is not null")).isEqualTo(38);
+    assertThat(count("select count(e) from Effect e where e.durationAmount is not null"
+        + " and e.durationUnit is null")).isZero();
+  }
+
+  private long count(String jpql) {
+    return em.createQuery(jpql, Long.class).getSingleResult();
+  }
 }

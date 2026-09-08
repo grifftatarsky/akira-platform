@@ -242,6 +242,10 @@ databaseChangeLog:
               - column: {name: condition_id, type: UUID}
               - column: {name: escape_dc, type: NUMERIC}
               - column: {name: notes, type: STRING}
+              - column: {name: movement_type, type: STRING}
+              - column: {name: movement_feet, type: NUMERIC}
+              - column: {name: duration_amount, type: NUMERIC}
+              - column: {name: duration_unit, type: STRING}
 
   - changeSet:
       id: 029-load-feature-components

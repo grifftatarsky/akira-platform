@@ -146,6 +146,10 @@ for b in blocks:
                     condition_ids.get(e['conditionName'] or '', ''),
                     e['escapeDc'] if e['escapeDc'] is not None else '',
                     e['notes'] or '',
+                    e['movementType'] or '',
+                    e['movementFeet'] if e['movementFeet'] is not None else '',
+                    e['durationAmount'] if e['durationAmount'] is not None else '',
+                    e['durationUnit'] or '',
                 ])
 
 print('writing CSVs:')
@@ -189,5 +193,6 @@ write(HERE, 'bestiary-feature-components.csv',
 write(HERE, 'bestiary-effects.csv',
       ['id', 'created_at', 'updated_at', 'version', 'step_id', 'outcome', 'kind', 'ordinal',
        'dice_count', 'dice_faces', 'dice_bonus', 'dice_average', 'damage_type', 'half_damage',
-       'condition_id', 'escape_dc', 'notes'],
+       'condition_id', 'escape_dc', 'notes', 'movement_type', 'movement_feet',
+       'duration_amount', 'duration_unit'],
       effects)

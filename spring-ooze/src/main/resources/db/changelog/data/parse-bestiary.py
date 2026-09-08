@@ -179,19 +179,104 @@ def damage_effects(segment, outcome):
         out.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': count, 'diceFaces': faces,
                     'diceBonus': bonus, 'diceAverage': int(m.group(1)),
                     'damageType': m.group(3).upper(), 'halfDamage': False,
-                    'conditionName': None, 'escapeDc': None, 'notes': None})
+                    'conditionName': None, 'escapeDc': None, 'notes': None,
+                    'movementType': None, 'movementFeet': None,
+                    'durationAmount': None, 'durationUnit': None})
     return out
+
+
+def healing_effects(segment, outcome):
+    """Regained Hit Points, rolled or flat.
+
+    Both forms appear: "regains 5 (1d10) Hit Points" and the troll's plain
+    "regains 15 Hit Points". DiceRoll already models the flat case — a null
+    count with the amount in bonus/average — so both land in one effect kind
+    rather than one being dropped for having no dice.
+    """
+    out = []
+    def row(count, faces, bonus, average):
+        return {'outcome': outcome, 'kind': 'HEALING', 'diceCount': count, 'diceFaces': faces,
+                'diceBonus': bonus, 'diceAverage': average, 'damageType': None,
+                'halfDamage': False, 'conditionName': None, 'escapeDc': None, 'notes': None,
+                'movementType': None, 'movementFeet': None,
+                'durationAmount': None, 'durationUnit': None}
+
+    spans = []
+    for m in re.finditer(DICE + r' Hit Points', segment):
+        count, faces, bonus = split_dice(m.group(2))
+        out.append(row(count, faces, bonus, int(m.group(1))))
+        spans.append(m.span())
+    for m in re.finditer(r'regains (\d+) Hit Points', segment):
+        if any(a <= m.start() < b for a, b in spans):
+            continue  # already taken by the dice form above
+        flat = int(m.group(1))
+        out.append(row(None, None, flat, flat))
+    return out
+
+
+def movement_effects(segment, outcome):
+    """Forced movement — "pushed up to 30 feet straight away from the dragon".
+
+    Distinct from a creature spending its own Speed: the target does not choose
+    it and it does not cost movement, so the engine has to apply it rather than
+    offer it.
+    """
+    out = []
+    for m in re.finditer(
+            r'(pushed|pulled|moved|knocked back)(?: up to)? (\d+) feet', segment, re.I):
+        out.append({'outcome': outcome, 'kind': 'MOVEMENT', 'diceCount': None, 'diceFaces': None,
+                    'diceBonus': None, 'diceAverage': None, 'damageType': None,
+                    'halfDamage': False, 'conditionName': None, 'escapeDc': None,
+                    # movementType is the five *speeds* (WALK/FLY/…), which is a
+                    # different question from "who is moving this creature". The
+                    # verb goes in notes until forced movement gets a direction
+                    # enum of its own; guessing WALK here would say the target
+                    # spent its own movement, which is exactly backwards.
+                    'notes': m.group(1).lower(), 'movementType': None,
+                    'movementFeet': int(m.group(2)),
+                    'durationAmount': None, 'durationUnit': None})
+    return out
+
+
+# "until the end of its next turn" and "until the start of its next turn" both
+# come out as one round. The model carries an amount and a unit but no anchor,
+# so the start/end distinction is lost here — it matters for exactly when a
+# condition drops off, and wants a durationAnchor column before the engine
+# leans on it. One round is right to within half a turn either way.
+DURATIONS = [
+    (r'until the (?:end|start) of (?:its|the target\'s|their) next turn', 1, 'ROUND'),
+    (r'for (\d+) minutes?', None, 'MINUTE'),
+    (r'for (\d+) hours?', None, 'HOUR'),
+    (r'for 1 minute', 1, 'MINUTE'),
+]
+
+
+def duration_of(segment):
+    """How long a condition applied in this segment lasts, if the book says."""
+    for pattern, fixed, unit in DURATIONS:
+        m = re.search(pattern, segment, re.I)
+        if m:
+            return (fixed if fixed is not None else int(m.group(1))), unit
+    return None, None
 
 
 def condition_effects(segment, outcome):
     out = []
+    amount, unit = duration_of(segment)
     esc = re.search(r'escape DC (\d+)', segment)
     for m in re.finditer(r'has the (%s) condition' % '|'.join(CONDITIONS), segment):
         out.append({'outcome': outcome, 'kind': 'APPLY_CONDITION', 'diceCount': None,
                     'diceFaces': None, 'diceBonus': None, 'diceAverage': None, 'damageType': None,
                     'halfDamage': False, 'conditionName': m.group(1),
-                    'escapeDc': int(esc.group(1)) if esc else None, 'notes': None})
+                    'escapeDc': int(esc.group(1)) if esc else None, 'notes': None,
+                    'movementType': None, 'movementFeet': None,
+                    'durationAmount': amount, 'durationUnit': unit})
     return out
+
+
+def all_effects(segment, outcome):
+    return (damage_effects(segment, outcome) + condition_effects(segment, outcome)
+            + healing_effects(segment, outcome) + movement_effects(segment, outcome))
 
 
 def branch_effects(text):
@@ -199,7 +284,7 @@ def branch_effects(text):
     marks = [(m.start(), m.group(1)) for m in OUTCOME_RE.finditer(text)]
     effects = []
     if not marks:
-        return damage_effects(text, 'ALWAYS') + condition_effects(text, 'ALWAYS')
+        return all_effects(text, 'ALWAYS')
     for i, (pos, label) in enumerate(marks):
         end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
         seg = text[pos + len(label) + 1:end]
@@ -208,9 +293,11 @@ def branch_effects(text):
             effects.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': None,
                             'diceFaces': None, 'diceBonus': None, 'diceAverage': None,
                             'damageType': None, 'halfDamage': True, 'conditionName': None,
-                            'escapeDc': None, 'notes': None})
+                            'escapeDc': None, 'notes': None,
+                            'movementType': None, 'movementFeet': None,
+                            'durationAmount': None, 'durationUnit': None})
             continue
-        effects += damage_effects(seg, outcome) + condition_effects(seg, outcome)
+        effects += all_effects(seg, outcome)
     return effects
 
 
@@ -276,7 +363,19 @@ def parse_feature(name, text, activation, ordinal):
     t = re.search(r'Trigger:\s*(.*?)(?:\s*Response:\s*(.*))?$', text, re.S)
     if t and t.group(2):
         trigger, body = t.group(1).strip(), t.group(2).strip()
+    # "…can't take this action again until the start of its next turn" is how
+    # the 2024 book writes a once-per-round lock. It is stated in the prose only,
+    # never in the "(Recharge …)" or "(N/Day)" suffix parse_uses() reads, so it
+    # has to be picked up here or half the legendary actions come out AT_WILL.
+    if reset == 'AT_WILL' and re.search(
+            r"can'?t take this action again until the start of its next turn", text, re.I):
+        reset, uses = 'PER_ROUND', 1
+
     return {'name': base, 'description': text.strip(), 'ordinal': ordinal,
+            # The 2024 stat blocks give a creature a pool of Legendary Action
+            # Uses and every action spends exactly one; the 2014 "Costs 2
+            # Actions" wording is gone from the book, so there is no per-action
+            # cost left to read. Verified: 0 of 82 say "Costs N".
             'activation': activation, 'legendaryCost': None, 'usesReset': reset, 'usesMax': uses,
             'rechargeMin': rmin, 'rechargeMax': rmax, 'triggerText': trigger,
             'steps': parse_steps(body)}

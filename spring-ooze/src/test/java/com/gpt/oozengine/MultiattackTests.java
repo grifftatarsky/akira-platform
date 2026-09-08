@@ -9,7 +9,6 @@ import com.gpt.oozengine.constant.rules.CreatureType;
 import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.constant.rules.UsesReset;
 import com.gpt.oozengine.constant.rules.Ability;
-import com.gpt.oozengine.constant.rules.UsesReset;
 import com.gpt.oozengine.model.Monster;
 import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.mechanics.Feature;
