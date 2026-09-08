@@ -1,0 +1,3 @@
+stat_block_id,unique_behavior,unique_data
+cc618aa0-1ee7-5853-a26e-000fb122fda3,SHRIEKER_SHRIEK,"{""triggerRadiusFeet"": 30, ""audibleFeet"": 300, ""durationMinutes"": 1, ""shriekingSince"": null}"
+6663817c-edf8-552e-8ede-f0d77e4d658a,HYDRA_HEADS,"{""heads"": 5, ""startingHeads"": 5, ""damageThisTurn"": 0, ""headsLostSinceLastTurn"": 0, ""tookFireDamage"": false, ""headLossThreshold"": 25, ""regrowPerHead"": 2, ""regrowHitPoints"": 20}"

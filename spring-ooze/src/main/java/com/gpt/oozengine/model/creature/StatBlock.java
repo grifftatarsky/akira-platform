@@ -4,6 +4,9 @@ import com.gpt.oozengine.constant.rules.Ability;
 import com.gpt.oozengine.constant.rules.Alignment;
 import com.gpt.oozengine.constant.rules.CreatureSize;
 import com.gpt.oozengine.constant.rules.CreatureType;
+import com.gpt.oozengine.constant.rules.UniqueBehavior;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.model.BaseEntity;
 import com.gpt.oozengine.model.Condition;
@@ -249,6 +252,33 @@ public class StatBlock extends BaseEntity {
   /** Total legendary actions per round, where the creature has any. */
   @Column(name = "legendary_action_uses")
   private Integer legendaryActionUses;
+
+  /**
+   * The one creature-specific rule this stat block needs that no general
+   * mechanism covers, or null — which is all but two of the 330.
+   *
+   * <p>A hydra's heads set its Multiattack count, grant it extra Reactions and
+   * kill it when they run out; a shrieker shrieks because something walked past,
+   * with nobody choosing to. Neither is a rider, an effect or a component, and
+   * generalising for a population of one would cost more than a named branch.
+   * {@code UniqueBehaviorService} switches on this and owns the shape of
+   * {@link #uniqueData}.
+   */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "unique_behavior", length = 48)
+  private UniqueBehavior uniqueBehavior;
+
+  /**
+   * Starting state for {@link #uniqueBehavior}, as JSON.
+   *
+   * <p>Deliberately schemaless. The alternative is a column per behaviour, every
+   * one of them null on 329 rows out of 330, and a migration each time a new
+   * creature needs one. A battle copies this to the participant and mutates its
+   * copy, so the stat block keeps the book's opening position.
+   */
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "unique_data", columnDefinition = "jsonb")
+  private Map<String, Object> uniqueData;
   // endregion
 
   public void addFeature(Feature f) {

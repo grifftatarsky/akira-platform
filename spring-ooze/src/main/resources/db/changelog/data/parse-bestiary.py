@@ -304,9 +304,220 @@ def condition_effects(segment, outcome):
     return out
 
 
+# region riders
+#
+# The book's third mechanical voice. "Advantage on attack rolls", "its Speed is
+# halved", "adds 2 to its AC", "subtracts 3 (1d6) from its damage rolls" — none
+# of them damage, none of them conditions, and between them the commonest thing
+# a monster does. 303 passive traits had no mechanical representation at all
+# before this: a Pack Tactics creature attacked as though it stood alone.
+
+RIDER_TARGETS = [
+    (r'attack rolls?', 'ATTACK_ROLL'),
+    (r'saving throws?', 'SAVING_THROW'),
+    (r'ability checks?', 'ABILITY_CHECK'),
+    (r'D20 Tests?', 'D20_TEST'),
+    (r'Initiative', 'INITIATIVE'),
+    (r'damage rolls?', 'DAMAGE_ROLL'),
+]
+# Spelled out, for rider text like "Strength-based D20 Tests". Deliberately not
+# ABILITIES or ABILITY_NAMES: both are taken above by the stat-block header
+# parser, and shadowing either makes the score line stop matching and silently
+# empties every creature's saving throws. Both collisions happened; only a test
+# asserting one dragon's Dexterity save caught them.
+RIDER_ABILITY_WORDS = ('Strength', 'Dexterity', 'Constitution', 'Intelligence',
+                       'Wisdom', 'Charisma')
+
+
+def _rider(target, mode, **kw):
+    r = {'target': target, 'mode': mode, 'amount': None, 'diceCount': None, 'diceFaces': None,
+         'diceBonus': None, 'diceAverage': None, 'ability': None, 'damageType': None,
+         'gate': None, 'durationAmount': None, 'durationUnit': None,
+         'removedBy': None, 'destroyedAt': None}
+    r.update(kw)
+    return r
+
+
+def parse_riders(segment):
+    """Standing modifiers stated in this clause."""
+    out = []
+    amount, unit = duration_of(segment)
+
+    # "has Advantage on attack rolls", "Disadvantage on Strength-based D20 Tests"
+    for m in re.finditer(r'(?:has|have|gains?)\s+(Advantage|Disadvantage) on ([^.;,]{0,60})', segment):
+        mode, what = m.group(1).upper(), m.group(2)
+        abil = next((a for a in RIDER_ABILITY_WORDS if re.search(r'%s-based' % a, what)), None)
+        for pat, target in RIDER_TARGETS:
+            if re.search(pat, what, re.I):
+                out.append(_rider(target, mode, ability=abil.upper() if abil else None,
+                                  durationAmount=amount, durationUnit=unit))
+                break
+
+    # "its Speed is halved"
+    if re.search(r'Speed is halved', segment, re.I):
+        out.append(_rider('SPEED', 'HALVE', durationAmount=amount, durationUnit=unit))
+
+    # "The target can't take Reactions"
+    if re.search(r"can'?t take Reactions", segment, re.I):
+        out.append(_rider('REACTION', 'DENY', durationAmount=amount, durationUnit=unit))
+
+    # "adds 2 to its AC", "gains a +5 bonus to AC"
+    for m in re.finditer(r'(?:adds (\d+) to its AC|gains a \+(\d+) bonus to AC)', segment):
+        out.append(_rider('ARMOR_CLASS', 'BONUS', amount=int(m.group(1) or m.group(2)),
+                          durationAmount=amount, durationUnit=unit))
+
+    # "the sphinx adds 2 to the roll" — a bonus to whatever was rolled.
+    for m in re.finditer(r'adds (\d+) to the roll', segment):
+        out.append(_rider('D20_TEST', 'BONUS', amount=int(m.group(1))))
+
+    # "subtracts 3 (1d6) from its damage rolls"
+    for m in re.finditer(r'subtracts ' + DICE + r' from its damage rolls', segment):
+        count, faces, bonus = split_dice(m.group(2))
+        out.append(_rider('DAMAGE_ROLL', 'BONUS', amount=-int(m.group(1)), diceCount=count,
+                          diceFaces=faces, diceBonus=bonus, diceAverage=int(m.group(1)),
+                          durationAmount=amount, durationUnit=unit))
+
+    # The rust monster's corrosion, which is the only item-durability rule in the
+    # book: a cumulative penalty with a stated destruction point and a stated
+    # cure, so both belong on the rider rather than in a handler somewhere.
+    if re.search(r'penalty to the AC it offers', segment):
+        cure = re.search(r'removed by casting the (\w+) spell', segment)
+        out.append(_rider('ITEM_ARMOR_CLASS', 'BONUS', amount=-1, destroyedAt=10,
+                          removedBy=cure.group(1) if cure else None))
+        out.append(_rider('ITEM_ATTACK_ROLL', 'BONUS', amount=-1, destroyedAt=-5,
+                          removedBy=cure.group(1) if cure else None))
+
+    # Legendary Resistance, on all 32 legendary creatures: the single most
+    # consequential passive in the book, and it had no mechanical form at all.
+    # The feature's own 3/Day already parses; this is what it spends a use on.
+    if re.search(r'fails a saving throw, it can choose to succeed instead', segment, re.I):
+        out.append(_rider('SAVING_THROW', 'AUTO_SUCCEED',
+                          gate='on a failed save, before the outcome is applied'))
+
+    # "its Hit Point maximum decreases by an amount equal to the damage taken"
+    if re.search(r'Hit Point maximum decreases', segment):
+        out.append(_rider('HIT_POINT_MAXIMUM', 'BONUS', gate='by the damage taken'))
+
+    return out
+
+
+def rider_effects(segment, outcome):
+    riders = parse_riders(segment)
+    if not riders:
+        return []
+    return [{'outcome': outcome, 'kind': 'APPLY_RIDER', 'diceCount': None, 'diceFaces': None,
+             'diceBonus': None, 'diceAverage': None, 'damageType': None, 'halfDamage': False,
+             'conditionName': None, 'escapeDc': None, 'notes': None, 'movementType': None,
+             'movementFeet': None, 'durationAmount': None, 'durationUnit': None,
+             'riders': riders}]
+
+# endregion
+
+
+def _plain(outcome, kind, **kw):
+    e = {'outcome': outcome, 'kind': kind, 'diceCount': None, 'diceFaces': None,
+         'diceBonus': None, 'diceAverage': None, 'damageType': None, 'halfDamage': False,
+         'conditionName': None, 'escapeDc': None, 'notes': None, 'movementType': None,
+         'movementFeet': None, 'durationAmount': None, 'durationUnit': None, 'riders': []}
+    e.update(kw)
+    return e
+
+
+def self_movement_effects(segment, outcome):
+    """The creature moving itself — teleport, jump, or a burst of its own Speed.
+
+    Distinct from the forced movement in movement_effects(): this one the
+    creature chooses and it comes out of nobody's budget but its own.
+    """
+    out = []
+    for m in re.finditer(r'teleports?(?: up to)? (\d+) feet', segment, re.I):
+        out.append(_plain(outcome, 'MOVEMENT', movementFeet=int(m.group(1)), notes='teleport'))
+    for m in re.finditer(r'jumps? up to (\d+) feet', segment, re.I):
+        out.append(_plain(outcome, 'MOVEMENT', movementFeet=int(m.group(1)), notes='jump'))
+    for m in re.finditer(r'(?:moves?|flies|swims?) up to (half )?its (Fly |Swim |Climb )?Speed',
+                         segment, re.I):
+        mode = (m.group(2) or 'WALK').strip().upper() or 'WALK'
+        out.append(_plain(outcome, 'MOVEMENT',
+                          movementType={'FLY': 'FLY', 'SWIM': 'SWIM', 'CLIMB': 'CLIMB'}.get(mode, 'WALK'),
+                          notes='half speed' if m.group(1) else 'full speed'))
+    return out
+
+
+def temp_hp_effects(segment, outcome):
+    out = []
+    for m in re.finditer(DICE + r' Temporary Hit Points', segment):
+        count, faces, bonus = split_dice(m.group(2))
+        out.append(_plain(outcome, 'TEMPORARY_HIT_POINTS', diceCount=count, diceFaces=faces,
+                          diceBonus=bonus, diceAverage=int(m.group(1))))
+    return out
+
+
+def terrain_effects(segment, outcome):
+    """Light and darkness written onto the board, which is real geometry."""
+    out = []
+    m = re.search(r'(Magical Darkness|Darkness) fills a (\d+)-foot Emanation', segment)
+    if m:
+        out.append(_plain(outcome, 'AREA_TERRAIN', movementFeet=int(m.group(2)),
+                          notes='darkness'))
+    m = re.search(r'sheds Bright Light in a (\d+)-foot radius', segment)
+    if m:
+        out.append(_plain(outcome, 'AREA_TERRAIN', movementFeet=int(m.group(1)),
+                          notes='bright light'))
+    return out
+
+
+def summon_effects(segment, outcome):
+    """A new combatant arriving mid-fight."""
+    out = []
+    m = re.search(r"rises as an? (\w+)[^.]*?\.", segment)
+    if m and 'spirit' in segment:
+        cap = re.search(r'no more than (%s) (\w+) under its control' % NUM, segment)
+        out.append(_plain(outcome, 'SUMMON', notes=m.group(1),
+                          summonCount=1,
+                          summonMax=count_of(cap.group(1)) if cap else None))
+    if re.search(r'splits? into two new', segment):
+        out.append(_plain(outcome, 'SUMMON', notes='split', summonCount=1, summonMax=None))
+    return out
+
+
+def information_effects(segment, outcome):
+    """Something the DM should weigh that changes no state.
+
+    The sprite's Heart Sight learns a target's emotions and alignment; that is a
+    real outcome of a real saving throw and it belongs in the turn's record even
+    though no number moves. Dropping it silently is what made these features look
+    like unimplementable prose.
+    """
+    if re.search(r'\bknows the target\'s\b|learns? (?:the target\'s|whether)', segment):
+        return [_plain(outcome, 'INFORMATION', notes=segment.strip()[:400])]
+    return []
+
+
+EFFECT_KEYS = {'riders': [], 'summonCount': None, 'summonMax': None, 'movementType': None,
+               'movementFeet': None, 'durationAmount': None, 'durationUnit': None,
+               'notes': None, 'escapeDc': None, 'conditionName': None}
+
+
 def all_effects(segment, outcome):
+    """Every effect this clause states, normalised to one key set.
+
+    Six builders each grew their own dict over time and the CSV rows go ragged
+    the moment one of them forgets a column, so the defaults are applied here
+    rather than repeated six times.
+    """
+    out = _all_effects(segment, outcome)
+    for e in out:
+        for k, v in EFFECT_KEYS.items():
+            e.setdefault(k, v() if callable(v) else ([] if v == [] else v))
+    return out
+
+
+def _all_effects(segment, outcome):
     return (damage_effects(segment, outcome) + condition_effects(segment, outcome)
-            + healing_effects(segment, outcome) + movement_effects(segment, outcome))
+            + healing_effects(segment, outcome) + movement_effects(segment, outcome)
+            + rider_effects(segment, outcome) + self_movement_effects(segment, outcome)
+            + temp_hp_effects(segment, outcome) + terrain_effects(segment, outcome)
+            + summon_effects(segment, outcome) + information_effects(segment, outcome))
 
 
 def branch_effects(text):
@@ -402,6 +613,7 @@ def parse_feature(name, text, activation, ordinal):
         reset, uses = 'PER_ROUND', 1
 
     return {'name': base, 'description': text.strip(), 'ordinal': ordinal,
+            'shapes': parse_shapes(text),
             # The 2024 stat blocks give a creature a pool of Legendary Action
             # Uses and every action spends exactly one; the 2014 "Costs 2
             # Actions" wording is gone from the book, so there is no per-action
@@ -709,18 +921,176 @@ def parse_multiattack(desc, names, self_name='Multiattack'):
     return components, leftover
 
 
-def link_multiattacks(block):
-    """Attach components to any feature that refers to the block's own actions."""
+# The twelve standard actions, which the glossary already carries. "The goblin
+# takes the Disengage or Hide action" is the same sentence shape as "makes two
+# Tentacle attacks" with a different object, so it becomes a component too.
+STANDARD_ACTIONS = ('Attack', 'Dash', 'Disengage', 'Dodge', 'Help', 'Hide',
+                    'Influence', 'Magic', 'Ready', 'Search', 'Study', 'Utilize')
+ACTION_CLAUSE = re.compile(
+    r'takes? the ((?:%s)(?:(?:,| or| and)+ (?:%s))*) action' % (
+        '|'.join(STANDARD_ACTIONS), '|'.join(STANDARD_ACTIONS)))
+
+# "casts Wall of Ice (level 8 version)", "casts Bless, Dispel Magic, Healing
+# Word, or Lesser Restoration", "uses Spellcasting to cast Fear".
+CAST_CLAUSE = re.compile(
+    r'(?:uses (?:its )?Spellcasting to cast|casts(?: the)?)\s+'
+    r'(?P<list>[A-Z][^.;]*?)'
+    r'(?=\s*(?:,\s*(?:requiring|using)|\s+spell\b|\.|;|$))')
+
+
+def action_components(desc, at):
+    """Standard actions a feature takes: "takes the Dash or Disengage action"."""
+    out = []
+    for m in ACTION_CLAUSE.finditer(desc):
+        picks = [a for a in STANDARD_ACTIONS if re.search(r'\b%s\b' % a, m.group(1))]
+        # Two or more named in one clause are alternatives, not a sequence.
+        mode = 'CHOICE' if len(picks) > 1 else 'FIXED'
+        for p in picks:
+            out.append({'action': p, 'feature': None, 'spell': None, 'spellLevel': None,
+                        'count': 1, 'mode': mode, 'optional': False,
+                        'choiceGroup': 0 if len(picks) > 1 else None, '_at': at + m.start()})
+    return out
+
+
+def spell_components(desc, at):
+    """Named spells a feature casts, resolved against the seeded catalog."""
+    out = []
+    for m in CAST_CLAUSE.finditer(desc):
+        # "Bless, Dispel Magic, Healing Word, or Lesser Restoration" is a choice
+        # among four; a single name is just that one.
+        picks = []
+        for part in re.split(r',\s*(?:or\s+)?|\s+or\s+', m.group('list')):
+            name, level = resolve_spell(part)
+            if name:
+                picks.append((name, level))
+        mode = 'CHOICE' if len(picks) > 1 else 'FIXED'
+        for name, level in picks:
+            out.append({'spell': name, 'spellLevel': level, 'feature': None, 'action': None,
+                        'count': 1, 'mode': mode, 'optional': False,
+                        'choiceGroup': 0 if len(picks) > 1 else None, '_at': at + m.start()})
+    return out
+
+
+# region shape-shifting
+#
+# "Other than its size, its game statistics are the same in each form", so a
+# form is a size and a set of speeds, not a second stat block. Size is the live
+# part: it sets the footprint, and the footprint sets reach and cover.
+
+SIZE_WORDS = ('Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan')
+# The book writes a form's speeds two ways: "(Speed 5 ft., Fly Speed 30 ft.)"
+# and the terser "(20 ft., Fly 60 ft.)". A bare number is the walking speed.
+SPEED_IN_FORM = re.compile(r'\b(?:(Fly|Swim|Climb|Burrow) )?(?:Speed )?(\d+) ?ft')
+
+# Clauses that survive the split but are commentary, not a form.
+NOT_A_FORM = re.compile(r'^(using|while|it |and |its |other than|but )', re.I)
+
+
+def split_forms(text):
+    """Split a list of forms on separators that are not inside parentheses.
+
+    "a raven (20 ft., Fly 60 ft.), or a spider" has commas doing two different
+    jobs — separating forms and separating that form's own speeds — and a plain
+    split turns one raven into two half-forms.
+    """
+    parts, depth, buf = [], 0, []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth = max(0, depth - 1)
+        if depth == 0:
+            if ch == ',':
+                # ", or" is one separator, not two.
+                parts.append(''.join(buf)); buf = []
+                i += 1
+                continue
+            if text.startswith(' or ', i):
+                parts.append(''.join(buf)); buf = []
+                i += 4
+                continue
+        buf.append(ch)
+        i += 1
+    parts.append(''.join(buf))
+    return [p for p in parts if p.strip()]
+
+
+def parse_shapes(desc):
+    """The forms a shape-shifting feature offers."""
+    if not re.search(r'shape-shifts?|returns to its true form', desc, re.I):
+        return []
+    out = []
+    # Everything between the verb and the sentence end is the list of forms.
+    m = re.search(r'shape-shifts?(?: into| to resemble)?\s+(.+?)(?:\.\s|\.$|$)', desc, re.I)
+    if not m:
+        return []
+    for part in split_forms(m.group(1)):
+        part = part.strip()
+        if not part:
+            continue
+        if re.search(r'returns? to its true (?:form|\w+ form)', part, re.I):
+            out.append({'name': 'true form', 'size': None, 'speeds': {}, 'trueForm': True})
+            continue
+        size = next((w.upper() for w in SIZE_WORDS if re.search(r'\b%s\b' % w, part)), None)
+        speeds = {}
+        for sm in SPEED_IN_FORM.finditer(part):
+            speeds[(sm.group(1) or 'WALK').upper()] = int(sm.group(2))
+        # Strip the parenthetical so the name reads as the book's noun.
+        name = re.sub(r'\s*\([^)]*\)', '', part).strip(' .,')
+        name = re.sub(r'^(?:an?|the)\s+', '', name, flags=re.I)
+        if name and not NOT_A_FORM.match(name):
+            out.append({'name': name[:120], 'size': size, 'speeds': speeds, 'trueForm': False})
+    return out
+
+# endregion
+
+
+# region unique behaviour
+#
+# Two creatures in 330 need rules no general mechanism reaches. Both are keyed
+# by name rather than sniffed from prose: a heuristic that fires on the wrong
+# creature is worse than a list of two, and the list is the honest size of the
+# problem.
+
+UNIQUE = {
+    'Hydra': ('HYDRA_HEADS', {'heads': 5, 'startingHeads': 5, 'damageThisTurn': 0,
+                              'headsLostSinceLastTurn': 0, 'tookFireDamage': False,
+                              'headLossThreshold': 25, 'regrowPerHead': 2,
+                              'regrowHitPoints': 20}),
+    'Shrieker Fungus': ('SHRIEKER_SHRIEK', {'triggerRadiusFeet': 30, 'audibleFeet': 300,
+                                            'durationMinutes': 1, 'shriekingSince': None}),
+}
+
+
+def link_components(block):
+    """Attach components to any feature that invokes something else.
+
+    Originally this ran only on features named Multiattack, which left 104
+    others reading as unexecutable prose — a dragon's Pounce ("makes one Rend
+    attack"), a devil's Ice Wall ("casts Wall of Ice"), a goblin's Nimble Escape
+    ("takes the Disengage or Hide action"). They are the same sentence with a
+    different object, so they are the same mechanism.
+    """
     names = [f['name'] for f in block['features']]
     for f in block['features']:
-        f['components'] = []
-        if not f['name'].lower().startswith('multiattack'):
-            continue
         components, unparsed = parse_multiattack(f['description'], names, f['name'])
-        f['components'] = components
-        for clause in unparsed:
-            print('unstructured multiattack: %s: %s' % (block['name'], clause),
-                  file=sys.stderr)
+        # A feature must not invoke itself; parse_multiattack already excludes
+        # the self name, but a sibling with the same name would slip through.
+        for c in components:
+            c.setdefault('spell', None)
+            c.setdefault('action', None)
+            c.setdefault('spellLevel', None)
+        # parse_multiattack already popped its own offsets and returned them in
+        # book order, so the new kinds append after rather than interleave.
+        extra = spell_components(f['description'], 0) + action_components(f['description'], 0)
+        extra.sort(key=lambda c: c.pop('_at'))
+        f['components'] = components + extra
+        if f['name'].lower().startswith('multiattack'):
+            for clause in unparsed:
+                print('unstructured multiattack: %s: %s' % (block['name'], clause),
+                      file=sys.stderr)
 
 # endregion
 
@@ -841,7 +1211,9 @@ def main():
             while end > i and lines[end - 1].strip() in ('', following):
                 end -= 1
         block = parse_block(lines[i - 1].strip(), lines[i:end])
-        link_multiattacks(block)
+        link_components(block)
+        unique = UNIQUE.get(block['name'])
+        block['uniqueBehavior'], block['uniqueData'] = unique if unique else (None, None)
         parse_spellcasting(block)
         blocks.append(block)
     json.dump(blocks, open(OUT, 'w'), indent=1)

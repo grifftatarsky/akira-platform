@@ -2,6 +2,8 @@ package com.gpt.oozengine.model.mechanics;
 
 import com.gpt.oozengine.constant.rules.ComponentMode;
 import com.gpt.oozengine.model.BaseEntity;
+import com.gpt.oozengine.model.GlossaryEntry;
+import com.gpt.oozengine.model.Spell;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,8 +18,20 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
- * One line of a Multiattack: "makes two Tentacle attacks" is a component
- * pointing at the Tentacle feature with a count of 2.
+ * One thing a feature invokes rather than does itself.
+ *
+ * <p>"The aboleth makes two Tentacle attacks" points at a sibling
+ * {@link #referencedFeature}. "The devil casts Wall of Ice" points at a
+ * {@link #referencedSpell}. "The goblin takes the Disengage action" points at
+ * the {@link #referencedAction} glossary entry. Exactly one is set, enforced by
+ * a check constraint.
+ *
+ * <p>All three were originally read as unexecutable prose, and all three are the
+ * same sentence with a different object — so they are one mechanism, not three.
+ * Folding them in also means {@link #mode} and {@link #choiceGroup} already
+ * describe "casts Bless, Dispel Magic, Healing Word, or Lesser Restoration":
+ * four CHOICE components sharing a group, which is exactly what they were built
+ * for.
  *
  * <p>Modelled as a reference rather than by duplicating the attack, so that
  * editing Tentacle's damage changes what Multiattack does — which is what a DM
@@ -43,9 +57,27 @@ public class FeatureComponent extends BaseEntity {
    * feature it depends on. The sibling is also reachable from the stat block, so
    * the cascade finds an already-managed instance and inserts nothing twice.
    */
-  @ManyToOne(fetch = FetchType.LAZY, optional = false)
-  @JoinColumn(name = "references_feature_id", nullable = false)
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "references_feature_id")
   private Feature referencedFeature;
+
+  /** "The devil casts Wall of Ice (level 8 version)." */
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "references_spell_id")
+  private Spell referencedSpell;
+
+  /** The level the feature casts it at, when the book raises it above base. */
+  @Column(name = "spell_level")
+  private Integer spellLevel;
+
+  /**
+   * "The goblin takes the Disengage or Hide action." Points at the glossary
+   * entry for the standard action, which we already import — all twelve of them
+   * — so the engine can show the DM the rule it is applying.
+   */
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "references_action_id")
+  private GlossaryEntry referencedAction;
 
   @Column(nullable = false)
   private int count = 1;

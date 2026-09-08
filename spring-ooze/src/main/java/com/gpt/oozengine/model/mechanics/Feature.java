@@ -199,6 +199,20 @@ public class Feature extends BaseEntity {
   private List<FeatureComponent> components = new ArrayList<>();
   // endregion
 
+  /**
+   * Forms this feature can turn its owner into. Empty on everything but the
+   * fourteen shape-shifters.
+   */
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @JoinColumn(name = "feature_id", nullable = false)
+  @OrderBy("ordinal ASC")
+  private List<ShapeOption> shapes = new ArrayList<>();
+
+  public void addShape(ShapeOption s) {
+    s.setOrdinal(shapes.size());
+    shapes.add(s);
+  }
+
   public void addStep(FeatureStep step) {
     step.setOrdinal(steps.size());
     steps.add(step);

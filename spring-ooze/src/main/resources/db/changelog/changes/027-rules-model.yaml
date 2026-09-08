@@ -453,3 +453,148 @@ databaseChangeLog:
         - addPrimaryKey: {tableName: spell_vocations, columnNames: "spell_id, vocation_id", constraintName: pk_spell_vocations}
         - addForeignKeyConstraint: {constraintName: fk_spell_vocations_spell, baseTableName: spell_vocations, baseColumnNames: spell_id, referencedTableName: spells, referencedColumnNames: id, onDelete: CASCADE}
         - addForeignKeyConstraint: {constraintName: fk_spell_vocations_vocation, baseTableName: spell_vocations, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+
+  - changeSet:
+      id: 027-riders
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: riders
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: effect_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: target, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: mode, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: amount, type: INT}
+              - column: {name: dice_count, type: INT}
+              - column: {name: dice_faces, type: INT}
+              - column: {name: dice_bonus, type: INT}
+              - column: {name: dice_average, type: INT}
+              - column: {name: ability, type: VARCHAR(16)}
+              - column: {name: damage_type, type: VARCHAR(16)}
+              - column: {name: gate, type: TEXT}
+              - column: {name: duration_amount, type: INT}
+              - column: {name: duration_unit, type: VARCHAR(16)}
+              - column: {name: removed_by, type: VARCHAR(64)}
+              - column: {name: destroyed_at, type: INT}
+        - addForeignKeyConstraint:
+            constraintName: fk_riders_effect
+            baseTableName: riders
+            baseColumnNames: effect_id
+            referencedTableName: effects
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: ix_riders_effect
+            tableName: riders
+            columns: [{column: {name: effect_id}}]
+
+  - changeSet:
+      id: 027-summon-columns
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: effects
+            columns:
+              - column: {name: summon_stat_block_id, type: UUID}
+              - column: {name: summon_count, type: INT}
+              - column: {name: summon_max_controlled, type: INT}
+        - addForeignKeyConstraint:
+            constraintName: fk_effects_summon_stat_block
+            baseTableName: effects
+            baseColumnNames: summon_stat_block_id
+            referencedTableName: stat_blocks
+            referencedColumnNames: id
+            onDelete: SET NULL
+
+  - changeSet:
+      id: 027-shape-options
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: shape_options
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ordinal, type: INT, constraints: {nullable: false}}
+              - column: {name: name, type: VARCHAR(128), constraints: {nullable: false}}
+              - column: {name: size, type: VARCHAR(16)}
+              - column: {name: true_form, type: BOOLEAN, constraints: {nullable: false}, defaultValueBoolean: false}
+        - addForeignKeyConstraint:
+            constraintName: fk_shape_options_feature
+            baseTableName: shape_options
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createTable:
+            tableName: shape_option_speeds
+            columns:
+              - column: {name: shape_option_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: movement_type, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: speed_feet, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: shape_option_speeds
+            columnNames: shape_option_id, movement_type
+            constraintName: pk_shape_option_speeds
+        - addForeignKeyConstraint:
+            constraintName: fk_shape_option_speeds_option
+            baseTableName: shape_option_speeds
+            baseColumnNames: shape_option_id
+            referencedTableName: shape_options
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 027-component-targets
+      author: oozengine
+      # "makes one Rend attack", "casts Wall of Ice" and "takes the Disengage
+      # action" are the same sentence with a different object, so they become one
+      # mechanism. references_feature_id loses its NOT NULL to make room.
+      changes:
+        - addColumn:
+            tableName: feature_components
+            columns:
+              - column: {name: references_spell_id, type: UUID}
+              - column: {name: spell_level, type: INT}
+              - column: {name: references_action_id, type: UUID}
+        - dropNotNullConstraint:
+            tableName: feature_components
+            columnName: references_feature_id
+            columnDataType: UUID
+        - addForeignKeyConstraint:
+            constraintName: fk_components_spell
+            baseTableName: feature_components
+            baseColumnNames: references_spell_id
+            referencedTableName: spells
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            constraintName: fk_components_action
+            baseTableName: feature_components
+            baseColumnNames: references_action_id
+            referencedTableName: glossary_entries
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - sql:
+            comment: Exactly one target, so a component always resolves to something.
+            sql: >-
+              ALTER TABLE feature_components ADD CONSTRAINT ck_components_single_target
+              CHECK (num_nonnulls(references_feature_id, references_spell_id,
+              references_action_id) = 1)
+
+  - changeSet:
+      id: 027-unique-behavior
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: stat_blocks
+            columns:
+              - column: {name: unique_behavior, type: VARCHAR(48)}
+              - column: {name: unique_data, type: JSONB}

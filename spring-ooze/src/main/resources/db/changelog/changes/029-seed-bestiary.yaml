@@ -246,15 +246,38 @@ databaseChangeLog:
               - column: {name: movement_feet, type: NUMERIC}
               - column: {name: duration_amount, type: NUMERIC}
               - column: {name: duration_unit, type: STRING}
+              - column: {name: summon_stat_block_id, type: UUID}
+              - column: {name: summon_count, type: NUMERIC}
+              - column: {name: summon_max_controlled, type: NUMERIC}
 
   - changeSet:
       id: 029-load-feature-components
       author: oozengine
-      # A Multiattack refers to the creature's other actions rather than
-      # restating them, so it loads after every feature exists.
+      # A component refers to something else rather than restating it, so it
+      # loads after every feature exists. Spells and standard actions arrive as
+      # names rather than ids — the bestiary cannot derive ids assigned in 001
+      # and 011 — and are resolved in 038, once the glossary they point at has
+      # actually been seeded.
       changes:
+        - createTable:
+            tableName: feature_component_staging
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: TIMESTAMP}
+              - column: {name: updated_at, type: TIMESTAMP}
+              - column: {name: version, type: BIGINT}
+              - column: {name: feature_id, type: UUID}
+              - column: {name: references_feature_id, type: UUID}
+              - column: {name: references_spell_name, type: VARCHAR(128)}
+              - column: {name: spell_level, type: INT}
+              - column: {name: references_action_name, type: VARCHAR(64)}
+              - column: {name: count, type: INT}
+              - column: {name: optional, type: BOOLEAN}
+              - column: {name: mode, type: VARCHAR(16)}
+              - column: {name: choice_group, type: INT}
+              - column: {name: ordinal, type: INT}
         - loadData:
-            tableName: feature_components
+            tableName: feature_component_staging
             file: db/changelog/data/bestiary-feature-components.csv
             relativeToChangelogFile: false
             usePreparedStatements: true
@@ -266,6 +289,9 @@ databaseChangeLog:
               - column: {name: version, type: NUMERIC}
               - column: {name: feature_id, type: UUID}
               - column: {name: references_feature_id, type: UUID}
+              - column: {name: references_spell_name, type: STRING}
+              - column: {name: spell_level, type: NUMERIC}
+              - column: {name: references_action_name, type: STRING}
               - column: {name: count, type: NUMERIC}
               - column: {name: optional, type: BOOLEAN}
               - column: {name: mode, type: STRING}
@@ -342,3 +368,100 @@ databaseChangeLog:
               SELECT g.stat_block_id, i.id, g.quantity
               FROM bestiary_gear_staging g
               JOIN items i ON i.owner_id IS NULL AND i.name = g.item_name;
+
+  - changeSet:
+      id: 029-load-riders
+      author: oozengine
+      # Loaded after effects, which own them. 125 rows against 1,255 effects:
+      # riders are rare individually and indispensable collectively, because
+      # without them every passive trait in the book is inert.
+      changes:
+        - loadData:
+            tableName: riders
+            file: db/changelog/data/bestiary-riders.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: effect_id, type: UUID}
+              - column: {name: target, type: STRING}
+              - column: {name: mode, type: STRING}
+              - column: {name: amount, type: NUMERIC}
+              - column: {name: dice_count, type: NUMERIC}
+              - column: {name: dice_faces, type: NUMERIC}
+              - column: {name: dice_bonus, type: NUMERIC}
+              - column: {name: dice_average, type: NUMERIC}
+              - column: {name: ability, type: STRING}
+              - column: {name: damage_type, type: STRING}
+              - column: {name: gate, type: STRING}
+              - column: {name: duration_amount, type: NUMERIC}
+              - column: {name: duration_unit, type: STRING}
+              - column: {name: removed_by, type: STRING}
+              - column: {name: destroyed_at, type: NUMERIC}
+
+  - changeSet:
+      id: 029-load-shape-options
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: shape_options
+            file: db/changelog/data/bestiary-shape-options.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: feature_id, type: UUID}
+              - column: {name: ordinal, type: NUMERIC}
+              - column: {name: name, type: STRING}
+              - column: {name: size, type: STRING}
+              - column: {name: true_form, type: BOOLEAN}
+        - loadData:
+            tableName: shape_option_speeds
+            file: db/changelog/data/bestiary-shape-speeds.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: shape_option_id, type: UUID}
+              - column: {name: movement_type, type: STRING}
+              - column: {name: speed_feet, type: NUMERIC}
+
+  - changeSet:
+      id: 029-load-unique-behavior
+      author: oozengine
+      # Two creatures in 330. Staged rather than loaded straight in because
+      # loadData sends the JSON as varchar and Postgres will not implicitly cast
+      # that to jsonb — the cast has to be written down somewhere, and here is
+      # better than making the column text and losing jsonb's operators.
+      changes:
+        - createTable:
+            tableName: unique_behavior_staging
+            columns:
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: unique_behavior, type: VARCHAR(48)}
+              - column: {name: unique_data, type: TEXT}
+        - loadData:
+            tableName: unique_behavior_staging
+            file: db/changelog/data/bestiary-unique.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: unique_behavior, type: STRING}
+              - column: {name: unique_data, type: STRING}
+        - sql:
+            sql: |
+              UPDATE stat_blocks sb
+                 SET unique_behavior = u.unique_behavior,
+                     unique_data = u.unique_data::jsonb
+                FROM unique_behavior_staging u
+               WHERE u.stat_block_id = sb.id;
+        - dropTable: {tableName: unique_behavior_staging}
+

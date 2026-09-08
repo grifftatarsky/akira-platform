@@ -7,6 +7,14 @@ import com.gpt.oozengine.constant.rules.EffectOutcome;
 import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.constant.rules.TimeUnit;
 import com.gpt.oozengine.model.BaseEntity;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
+import org.hibernate.annotations.BatchSize;
+import java.util.ArrayList;
+import java.util.List;
 import com.gpt.oozengine.model.Condition;
 import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
@@ -114,4 +122,30 @@ public class Effect extends BaseEntity {
   /** Anything the columns above can't carry, kept verbatim so nothing is lost. */
   @Column(columnDefinition = "text")
   private String notes;
+
+  /**
+   * Modifiers this effect grants or imposes. Usually empty; several at once for
+   * a clause like Slowing Breath's, which denies Reactions, halves Speed and
+   * caps attacks in one Failure.
+   */
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @JoinColumn(name = "effect_id", nullable = false)
+  @OrderBy("id ASC")
+  @BatchSize(size = 64)
+  private List<Rider> riders = new ArrayList<>();
+
+  /** For {@link com.gpt.oozengine.constant.rules.EffectKind#SUMMON}: what appears. */
+  @Column(name = "summon_stat_block_id")
+  private java.util.UUID summonStatBlockId;
+
+  /** How many appear, and at most how many the summoner may control at once. */
+  @Column(name = "summon_count")
+  private Integer summonCount;
+
+  @Column(name = "summon_max_controlled")
+  private Integer summonMaxControlled;
+
+  public void addRider(Rider r) {
+    riders.add(r);
+  }
 }

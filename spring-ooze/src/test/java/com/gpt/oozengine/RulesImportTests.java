@@ -396,11 +396,17 @@ class RulesImportTests {
 
     // Forced movement is not the target spending its own Speed, so movementType
     // — which names a speed — stays null and the verb rides in notes.
+    // 56 now, not 8: forced movement (push/pull) was all this counted, and a
+    // creature moving *itself* — teleport, jump, "moves up to half its Speed" —
+    // is the same effect kind read from the other side of the sentence.
     assertThat(count("select count(e) from Effect e where e.kind ="
-        + " com.gpt.oozengine.constant.rules.EffectKind.MOVEMENT")).isEqualTo(8);
+        + " com.gpt.oozengine.constant.rules.EffectKind.MOVEMENT")).isEqualTo(56);
+    // A move is either a distance ("pushed 30 feet", "teleports up to 120
+    // feet") or a speed ("moves up to half its Speed"). One of the two must be
+    // there, or the effect says a creature moves without saying how far.
     assertThat(count("select count(e) from Effect e where e.kind ="
-        + " com.gpt.oozengine.constant.rules.EffectKind.MOVEMENT and e.movementFeet is null"))
-        .isZero();
+        + " com.gpt.oozengine.constant.rules.EffectKind.MOVEMENT"
+        + " and e.movementFeet is null and e.movementType is null")).isZero();
   }
 
   @Test
@@ -432,6 +438,81 @@ class RulesImportTests {
     // the singular pattern read neither. 13 features say it.
     assertThat(count("select count(e) from Effect e where e.kind ="
         + " com.gpt.oozengine.constant.rules.EffectKind.APPLY_CONDITION")).isEqualTo(246);
+  }
+
+  @Test
+  @DisplayName("Every component resolves to exactly one feature, spell or action")
+  void componentTargets() {
+    // Scoped to seeded content — other tests in this suite save their own
+    // stat blocks, and a homebrew Multiattack is not evidence about the book.
+    assertThat(seededComponents("")).isEqualTo(491);
+    assertThat(seededComponents("and c.references_feature_id is not null")).isEqualTo(387);
+    assertThat(seededComponents("and c.references_spell_id is not null")).isEqualTo(78);
+    // These resolve in 038 rather than 029: the glossary rows they point at are
+    // only seeded in 033, and joining earlier silently dropped all 26.
+    assertThat(seededComponents("and c.references_action_id is not null")).isEqualTo(26);
+  }
+
+  @Test
+  @DisplayName("Riders give the book's third voice a mechanical form")
+  void riders() {
+    // 303 passive traits and 15 actions had no representation at all before
+    // this: Pack Tactics attacked as though the creature stood alone.
+    assertThat(count("select count(r) from Rider r")).isEqualTo(157);
+    assertThat(count("select count(r) from Rider r where r.target ="
+        + " com.gpt.oozengine.constant.rules.RiderTarget.ATTACK_ROLL")).isEqualTo(38);
+    // Legendary Resistance is on all 32 legendary creatures and was the single
+    // most consequential passive with no mechanical form. Its 3/Day already
+    // parsed; what it spends a use on did not.
+    assertThat(count("select count(r) from Rider r where r.mode ="
+        + " com.gpt.oozengine.constant.rules.RiderMode.AUTO_SUCCEED")).isEqualTo(32);
+    // The rust monster's corrosion is the book's only item-durability rule, and
+    // it states both its destruction point and its cure, so both ride along.
+    assertThat(count("select count(r) from Rider r where r.removedBy = 'Mending'")).isEqualTo(6);
+    assertThat(count("select count(r) from Rider r where r.destroyedAt is not null"
+        + " and r.removedBy is null")).isZero();
+    // A BONUS with neither a flat amount nor dice would apply nothing.
+    assertThat(count("select count(r) from Rider r where r.mode ="
+        + " com.gpt.oozengine.constant.rules.RiderMode.BONUS"
+        + " and r.amount is null and r.amountDice.count is null and r.gate is null")).isZero();
+  }
+
+  @Test
+  @DisplayName("Shape-shifters carry their forms, and size is the live part")
+  void shapeOptions() {
+    assertThat(count("select count(s) from ShapeOption s")).isEqualTo(44);
+    // 12 of the 14, not all: the incubus becomes a succubus and uses that stat
+    // block instead, and the mimic's "returns to its true blob form" is phrased
+    // so the true-form clause reads as part of the object form.
+    assertThat(count("select count(distinct s.featureId) from ShapeOption s"
+        + " where s.trueForm = true")).isEqualTo(12);
+    // The quasit's bat is "Speed 10 ft., Fly 40 ft." — two speeds, one form.
+    assertThat(count("select count(s) from ShapeOption s where size(s.speeds) > 0")).isEqualTo(8);
+  }
+
+  @Test
+  @DisplayName("The two creatures the general mechanisms cannot reach are named")
+  void uniqueBehaviour() {
+    assertThat(count("select count(sb) from StatBlock sb"
+        + " where sb.uniqueBehavior is not null")).isEqualTo(2);
+    // A behaviour with no data is a handler with nothing to work on.
+    assertThat(count("select count(sb) from StatBlock sb"
+        + " where sb.uniqueBehavior is not null and sb.uniqueData is null")).isZero();
+  }
+
+  /**
+   * Components on seeded monsters only. FeatureComponent maps no back-reference
+   * to its owning feature — the join column lives on Feature's collection — so
+   * this walks the tables rather than the object graph.
+   */
+  private long seededComponents(String extra) {
+    return ((Number) em.createNativeQuery("""
+        select count(*) from feature_components c
+        join features f on f.id = c.feature_id
+        join stat_blocks sb on sb.id = f.stat_block_id
+        join monsters m on m.stat_block_id = sb.id
+        where m.owner_id is null """ + " " + extra)
+        .getSingleResult()).longValue();
   }
 
   private long count(String jpql) {

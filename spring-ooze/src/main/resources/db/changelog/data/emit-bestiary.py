@@ -48,6 +48,7 @@ def write(directory, name, header, rows):
 monsters, stat_blocks = [], []
 speeds, saves, skills, senses, damage, immunities = [], [], [], [], [], []
 features, steps, effects, gear, components, known_spells = [], [], [], [], [], []
+riders, shapes, shape_speeds, unique = [], [], [], []
 
 for b in blocks:
     sb = uid('statblock', b['name'])
@@ -75,6 +76,8 @@ for b in blocks:
         b['spellSaveDc'] if b['spellSaveDc'] is not None else '',
         b['spellAttackBonus'] if b['spellAttackBonus'] is not None else '',
     ])
+    if b.get('uniqueBehavior'):
+        unique.append([sb, b['uniqueBehavior'], json.dumps(b['uniqueData'])])
 
     for k in b['knownSpells']:
         known_spells.append([sb, k['name'], k['level'] if k['level'] is not None else '',
@@ -104,13 +107,28 @@ for b in blocks:
     for f in b['features']:
         fid = uid('feature', b['name'], f['ordinal'], f['name'])
         for ci, c in enumerate(f.get('components', [])):
-            target = c['feature']
+            target = c.get('feature')
+            spell, action = c.get('spell'), c.get('action')
+            if not (target or spell or action):
+                continue
             components.append([
                 uid('component', b['name'], f['ordinal'], f['name'], ci),
                 STAMP, STAMP, 0, fid,
-                uid('feature', b['name'], ordinals[target], target),
+                uid('feature', b['name'], ordinals[target], target) if target else '',
+                # Names, not ids: the changeset stages this and joins to spells
+                # and glossary_entries the same way known spells already resolve,
+                # so a rename in the catalog cannot leave a dangling UUID here.
+                spell or '',
+                c.get('spellLevel') if c.get('spellLevel') is not None else '',
+                action or '',
                 c['count'], 'true' if c['optional'] else 'false', c['mode'],
                 c['choiceGroup'] if c['choiceGroup'] is not None else '', ci])
+        for si, sh in enumerate(f.get('shapes', [])):
+            shid = uid('shape', b['name'], f['ordinal'], f['name'], si)
+            shapes.append([shid, STAMP, STAMP, 0, fid, si, sh['name'],
+                           sh['size'] or '', 'true' if sh['trueForm'] else 'false'])
+            for mt, ft in sorted(sh['speeds'].items()):
+                shape_speeds.append([shid, mt, ft])
         features.append([
             fid, STAMP, STAMP, 0, f['name'], f['description'], f['ordinal'], sb,
             f['activation'],
@@ -150,7 +168,24 @@ for b in blocks:
                     e['movementFeet'] if e['movementFeet'] is not None else '',
                     e['durationAmount'] if e['durationAmount'] is not None else '',
                     e['durationUnit'] or '',
+                    '', e.get('summonCount') if e.get('summonCount') is not None else '',
+                    e.get('summonMax') if e.get('summonMax') is not None else '',
                 ])
+                eid = uid('effect', b['name'], f['ordinal'], f['name'], si, k)
+                for ri, r in enumerate(e.get('riders', [])):
+                    riders.append([
+                        uid('rider', b['name'], f['ordinal'], f['name'], si, k, ri),
+                        STAMP, STAMP, 0, eid, r['target'], r['mode'],
+                        r['amount'] if r['amount'] is not None else '',
+                        r['diceCount'] if r['diceCount'] is not None else '',
+                        r['diceFaces'] if r['diceFaces'] is not None else '',
+                        r['diceBonus'] if r['diceBonus'] is not None else '',
+                        r['diceAverage'] if r['diceAverage'] is not None else '',
+                        r['ability'] or '', r['damageType'] or '', r['gate'] or '',
+                        r['durationAmount'] if r['durationAmount'] is not None else '',
+                        r['durationUnit'] or '', r['removedBy'] or '',
+                        r['destroyedAt'] if r['destroyedAt'] is not None else '',
+                    ])
 
 print('writing CSVs:')
 write(HERE, 'bestiary-monsters.csv',
@@ -188,11 +223,26 @@ write(HERE, 'bestiary-feature-steps.csv',
       steps)
 write(HERE, 'bestiary-feature-components.csv',
       ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'references_feature_id',
+       'references_spell_name', 'spell_level', 'references_action_name',
        'count', 'optional', 'mode', 'choice_group', 'ordinal'],
       components)
 write(HERE, 'bestiary-effects.csv',
       ['id', 'created_at', 'updated_at', 'version', 'step_id', 'outcome', 'kind', 'ordinal',
        'dice_count', 'dice_faces', 'dice_bonus', 'dice_average', 'damage_type', 'half_damage',
        'condition_id', 'escape_dc', 'notes', 'movement_type', 'movement_feet',
-       'duration_amount', 'duration_unit'],
+       'duration_amount', 'duration_unit', 'summon_stat_block_id', 'summon_count',
+       'summon_max_controlled'],
       effects)
+write(HERE, 'bestiary-riders.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'effect_id', 'target', 'mode', 'amount',
+       'dice_count', 'dice_faces', 'dice_bonus', 'dice_average', 'ability', 'damage_type',
+       'gate', 'duration_amount', 'duration_unit', 'removed_by', 'destroyed_at'],
+      riders)
+write(HERE, 'bestiary-shape-options.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'ordinal', 'name',
+       'size', 'true_form'],
+      shapes)
+write(HERE, 'bestiary-shape-speeds.csv',
+      ['shape_option_id', 'movement_type', 'speed_feet'], shape_speeds)
+write(HERE, 'bestiary-unique.csv',
+      ['stat_block_id', 'unique_behavior', 'unique_data'], unique)

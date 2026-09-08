@@ -97,7 +97,7 @@ class MultiattackTests {
                     join features f on f.id = c.feature_id
                     join stat_blocks sb on sb.id = f.stat_block_id
                     join monsters m on m.stat_block_id = sb.id
-                    where m.owner_id is null
+                    where m.owner_id is null and f.name ilike 'Multiattack%'
                     """)
                 .getSingleResult())
             .longValue();
@@ -114,10 +114,16 @@ class MultiattackTests {
             .longValue();
 
     assertThat(features).isEqualTo(178);
-    assertThat(components).isEqualTo(324);
-    // The Hydra's "as many Bite attacks as it has heads" has no fixed count, and
-    // reading one off its Multiple Heads trait would be our number, not the
-    // book's. Its sentence is still in the description.
+    // 491, not the 324 this asserted when only features named Multiattack were
+    // linked. A dragon's Pounce ("makes one Rend attack"), a devil's Ice Wall
+    // ("casts Wall of Ice") and a goblin's Nimble Escape ("takes the Disengage
+    // or Hide action") are the same sentence with a different object, so they
+    // are the same mechanism and all three now resolve.
+    assertThat(components).isEqualTo(491);
+    // The Hydra's "as many Bite attacks as it has heads" still has no fixed
+    // count — reading one off its Multiple Heads trait would be our number, not
+    // the book's — so it is the one Multiattack left unstructured, and
+    // UniqueBehavior.HYDRA_HEADS is what supplies the count at battle time.
     assertThat(withComponents).isEqualTo(177);
   }
 
