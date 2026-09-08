@@ -51,6 +51,18 @@ export const EFFECT_OUTCOMES = ['ALWAYS', 'HIT', 'CRITICAL_HIT', 'MISS', 'HIT_OR
 /** How one line of a Multiattack combines with the others. */
 export const COMPONENT_MODES = ['FIXED', 'CHOICE', 'REPLACEMENT', 'ALTERNATIVE'] as const;
 
+/**
+ * What each mode is called in the editor. Title-casing the enum gives "Fixed"
+ * and "Choice", which name the implementation rather than the rule — and the
+ * whole point of the field is that a DM can tell "makes both" from "picks one".
+ */
+export const COMPONENT_MODE_LABELS: Record<(typeof COMPONENT_MODES)[number], string> = {
+  FIXED: 'Always',
+  CHOICE: 'Any combination',
+  REPLACEMENT: 'Can replace one',
+  ALTERNATIVE: 'Or instead',
+};
+
 /** Why a step happens: a follow-up save only fires if the attack before it hit. */
 export const STEP_TRIGGERS = ['ALWAYS', 'ON_PREVIOUS_HIT', 'ON_PREVIOUS_MISS',
   'ON_PREVIOUS_FAILURE', 'ON_PREVIOUS_SUCCESS'] as const;

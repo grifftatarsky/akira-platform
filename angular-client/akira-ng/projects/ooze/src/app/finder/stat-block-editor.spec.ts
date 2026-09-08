@@ -62,14 +62,38 @@ describe('StatBlockEditor', () => {
     ],
   } as unknown as StatBlockView;
 
-  function editorFor(block: StatBlockView | null): StatBlockEditor {
+  function fixtureFor(block: StatBlockView | null) {
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     const fixture = TestBed.createComponent(StatBlockEditor);
     fixture.componentRef.setInput('statBlock', block);
     fixture.detectChanges();
-    return fixture.componentInstance;
+    return fixture;
+  }
+
+  function editorFor(block: StatBlockView | null): StatBlockEditor {
+    return fixtureFor(block).componentInstance;
+  }
+
+  /**
+   * The markup a named feature renders into. Found by walking up from its name
+   * input rather than by class or nesting depth, so restyling the panel doesn't
+   * quietly turn these into tests of nothing.
+   */
+  function blockFor(el: HTMLElement, feature: string): HTMLElement {
+    const name = [...el.querySelectorAll('input[type=text]')].find(
+      i => (i as HTMLInputElement).value === feature,
+    )!;
+    let node = name.parentElement!;
+    while (!node.querySelector('[formarrayname=components]')) node = node.parentElement!;
+    return node;
+  }
+
+  /** Its Multiattack rows: the ones carrying the target and mode selects. */
+  function linesUnder(el: HTMLElement, feature: string): HTMLElement[] {
+    const rows = blockFor(el, feature).querySelector('[formarrayname=components]')!.children;
+    return [...rows].filter(k => k.querySelector('select')) as HTMLElement[];
   }
 
   it('sends a Multiattack line back as it was loaded', () => {
@@ -117,5 +141,94 @@ describe('StatBlockEditor', () => {
     expect(editor['targetsFor'](multiattack)).toEqual([
       { id: 'f-tentacle', name: 'Tentacle' },
     ]);
+  });
+
+  // Everything above asserts on the payload, which a control that never renders
+  // would still produce — it sends back whatever was loaded. These mount it.
+  describe('the rendered Multiattack rows', () => {
+    it('draws a loaded line with its target selected', () => {
+      const el: HTMLElement = fixtureFor(aboleth).nativeElement;
+      const rows = linesUnder(el, 'Multiattack');
+      expect(rows).toHaveLength(1);
+
+      const [count, group] = [...rows[0].querySelectorAll('input[type=number]')] as HTMLInputElement[];
+      const [target, mode] = [...rows[0].querySelectorAll('select')] as HTMLSelectElement[];
+
+      expect(count.value).toBe('2');
+      expect(target.selectedOptions[0].textContent!.trim()).toBe('Tentacle');
+      expect(mode.selectedOptions[0].textContent!.trim()).toBe('Always');
+      expect(group.value).toBe('');
+      expect(rows[0].querySelector('input[type=checkbox]')).not.toBeNull();
+    });
+
+    it('lists only the other saved actions in the target select', () => {
+      const el: HTMLElement = fixtureFor(aboleth).nativeElement;
+      const target = linesUnder(el, 'Multiattack')[0].querySelector('select')!;
+
+      expect([...target.options].map(o => o.textContent!.trim())).toEqual(['Tentacle']);
+    });
+
+    it('disables Add line on a creature with nothing to point at, and says why', () => {
+      const el: HTMLElement = fixtureFor(null).nativeElement;
+      const add = [...el.querySelectorAll('button')].find(b => b.textContent!.includes('Add line'));
+
+      // A brand new block has no features at all, so there is no row to add to;
+      // if one ever renders, the button must be off rather than offer an empty list.
+      if (add) {
+        expect((add as HTMLButtonElement).disabled).toBe(true);
+        expect(el.textContent).toContain('save the creature once first');
+      } else {
+        expect(el.querySelectorAll('[formarrayname=components]')).toHaveLength(0);
+      }
+    });
+
+    it('renders a new row when Add line is clicked', () => {
+      const fixture = fixtureFor(aboleth);
+      const el: HTMLElement = fixture.nativeElement;
+      const add = [...blockFor(el, 'Multiattack').querySelectorAll('button')]
+        .find(b => b.textContent!.includes('Add line')) as HTMLButtonElement;
+
+      expect(add.disabled).toBe(false);
+      add.click();
+      fixture.detectChanges();
+
+      expect(linesUnder(el, 'Multiattack')).toHaveLength(2);
+    });
+
+    it('carries a mode picked in the select through to the payload', () => {
+      // The case the mode exists for: three attacks split across two weapons is
+      // two CHOICE lines in one group, not three of each.
+      const fixture = fixtureFor(aboleth);
+      const el: HTMLElement = fixture.nativeElement;
+      const row = linesUnder(el, 'Multiattack')[0];
+      const mode = row.querySelectorAll('select')[1] as HTMLSelectElement;
+      const group = row.querySelectorAll('input[type=number]')[1] as HTMLInputElement;
+
+      mode.selectedIndex = [...mode.options]
+        .findIndex(o => o.textContent!.trim() === 'Any combination');
+      mode.dispatchEvent(new Event('change'));
+      group.value = '0';
+      group.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const value = fixture.componentInstance.value() as Record<string, any>;
+      const saved = value['features'].find((f: any) => f.name === 'Multiattack');
+      expect(saved.components[0]).toMatchObject({ mode: 'CHOICE', choiceGroup: 0 });
+    });
+
+    it('removes a row from the DOM and from the payload', () => {
+      const fixture = fixtureFor(aboleth);
+      const el: HTMLElement = fixture.nativeElement;
+      const remove = linesUnder(el, 'Multiattack')[0]
+        .querySelector('button[aria-label="Remove line"]') as HTMLButtonElement;
+
+      remove.click();
+      fixture.detectChanges();
+
+      expect(linesUnder(el, 'Multiattack')).toHaveLength(0);
+      const value = fixture.componentInstance.value() as Record<string, any>;
+      expect(value['features'].find((f: any) => f.name === 'Multiattack').components)
+        .toHaveLength(0);
+    });
   });
 });

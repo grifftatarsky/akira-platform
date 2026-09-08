@@ -277,7 +277,7 @@
                 </select>
                 <select formControlName="mode" aria-label="How this line combines"
                         class="w-36 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
-                  @for (m of componentModes; track m) {<option [ngValue]="m">{{ label(m) }}</option>}
+                  @for (m of componentModes; track m) {<option [ngValue]="m">{{ modeLabel[m] }}</option>}
                 </select>
                 <input type="number" min="0" formControlName="choiceGroup" placeholder="group"
                        aria-label="Choice group — lines sharing one are alternatives"

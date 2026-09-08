@@ -40,12 +40,16 @@ describe('ClassEditor', () => {
     ],
   } as unknown as CatalogItem;
 
-  function editorFor(item: CatalogItem | null): ClassEditor {
+  function fixtureFor(item: CatalogItem | null) {
     TestBed.configureTestingModule({});
     const fixture = TestBed.createComponent(ClassEditor);
     fixture.componentRef.setInput('item', item);
     fixture.detectChanges();
-    return fixture.componentInstance;
+    return fixture;
+  }
+
+  function editorFor(item: CatalogItem | null): ClassEditor {
+    return fixtureFor(item).componentInstance;
   }
 
   it('always sends twenty rows, filling in the ones the class did not carry', () => {
@@ -135,5 +139,66 @@ describe('ClassEditor', () => {
     expect(value['levels'][0].spellSlots).toEqual({ 1: 2 });
     // Level 2 has the column but no slots yet.
     expect(value['levels'][1].spellSlots).toEqual({});
+  });
+
+  // The grid itself, not just what it sends. A control that never renders sends
+  // whatever it was loaded with, so every assertion above would still pass.
+  describe('the rendered grid', () => {
+    it('draws a row per level and a column per thing the class has', () => {
+      const el: HTMLElement = fixtureFor(barbarian).nativeElement;
+
+      const headers = [...el.querySelectorAll('thead th')].map(h => h.textContent!.trim());
+      expect(headers).toEqual(['Lvl', 'PB', 'Features', 'Rages', 'Rage Damage',
+                               'Weapon Mastery', 'Cantrips', 'Prepared']);
+      expect(el.querySelectorAll('tbody tr')).toHaveLength(20);
+    });
+
+    it('binds every cell, so a row is editable and not a label', () => {
+      const el: HTMLElement = fixtureFor(barbarian).nativeElement;
+      const firstRow = el.querySelectorAll('tbody tr')[0];
+      const inputs = [...firstRow.querySelectorAll('input')] as HTMLInputElement[];
+
+      // PB, features, three class columns, cantrips, prepared.
+      expect(inputs).toHaveLength(7);
+      expect(inputs.map(i => i.value)).toEqual(
+        ['2', 'Rage, Unarmored Defense', '2', '+2', '2', '', '']);
+    });
+
+    it('grows the table sideways when a column is added', () => {
+      const fixture = fixtureFor(barbarian);
+      const el: HTMLElement = fixture.nativeElement;
+      const before = el.querySelectorAll('tbody tr')[0].querySelectorAll('input').length;
+
+      fixture.componentInstance['newColumn'].set('Brutal Strike');
+      fixture.componentInstance['addColumn']();
+      fixture.detectChanges();
+
+      expect([...el.querySelectorAll('thead th')].map(h => h.textContent!.trim()))
+        .toContain('Brutal Strike');
+      expect(el.querySelectorAll('tbody tr')[0].querySelectorAll('input')).toHaveLength(before + 1);
+    });
+
+    it('scrolls the table rather than the page — a full caster is fifteen wide', () => {
+      const el: HTMLElement = fixtureFor(barbarian).nativeElement;
+      expect(el.querySelector('table')!.closest('.overflow-x-auto')).not.toBeNull();
+    });
+
+    it('offers the subclass on a feature, and typing reaches the payload', () => {
+      const fixture = fixtureFor(barbarian);
+      const el: HTMLElement = fixture.nativeElement;
+
+      const options = [...el.querySelectorAll('select')]
+        .flatMap(s => [...s.options].map(o => o.textContent!.trim()));
+      expect(options).toContain('Path of the Berserker');
+      expect(options).toContain('Base class');
+
+      const name = el.querySelectorAll('fieldset')[1].querySelector('input[type=text]')!;
+      (name as HTMLInputElement).value = 'Rage, renamed';
+      name.dispatchEvent(new Event('input'));
+      fixture.detectChanges();
+
+      const value = fixture.componentInstance.value() as Record<string, any>;
+      expect(value['features'][0].name).toBe('Rage, renamed');
+    });
   });
 });

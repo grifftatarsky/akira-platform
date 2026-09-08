@@ -5,7 +5,7 @@ import { CatalogItem, titleCase } from './ooze-content.models';
 import {
   ABILITIES, ACTIVATIONS, ALIGNMENTS, AREA_SHAPES, ATTACK_KINDS, CREATURE_TYPES,
   DAMAGE_RESPONSES, DAMAGE_TYPES, DELIVERIES, EFFECT_KINDS, EFFECT_OUTCOMES, MOVEMENT_TYPES,
-  COMPONENT_MODES, SENSE_TYPES, SIZES, SKILLS, STEP_TRIGGERS, StatBlockView, USES_RESETS,
+  COMPONENT_MODE_LABELS, COMPONENT_MODES, SENSE_TYPES, SIZES, SKILLS, STEP_TRIGGERS, StatBlockView, USES_RESETS,
   parseDice,
 } from './stat-block.models';
 
@@ -50,6 +50,7 @@ export class StatBlockEditor {
   protected readonly effectKinds = EFFECT_KINDS;
   protected readonly stepTriggers = STEP_TRIGGERS;
   protected readonly componentModes = COMPONENT_MODES;
+  protected readonly modeLabel = COMPONENT_MODE_LABELS;
 
   protected readonly label = titleCase;
 

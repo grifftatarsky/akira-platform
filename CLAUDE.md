@@ -192,5 +192,22 @@ Use it. Do not reset them via the admin API — the hashes in the realm export a
 the source of truth and a reset only diverges the running container from it
 until the volume is recreated.
 
+`brice` holds `DUNGEON_MASTER`, which is what gates every write in `spring-ooze`
+and every edit control in the ooze finder (`realm_access.roles` → BFF
+authorities → `/me` → `canEdit`). Without it the compendium renders read-only,
+which looks like a broken editor rather than a permissions state.
+
+**`--import-realm` skips a realm that already exists.** Keycloak keeps its data
+in Postgres here, not in a container volume, so editing
+`keycloak/local-keycloak-realm.json` changes nothing on a stack that has already
+run. To pick up a realm edit locally:
+
+```
+docker compose stop keycloak
+docker compose run --rm keycloak import \
+  --file /opt/keycloak/data/import/local-keycloak-realm.json --override true
+docker compose up -d keycloak
+```
+
 `.env` is tracked and holds **local defaults only**. Production values live in
 the deploy repo's own `.env`; never copy a real credential into this one.
