@@ -171,14 +171,35 @@ DELIVERY_RE = re.compile(
 
 
 def damage_effects(segment, outcome):
+    """Damage, rolled or flat.
+
+    The weakest creatures in the book deal "Hit: 1 Piercing damage" with no dice
+    at all. DICE requires the "N (XdY)" form, so fifteen attacks — every one on a
+    Tiny familiar or a swarm's component — parsed with a delivery and a to-hit
+    bonus but nothing to apply on a hit.
+    """
     out = []
+    spans = []
     for m in re.finditer(DICE + r' (\w+) damage', segment):
         if m.group(3) not in DAMAGE_TYPES:
             continue
         count, faces, bonus = split_dice(m.group(2))
+        spans.append(m.span())
         out.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': count, 'diceFaces': faces,
                     'diceBonus': bonus, 'diceAverage': int(m.group(1)),
                     'damageType': m.group(3).upper(), 'halfDamage': False,
+                    'conditionName': None, 'escapeDc': None, 'notes': None,
+                    'movementType': None, 'movementFeet': None,
+                    'durationAmount': None, 'durationUnit': None})
+    for m in re.finditer(r'\b(\d+) (\w+) damage', segment):
+        if m.group(2) not in DAMAGE_TYPES:
+            continue
+        if any(a <= m.start() < b for a, b in spans):
+            continue  # the dice form above already claimed this one
+        flat = int(m.group(1))
+        out.append({'outcome': outcome, 'kind': 'DAMAGE', 'diceCount': None, 'diceFaces': None,
+                    'diceBonus': flat, 'diceAverage': flat,
+                    'damageType': m.group(2).upper(), 'halfDamage': False,
                     'conditionName': None, 'escapeDc': None, 'notes': None,
                     'movementType': None, 'movementFeet': None,
                     'durationAmount': None, 'durationUnit': None})
@@ -264,7 +285,16 @@ def condition_effects(segment, outcome):
     out = []
     amount, unit = duration_of(segment)
     esc = re.search(r'escape DC (\d+)', segment)
-    for m in re.finditer(r'has the (%s) condition' % '|'.join(CONDITIONS), segment):
+    joined = '|'.join(CONDITIONS)
+    for m in re.finditer(r'has the (%s) and (%s) conditions' % (joined, joined), segment):
+        for name in (m.group(1), m.group(2)):
+            out.append({'outcome': outcome, 'kind': 'APPLY_CONDITION', 'diceCount': None,
+                        'diceFaces': None, 'diceBonus': None, 'diceAverage': None,
+                        'damageType': None, 'halfDamage': False, 'conditionName': name,
+                        'escapeDc': int(esc.group(1)) if esc else None, 'notes': None,
+                        'movementType': None, 'movementFeet': None,
+                        'durationAmount': amount, 'durationUnit': unit})
+    for m in re.finditer(r'has the (%s) condition(?! ?s)' % joined, segment):
         out.append({'outcome': outcome, 'kind': 'APPLY_CONDITION', 'diceCount': None,
                     'diceFaces': None, 'diceBonus': None, 'diceAverage': None, 'damageType': None,
                     'halfDamage': False, 'conditionName': m.group(1),

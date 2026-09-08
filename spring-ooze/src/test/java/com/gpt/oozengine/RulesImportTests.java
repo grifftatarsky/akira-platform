@@ -407,13 +407,31 @@ class RulesImportTests {
   @DisplayName("A condition the book time-limits carries that limit")
   void conditionDurations() {
     // Nothing populated these columns before, so every condition the engine
-    // applied would have lasted for the rest of the battle. 38 of the 220 say
+    // applied would have lasted for the rest of the battle. 42 of the 246 say
     // how long they last; the remainder are open-ended in the book itself.
+    // Both halves of "the Blinded and Poisoned conditions until the end of the
+    // kraken's next turn" expire, which is why this moved with that fix.
     assertThat(count("select count(e) from Effect e where e.kind ="
         + " com.gpt.oozengine.constant.rules.EffectKind.APPLY_CONDITION"
-        + " and e.durationAmount is not null")).isEqualTo(38);
+        + " and e.durationAmount is not null")).isEqualTo(42);
     assertThat(count("select count(e) from Effect e where e.durationAmount is not null"
         + " and e.durationUnit is null")).isZero();
+  }
+
+  @Test
+  @DisplayName("Damage with no dice, and two conditions in one sentence, both land")
+  void flatDamageAndPluralConditions() {
+    // "Hit: 1 Piercing damage" has no "(1d4)" for the dice pattern to find, so
+    // 26 effects — every familiar and swarm component, plus a vampire's Running
+    // Water and Sunlight — parsed with a to-hit bonus and nothing to apply.
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.DAMAGE"
+        + " and e.amount.count is null and e.damageType is not null")).isEqualTo(26);
+
+    // "has the Blinded and Poisoned conditions" is two conditions in one clause;
+    // the singular pattern read neither. 13 features say it.
+    assertThat(count("select count(e) from Effect e where e.kind ="
+        + " com.gpt.oozengine.constant.rules.EffectKind.APPLY_CONDITION")).isEqualTo(246);
   }
 
   private long count(String jpql) {
