@@ -47,7 +47,7 @@ def write(directory, name, header, rows):
 
 monsters, stat_blocks = [], []
 speeds, saves, skills, senses, damage, immunities = [], [], [], [], [], []
-features, steps, effects, gear, components = [], [], [], [], []
+features, steps, effects, gear, components, known_spells = [], [], [], [], [], []
 
 for b in blocks:
     sb = uid('statblock', b['name'])
@@ -71,7 +71,14 @@ for b in blocks:
         b['experiencePoints'] if b['experiencePoints'] is not None else '',
         b['proficiencyBonus'] if b['proficiencyBonus'] is not None else '',
         b['legendaryActionUses'] if b['legendaryActionUses'] is not None else '',
+        b['spellcastingAbility'] or '',
+        b['spellSaveDc'] if b['spellSaveDc'] is not None else '',
+        b['spellAttackBonus'] if b['spellAttackBonus'] is not None else '',
     ])
+
+    for k in b['knownSpells']:
+        known_spells.append([sb, k['name'], k['level'] if k['level'] is not None else '',
+                             k['usesReset'], k['usesMax'] if k['usesMax'] is not None else ''])
     for mode, feet in sorted(b['speeds'].items()):
         speeds.append([sb, mode, feet])
     for ability, bonus in sorted(b['saves'].items()):
@@ -151,7 +158,8 @@ write(HERE, 'bestiary-stat-blocks.csv',
        'hp_dice_faces', 'hp_dice_bonus', 'can_hover', 'score_strength', 'score_dexterity',
        'score_constitution', 'score_intelligence', 'score_wisdom', 'score_charisma',
        'passive_perception', 'languages', 'telepathy_feet', 'challenge_rating',
-       'experience_points', 'proficiency_bonus', 'legendary_action_uses'],
+       'experience_points', 'proficiency_bonus', 'legendary_action_uses',
+       'spellcasting_ability', 'spell_save_dc', 'spell_attack_bonus'],
       stat_blocks)
 write(HERE, 'bestiary-speeds.csv', ['stat_block_id', 'movement_type', 'speed_feet'], speeds)
 write(HERE, 'bestiary-saves.csv', ['stat_block_id', 'ability', 'bonus'], saves)
@@ -165,6 +173,10 @@ write(HERE, 'bestiary-features.csv',
        'uses_max', 'recharge_min', 'recharge_max'],
       features)
 write(HERE, 'bestiary-gear.csv', ['stat_block_id', 'item_name', 'quantity'], gear)
+# Joined on name at load time, like the gear: the spells were seeded across
+# 006-024 under ids the bestiary has no way to derive.
+write(HERE, 'bestiary-known-spells.csv',
+      ['stat_block_id', 'spell_name', 'spell_level', 'uses_reset', 'uses_max'], known_spells)
 write(HERE, 'bestiary-feature-steps.csv',
       ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'ordinal', 'step_trigger',
        'target_filter', 'delivery', 'attack_kind', 'attack_bonus', 'attack_bonus_source',

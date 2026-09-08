@@ -95,6 +95,49 @@ export interface StatBlockView {
   readonly spellAttackBonus: number | null;
   readonly legendaryActionUses: number | null;
   readonly features: readonly FeatureView[];
+  /** "At Will: Detect Magic", "1/Day Each: Finger of Death" — an allowance,
+   * not slots, which is how the book gives a monster its spells. */
+  readonly knownSpells: readonly KnownSpellView[];
+}
+
+export interface KnownSpellView {
+  readonly spellId: string;
+  readonly spellName: string;
+  /** The level it is cast at, which the book sometimes raises. */
+  readonly spellLevel: number;
+  /** The spell's own level, so a raise can be told from the ordinary case. */
+  readonly baseLevel: number;
+  readonly usesReset: string;
+  readonly usesMax: number | null;
+}
+
+/** The book's own grouping: one line per allowance, spells alphabetical. */
+export function spellAllowances(
+  spells: readonly KnownSpellView[],
+): readonly { label: string; spells: string }[] {
+  const bands = new Map<string, string[]>();
+  for (const s of spells) {
+    const label =
+      s.usesReset === 'AT_WILL'
+        ? 'At Will'
+        : s.usesMax != null
+          ? `${s.usesMax}/Day Each`
+          : titleCase(s.usesReset);
+    // The book annotates a level only where it raises one: "Acid Arrow (level
+    // 4 version)". Printing every spell's own level is noise.
+    const level = s.spellLevel > s.baseLevel ? ` (level ${s.spellLevel})` : '';
+    const list = bands.get(label) ?? [];
+    list.push(s.spellName + level);
+    bands.set(label, list);
+  }
+  return [...bands].map(([label, list]) => ({ label, spells: list.join(', ') }));
+}
+
+function titleCase(v: string): string {
+  return v
+    .split('_')
+    .map(w => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(' ');
 }
 
 export interface FeatureView {

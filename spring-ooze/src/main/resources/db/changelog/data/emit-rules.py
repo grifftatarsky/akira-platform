@@ -211,7 +211,9 @@ def emit_toolbox():
         traps.append([uid('trap', t['name']), STAMP, STAMP, 0, 'SRD_5_2', t['name'],
                       t['severity'], t['levelBand'], t['severityText'], t['trigger'],
                       t['duration'], t['description']])
-    for category, entries in (('CONTAGION', tb['contagions']), ('ENVIRONMENT', tb['environment'])):
+    for category, entries in (('CONTAGION', tb['contagions']),
+                              ('ENVIRONMENT', tb['environment']),
+                              (None, tb['guidance'])):
         for e in entries:
             reference.append([uid('glossary', e['name']), STAMP, STAMP, 0, 'SRD_5_2',
                               e['name'], category, e['description']])

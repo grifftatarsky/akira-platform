@@ -27,6 +27,7 @@ import {
   FeatureView,
   StatBlockView,
   multiattackLine,
+  spellAllowances,
 } from './stat-block.models';
 
 /**
@@ -81,6 +82,11 @@ export class ContentPanel {
 
   protected readonly features = computed<readonly FeatureView[]>(
     () => this.statBlock()?.features ?? [],
+  );
+
+  /** The creature's spells, grouped the way the book prints them. */
+  protected readonly spellBands = computed(() =>
+    spellAllowances(this.statBlock()?.knownSpells ?? []),
   );
 
   private readonly blockEditor = viewChild(StatBlockEditor);

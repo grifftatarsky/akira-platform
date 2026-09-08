@@ -59,7 +59,8 @@ public record StatBlockRequest(
     Integer spellSaveDc,
     Integer spellAttackBonus,
     Integer legendaryActionUses,
-    @Valid List<FeatureRequest> features) {
+    @Valid List<FeatureRequest> features,
+    List<KnownSpellRequest> knownSpells) {
 
   /** One resistance, immunity or vulnerability. */
   public record DamageResponseEntry(

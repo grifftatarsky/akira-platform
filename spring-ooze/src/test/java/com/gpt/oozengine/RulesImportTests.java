@@ -70,8 +70,8 @@ class RulesImportTests {
     var entries = glossary.findByOwnerIdIsNull();
 
     // 155 entries in the chapter; the 15 [Condition] ones are conditions rows.
-    // 036 adds 12 more from the Gameplay Toolbox.
-    assertThat(entries).hasSize(152);
+    // 036 adds 14 more from the Gameplay Toolbox.
+    assertThat(entries).hasSize(154);
     assertThat(entries).allSatisfy(e -> assertThat(e.getDescription()).isNotBlank());
     assertThat(entries)
         .extracting(GlossaryEntry::getName)
@@ -346,7 +346,13 @@ class RulesImportTests {
         .hasSize(3)
         .extracting(GlossaryEntry::getName)
         .containsExactlyInAnyOrder("Cackle Fever", "Sewer Plague", "Sight Rot");
-    // 140 from the glossary chapter plus the 12 the toolbox contributes.
-    assertThat(entries).hasSize(152);
+    // 140 from the glossary chapter plus the 14 the toolbox contributes: 9
+    // environmental effects, 3 contagions, and the two named sections whose
+    // content is guidance — Fear Effects and Mental Stress Effects — which get
+    // no category, like the book's own 114 untagged terms.
+    assertThat(entries).hasSize(154);
+    assertThat(entries)
+        .extracting(GlossaryEntry::getName)
+        .contains("Fear Effects", "Mental Stress Effects");
   }
 }

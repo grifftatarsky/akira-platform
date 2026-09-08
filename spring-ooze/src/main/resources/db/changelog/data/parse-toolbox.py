@@ -31,19 +31,23 @@ LABEL = re.compile(r'^(Trigger|Duration):\s*(.+)$')
 ENVIRONMENT = {'Deep Water', 'Extreme Cold', 'Extreme Heat', 'Frigid Water',
                'Heavy Precipitation', 'High Altitude', 'Slippery Ice', 'Strong Wind',
                'Thin Ice'}
+# Two named sections whose content is guidance with example tables. The tables
+# have no names to look up — their rows are sentences — but the sections do, so
+# they land as plain glossary entries the way the book's own untagged terms do.
+GUIDANCE = {'Fear Effects', 'Mental Stress Effects'}
 
 
 def main():
-    poisons, traps, contagions, environment = [], [], [], []
+    poisons, traps, contagions, environment, guidance = [], [], [], [], []
     section, cur, kind, label = None, None, None, None
 
     for line in xml_lines(*TOOLBOX_PAGES):
         if line.kind in ('chapter', 'section'):
             label = None
-            if line.text in ENVIRONMENT:
+            if line.text in ENVIRONMENT or line.text in GUIDANCE:
                 cur = {'name': line.text, 'lines': []}
-                kind = 'environment'
-                environment.append(cur)
+                kind = 'environment' if line.text in ENVIRONMENT else 'guidance'
+                (environment if kind == 'environment' else guidance).append(cur)
             else:
                 section, cur, kind = line.text, None, None
             continue
@@ -110,6 +114,8 @@ def main():
                        for c in contagions],
         'environment': [{'name': e['name'], 'description': reflow(e['lines'])}
                         for e in environment],
+        'guidance': [{'name': g['name'], 'description': reflow(g['lines'])}
+                     for g in guidance],
     }
 
     for p in out['poisons']:

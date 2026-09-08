@@ -44,6 +44,7 @@ and the result is unparseable.
 | `Success: Half damage` | 80 | 80 |
 | `has the X condition` | 222 | 210 |
 | Skills / Senses / Gear / Immunities lines | all | all |
+| spell names on a caster's list | 309 | 309 |
 
 A feature resolves as an ordered list of `feature_steps` (created in `027` with
 the rest of the rules model), so a chained
@@ -51,6 +52,25 @@ attack-then-save — the Cockatrice's bite, which hits and *then* asks for a
 Constitution save — keeps both rolls rather than collapsing to the first. Every
 feature also keeps the book's sentence in `description`, and an effect keeps
 anything the columns couldn't hold in `notes`.
+
+### Spellcasting
+
+46 creatures cast from a list, and 309 spell links come off it. Monster
+spellcasting is not a spell list plus slots — it is `At Will: Detect Magic` and
+`1/Day Each: Finger of Death`, printed inside the Spellcasting trait's own
+sentence — so the allowance travels with the spell. `spell_level` is the level
+it is cast at, which the book sometimes raises ("Acid Arrow (level 4 version)")
+and otherwise leaves at the spell's own.
+
+A feature that casts one named spell inline ("the devil casts Misty Step") is
+deliberately *not* imported here: that feature already is the spell's row, and
+importing it would have the simulator find the same casting twice.
+
+Spell names are resolved against `spell-names.json`, the 339 the catalog holds.
+Matching the longest name that is actually a spell is the only reliable way to
+say where the list stopped: a band can run into the sentence after it ("Plane
+Shift Red Dragons") or into the next feature entirely ("Zone of Truth Weakening
+Breath").
 
 ### Multiattack
 

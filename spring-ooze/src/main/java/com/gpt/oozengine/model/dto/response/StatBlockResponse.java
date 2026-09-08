@@ -48,7 +48,8 @@ public record StatBlockResponse(
     Integer spellSaveDc,
     Integer spellAttackBonus,
     Integer legendaryActionUses,
-    List<FeatureResponse> features) {
+    List<FeatureResponse> features,
+    List<KnownSpellResponse> knownSpells) {
 
   public static StatBlockResponse from(StatBlock s) {
     if (s == null) {
@@ -105,6 +106,7 @@ public record StatBlockResponse(
         s.getSpellSaveDc(),
         s.getSpellAttackBonus(),
         s.getLegendaryActionUses(),
-        s.getFeatures().stream().map(FeatureResponse::from).toList());
+        s.getFeatures().stream().map(FeatureResponse::from).toList(),
+        s.getKnownSpells().stream().map(KnownSpellResponse::from).toList());
   }
 }

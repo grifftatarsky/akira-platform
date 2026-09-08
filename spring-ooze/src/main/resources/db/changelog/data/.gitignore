@@ -6,3 +6,7 @@ __pycache__/
 mon521full.txt
 bestiary.json
 items.json
+glossary.json
+classes.json
+species.json
+toolbox.json

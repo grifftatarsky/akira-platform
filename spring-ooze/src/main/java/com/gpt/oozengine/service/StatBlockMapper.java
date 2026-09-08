@@ -4,6 +4,8 @@ import com.gpt.oozengine.model.Condition;
 import com.gpt.oozengine.model.creature.DamageResponse;
 import com.gpt.oozengine.model.creature.SenseRange;
 import com.gpt.oozengine.model.creature.SkillBonus;
+import com.gpt.oozengine.model.Spell;
+import com.gpt.oozengine.model.creature.KnownSpell;
 import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.EffectRequest;
 import com.gpt.oozengine.model.dto.request.FeatureComponentRequest;
@@ -13,6 +15,7 @@ import com.gpt.oozengine.constant.rules.Delivery;
 import com.gpt.oozengine.constant.rules.StepTrigger;
 import com.gpt.oozengine.constant.rules.UsesReset;
 import com.gpt.oozengine.model.dto.request.FeatureRequest;
+import com.gpt.oozengine.model.dto.request.KnownSpellRequest;
 import com.gpt.oozengine.model.dto.request.FeatureStepRequest;
 import com.gpt.oozengine.model.dto.request.StatBlockRequest;
 import com.gpt.oozengine.model.mechanics.DiceRoll;
@@ -22,11 +25,14 @@ import com.gpt.oozengine.model.mechanics.FeatureComponent;
 import com.gpt.oozengine.model.mechanics.FeatureStep;
 import com.gpt.oozengine.repository.ConditionRepository;
 import com.gpt.oozengine.repository.FeatureRepository;
+import com.gpt.oozengine.repository.SpellRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +57,7 @@ public class StatBlockMapper {
 
   private final ConditionRepository conditions;
   private final FeatureRepository features;
+  private final SpellRepository spells;
 
   public void apply(StatBlockRequest r, StatBlock s) {
     if (r == null) {
@@ -62,6 +69,7 @@ public class StatBlockMapper {
     applySenses(r, s);
     applyChallenge(r, s);
     syncFeatures(r.features(), s);
+    syncKnownSpells(r.knownSpells(), s);
   }
 
   private void applyHeader(StatBlockRequest r, StatBlock s) {
@@ -157,6 +165,31 @@ public class StatBlockMapper {
   }
 
   /** Matches on id, keeps what is still there, drops what isn't, in request order. */
+  /**
+   * What the creature can cast. Absent means "leave them alone", the same as
+   * features — but a copy-on-write override starts from an empty stat block, so
+   * an editor that means to keep them has to send them back.
+   */
+  private void syncKnownSpells(List<KnownSpellRequest> requested, StatBlock s) {
+    if (requested == null) {
+      return;
+    }
+    Set<KnownSpell> next = new LinkedHashSet<>();
+    for (KnownSpellRequest kr : requested) {
+      Spell spell = lookup(kr.spellId(), spells::findById);
+      if (spell == null) {
+        continue; // a spell that isn't in the catalog is not one this can cast
+      }
+      next.add(new KnownSpell(
+          spell,
+          kr.spellLevel() != null ? kr.spellLevel() : spell.getLevel(),
+          orDefault(kr.usesReset(), UsesReset.AT_WILL),
+          kr.usesMax()));
+    }
+    s.getKnownSpells().clear();
+    s.getKnownSpells().addAll(next);
+  }
+
   private void syncFeatures(List<FeatureRequest> requested, StatBlock s) {
     if (requested == null) {
       return; // absent means "leave the features alone", not "delete them all"

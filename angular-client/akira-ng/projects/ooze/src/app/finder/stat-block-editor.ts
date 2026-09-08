@@ -5,7 +5,8 @@ import { CatalogItem, titleCase } from './ooze-content.models';
 import {
   ABILITIES, ACTIVATIONS, ALIGNMENTS, AREA_SHAPES, ATTACK_KINDS, CREATURE_TYPES,
   DAMAGE_RESPONSES, DAMAGE_TYPES, DELIVERIES, EFFECT_KINDS, EFFECT_OUTCOMES, MOVEMENT_TYPES,
-  SENSE_TYPES, SIZES, SKILLS, STEP_TRIGGERS, StatBlockView, USES_RESETS, parseDice,
+  COMPONENT_MODES, SENSE_TYPES, SIZES, SKILLS, STEP_TRIGGERS, StatBlockView, USES_RESETS,
+  parseDice,
 } from './stat-block.models';
 
 /**
@@ -48,6 +49,7 @@ export class StatBlockEditor {
   protected readonly effectOutcomes = EFFECT_OUTCOMES;
   protected readonly effectKinds = EFFECT_KINDS;
   protected readonly stepTriggers = STEP_TRIGGERS;
+  protected readonly componentModes = COMPONENT_MODES;
 
   protected readonly label = titleCase;
 
@@ -126,6 +128,23 @@ export class StatBlockEditor {
     return step.get('effects') as FormArray<FormGroup>;
   }
 
+  protected componentsOf(feature: FormGroup): FormArray<FormGroup> {
+    return feature.get('components') as FormArray<FormGroup>;
+  }
+
+  /**
+   * The creature's other features, which are what a Multiattack can refer to.
+   *
+   * <p>A feature saved for the first time has no id yet, so it cannot be
+   * pointed at until the creature has been saved once — the same limit the
+   * request DTO documents, and the reason a new feature is offered greyed.
+   */
+  protected targetsFor(feature: FormGroup): { id: string; name: string }[] {
+    return this.features.controls
+      .filter(f => f !== feature && f.get('id')?.value && f.get('name')?.value)
+      .map(f => ({ id: f.get('id')!.value as string, name: f.get('name')!.value as string }));
+  }
+
   protected immunityIds = signal<readonly string[]>([]);
 
   protected toggleImmunity(id: string): void {
@@ -164,6 +183,20 @@ export class StatBlockEditor {
     this.effectsOf(step).push(this.newEffect());
   }
 
+  /** One line of a Multiattack: "two Tentacle attacks". */
+  protected addComponent(feature: FormGroup): void {
+    const first = this.targetsFor(feature)[0];
+    this.componentsOf(feature).push(
+      this.fb.group({
+        referencedFeatureId: [first?.id ?? null],
+        count: [1],
+        mode: ['FIXED'],
+        choiceGroup: [null as number | null],
+        optional: [false],
+      }),
+    );
+  }
+
   protected removeAt(array: FormArray<FormGroup>, index: number): void {
     array.removeAt(index);
   }
@@ -181,8 +214,19 @@ export class StatBlockEditor {
       ),
       damageResponses: v['damageResponses'],
       conditionImmunityIds: this.immunityIds(),
+      // Sent every time, not only when edited: the request is the whole stat
+      // block, so leaving these out would detach a monster's spells on save.
+      knownSpells: (this.statBlock()?.knownSpells ?? []).map(k => ({
+        spellId: k.spellId,
+        spellLevel: k.spellLevel,
+        usesReset: k.usesReset,
+        usesMax: k.usesMax,
+      })),
       features: (v['features'] as Record<string, any>[]).map(f => ({
         ...f,
+        components: (f['components'] as Record<string, any>[]).filter(
+          c => c['referencedFeatureId'],
+        ),
         steps: (f['steps'] as Record<string, any>[]).map(st => ({
           ...st,
           effects: (st['effects'] as Record<string, any>[]).map(e => ({
@@ -209,6 +253,7 @@ export class StatBlockEditor {
       areaShape: [null as string | null],
       areaSizeFeet: [null as number | null],
       steps: this.fb.array([] as FormGroup[]),
+      components: this.fb.array([] as FormGroup[]),
     });
   }
 
@@ -324,6 +369,18 @@ export class StatBlockEditor {
         areaShape: f.areaShape,
         areaSizeFeet: f.areaSizeFeet,
       });
+      const components = group.get('components') as FormArray<FormGroup>;
+      for (const c of f.components ?? []) {
+        components.push(
+          this.fb.group({
+            referencedFeatureId: [c.referencedFeatureId],
+            count: [c.count],
+            mode: [c.mode],
+            choiceGroup: [c.choiceGroup],
+            optional: [c.optional],
+          }),
+        );
+      }
       const steps = group.get('steps') as FormArray<FormGroup>;
       for (const st of f.steps ?? []) {
         const sg = this.newStep();

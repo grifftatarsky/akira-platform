@@ -25,3 +25,24 @@ f0a4461b-f25f-5b50-b386-0b97c9648fb2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,S
 
 A strong wind in a desert can create a sandstorm that imposes Disadvantage on Wisdom (Perception) checks."
 136f30c2-c47f-52ee-ac53-df325a27194c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,SRD_5_2,Thin Ice,ENVIRONMENT,"Thin ice has a weight tolerance of 3d10 × 10 pounds per 10-foot-square area. Whenever the total weight on an area of thin ice exceeds its tolerance, the ice in that area breaks. All creatures on broken ice fall through. Below the ice is frigid water (see ""Frigid Water"" above)."
+4d386f5b-8ac0-54a4-943c-8778793240fc,2026-09-08T00:00:00,2026-09-08T00:00:00,0,SRD_5_2,Fear Effects,NULL,"Whenever the characters encounter something that is supernaturally frightful, use the Frightened condition as the baseline effect. Fear effects typically require a Wisdom saving throw, with a save DC based on how terrifying the situation is. The Sample Fear DCs table provides some examples.
+
+Sample Fear DCs
+Example  Save DC
+When the characters open a sarcophagus, a harmless yet terrifying apparition appears.  10
+A character triggers a magical trap that creates an illusory manifestation of that character's worst fears, visible only to that character.  15
+A portal to the Abyss opens, revealing a nightmarish realm of torment and slaughter.  20
+
+Typically, a Frightened creature repeats the saving throw at the end of each of its turns, ending the effect on itself on a success.
+
+At your discretion, a Frightened creature might be subject to other effects as long as the Frightened condition lasts. Consider these examples: •  The Frightened creature must take the Dash action on each of its turns and uses its movement to get farther away from the source of its fear. •  Attack rolls against the Frightened creature have Advantage. •  The Frightened creature can do only one of the following on each of its turns: move, take an action, or take a Bonus Action."
+a94c5191-af7a-5493-ab12-b5f6e7f2f141,2026-09-08T00:00:00,2026-09-08T00:00:00,0,SRD_5_2,Mental Stress Effects,NULL,"When a character is subjected to an effect that causes intense mental stress, Psychic damage is the best way to emulate that effect.
+
+The Sample Mental Stress Effects table provides a few examples of such effects, with suggested saving throw DCs and damage. Mental stress can usually be resisted with a successful Wisdom save, but sometimes an Intelligence or Charisma save is more appropriate. On a successful save, a character might take half as much damage instead of no damage, at your discretion.
+
+Sample Mental Stress Effects
+Save Psychic
+Example  DC  Damage
+A character ingests a hallucinogenic substance that distorts the charac- ter's perception of reality.  10  1d6
+A character touches a fiendish idol that tears at the character's mind, threatening to shatter it.  15  3d6
+A magical trap flings a character into the Far Realm until the end of that character's next turn.  20  9d6"

@@ -258,6 +258,55 @@
             <textarea formControlName="description" rows="3"
                       class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-xs text-fg"></textarea></label>
 
+          <!-- MULTIATTACK LINES -->
+          <div class="grid gap-2 border-t border-rule pt-2" formArrayName="components">
+            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-fg-subtle">
+              Multiattack — which of this creature's actions it makes
+            </p>
+            @for (c of componentsOf($any(f)).controls; track $index; let j = $index) {
+              <div class="flex flex-wrap items-center gap-1.5 rounded-md border border-rule/70 p-2"
+                   [formGroupName]="j">
+                <input type="number" min="1" formControlName="count" aria-label="How many"
+                       class="w-14 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                <span class="text-[0.7rem] text-fg-subtle">×</span>
+                <select formControlName="referencedFeatureId" aria-label="Which action"
+                        class="min-w-40 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                  @for (t of targetsFor($any(f)); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+                <select formControlName="mode" aria-label="How this line combines"
+                        class="w-36 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                  @for (m of componentModes; track m) {<option [ngValue]="m">{{ label(m) }}</option>}
+                </select>
+                <input type="number" min="0" formControlName="choiceGroup" placeholder="group"
+                       aria-label="Choice group — lines sharing one are alternatives"
+                       class="w-20 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                <label class="flex items-center gap-1 text-[0.65rem] text-fg-muted">
+                  <input type="checkbox" formControlName="optional" class="size-3 accent-accent" />
+                  optional
+                </label>
+                <button type="button" (click)="removeAt(componentsOf($any(f)), j)"
+                        aria-label="Remove line"
+                        class="ml-auto rounded border border-rule px-1.5 py-0.5 text-[0.65rem] text-fg-subtle transition hover:text-danger">×</button>
+              </div>
+            }
+            <div class="flex items-center gap-2">
+              <button type="button" (click)="addComponent($any(f))"
+                      [disabled]="!targetsFor($any(f)).length"
+                      class="justify-self-start rounded-md border border-rule px-2 py-1 text-[0.65rem] font-medium text-fg-muted transition hover:bg-bg-subtle disabled:opacity-50">Add line</button>
+              @if (!targetsFor($any(f)).length) {
+                <span class="text-[0.65rem] text-fg-subtle">
+                  A line points at another saved action — save the creature once first.
+                </span>
+              }
+            </div>
+            <p class="text-[0.65rem] leading-snug text-fg-subtle">
+              Lines sharing a group are alternatives: three attacks across two
+              weapons is two <em>choice</em> lines of 3 in group 0, not three of each.
+            </p>
+          </div>
+
           <!-- RESOLUTION STEPS -->
           <div class="grid gap-2 border-t border-rule pt-2" formArrayName="steps">
             <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-fg-subtle">

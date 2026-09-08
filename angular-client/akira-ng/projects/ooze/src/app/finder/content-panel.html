@@ -130,6 +130,17 @@
       }
     }
 
+    @if (spellBands().length) {
+      <div class="grid gap-1 border-t border-rule pt-3">
+        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Spells</p>
+        @for (band of spellBands(); track band.label) {
+          <p class="text-sm/6 text-fg-muted">
+            <span class="font-semibold text-fg">{{ band.label }}:</span> {{ band.spells }}
+          </p>
+        }
+      </div>
+    }
+
     @if (usesClassDetail()) {
       <div class="border-t border-rule pt-3">
         <ooze-class-detail [item]="it" />

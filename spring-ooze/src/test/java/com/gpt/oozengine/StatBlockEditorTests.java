@@ -138,7 +138,10 @@ class StatBlockEditorTests {
         "Deep Speech", 120,
         new BigDecimal("10"), 5900, 4,
         null, null, null, 3,
-        features);
+        features,
+        // A creature's spells are not what these tests are about, and an empty
+        // list says "it has none" where null would say "leave them alone".
+        List.of());
   }
 
   @Test

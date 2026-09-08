@@ -8,13 +8,18 @@ import com.gpt.oozengine.constant.rules.CreatureSize;
 import com.gpt.oozengine.constant.rules.CreatureType;
 import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.constant.rules.UsesReset;
+import com.gpt.oozengine.constant.rules.Ability;
+import com.gpt.oozengine.constant.rules.UsesReset;
 import com.gpt.oozengine.model.Monster;
+import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.mechanics.Feature;
 import com.gpt.oozengine.model.dto.request.FeatureComponentRequest;
+import com.gpt.oozengine.model.dto.request.KnownSpellRequest;
 import com.gpt.oozengine.model.dto.request.FeatureRequest;
 import com.gpt.oozengine.model.dto.request.MonsterRequest;
 import com.gpt.oozengine.model.dto.request.StatBlockRequest;
 import com.gpt.oozengine.model.dto.response.FeatureComponentResponse;
+import com.gpt.oozengine.model.dto.response.KnownSpellResponse;
 import com.gpt.oozengine.model.dto.response.FeatureResponse;
 import com.gpt.oozengine.model.dto.response.MonsterResponse;
 import com.gpt.oozengine.model.mechanics.FeatureComponent;
@@ -257,7 +262,7 @@ class MultiattackTests {
                     21, 9, 15, 18, 15, 18, Map.of(), Map.of(), Map.of(), 20,
                     List.of(), Set.of(), "Deep Speech", 120,
                     new BigDecimal("10"), 5900, 4, null, null, null, 3,
-                    List.of(tentacle, multiattack))),
+                    List.of(tentacle, multiattack), List.of())),
             user);
     try {
       FeatureResponse saved =
@@ -330,7 +335,7 @@ class MultiattackTests {
                     11, 16, 14, 13, 11, 10, Map.of(), Map.of(), Map.of(), 13,
                     List.of(), Set.of(), "Common, Thieves' cant", null,
                     new BigDecimal("8"), 3900, 3, null, null, null, null,
-                    List.of(sword, crossbow, multiattack))),
+                    List.of(sword, crossbow, multiattack), List.of())),
             user);
     try {
       var components =
@@ -354,6 +359,115 @@ class MultiattackTests {
       assertThat(components)
           .extracting(FeatureComponentResponse::referencedFeatureId)
           .doesNotContain(shortsword);
+    } finally {
+      monsterService.revert(baseId, user);
+    }
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("a spellcasting monster carries its spells and its save DC")
+  void monsterSpellcasting() {
+    long links =
+        ((Number) em.createNativeQuery("select count(*) from stat_block_spells")
+                .getSingleResult())
+            .longValue();
+    long casters =
+        ((Number) em.createNativeQuery(
+                    "select count(distinct stat_block_id) from stat_block_spells")
+                .getSingleResult())
+            .longValue();
+
+    // 46 creatures cast from a list. Every name resolved against the 339 seeded
+    // spells — a monster can only cast a spell that exists, so a name that
+    // doesn't join is a parse defect, not a missing spell.
+    assertThat(links).isEqualTo(309);
+    assertThat(casters).isEqualTo(46);
+
+    StatBlock lich =
+        monsters.findByOwnerIdIsNull().stream()
+            .filter(m -> m.getName().equals("Lich"))
+            .findFirst()
+            .orElseThrow()
+            .getStatBlock();
+
+    assertThat(lich.getSpellSaveDc()).isEqualTo(20);
+    assertThat(lich.getSpellcastingAbility()).isEqualTo(Ability.INTELLIGENCE);
+    // Eight at will, three twice a day, four once — which is the whole of what
+    // monster spellcasting is: an allowance, not slots.
+    assertThat(lich.getKnownSpells()).hasSize(15);
+    assertThat(lich.getKnownSpells())
+        .filteredOn(s -> s.getUsesReset() == UsesReset.AT_WILL)
+        .hasSize(8);
+    assertThat(lich.getKnownSpells())
+        .filteredOn(s -> s.getUsesMax() != null && s.getUsesMax() == 2)
+        .hasSize(3);
+    assertThat(lich.getKnownSpells())
+        .filteredOn(s -> s.getSpell().getName().equals("Fireball"))
+        .allSatisfy(s -> assertThat(s.getSpellLevel()).isEqualTo(5));
+  }
+
+  @Test
+  @Transactional
+  @DisplayName("no feature ends with the next creature's name")
+  void featureTextStopsAtTheBlockBoundary() {
+    // The book prints a creature's name twice at a column break — once as the
+    // running head, once as the entry — and 139 features used to carry the
+    // second one on the end of their last sentence.
+    long leaked =
+        ((Number) em.createNativeQuery(
+                    """
+                    select count(*) from features f
+                    join monsters m on m.name <> '' and f.description like '%' || m.name
+                    where f.stat_block_id is not null and m.owner_id is null
+                    """)
+                .getSingleResult())
+            .longValue();
+    assertThat(leaked).isZero();
+  }
+
+  @Test
+  @DisplayName("editing a spellcaster keeps the spells it can cast")
+  void overrideKeepsKnownSpells() {
+    UUID baseId =
+        monsters.findByOwnerIdIsNull().stream()
+            .filter(m -> m.getName().equals("Lich"))
+            .findFirst()
+            .orElseThrow()
+            .getId();
+    MonsterResponse original = monsterService.get(baseId, null);
+    UUID user = UUID.randomUUID();
+
+    // What the editor sends: the spells it was handed, echoed back. Without
+    // that, copy-on-write starts from an empty stat block and a DM correcting a
+    // Lich's armour class gets a Lich that has forgotten Power Word Kill.
+    List<KnownSpellRequest> spells =
+        original.statBlock().knownSpells().stream()
+            .map(k -> new KnownSpellRequest(
+                k.spellId(), k.spellLevel(), k.usesReset(), k.usesMax()))
+            .toList();
+
+    MonsterResponse saved =
+        monsterService.update(
+            baseId,
+            new MonsterRequest(original.name(), null,
+                new StatBlockRequest(
+                    CreatureSize.MEDIUM, CreatureType.UNDEAD, null, null,
+                    20, null, 9, 315, 38, 8, 30, Map.of(MovementType.WALK, 30), false,
+                    11, 16, 20, 21, 14, 16, Map.of(), Map.of(), Map.of(), 19,
+                    List.of(), Set.of(), "Common plus five other languages", null,
+                    new BigDecimal("21"), 33000, 7, Ability.INTELLIGENCE, 20, null, 3,
+                    List.of(), spells)),
+            user);
+    try {
+      assertThat(saved.statBlock().knownSpells()).hasSize(15);
+      assertThat(saved.statBlock().knownSpells())
+          .extracting(KnownSpellResponse::spellName)
+          .contains("Power Word Kill", "Fireball");
+      // The level the book raises it to survives the round trip.
+      assertThat(saved.statBlock().knownSpells())
+          .filteredOn(k -> k.spellName().equals("Fireball"))
+          .allSatisfy(k -> assertThat(k.spellLevel()).isEqualTo(5));
     } finally {
       monsterService.revert(baseId, user);
     }

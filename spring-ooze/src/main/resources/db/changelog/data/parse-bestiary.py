@@ -10,6 +10,7 @@ is kept verbatim in the feature's description and in an effect's notes — nothi
 from the book is discarded.
 """
 import json
+import os
 import re
 import sys
 
@@ -289,7 +290,9 @@ def parse_block(name, body):
          'passivePerception': None, 'damageResponses': [], 'conditionImmunities': [],
          'gear': [], 'languages': None, 'telepathyFeet': None, 'challengeRating': None,
          'experiencePoints': None, 'proficiencyBonus': None, 'legendaryActionUses': None,
-         'alternateSize': None, 'features': []}
+         'alternateSize': None, 'features': [],
+         'spellSaveDc': None, 'spellAttackBonus': None, 'spellcastingAbility': None,
+         'knownSpells': []}
 
     m = HEADER.match(body[0])
     # "Medium or Small" — the book's first size is the default one.
@@ -593,6 +596,105 @@ def link_multiattacks(block):
 # endregion
 
 
+# region spellcasting
+#
+# A monster's spellcasting is not a spell list plus slots — it is "At Will:
+# Detect Magic" and "1/Day Each: Finger of Death", printed inside the
+# Spellcasting trait's own sentence. The bands and the save DC are structured;
+# a feature that casts one named spell inline ("the devil casts Misty Step") is
+# left alone, because that feature already *is* the spell's row and importing it
+# here would have the simulator find the same casting twice.
+
+# Each band runs to the next band's marker, or to the end of the sentence. A
+# greedy match swallows "1/Day Each:" into the At Will list, and the spell after
+# it becomes part of the spell before it.
+SPELL_BAND = re.compile(
+    r'(?P<band>At Will|(?P<per_day>\d+)/Day(?: Each)?):\s*'
+    r'(?P<spells>.+?)(?=\s*(?:At Will|\d+/Day(?: Each)?):|\.\s|$)')
+# "using Intelligence as the spellcasting ability (spell save DC 20, +12 to hit"
+CASTING = re.compile(
+    r'using (?:the spell\'s own ability|(?P<ability>\w+)) as the spellcasting ability'
+    r'[^(]*\(spell save DC (?P<dc>\d+)(?:, (?P<bonus>[+-]\d+) to hit)?')
+# The hags cast from a plain list and recharge it on a Long Rest.
+COVEN = re.compile(r'spell save DC \d+\):\s*(?P<spells>[^.]+)\.')
+
+
+SPELL_NAMES = sorted(
+    json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                'spell-names.json'))),
+    key=len, reverse=True)
+
+
+def resolve_spell(entry):
+    """The spell an entry names, and the level it is cast at.
+
+    Matched against the catalog rather than trimmed by a rule: the band can run
+    into the sentence after it ("Plane Shift Red Dragons") or into the next
+    feature entirely ("Zone of Truth Weakening Breath"), and the longest name
+    that is actually a spell is the only reliable way to say where it stopped.
+    """
+    m = re.match(r"^(?:or\s+)?(?P<name>.+?)(?:\s*\(level (?P<level>\d+) version\))?$", entry.strip())
+    if not m:
+        return None, None
+    text = m.group('name').strip()
+    level = int(m.group('level')) if m.group('level') else None
+    for name in SPELL_NAMES:
+        if text == name or text.startswith(name + ' '):
+            return name, level
+    return None, None
+
+
+def parse_spellcasting(block):
+    """Fill the stat block's casting numbers, and its list of known spells."""
+    known = []
+    for f in block['features']:
+        text = f['description'] or ''
+        m = CASTING.search(text)
+        if not m:
+            continue
+        if block['spellSaveDc'] is None:
+            block['spellSaveDc'] = int(m.group('dc'))
+            block['spellAttackBonus'] = int(m.group('bonus')) if m.group('bonus') else None
+            block['spellcastingAbility'] = ABILITY_NAMES.get(
+                (m.group('ability') or '')[:3], None) or (
+                    m.group('ability').upper() if m.group('ability') else None)
+
+        bands = list(SPELL_BAND.finditer(text))
+        if bands:
+            for band in bands:
+                per_day = band.group('per_day')
+                # Commas inside a parenthetical belong to it, not to the list:
+                # "Shapechange (Beast or Humanoid form only, no Temporary Hit
+                # Points gained from the spell, ...)" is one entry.
+                for entry in re.split(r',\s*(?![^()]*\))', band.group('spells')):
+                    name, level = resolve_spell(entry)
+                    if not name:
+                        continue
+                    known.append({
+                        'name': name, 'level': level,
+                        'usesReset': 'PER_DAY' if per_day else 'AT_WILL',
+                        'usesMax': int(per_day) if per_day else None,
+                    })
+            continue
+        coven = COVEN.search(text)
+        if coven and ' or ' in coven.group('spells'):
+            # No bands: the hags' coven list, one casting per Long Rest.
+            for entry in re.split(r',\s*(?![^()]*\))', coven.group('spells')):
+                name, level = resolve_spell(entry)
+                if name:
+                    known.append({'name': name, 'level': level,
+                                  'usesReset': 'LONG_REST', 'usesMax': 1})
+    # One creature can print the same spell in two traits; the first wins.
+    seen, out = set(), []
+    for k in known:
+        if k['name'] not in seen:
+            seen.add(k['name'])
+            out.append(k)
+    block['knownSpells'] = out
+
+# endregion
+
+
 def main():
     lines = load_lines()
     lines = [l for l in lines if not re.match(r'^\d{1,3} System Reference Document', l)]
@@ -602,8 +704,16 @@ def main():
     blocks = []
     for n, i in enumerate(starts):
         end = starts[n + 1] - 1 if n + 1 < len(starts) else len(lines)
+        # The next creature's name is printed twice — once as the running head
+        # of its column and once as its entry — so excluding one line still
+        # leaves the other stuck on the end of this creature's last feature.
+        if n + 1 < len(starts):
+            following = lines[starts[n + 1] - 1].strip()
+            while end > i and lines[end - 1].strip() in ('', following):
+                end -= 1
         block = parse_block(lines[i - 1].strip(), lines[i:end])
         link_multiattacks(block)
+        parse_spellcasting(block)
         blocks.append(block)
     json.dump(blocks, open(OUT, 'w'), indent=1)
 
@@ -611,8 +721,9 @@ def main():
     steps = sum(len(f['steps']) for b in blocks for f in b['features'])
     effs = sum(len(st['effects']) for b in blocks for f in b['features'] for st in f['steps'])
     comps = sum(len(f['components']) for b in blocks for f in b['features'])
+    spells = sum(len(b['knownSpells']) for b in blocks)
     print(f'stat blocks {len(blocks)}  features {feats}  steps {steps}  effects {effs}  '
-          f'components {comps}', file=sys.stderr)
+          f'components {comps}  known spells {spells}', file=sys.stderr)
     return blocks
 
 

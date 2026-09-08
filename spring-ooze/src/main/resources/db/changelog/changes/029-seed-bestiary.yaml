@@ -75,6 +75,9 @@ databaseChangeLog:
               - column: {name: experience_points, type: NUMERIC}
               - column: {name: proficiency_bonus, type: NUMERIC}
               - column: {name: legendary_action_uses, type: NUMERIC}
+              - column: {name: spellcasting_ability, type: STRING}
+              - column: {name: spell_save_dc, type: NUMERIC}
+              - column: {name: spell_attack_bonus, type: NUMERIC}
 
   - changeSet:
       id: 029-load-monsters
@@ -264,6 +267,45 @@ databaseChangeLog:
               - column: {name: mode, type: STRING}
               - column: {name: choice_group, type: NUMERIC}
               - column: {name: ordinal, type: NUMERIC}
+
+  - changeSet:
+      id: 029-link-known-spells
+      author: oozengine
+      # A monster's spellcasting is not a list plus slots — it is "At Will:
+      # Detect Magic" and "1/Day Each: Finger of Death", printed inside the
+      # Spellcasting trait's own sentence. Joined on name because the spells
+      # were seeded across 006-024 under ids the bestiary can't derive, and the
+      # level falls back to the spell's own where the band doesn't raise it.
+      changes:
+        - createTable:
+            tableName: known_spell_staging
+            columns:
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: spell_name, type: VARCHAR(255)}
+              - column: {name: spell_level, type: INT}
+              - column: {name: uses_reset, type: VARCHAR(16)}
+              - column: {name: uses_max, type: INT}
+        - loadData:
+            tableName: known_spell_staging
+            file: db/changelog/data/bestiary-known-spells.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: spell_name, type: STRING}
+              - column: {name: spell_level, type: NUMERIC}
+              - column: {name: uses_reset, type: STRING}
+              - column: {name: uses_max, type: NUMERIC}
+        - sql:
+            sql: |
+              INSERT INTO stat_block_spells (stat_block_id, spell_id, spell_level,
+                                             uses_reset, uses_max)
+              SELECT k.stat_block_id, sp.id, COALESCE(k.spell_level, sp.level),
+                     k.uses_reset, k.uses_max
+              FROM known_spell_staging k
+              JOIN spells sp ON sp.owner_id IS NULL AND sp.name = k.spell_name;
+        - dropTable: {tableName: known_spell_staging}
 
   - changeSet:
       id: 029-link-bestiary-gear
