@@ -12,6 +12,29 @@ import { ModelLibrary } from './model-library';
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
 
 /**
+ * How far the structural boxes sit inside the art laid over them, in half-feet.
+ *
+ * <p>Two surfaces at exactly the same depth are a coin toss per pixel, and the
+ * toss is re-thrown every time the camera moves — which is what a board that
+ * shimmers while you pan actually is. A wall's box top and its facing panel's
+ * top were both at 8 feet, and a raised floor's plinth top and the tile sitting
+ * on it were both at the ledge height, so most of the board was doing it.
+ *
+ * <p>An inch and a bit. Enough to separate them at every zoom the camera
+ * clamps to, small enough that the step it leaves is invisible.
+ */
+const ART_CLEARANCE = 0.2;
+
+/**
+ * How far the film of dark floats over a square, in half-feet.
+ *
+ * <p>Above the thickest floor art in the pack, which is the rubble tile at 0.64
+ * of its own units — 1.6 here. At the 0.3 it started at, the film was *inside*
+ * every floor tile it was meant to darken.
+ */
+const SHADE_LIFT = 2;
+
+/**
  * Draws a {@link BoardScene} with three.
  *
  * <p><b>The scene is three-dimensional from the first frame, and only the camera
@@ -97,6 +120,17 @@ export class BoardRenderer {
   private azimuth = 0;
   private elevation = 0.9;
 
+  /**
+   * The one shadow-casting light, aimed at whatever board is loaded.
+   *
+   * <p>Held rather than made and forgotten, because a directional light's
+   * shadow frustum does not follow the scene. Its default is ten units square
+   * around the world origin: on a 130-foot level that covers one square, aimed
+   * at a corner nothing stands in, so nothing cast a shadow and what did fell
+   * outside the map and shimmered.
+   */
+  private readonly sun = new DirectionalLight(0xffffff, 1.1);
+
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
 
@@ -124,11 +158,16 @@ export class BoardRenderer {
     // board drawn with MeshBasicMaterial looks identical from above and has
     // nothing to turn on when the camera tilts — the lights are the cheap half
     // of being ready for 3D.
-    const ambient = new AmbientLight(0xffffff, 0.75);
-    const sun = new DirectionalLight(0xffffff, 1.1);
-    sun.position.set(-120, -200, 320);
-    sun.castShadow = true;
-    this.scene.add(ambient, sun);
+    this.scene.add(new AmbientLight(0xffffff, 0.75));
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    // Offset along the surface normal rather than in depth. Plain `bias` on a
+    // frustum this wide has to be large enough to detach a shadow from the
+    // thing casting it; normalBias solves the same acne without the gap.
+    this.sun.shadow.normalBias = 0.4;
+    // The target has to be in the scene or the light ignores where it points —
+    // three reads the target's *world* matrix, and an orphan never gets one.
+    this.scene.add(this.sun, this.sun.target);
 
     this.camera = this.makeCamera('TOP_DOWN');
   }
@@ -157,10 +196,41 @@ export class BoardRenderer {
       }
     });
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
+    this.aimSun(board);
     this.place();
     const generation = ++this.generation;
     void this.dressTerrain(board, generation);
     void this.dressProps(board, generation);
+  }
+
+  /**
+   * Points the sun at the board and sizes its shadow to fit.
+   *
+   * <p>Both are per-board: the frustum has to contain everything that casts,
+   * and a frustum much bigger than that spends its texels on empty space and
+   * gives blocky shadows. Sized to the board, a 2048 map is about an inch per
+   * texel on a level this size.
+   */
+  private aimSun(board: BoardScene): void {
+    const cx = board.widthHalfFeet / 2;
+    const cy = board.heightHalfFeet / 2;
+    const span = Math.max(board.widthHalfFeet, board.heightHalfFeet, 20);
+    this.sun.target.position.set(cx, cy, 0);
+    // High — about 70° — and from the north-west. Low light gives a prettier
+    // perspective view and ruins the top-down one: an 8-foot wall lit from 45°
+    // throws 8 feet of shadow, which is a whole square a DM has to work out is
+    // not difficult terrain. At this angle a wall's shadow is under half its
+    // height, enough to read as depth and not enough to read as ground.
+    this.sun.position.set(cx - span * 0.28, cy - span * 0.4, span * 1.2);
+    const shadow = this.sun.shadow.camera;
+    const half = span * 0.8;
+    shadow.left = -half;
+    shadow.right = half;
+    shadow.top = half;
+    shadow.bottom = -half;
+    shadow.near = 1;
+    shadow.far = span * 3;
+    shadow.updateProjectionMatrix();
   }
 
   /** Swaps the art without touching anything else about the board. */
@@ -246,7 +316,7 @@ export class BoardRenderer {
     // Above the floor and below a token, so a creature standing in the dark is
     // still the brightest thing on its square — which is what a DM needs to
     // see, whatever the light is doing.
-    mesh.position.set(t.x, t.y, t.base + 0.3);
+    mesh.position.set(t.x, t.y, t.base + SHADE_LIFT);
     return mesh;
   }
 
@@ -261,15 +331,22 @@ export class BoardRenderer {
     // ground level. Without the plinth a raised ledge floats with nothing under
     // it — the walkable surface is at the right height either way, but a DM
     // reading the picture sees a bug rather than a ledge.
+    // A hair shorter than the art it backs, always. The box is structure — the
+    // mass behind a wall's facing panel, the plinth under a raised floor — and
+    // a structure whose top surface is exactly level with the art's is a
+    // z-fight across the whole board.
     const wall = t.height > 0;
-    const depth = wall ? t.height : Math.max(0.5, t.base);
+    const depth = Math.max(0.2, (wall ? t.height : Math.max(0.5, t.base)) - ART_CLEARANCE);
     const geometry = new BoxGeometry(t.size, t.size, depth);
     // The unlit colour, because this renderer lights the scene itself — with a
     // lamp and, over anything dim, a film of dark. Using the pre-shaded colour
     // here applied the light level twice over.
     const material = new MeshLambertMaterial({ color: new Color(t.baseColour) });
     const mesh = new Mesh(geometry, material);
-    mesh.position.set(t.x, t.y, wall ? t.base + depth / 2 : t.base - depth / 2);
+    // A wall grows up from its base and a plinth hangs down from the ledge, so
+    // the clearance is taken off the top in both cases.
+    mesh.position.set(t.x, t.y,
+      wall ? t.base + depth / 2 : t.base - ART_CLEARANCE - depth / 2);
     mesh.receiveShadow = true;
     mesh.castShadow = t.height > 0;
     mesh.userData = { kind: t.kind, cover: t.cover, opaque: t.opaque, light: t.light };

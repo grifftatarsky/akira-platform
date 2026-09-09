@@ -19,8 +19,16 @@ import {
 /** How tall a wall stands, in half-feet. Eight feet reads as a wall from above and is one. */
 export const WALL_HEIGHT = 16;
 
-/** How far a token floats above its ground, so it never z-fights the floor. */
-export const TOKEN_LIFT = 1;
+/**
+ * How far a token floats above its ground, in half-feet.
+ *
+ * <p>Above the floor art *and* above the film of dark laid over an unlit
+ * square, so a creature standing in the crypt is still the brightest thing on
+ * its square — which is what a DM needs to see, whatever the light is doing.
+ * The rubble tile is 0.8 feet of loose stone, so a foot and a half clears
+ * everything the pack puts on the ground.
+ */
+export const TOKEN_LIFT = 3;
 
 const TERRAIN_COLOURS: Record<TerrainKind, number> = {
   FLOOR: 0x6b6558,
@@ -245,46 +253,43 @@ function token(
 }
 
 /**
- * Props, sat on the ground they stand on.
+ * The map's furniture, ready to draw.
  *
- * <p>A prop's `z` is a height *above the floor*, not an absolute one, for the
- * same reason a creature's is: a chest carried up onto a ten-foot dais should
- * not need its own elevation edited, and one authored at z = 0 must never end
- * up buried in the plinth. Which floor it is is a question about the map, so it
- * is answered here rather than by whoever placed the furniture.
+ * <p>Two conversions, both of them questions the stored prop cannot answer for
+ * itself. Its `z` is a height *above the floor under it*, so a chest carried
+ * onto a ten-foot dais needs no elevation edited and one saved at zero can
+ * never end up buried in the plinth — which floor that is, is a question about
+ * the map. And its facing is stored in whole degrees, because everything else
+ * in the schema is a whole number, while three wants radians.
  */
-export function placedProps(
-  map: BattleMap,
-  props: readonly PropPlacement[],
-): PropPlacement[] {
-  return props.map(p => ({ ...p, z: groundAt(map, p.x, p.y) + p.z }));
+export function placedProps(map: BattleMap): PropPlacement[] {
+  return map.props.map(p => ({
+    piece: p.piece,
+    x: p.xHalfFeet,
+    y: p.yHalfFeet,
+    z: groundAt(map, p.xHalfFeet, p.yHalfFeet) + p.zHalfFeet,
+    rotation: (p.facingDegrees * Math.PI) / 180,
+  }));
 }
 
 /** The whole scene for an encounter, before a fight. */
-export function sceneForEncounter(
-  encounter: Encounter,
-  props: readonly PropPlacement[] = [],
-): BoardScene {
+export function sceneForEncounter(encounter: Encounter): BoardScene {
   return {
     tiles: terrainTiles(encounter.map),
     tokens: encounterTokens(encounter),
-    props: placedProps(encounter.map, props),
+    props: placedProps(encounter.map),
     widthHalfFeet: encounter.map.width * cellSize(encounter.map),
     heightHalfFeet: encounter.map.height * cellSize(encounter.map),
   };
 }
 
 /** The whole scene for a battle running on an encounter's board. */
-export function sceneForBattle(
-  encounter: Encounter,
-  battle: Battle,
-  props: readonly PropPlacement[] = [],
-): BoardScene {
+export function sceneForBattle(encounter: Encounter, battle: Battle): BoardScene {
   const sizes = new Map(encounter.combatants.map(c => [c.id, c.spaceHalfFeet]));
   return {
     tiles: terrainTiles(encounter.map),
     tokens: battleTokens(encounter.map, battle, sizes),
-    props: placedProps(encounter.map, props),
+    props: placedProps(encounter.map),
     widthHalfFeet: encounter.map.width * cellSize(encounter.map),
     heightHalfFeet: encounter.map.height * cellSize(encounter.map),
   };

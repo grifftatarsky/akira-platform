@@ -3,6 +3,7 @@ package com.gpt.oozengine.controller;
 import com.gpt.oozengine.model.dto.request.BattleRequest;
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
+import com.gpt.oozengine.model.dto.request.MapPropRequest;
 import com.gpt.oozengine.model.dto.request.PaintRequest;
 import com.gpt.oozengine.model.dto.request.ScalingRequest;
 import com.gpt.oozengine.model.dto.response.CombatantResponse;
@@ -100,6 +101,23 @@ public class EncounterController {
       @Valid @RequestBody List<PaintRequest> strokes,
       @AuthenticationPrincipal Jwt jwt) {
     return encounters.paint(id, requireUserId(jwt), strokes);
+  }
+
+  /**
+   * Replaces the board's furniture.
+   *
+   * <p>A PUT of the whole list rather than a route per barrel. Furniture is
+   * arranged rather than dragged one piece at a time under a fight, it is one
+   * JSON column on the map, and sending it whole means the client never has to
+   * describe a deletion. The opposite call to the combatant routes below, for
+   * the opposite reason.
+   */
+  @PutMapping("/{id}/map/props")
+  public EncounterResponse setProps(
+      @PathVariable UUID id,
+      @Valid @RequestBody List<MapPropRequest> props,
+      @AuthenticationPrincipal Jwt jwt) {
+    return encounters.setProps(id, requireUserId(jwt), props);
   }
 
   // region Combatants

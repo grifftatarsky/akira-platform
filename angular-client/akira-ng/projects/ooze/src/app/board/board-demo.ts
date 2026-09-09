@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { BattleBoard } from './battle-board';
 import { KAYKIT_THEME, THEMES } from './board-assets';
 import {
-  Battle, BoardPiece, Combatant, Encounter, MapCell, Participant, PropPlacement,
+  Battle, Combatant, Encounter, MapCell, MapProp, Participant, PropKind,
 } from './board.models';
 
 /**
@@ -56,7 +56,6 @@ import {
         <ooze-battle-board
           [encounter]="encounter"
           [battle]="battle()"
-          [props]="props"
           [theme]="theme()"
           (moved)="onMoved($event)"
           (selected)="selected.set($event)" />
@@ -79,8 +78,6 @@ export class BoardDemo {
   protected readonly themes = THEMES;
   protected readonly theme = signal(KAYKIT_THEME);
 
-  protected readonly props: readonly PropPlacement[] = furnish();
-
   protected readonly encounter: Encounter = {
     id: 'demo',
     name: 'The undercroft of Elsmere Keep',
@@ -95,6 +92,11 @@ export class BoardDemo {
       // have to be placed.
       defaultLight: 'DIM',
       cells: buildLevel(),
+      // On the map, exactly where the server keeps it. The fixture is a mock of
+      // a real response or it is not worth having — furniture handed to the
+      // board down a side channel would prove the renderer draws it and nothing
+      // about whether a saved encounter comes back furnished.
+      props: furnish(),
     },
     combatants: CAST.map(toCombatant),
   };
@@ -292,22 +294,25 @@ const TABLE_TOP = 5;
  * 4.5, 1)` is the middle of square (4, 4½) turned a quarter, which is how
  * somebody laying out a room actually thinks. Fractions are half-squares, so a
  * bed can sit against a wall instead of in the middle of its square.
+ *
+ * <p>Produces exactly what the server stores, so this list could be POSTed to
+ * `PUT /encounter/{id}/map/props` unchanged.
  */
-function furnish(): PropPlacement[] {
-  const props: PropPlacement[] = [];
-  const add = (piece: BoardPiece, cx: number, cy: number, facing = 0, lift = 0) =>
+function furnish(): MapProp[] {
+  const props: MapProp[] = [];
+  const add = (piece: PropKind, cx: number, cy: number, facing = 0, lift = 0) =>
     props.push({
       piece,
-      x: cx * CELL + CELL / 2,
-      y: worldRow(cy) * CELL + CELL / 2,
-      z: lift,
+      xHalfFeet: cx * CELL + CELL / 2,
+      yHalfFeet: worldRow(cy) * CELL + CELL / 2,
+      zHalfFeet: lift,
       // Quarter-turns, because every piece in the pack is drawn square to an
-      // axis and no room needs anything finer — and negated, for the same
+      // axis and no room needs anything finer — and mirrored, for the same
       // reason `worldRow` exists. The picture is a mirror of the world in Y,
       // and a mirror turns a rotation into its opposite. Author a shelf with
       // its back to the picture's east wall without this and it stands in the
       // room with its back to the shelves opposite.
-      rotation: -(facing * Math.PI) / 2,
+      facingDegrees: (360 - facing * 90) % 360,
     });
 
   // A doorway is drawn on the floor square the gap is in, not on a wall square.

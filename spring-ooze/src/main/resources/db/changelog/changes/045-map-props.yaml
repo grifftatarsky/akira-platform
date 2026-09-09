@@ -1,0 +1,23 @@
+databaseChangeLog:
+  # Furniture. Decoration today, and typed so it need not stay that way.
+
+  - changeSet:
+      id: 045-map-props
+      author: oozengine
+      # JSONB rather than a table, unlike map_cells, and the difference is not
+      # taste. A cell is read by the engine square by square — Battlefield asks
+      # what is at (x, y) on every step of every move — so it earns a row, an
+      # index and a uniqueness constraint. A prop is never asked about: it is
+      # written whole with the map and read whole with the map, and nothing
+      # joins to it. A table would buy an id per barrel that nothing references
+      # and a second query on every board load.
+      #
+      # The column is nullable so the migration does not rewrite every existing
+      # map; the entity treats null as an empty list, because a Hibernate field
+      # backed by a null jsonb column comes back null and not empty — the same
+      # trap a null @Embedded set on the battle tracker.
+      changes:
+        - addColumn:
+            tableName: battle_maps
+            columns:
+              - column: {name: props, type: JSONB}

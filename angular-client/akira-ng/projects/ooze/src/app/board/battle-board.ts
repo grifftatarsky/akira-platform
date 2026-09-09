@@ -2,7 +2,7 @@ import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, computed,
   effect, input, output, signal, viewChild,
 } from '@angular/core';
-import { Battle, BoardScene, Encounter, PropPlacement } from './board.models';
+import { Battle, BoardScene, Encounter } from './board.models';
 import { BoardRenderer, CameraMode } from './board-renderer';
 import { BoardTheme, KAYKIT_THEME } from './board-assets';
 import { PointerStart, dropAt, gestureFor, pathBetween, zoomAfterWheel } from './board-gestures';
@@ -129,17 +129,6 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    */
   readonly theme = input<BoardTheme>(KAYKIT_THEME);
 
-  /**
-   * Furniture, if the board has any.
-   *
-   * <p>An input rather than part of the encounter, because the server has no
-   * column for it — `map_cells` says a square is difficult and gives half
-   * cover, not that the reason is a barricade. Keeping it out here means the
-   * day it becomes a column, this input is fed from the encounter and nothing
-   * else changes.
-   */
-  readonly props = input<readonly PropPlacement[]>([]);
-
   /** A creature was clicked. */
   readonly selected = output<string | null>();
 
@@ -188,8 +177,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
       return null;
     }
     const b = this.battle();
-    const props = this.props();
-    return b ? sceneForBattle(e, b, props) : sceneForEncounter(e, props);
+    return b ? sceneForBattle(e, b) : sceneForEncounter(e);
   });
 
   protected readonly phaseLabel = computed(() => {

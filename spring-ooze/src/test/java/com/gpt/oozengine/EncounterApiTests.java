@@ -239,6 +239,99 @@ class EncounterApiTests {
   }
 
   @Test
+  @DisplayName("Furniture survives a round trip through the JSON column")
+  void propsRoundTrip() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The undercroft", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "props": [{"piece": "TABLE", "xHalfFeet": 45, "yHalfFeet": 55, "facingDegrees": 90},
+                   {"piece": "BARREL", "xHalfFeet": 15, "yHalfFeet": 15}]}}
+        """);
+    String id = e.get("id").asText();
+
+    assertThat(e.get("map").get("props")).hasSize(2);
+    // Read back rather than trusted from the write: this is the one column in
+    // the schema that is a serialised object graph, so "it went in" and "it
+    // comes back as the same thing" are genuinely separate claims.
+    mvc.perform(as(dm, get("/encounter/{id}", id)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.props[0].piece").value("TABLE"))
+        .andExpect(jsonPath("$.map.props[0].xHalfFeet").value(45))
+        .andExpect(jsonPath("$.map.props[0].facingDegrees").value(90))
+        // Omitted, and zero rather than absent: standing something on the floor
+        // facing north is the common case and must not need spelling out.
+        .andExpect(jsonPath("$.map.props[1].zHalfFeet").value(0))
+        .andExpect(jsonPath("$.map.props[1].facingDegrees").value(0));
+  }
+
+  @Test
+  @DisplayName("Furnishing replaces the whole room, and leaves the terrain alone")
+  void furnishingReplacesWithoutRepainting() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Barracks", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "cells": [{"x": 1, "y": 1, "terrain": "WALL"}],
+         "props": [{"piece": "BED", "xHalfFeet": 15, "yHalfFeet": 15},
+                   {"piece": "TRUNK", "xHalfFeet": 15, "yHalfFeet": 25}]}}
+        """);
+    String id = e.get("id").asText();
+
+    var after = postJson(dm, put("/encounter/{id}/map/props", id), """
+        [{"piece": "BED", "xHalfFeet": 15, "yHalfFeet": 15}]
+        """);
+
+    // The furniture is replaced wholesale — a client that moves one thing sends
+    // the list — and the painting underneath is untouched, because cover and
+    // difficult terrain are the cell's business and never the barrel's.
+    assertThat(after.get("map").get("props")).hasSize(1);
+    assertThat(after.get("map").get("cells")).hasSize(1);
+  }
+
+  @Test
+  @DisplayName("An empty furniture list clears the room; a null one leaves it alone")
+  void emptyAndAbsentDifferForProps() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Study", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "props": [{"piece": "SHELVES", "xHalfFeet": 15, "yHalfFeet": 15}]}}
+        """);
+    String id = e.get("id").asText();
+
+    // A DM nudging a wall must not strip the room bare as a side effect, so a
+    // map request with no props at all leaves them standing.
+    mvc.perform(as(dm, put("/encounter/{id}", id)).content("""
+            {"name": "Study", "map": {"width": 10, "height": 10, "cellFeet": 5}}
+            """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.props.length()").value(1));
+
+    mvc.perform(as(dm, put("/encounter/{id}/map/props", id)).content("[]"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.props.length()").value(0));
+  }
+
+  @Test
+  @DisplayName("A prop off the edge of the board is refused, in half-feet not cells")
+  void offBoardPropsAreRejected() throws Exception {
+    // 10 cells of 5 feet is 100 half-feet, so 100 is the first position off it.
+    // Refused rather than clamped, unlike a paint stroke: dragging a rectangle
+    // past the edge is how anybody paints the edge, while a table half off the
+    // map is a bug in whatever produced it.
+    mvc.perform(as(dm, post("/encounter")).content("""
+            {"name": "Small", "map": {"width": 10, "height": 10, "cellFeet": 5,
+             "props": [{"piece": "TABLE", "xHalfFeet": 100, "yHalfFeet": 0}]}}
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("A prop with no piece is a client error, not a null in the column")
+  void propsNeedAPiece() throws Exception {
+    mvc.perform(as(dm, post("/encounter")).content("""
+            {"name": "Nameless", "map": {"width": 10, "height": 10, "cellFeet": 5,
+             "props": [{"xHalfFeet": 15, "yHalfFeet": 15}]}}
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   @DisplayName("A token can be moved, and removed")
   void moveAndRemove() throws Exception {
     var e = createEncounter(dm, "{\"name\": \"Field\"}");

@@ -6,9 +6,11 @@ import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.BattleMapRequest;
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.MapCellRequest;
+import com.gpt.oozengine.model.dto.request.MapPropRequest;
 import com.gpt.oozengine.model.encounter.BattleMap;
 import com.gpt.oozengine.model.encounter.Combatant;
 import com.gpt.oozengine.model.encounter.MapCell;
+import com.gpt.oozengine.model.encounter.MapProp;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,42 @@ public final class EncounterMapper {
       map.getCells().clear();
       map.getCells().addAll(cellsFrom(req, map));
     }
+    // Null leaves the furniture alone; an empty list clears it. The two have to
+    // differ, or a DM nudging one wall would strip the room bare on the way.
+    if (req != null && req.props() != null) {
+      map.getProps().clear();
+      map.getProps().addAll(propsFrom(req.props(), map));
+    }
+  }
+
+  /**
+   * The furniture a request would stand up, checked against the board's edges.
+   *
+   * <p>Bounds are in half-feet, not cells, because a prop's position is
+   * continuous — it is checked against the board's real extent rather than
+   * against an index. A prop hanging off the edge is refused rather than
+   * clamped, unlike a paint stroke: dragging a rectangle past the edge is how
+   * anybody paints the edge, while a table half outside the map is a mistake in
+   * whatever produced it.
+   */
+  public static List<MapProp> propsFrom(List<MapPropRequest> reqs, BattleMap map) {
+    List<MapProp> out = new ArrayList<>();
+    if (reqs == null) {
+      return out;
+    }
+    int widthHalfFeet = map.getWidth() * map.getCellFeet() * 2;
+    int heightHalfFeet = map.getHeight() * map.getCellFeet() * 2;
+    for (MapPropRequest p : reqs) {
+      if (p.xHalfFeet() >= widthHalfFeet || p.yHalfFeet() >= heightHalfFeet) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "A " + p.piece() + " at (" + p.xHalfFeet() + ", " + p.yHalfFeet()
+                + ") half-feet is off a board " + widthHalfFeet + " by " + heightHalfFeet);
+      }
+      out.add(new MapProp(p.piece(), p.xHalfFeet(), p.yHalfFeet(),
+          p.zHalfFeet() == null ? 0 : p.zHalfFeet(),
+          p.facingDegrees() == null ? 0 : p.facingDegrees()));
+    }
+    return out;
   }
 
   /** Everything but the painting, so the caller can flush the deletes first. */

@@ -3,7 +3,7 @@ import {
   placedProps, sceneForBattle, sceneForEncounter, shade, terrainTiles,
 } from './board-scene';
 import {
-  Battle, BattleMap, Combatant, Encounter, MapCell, Participant, PropPlacement,
+  Battle, BattleMap, Combatant, Encounter, MapCell, MapProp, Participant,
 } from './board.models';
 
 /**
@@ -26,7 +26,7 @@ describe('board scene', () => {
   function map(over: Partial<BattleMap> = {}): BattleMap {
     return {
       id: 'm', width: 4, height: 3, cellFeet: 5,
-      defaultTerrain: 'FLOOR', defaultLight: 'BRIGHT', cells: [], ...over,
+      defaultTerrain: 'FLOOR', defaultLight: 'BRIGHT', cells: [], props: [], ...over,
     };
   }
 
@@ -277,8 +277,10 @@ describe('board scene', () => {
 
   describe('props', () => {
 
-    function prop(over: Partial<PropPlacement> = {}): PropPlacement {
-      return { piece: 'BARREL', x: 5, y: 5, z: 0, rotation: 0, ...over };
+    function prop(over: Partial<MapProp> = {}): MapProp {
+      return {
+        piece: 'BARREL', xHalfFeet: 5, yHalfFeet: 5, zHalfFeet: 0, facingDegrees: 0, ...over,
+      };
     }
 
     const encounter: Encounter = {
@@ -292,34 +294,49 @@ describe('board scene', () => {
 
     it('stands a prop on the floor under it, not at absolute zero', () => {
       // A chest carried up onto a ten-foot dais should not need its own
-      // elevation edited, and one authored at z = 0 must not end up buried in
-      // the plinth. So a prop's z is a height above its ground, like a
-      // creature's.
-      const m = map({ cells: [cell(1, 0, { elevationFeet: 10 })] });
+      // elevation edited, and one saved at zero must not end up buried in the
+      // plinth. So a prop's z is a height above its ground, like a creature's.
+      const m = map({
+        cells: [cell(1, 0, { elevationFeet: 10 })],
+        props: [prop(), prop({ xHalfFeet: 15 })],
+      });
 
-      const [onFloor, onLedge] = placedProps(m, [prop(), prop({ x: 15, y: 5 })]);
+      const [onFloor, onLedge] = placedProps(m);
 
       expect(onFloor.z).toBe(0);
       expect(onLedge.z).toBe(20);
     });
 
     it('keeps a prop lifted above the ledge it stands on', () => {
-      const m = map({ cells: [cell(1, 0, { elevationFeet: 10 })] });
+      const m = map({
+        cells: [cell(1, 0, { elevationFeet: 10 })],
+        // A candle on a table on a dais: 10 feet of dais plus 2½ of table.
+        props: [prop({ xHalfFeet: 15, zHalfFeet: 5 })],
+      });
 
-      // A candle on a table on a dais: 10 feet of dais plus 2½ feet of table.
-      expect(placedProps(m, [prop({ x: 15, y: 5, z: 5 })])[0].z).toBe(25);
+      expect(placedProps(m)[0].z).toBe(25);
     });
 
-    it('carries props into the scene for an encounter and for a battle', () => {
-      const props = [prop(), prop({ piece: 'TABLE' })];
+    it('turns whole degrees into the radians the renderer wants', () => {
+      // Stored in degrees because every other measurement in the schema is a
+      // whole number; converted here because nothing else should have to.
+      const turned = placedProps(map({ props: [prop({ facingDegrees: 90 })] }));
 
-      expect(sceneForEncounter(encounter, props).props).toHaveLength(2);
-      expect(sceneForBattle(encounter, battle, props).props).toHaveLength(2);
+      expect(turned[0].rotation).toBeCloseTo(Math.PI / 2);
+    });
+
+    it('carries the map\'s furniture into the scene, fight or no fight', () => {
+      const furnished: Encounter = {
+        ...encounter, map: map({ props: [prop(), prop({ piece: 'TABLE' })] }),
+      };
+
+      expect(sceneForEncounter(furnished).props).toHaveLength(2);
+      expect(sceneForBattle(furnished, battle).props).toHaveLength(2);
     });
 
     it('draws no furniture when none was placed', () => {
-      // Not undefined: the renderer iterates it, and a board with nothing in it
-      // is a normal board rather than a special case.
+      // Not undefined: the renderer iterates it, and an unfurnished board is a
+      // normal board rather than a special case.
       expect(sceneForEncounter(encounter).props).toEqual([]);
     });
   });

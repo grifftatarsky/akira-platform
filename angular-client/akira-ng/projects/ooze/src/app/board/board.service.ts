@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Battle, Combatant, Encounter } from './board.models';
+import { Battle, Combatant, Encounter, MapProp } from './board.models';
 
 /**
  * The board's half of the ooze API.
@@ -48,6 +48,19 @@ export class BoardService {
   /** Resumes a move that stopped for an Opportunity Attack. */
   resumeMove(battleId: string): Observable<Battle> {
     return this.http.post<Battle>(`/bff/ooz/battle/${battleId}/resume-move`, {});
+  }
+
+  /**
+   * Replaces the board's furniture.
+   *
+   * <p>The whole list, which is the opposite of how a token moves and for the
+   * opposite reason. A token is dragged one at a time by somebody watching, so
+   * each drag is its own request; furniture is arranged, and arranging is a
+   * dozen small moves nobody wants a round trip for. Sending it whole also
+   * means never having to describe a deletion.
+   */
+  setProps(encounterId: string, props: readonly MapProp[]): Observable<Encounter> {
+    return this.http.put<Encounter>(`/bff/ooz/encounter/${encounterId}/map/props`, props);
   }
 
   /**

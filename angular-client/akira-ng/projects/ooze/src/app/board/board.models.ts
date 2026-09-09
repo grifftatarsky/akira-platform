@@ -19,58 +19,86 @@ export type CoverDegree = 'NONE' | 'HALF' | 'THREE_QUARTERS' | 'TOTAL';
 export type Disposition = 'ACTIVE' | 'ON_DECK' | 'REMOVED';
 
 /**
- * The pieces a board is built from, named by what they are rather than by file.
+ * A piece of board chosen by the square under it.
  *
- * <p>Here rather than beside the art, because this is the board's own
- * vocabulary: a scene says "a table stands on that square" and a theme is only
- * a lookup from that word to a model. Put the words in the theme and every
- * consumer of a scene has to import the art to read it.
- *
- * <p>Split by how a piece is chosen, not by what it looks like. Structure is
- * derived — the square is a wall, so a wall piece goes there. Props are placed,
- * because which corner the barrels are stacked in is a decision and no rule
- * about the floor produces it.
+ * <p>Derived, so it is never stored: the square is a wall, so a wall piece goes
+ * there. Repaint the square and the piece follows.
  */
-export type BoardPiece =
-  // Structure, chosen by the terrain under it.
-  | 'FLOOR'
-  | 'FLOOR_ROUGH'
-  | 'FLOOR_DIRT'
-  | 'WALL'
-  | 'WALL_CORNER'
-  | 'WALL_ARCH'
-  | 'WALL_TSPLIT'
+export type TerrainPiece = 'FLOOR' | 'FLOOR_ROUGH' | 'FLOOR_DIRT' | 'WALL';
+
+/**
+ * A piece somebody put somewhere.
+ *
+ * <p>Placed rather than derived, which is the whole distinction — no rule about
+ * a square produces "and the barrels are stacked in that corner". Mirrors the
+ * server's `PropKind` exactly, because these are stored: a value the two ends
+ * disagree about is a saved board that draws nothing.
+ *
+ * <p>Named for what the thing is and never for the file that draws it, so
+ * replacing the art pack changes a theme and not one row of anybody's board.
+ */
+export type PropKind =
+  // Structure a DM places rather than paints. A doorway stands on a *floor*
+  // square: the gap in the wall has to be walkable, or it seals the room.
   | 'DOORWAY'
-  // Placed.
+  | 'WALL_ARCH'
+  | 'WALL_CORNER'
+  | 'WALL_TSPLIT'
   | 'PILLAR'
   | 'PILLAR_DECORATED'
   | 'COLUMN'
   | 'STAIRS'
   | 'BARRIER'
+  // Storage and furniture.
   | 'BARREL'
   | 'BARRELS'
   | 'CRATE'
   | 'CRATES'
   | 'CHEST'
+  | 'TRUNK'
+  | 'KEG'
+  | 'SHELVES'
+  | 'SHELF_CANDLES'
   | 'TABLE'
   | 'TABLE_BROKEN'
   | 'CHAIR'
   | 'STOOL'
-  | 'KEG'
-  | 'SHELVES'
-  | 'SHELF_CANDLES'
   | 'BED'
+  // Light, which is the one of these the engine will want first.
   | 'TORCH'
   | 'CANDLES'
+  // Dressing.
   | 'BANNER_BLUE'
   | 'BANNER_GREEN'
   | 'RUBBLE'
   | 'RUBBLE_SMALL'
   | 'ARMS'
   | 'COINS'
-  | 'TRUNK'
   | 'BOTTLE'
   | 'PLATE';
+
+/** Everything a theme can be asked to draw. */
+export type BoardPiece = TerrainPiece | PropKind;
+
+/**
+ * One prop as the server stores it.
+ *
+ * <p>Position is continuous like a creature's, not a cell index like a painted
+ * square's: terrain is a raster and furniture is not, and a table across the
+ * middle of two squares is a thing a DM should be able to do.
+ *
+ * @param zHalfFeet height above the *ground under it*, not above zero — so a
+ *     chest carried onto a ten-foot dais needs no elevation edited
+ * @param facingDegrees clockwise, 0 to 359. Degrees rather than radians because
+ *     every other measurement in the schema is a whole number.
+ */
+export interface MapProp {
+  readonly piece: PropKind;
+  readonly xHalfFeet: number;
+  readonly yHalfFeet: number;
+  readonly zHalfFeet: number;
+  readonly facingDegrees: number;
+}
 
 /** One painted square. Nulls mean "the map's default", which is why it is sparse. */
 export interface MapCell {
@@ -93,6 +121,15 @@ export interface BattleMap {
   readonly defaultTerrain: TerrainKind;
   readonly defaultLight: LightLevel;
   readonly cells: readonly MapCell[];
+  /**
+   * The furniture.
+   *
+   * <p>On the map rather than beside it, because that is where the server keeps
+   * it — one JSON column, written whole and read whole. Cover, Difficult
+   * Terrain and light all stay on the cells, so furnishing a room changes
+   * nothing the engine computes.
+   */
+  readonly props: readonly MapProp[];
 }
 
 export interface Combatant {
@@ -231,17 +268,13 @@ export interface TokenPlacement {
 }
 
 /**
- * One prop, standing somewhere.
+ * One prop, ready to draw.
  *
- * <p>Decoration, and deliberately not terrain. A square knows it is difficult
- * to cross and gives half cover; it does not know that the reason is a
- * barricade. Keeping the two apart means a DM can furnish a room without
- * changing what the engine computes, and — the part that matters — that
- * furniture can never quietly become a rule the server did not agree to.
- *
- * <p>The server has no column for this yet. `map_cells` carries terrain, light,
- * cover, elevation and cost, and nothing that says "a table stands here". This
- * is the shape that column will take.
+ * <p>A {@link MapProp} with the two questions the renderer cannot answer
+ * resolved: which floor it stands on, and its facing in the unit three wants.
+ * Kept apart from the stored shape for the same reason a token is kept apart
+ * from a combatant — one is what was saved, the other is where it ends up on
+ * screen.
  */
 export interface PropPlacement {
   readonly piece: BoardPiece;

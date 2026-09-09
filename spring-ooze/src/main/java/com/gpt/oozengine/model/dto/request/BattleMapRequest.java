@@ -17,6 +17,9 @@ import java.util.List;
  *
  * @param cellFeet the resolution of the terrain, not of placement — tokens sit
  *     at continuous positions and merely sample the raster underneath
+ * @param props the furniture, also whole rather than a patch, and also null to
+ *     leave alone. Null and empty differ here and the difference matters: a DM
+ *     nudging a wall must not strip the room bare as a side effect.
  */
 public record BattleMapRequest(
     @Min(1) @Max(60) int width,
@@ -24,4 +27,5 @@ public record BattleMapRequest(
     @Min(1) @Max(20) int cellFeet,
     TerrainKind defaultTerrain,
     LightLevel defaultLight,
-    @Valid List<MapCellRequest> cells) {}
+    @Valid List<MapCellRequest> cells,
+    @Valid List<MapPropRequest> props) {}

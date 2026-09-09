@@ -6,6 +6,7 @@ import com.gpt.oozengine.model.GameCharacter;
 import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
+import com.gpt.oozengine.model.dto.request.MapPropRequest;
 import com.gpt.oozengine.model.dto.request.PaintRequest;
 import com.gpt.oozengine.model.encounter.MapCell;
 import com.gpt.oozengine.model.encounter.Scaling;
@@ -50,6 +51,17 @@ public class EncounterService {
 
   /** A usability guardrail, not a technical limit — past this an initiative order stops working. */
   public static final int MAX_COMBATANTS = 40;
+
+  /**
+   * How much furniture a board may carry.
+   *
+   * <p>A furnished 26-by-20 level — six rooms, beds, benches, barrels, banners
+   * and all — comes to about 110 pieces, so this is generous. It exists because
+   * the props are one JSON column: unbounded, a client bug becomes a megabyte
+   * of barrels loaded on every board read, and there is no row count to notice
+   * it by.
+   */
+  public static final int MAX_PROPS = 400;
 
   private final EncounterRepository repo;
   private final StatBlockRepository statBlocks;
@@ -109,6 +121,36 @@ public class EncounterService {
   public CombatantResponse updateCombatantAndView(
       UUID id, UUID ownerId, UUID combatantId, CombatantRequest req) {
     return CombatantResponse.from(updateCombatant(id, ownerId, combatantId, req));
+  }
+
+  /**
+   * Replaces the board's furniture.
+   *
+   * <p>Whole rather than one piece at a time, which is the opposite of how
+   * combatants work and for the opposite reason. A token is dragged one at a
+   * time by somebody watching, so each drag is its own request; furniture is
+   * arranged, and arranging is a dozen small moves nobody wants a round trip
+   * for. The list is small, it is one JSON column, and replacing it wholesale
+   * means the client never has to say which barrel it just deleted.
+   *
+   * <p>Nothing about the fight changes. Cover, Difficult Terrain and light all
+   * live on the cells, so a board can be furnished mid-battle without the engine
+   * computing anything differently — which is exactly what makes this safe to
+   * be a blunt whole-list write.
+   */
+  @Transactional
+  public EncounterResponse setProps(UUID id, UUID ownerId, List<MapPropRequest> props) {
+    if (props != null && props.size() > MAX_PROPS) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "A board holds at most " + MAX_PROPS + " props");
+    }
+    Encounter e = get(id, ownerId);
+    BattleMap map = e.getMap();
+    var placed = EncounterMapper.propsFrom(props, map);
+    map.getProps().clear();
+    map.getProps().addAll(placed);
+    repo.flush();
+    return EncounterResponse.from(e);
   }
 
   /**
@@ -208,6 +250,11 @@ public class EncounterService {
     e.setName(req.name());
     e.setDescription(req.description());
     EncounterMapper.applyScalars(req.map(), e.getMap());
+    if (req.map() != null && req.map().props() != null) {
+      var furniture = EncounterMapper.propsFrom(req.map().props(), e.getMap());
+      e.getMap().getProps().clear();
+      e.getMap().getProps().addAll(furniture);
+    }
     if (req.map() != null && req.map().cells() != null) {
       var repainted = EncounterMapper.cellsFrom(req.map(), e.getMap());
       // Hibernate orders inserts ahead of deletes within a flush, so repainting
