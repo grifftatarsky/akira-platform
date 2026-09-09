@@ -1,11 +1,14 @@
 package com.gpt.oozengine.controller;
 
+import com.gpt.oozengine.model.dto.request.BattleRequest;
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
 import com.gpt.oozengine.model.dto.request.PaintRequest;
 import com.gpt.oozengine.model.dto.response.CombatantResponse;
+import com.gpt.oozengine.model.dto.response.BattleResponse;
 import com.gpt.oozengine.model.dto.response.EncounterResponse;
 import com.gpt.oozengine.model.dto.response.EncounterSummaryResponse;
+import com.gpt.oozengine.service.EncounterLaunchService;
 import com.gpt.oozengine.service.EncounterService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -48,6 +51,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class EncounterController {
 
   private final EncounterService encounters;
+  private final EncounterLaunchService launches;
 
   /** Summaries, not boards: a page of forty full boards is a lot nobody reads. */
   @GetMapping
@@ -128,6 +132,22 @@ public class EncounterController {
     return ResponseEntity.noContent().build();
   }
   // endregion
+
+  /**
+   * Lifts this encounter into a running battle.
+   *
+   * <p>The seam between the two halves, and it lives here rather than on the
+   * battle side because this half knows about both. The lift copies rather than
+   * links, so running the fight leaves the saved encounter untouched.
+   */
+  @PostMapping("/{id}/battle")
+  public ResponseEntity<BattleResponse> launch(
+      @PathVariable UUID id,
+      @RequestBody(required = false) BattleRequest req,
+      @AuthenticationPrincipal Jwt jwt) {
+    return ResponseEntity.ok(launches.launch(id, requireUserId(jwt),
+        req == null ? null : req.name(), req == null ? null : req.seed()));
+  }
 
   private static UUID requireUserId(Jwt jwt) {
     return UUID.fromString(jwt.getSubject());

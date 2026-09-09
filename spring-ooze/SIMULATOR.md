@@ -335,7 +335,7 @@ Three independent axes, deliberately not one enum:
 |---|---|---|
 | 1 | ✅ **Done.** `Encounter`, map, terrain, `Combatant`, placement, painting, geometry, falling, REST | A DM can build and save a tactical map |
 | 2 | Sheets, scaling descriptors, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
-| 3 | **`tracker` module** — `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
+| 3 | ✅ **Done.** `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause, rewind. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
 | 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, movement | The simulator proper |
 | 5 | Reaction windows, **rewriting a declared action**, on-deck promotion, surprise, duration ticking | The part the epic is for |
 | 6 | WebGL board, reusing what JPSS taught us | The table |
@@ -351,8 +351,19 @@ Three independent axes, deliberately not one enum:
 
 **Phase 3 is a module, not a step.** The tracker owns turn order and the log and
 knows nothing about maps or terrain; the simulator supplies combatants and a map
-to a tracker that would work just as well without either. That is what makes it
-shippable alone, and it is the boundary Modulith verifies.
+to a tracker that would work just as well without either.
+
+That boundary is asserted, not intended: a test reads the imports of every file
+in the tracker and fails if one reaches for the board. `encounterId` and
+`combatantId` are bare nullable UUIDs rather than mappings, so an encounter is
+something a battle *may* have come from, never something it needs. The seam that
+lifts one into the other lives on the **simulator** side, where the code already
+knows about both — putting it in `BattleService` would have inverted the
+dependency and quietly made the tracker need a board.
+
+**Phases are sequential.** 3 was built before 2 to get that boundary test written
+before anything could couple to the tracker, which was worth doing once; it is
+not a licence to keep reordering. 2 is next.
 
 ---
 

@@ -7,6 +7,9 @@ import com.gpt.oozengine.constant.rules.Disposition;
 import com.gpt.oozengine.model.battle.Battle;
 import com.gpt.oozengine.model.battle.BattleEvent;
 import com.gpt.oozengine.model.battle.Participant;
+import com.gpt.oozengine.model.dto.response.BattleResponse;
+import com.gpt.oozengine.model.dto.response.BattleSummaryResponse;
+import com.gpt.oozengine.model.dto.response.ParticipantResponse;
 import com.gpt.oozengine.repository.BattleRepository;
 import com.gpt.oozengine.util.BattleDice;
 import java.util.ArrayList;
@@ -147,7 +150,7 @@ public class BattleService {
   }
 
   private void endTurn(Battle b) {
-    Participant current = current(b);
+    Participant current = atTurnIndex(b);
     b.setPhase(BattlePhase.BETWEEN_TURNS);
     append(b, BattleEventType.TURN_ENDED, current == null ? null : current.getId(),
         current == null ? "Turn ends" : current.getName() + "'s turn ends", Map.of());
@@ -194,7 +197,7 @@ public class BattleService {
     if (p.getDisposition() != Disposition.ON_DECK) {
       throw conflict(p.getName() + " is already in the fight");
     }
-    Participant acting = current(b);
+    Participant acting = atTurnIndex(b);
     p.setDisposition(Disposition.ACTIVE);
     rollInitiativeFor(b, p);
     append(b, BattleEventType.PARTICIPANT_PROMOTED, p.getId(),
@@ -312,6 +315,84 @@ public class BattleService {
   // region Reads
 
   @Transactional(readOnly = true)
+  public org.springframework.data.domain.Page<BattleSummaryResponse> list(
+      UUID ownerId, org.springframework.data.domain.Pageable pageable) {
+    return repo.findByOwnerId(ownerId, pageable).map(BattleSummaryResponse::from);
+  }
+
+  /**
+   * Views, mapped inside the transaction.
+   *
+   * <p>Returning the entity and letting a controller map it reads the log and
+   * the participants through lazy proxies after the session has closed.
+   */
+  @Transactional(readOnly = true)
+  public BattleResponse view(UUID id, UUID ownerId) {
+    return BattleResponse.from(get(id, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse createAndView(UUID ownerId, String name, Long seed) {
+    return BattleResponse.from(create(ownerId, name, seed));
+  }
+
+  @Transactional
+  public BattleResponse addAndView(UUID battleId, UUID ownerId, Participant p) {
+    add(battleId, ownerId, p);
+    return BattleResponse.from(get(battleId, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse rollInitiativeAndView(UUID battleId, UUID ownerId) {
+    return BattleResponse.from(rollInitiative(battleId, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse advanceAndView(UUID battleId, UUID ownerId) {
+    return BattleResponse.from(advance(battleId, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse promoteAndView(UUID battleId, UUID ownerId, UUID participantId) {
+    promote(battleId, ownerId, participantId);
+    return BattleResponse.from(get(battleId, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse rewindAndView(UUID battleId, UUID ownerId, long sequence) {
+    return BattleResponse.from(rewindTo(battleId, ownerId, sequence));
+  }
+
+  @Transactional
+  public ParticipantResponse changeHitPointsAndView(UUID battleId, UUID ownerId,
+      UUID participantId, int delta, String reason) {
+    return ParticipantResponse.from(
+        changeHitPoints(battleId, ownerId, participantId, delta, reason));
+  }
+
+  @Transactional
+  public ParticipantResponse applyConditionAndView(UUID battleId, UUID ownerId,
+      UUID participantId, String condition) {
+    return ParticipantResponse.from(applyCondition(battleId, ownerId, participantId, condition));
+  }
+
+  @Transactional
+  public ParticipantResponse removeConditionAndView(UUID battleId, UUID ownerId,
+      UUID participantId, String condition) {
+    return ParticipantResponse.from(removeCondition(battleId, ownerId, participantId, condition));
+  }
+
+  @Transactional
+  public BattleResponse noteAndView(UUID battleId, UUID ownerId, UUID participantId, String text) {
+    return BattleResponse.from(note(battleId, ownerId, participantId, text));
+  }
+
+  @Transactional
+  public BattleResponse endAndView(UUID battleId, UUID ownerId) {
+    return BattleResponse.from(end(battleId, ownerId));
+  }
+
+  @Transactional(readOnly = true)
   public Battle get(UUID id, UUID ownerId) {
     Battle b = repo.findById(id).orElseThrow(() -> notFound(id));
     if (!b.getOwnerId().equals(ownerId)) {
@@ -320,8 +401,25 @@ public class BattleService {
     return b;
   }
 
-  /** Whoever's turn it is, or null between turns. */
+  /**
+   * Whoever's turn it is, or null between turns.
+   *
+   * <p>Null during the pause on purpose: that is how a client knows to draw the
+   * gap rather than leave the last creature highlighted as though it were still
+   * acting.
+   */
   public static Participant current(Battle b) {
+    return b.getPhase() == BattlePhase.IN_TURN ? atTurnIndex(b) : null;
+  }
+
+  /**
+   * Whoever the turn index points at, whatever the phase.
+   *
+   * <p>Separate from {@link #current} because the engine needs the position even
+   * between turns — promoting a creature there still shifts the order under the
+   * index, and using the phase-aware version would silently skip the fix.
+   */
+  private static Participant atTurnIndex(Battle b) {
     List<Participant> order = order(b);
     int i = b.getTurnIndex();
     return i < 0 || i >= order.size() ? null : order.get(i);
