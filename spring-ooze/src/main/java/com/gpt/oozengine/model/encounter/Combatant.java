@@ -5,13 +5,16 @@ import com.gpt.oozengine.constant.rules.Disposition;
 import com.gpt.oozengine.model.BaseEntity;
 import com.gpt.oozengine.model.GameCharacter;
 import com.gpt.oozengine.model.creature.StatBlock;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import java.util.UUID;
 import lombok.Getter;
@@ -43,10 +46,26 @@ public class Combatant extends BaseEntity {
   @Column(name = "encounter_id", insertable = false, updatable = false)
   private UUID encounterId;
 
-  /** Set for a monster placed straight from the compendium. */
+  /** Set for a monster placed straight from the compendium. Never mutated. */
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "stat_block_id")
   private StatBlock statBlock;
+
+  /**
+   * A private clone of the base, made only when a DM edits the creature itself.
+   *
+   * <p>Kept beside {@link #statBlock} rather than replacing it, so the base is
+   * always still there to say what this was cloned from and to diff against.
+   * Owned by the combatant with {@code orphanRemoval}, so deleting the token
+   * takes its clone with it — an override with nothing pointing at it is a row
+   * nobody will ever find and nobody will ever delete.
+   *
+   * <p>Almost always null. The sheet below covers what people actually change;
+   * this is for genuine surgery — a different attack, a new trait.
+   */
+  @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @JoinColumn(name = "private_stat_block_id")
+  private StatBlock privateStatBlock;
 
   /** Set for a PC or a named NPC, which carries its own inventory and slots. */
   @ManyToOne(fetch = FetchType.LAZY)
@@ -93,5 +112,31 @@ public class Combatant extends BaseEntity {
 
   @Column(columnDefinition = "text")
   private String notes;
+
+  /**
+   * How far from the book this creature is dialled.
+   *
+   * <p>Embedded rather than a separate row because every combatant has one and
+   * the overwhelming majority are the identity, which is five small integer
+   * columns against a join.
+   */
+  @Embedded
+  private Scaling scaling = new Scaling();
   // endregion
+
+  /**
+   * The stat block actually in play: the private clone if there is one, else the
+   * shared base.
+   *
+   * <p>Every reader must go through this. Reaching for {@code statBlock}
+   * directly is how an edited creature quietly fights with the book's numbers.
+   */
+  public StatBlock effectiveStatBlock() {
+    return privateStatBlock != null ? privateStatBlock : statBlock;
+  }
+
+  /** Whether this creature has been edited away from its base. */
+  public boolean isOverridden() {
+    return privateStatBlock != null;
+  }
 }

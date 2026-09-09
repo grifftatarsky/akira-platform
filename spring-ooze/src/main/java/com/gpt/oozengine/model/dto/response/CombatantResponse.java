@@ -34,7 +34,19 @@ public record CombatantResponse(
     CreatureSize size,
     int spaceHalfFeet,
     List<Capability> capabilities,
+    /** True when this token carries a private, edited copy of its stat block. */
+    boolean overridden,
+    ScalingResponse scaling,
     String notes) {
+
+  /** How far from the book this creature is dialled; nulls where it is not. */
+  public record ScalingResponse(
+      int hitPointPercent,
+      int armorClassDelta,
+      int damagePercent,
+      int attackBonusDelta,
+      int saveDcDelta,
+      boolean unchanged) {}
 
   public static CombatantResponse from(Combatant c) {
     var footprint = EncounterService.footprintOf(c);
@@ -50,6 +62,15 @@ public record CombatantResponse(
         EncounterService.sizeOf(c),
         footprint.spaceHalfFeet(),
         List.copyOf(EncounterService.capabilitiesOf(c)),
+        c.isOverridden(),
+        scalingOf(c),
         c.getNotes());
+  }
+
+  private static ScalingResponse scalingOf(Combatant c) {
+    var s = c.getScaling() == null ? new com.gpt.oozengine.model.encounter.Scaling()
+        : c.getScaling();
+    return new ScalingResponse(s.getHitPointPercent(), s.getArmorClassDelta(),
+        s.getDamagePercent(), s.getAttackBonusDelta(), s.getSaveDcDelta(), s.isUnchanged());
   }
 }

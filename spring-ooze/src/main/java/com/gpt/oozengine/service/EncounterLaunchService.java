@@ -53,7 +53,9 @@ public class EncounterLaunchService {
   }
 
   private static Participant participantOf(Combatant c) {
-    StatBlock sb = c.getStatBlock() != null ? c.getStatBlock()
+    // The effective block, so a creature a DM performed surgery on fights with
+    // its own numbers rather than the book's.
+    StatBlock sb = c.effectiveStatBlock() != null ? c.effectiveStatBlock()
         : c.getGameCharacter() != null ? c.getGameCharacter().getStatBlock() : null;
 
     Participant p = new Participant();
@@ -95,12 +97,16 @@ public class EncounterLaunchService {
    * without the log.
    */
   private static int hitPoints(Combatant c, StatBlock sb) {
+    // A hand-set total is exact and is not scaled again: a DM who typed 40 meant
+    // 40, and multiplying it by a scale they set earlier would give them 60.
     if (c.getMaxHitPoints() != null) {
       return c.getMaxHitPoints();
     }
-    if (sb != null && sb.getHitPoints() != null && sb.getHitPoints().getAverage() != null) {
-      return Math.max(1, sb.getHitPoints().getAverage());
-    }
-    return 1;
+    int base = sb != null && sb.getHitPoints() != null && sb.getHitPoints().getAverage() != null
+        ? Math.max(1, sb.getHitPoints().getAverage())
+        : 1;
+    // Scaling is applied here and never written back, which is what lets a DM
+    // dial a fight up, run it, dial it down and run it again.
+    return c.getScaling() == null ? base : c.getScaling().hitPoints(base);
   }
 }

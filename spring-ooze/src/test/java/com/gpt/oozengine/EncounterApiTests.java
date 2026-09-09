@@ -64,6 +64,16 @@ class EncounterApiTests {
         .getSingleResult();
   }
 
+  private JsonNode postJson(UUID owner, MockHttpServletRequestBuilder req, String body)
+      throws Exception {
+    var call = as(owner, req);
+    if (body != null) {
+      call = call.content(body);
+    }
+    return json.readTree(mvc.perform(call).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsString());
+  }
+
   private JsonNode createEncounter(UUID owner, String body) throws Exception {
     String out = mvc.perform(as(owner, post("/encounter")).content(body))
         .andExpect(status().isOk())
@@ -337,6 +347,66 @@ class EncounterApiTests {
     mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
             [{"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2}]
             """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Scaling is stored as a descriptor and shows on the token")
+  void scalingOverHttp() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Tougher\"}");
+    String id = e.get("id").asText();
+    var placed = postJson(dm, post("/encounter/{id}/combatant", id), """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear")));
+    String c = placed.get("id").asText();
+
+    // A request that only toughens does not restate the four things it leaves
+    // alone.
+    mvc.perform(as(dm, put("/encounter/{id}/combatant/{c}/scaling", id, c))
+            .content("{\"hitPointPercent\": 150}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.scaling.hitPointPercent").value(150))
+        .andExpect(jsonPath("$.scaling.damagePercent").value(100))
+        .andExpect(jsonPath("$.scaling.unchanged").value(false))
+        .andExpect(jsonPath("$.overridden").value(false));
+  }
+
+  @Test
+  @DisplayName("Surgery gives a private copy, and reverting takes it away")
+  void overrideOverHttp() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Boss fight\"}");
+    String id = e.get("id").asText();
+    var placed = postJson(dm, post("/encounter/{id}/combatant", id), """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Goblin Warrior")));
+    String c = placed.get("id").asText();
+
+    var mine = postJson(dm, post("/encounter/{id}/combatant/{c}/override", id, c), null);
+    assertThat(mine.get("id").asText()).isNotEqualTo(
+        statBlockId("Goblin Warrior").toString());
+
+    mvc.perform(as(dm, get("/encounter/{id}", id)))
+        .andExpect(jsonPath("$.combatants[0].overridden").value(true));
+
+    mvc.perform(as(dm, delete("/encounter/{id}/combatant/{c}/override", id, c)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.overridden").value(false));
+  }
+
+  @Test
+  @DisplayName("A scaling out of bounds is refused by validation")
+  void scalingIsBounded() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Absurd\"}");
+    String id = e.get("id").asText();
+    var placed = postJson(dm, post("/encounter/{id}/combatant", id), """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear")));
+
+    // A thousandfold goblin is a typo, and a creature scaled to nothing is a
+    // bug rather than a corpse.
+    mvc.perform(as(dm, put("/encounter/{id}/combatant/{c}/scaling", id,
+            placed.get("id").asText()))
+            .content("{\"hitPointPercent\": 0}"))
         .andExpect(status().isBadRequest());
   }
 

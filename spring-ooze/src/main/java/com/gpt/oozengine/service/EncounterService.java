@@ -8,6 +8,7 @@ import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
 import com.gpt.oozengine.model.dto.request.PaintRequest;
 import com.gpt.oozengine.model.encounter.MapCell;
+import com.gpt.oozengine.model.encounter.Scaling;
 import com.gpt.oozengine.model.encounter.BattleMap;
 import com.gpt.oozengine.repository.CharacterRepository;
 import com.gpt.oozengine.repository.StatBlockRepository;
@@ -15,6 +16,7 @@ import com.gpt.oozengine.model.encounter.Combatant;
 import com.gpt.oozengine.model.dto.response.CombatantResponse;
 import com.gpt.oozengine.model.dto.response.EncounterResponse;
 import com.gpt.oozengine.model.dto.response.EncounterSummaryResponse;
+import com.gpt.oozengine.model.dto.response.StatBlockResponse;
 import com.gpt.oozengine.model.encounter.Encounter;
 import com.gpt.oozengine.repository.EncounterRepository;
 import com.gpt.oozengine.util.Geometry;
@@ -83,6 +85,24 @@ public class EncounterService {
   @Transactional
   public CombatantResponse placeAndView(UUID id, UUID ownerId, CombatantRequest req) {
     return CombatantResponse.from(place(id, ownerId, req));
+  }
+
+  @Transactional
+  public CombatantResponse scaleAndView(UUID encounterId, UUID ownerId, UUID combatantId,
+      Scaling scaling) {
+    return CombatantResponse.from(scale(encounterId, ownerId, combatantId, scaling));
+  }
+
+  @Transactional
+  public StatBlockResponse beginOverrideAndView(UUID encounterId, UUID ownerId,
+      UUID combatantId) {
+    return StatBlockResponse.from(beginOverride(encounterId, ownerId, combatantId));
+  }
+
+  @Transactional
+  public CombatantResponse revertOverrideAndView(UUID encounterId, UUID ownerId,
+      UUID combatantId) {
+    return CombatantResponse.from(revertOverride(encounterId, ownerId, combatantId));
   }
 
   @Transactional
@@ -232,6 +252,66 @@ public class EncounterService {
       c.setZ(z);
       throw ex;
     }
+    repo.flush();
+    return c;
+  }
+
+  /**
+   * Dials a creature up or down without touching the compendium or cloning it.
+   *
+   * <p>The descriptor is stored, not the result: "half again as tough" survives
+   * as {@code hitPointPercent = 150} and can be turned back down a month later,
+   * where a cloned block with 11 written over 7 cannot say whether that 11 was a
+   * scale or a hand edit.
+   */
+  @Transactional
+  public Combatant scale(UUID encounterId, UUID ownerId, UUID combatantId, Scaling scaling) {
+    Encounter e = get(encounterId, ownerId);
+    Combatant c = combatant(e, combatantId);
+    c.setScaling(scaling == null ? new Scaling() : scaling);
+    repo.flush();
+    return c;
+  }
+
+  /**
+   * Gives this one token a private copy of its stat block to edit.
+   *
+   * <p>Copy-on-write, and the write is the point: nothing is cloned until a DM
+   * actually changes the creature, so an encounter full of goblins is one shared
+   * row and not forty copies of it.
+   *
+   * <p>Idempotent — asking twice returns the copy that already exists rather
+   * than making a second one and losing the first edit.
+   */
+  @Transactional
+  public StatBlock beginOverride(UUID encounterId, UUID ownerId, UUID combatantId) {
+    Encounter e = get(encounterId, ownerId);
+    Combatant c = combatant(e, combatantId);
+    if (c.getPrivateStatBlock() != null) {
+      return c.getPrivateStatBlock();
+    }
+    StatBlock base = c.getStatBlock() != null ? c.getStatBlock()
+        : c.getGameCharacter() != null ? c.getGameCharacter().getStatBlock() : null;
+    if (base == null) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT,
+          "This combatant has no stat block to override");
+    }
+    c.setPrivateStatBlock(StatBlockCloner.deepCopy(base));
+    repo.flush();
+    return c.getPrivateStatBlock();
+  }
+
+  /**
+   * Throws the private copy away and goes back to the book.
+   *
+   * <p>orphanRemoval on the association does the deleting, so reverting cannot
+   * leave an override row that nothing points at and nobody will ever find.
+   */
+  @Transactional
+  public Combatant revertOverride(UUID encounterId, UUID ownerId, UUID combatantId) {
+    Encounter e = get(encounterId, ownerId);
+    Combatant c = combatant(e, combatantId);
+    c.setPrivateStatBlock(null);
     repo.flush();
     return c;
   }

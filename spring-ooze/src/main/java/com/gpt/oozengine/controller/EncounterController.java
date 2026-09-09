@@ -4,10 +4,12 @@ import com.gpt.oozengine.model.dto.request.BattleRequest;
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
 import com.gpt.oozengine.model.dto.request.PaintRequest;
+import com.gpt.oozengine.model.dto.request.ScalingRequest;
 import com.gpt.oozengine.model.dto.response.CombatantResponse;
 import com.gpt.oozengine.model.dto.response.BattleResponse;
 import com.gpt.oozengine.model.dto.response.EncounterResponse;
 import com.gpt.oozengine.model.dto.response.EncounterSummaryResponse;
+import com.gpt.oozengine.model.dto.response.StatBlockResponse;
 import com.gpt.oozengine.service.EncounterLaunchService;
 import com.gpt.oozengine.service.EncounterService;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -130,6 +132,45 @@ public class EncounterController {
       @AuthenticationPrincipal Jwt jwt) {
     encounters.removeCombatant(id, requireUserId(jwt), combatantId);
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Dials a creature up or down without cloning it.
+   *
+   * <p>Stored as a descriptor and applied when a battle starts, so it can be
+   * turned back down afterwards — which a cloned stat block with new numbers
+   * written into it cannot be.
+   */
+  @PutMapping("/{id}/combatant/{combatantId}/scaling")
+  public CombatantResponse scale(
+      @PathVariable UUID id,
+      @PathVariable UUID combatantId,
+      @Valid @RequestBody ScalingRequest req,
+      @AuthenticationPrincipal Jwt jwt) {
+    return encounters.scaleAndView(id, requireUserId(jwt), combatantId, req.toScaling());
+  }
+
+  /**
+   * Gives this token a private copy of its stat block to edit.
+   *
+   * <p>Idempotent: asking twice returns the copy that already exists rather than
+   * making a second one and losing the first edit.
+   */
+  @PostMapping("/{id}/combatant/{combatantId}/override")
+  public StatBlockResponse beginOverride(
+      @PathVariable UUID id,
+      @PathVariable UUID combatantId,
+      @AuthenticationPrincipal Jwt jwt) {
+    return encounters.beginOverrideAndView(id, requireUserId(jwt), combatantId);
+  }
+
+  /** Throws the private copy away and goes back to the book. */
+  @DeleteMapping("/{id}/combatant/{combatantId}/override")
+  public CombatantResponse revertOverride(
+      @PathVariable UUID id,
+      @PathVariable UUID combatantId,
+      @AuthenticationPrincipal Jwt jwt) {
+    return encounters.revertOverrideAndView(id, requireUserId(jwt), combatantId);
   }
   // endregion
 

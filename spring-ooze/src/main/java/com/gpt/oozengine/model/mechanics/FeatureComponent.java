@@ -57,7 +57,7 @@ public class FeatureComponent extends BaseEntity {
    * feature it depends on. The sibling is also reachable from the stat block, so
    * the cascade finds an already-managed instance and inserts nothing twice.
    */
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(cascade = CascadeType.PERSIST, fetch = FetchType.LAZY)
   @JoinColumn(name = "references_feature_id")
   private Feature referencedFeature;
 

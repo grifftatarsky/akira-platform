@@ -334,7 +334,7 @@ Three independent axes, deliberately not one enum:
 | # | What | Ships as |
 |---|---|---|
 | 1 | ✅ **Done.** `Encounter`, map, terrain, `Combatant`, placement, painting, geometry, falling, REST | A DM can build and save a tactical map |
-| 2 | Sheets, scaling descriptors, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
+| 2 | ✅ **Done.** Scaling descriptors, encounter-scoped copy-on-write, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
 | 3 | ✅ **Done.** `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause, rewind. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
 | 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, movement | The simulator proper |
 | 5 | Reaction windows, **rewriting a declared action**, on-deck promotion, surprise, duration ticking | The part the epic is for |
@@ -362,8 +362,34 @@ knows about both — putting it in `BattleService` would have inverted the
 dependency and quietly made the tracker need a board.
 
 **Phases are sequential.** 3 was built before 2 to get that boundary test written
-before anything could couple to the tracker, which was worth doing once; it is
-not a licence to keep reordering. 2 is next.
+before anything could couple to the tracker. That was worth doing once; it is not
+a licence to keep reordering, and 2 followed immediately after.
+
+### What phase 2 shipped
+
+Two mechanisms, because they are two different things.
+
+**Scaling is a descriptor.** "Half again as tough" is stored as
+`hitPointPercent = 150` and applied when a battle starts, never written back —
+so a DM can dial a fight up, run it, dial it down and run it again. A cloned
+block with 11 written over 7 could not do that, because nothing afterwards can
+tell whether the 11 was a scale or a hand edit. Percentages and deltas, all
+integers: a multiplier of 1.5 invites a float into a system that has worked to
+avoid them, and 150 says the same thing exactly.
+
+**A private stat block is surgery.** A deep clone, made only when a DM actually
+edits the creature, owned by the token with `orphanRemoval` so reverting cannot
+leave a row nothing points at. Deep because a shallow copy is worse than none:
+sharing features with the book means editing the goblin in an encounter edits
+the goblin in the compendium. The whole tree comes — features, steps, effects,
+riders, capabilities, shapes — and a Multiattack in the copy is remapped to
+invoke *the copy's* attacks, because copying the reference verbatim leaves the
+override calling the book's Tentacle and editing it changes nothing.
+
+**An NPC wraps a monster the way a character wraps a species.** `NpcFactory`
+gives a `GameCharacter` its own deep copy of a creature's stat block plus
+`baseStatBlockId` for provenance, so "Grish, goblin boss, three levels of
+Fighter" has an inventory and levels of its own and is one type to the engine.
 
 ---
 

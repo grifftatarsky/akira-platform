@@ -73,4 +73,19 @@ public class GameCharacter extends BaseEntity {
 
   @Column(columnDefinition = "text")
   private String notes;
+
+  /**
+   * The creature this NPC was built from, when it was built from one.
+   *
+   * <p>An NPC wraps a monster the way a character wraps a species: "Grish,
+   * goblin boss, three levels of Fighter, carrying a magic sword" is a
+   * GameCharacter whose own {@link #statBlock} started as a copy of the Goblin
+   * Boss's, and which then grew an inventory, levels and hit points of its own.
+   *
+   * <p>Provenance only — a bare id, not a mapping, so the base can be renamed or
+   * re-imported without dragging this along. It answers "what was this?", which
+   * is a question a DM asks and the engine never does.
+   */
+  @Column(name = "base_stat_block_id")
+  private java.util.UUID baseStatBlockId;
 }
