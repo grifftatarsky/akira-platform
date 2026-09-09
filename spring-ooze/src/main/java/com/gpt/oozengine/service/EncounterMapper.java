@@ -78,6 +78,52 @@ public final class EncounterMapper {
         && (c.notes() == null || c.notes().isBlank());
   }
 
+  /**
+   * Stamps a brush onto an existing cell, leaving alone anything the brush does
+   * not mention.
+   *
+   * <p>That is what lets a DM raise the ground across a room without repainting
+   * its terrain, and it is why every field of the brush is nullable.
+   */
+  public static void stamp(MapCellRequest brush, MapCell cell) {
+    if (brush.elevationFeet() != null) {
+      cell.setElevationFeet(brush.elevationFeet());
+    }
+    if (brush.terrain() != null) {
+      cell.setTerrain(brush.terrain());
+    }
+    if (brush.light() != null) {
+      cell.setLight(brush.light());
+    }
+    if (brush.cover() != null) {
+      cell.setCover(brush.cover());
+    }
+    if (brush.opaque() != null) {
+      cell.setOpaque(brush.opaque());
+    }
+    if (brush.extraMoveCostFeet() != null) {
+      cell.setExtraMoveCostFeet(brush.extraMoveCostFeet());
+    }
+    if (brush.notes() != null && !brush.notes().isBlank()) {
+      cell.setNotes(brush.notes());
+    }
+  }
+
+  /** A freshly painted square at these coordinates. */
+  public static MapCell blank(int x, int y) {
+    MapCell cell = new MapCell();
+    cell.setX(x);
+    cell.setY(y);
+    return cell;
+  }
+
+  /** True when nothing on the cell differs from the map's defaults. */
+  public static boolean isDefault(MapCell c) {
+    return c.getElevationFeet() == null && c.getTerrain() == null && c.getLight() == null
+        && c.getCover() == null && c.getOpaque() == null && c.getExtraMoveCostFeet() == null
+        && (c.getNotes() == null || c.getNotes().isBlank());
+  }
+
   private static MapCell cell(MapCellRequest c) {
     MapCell cell = new MapCell();
     cell.setX(c.x());

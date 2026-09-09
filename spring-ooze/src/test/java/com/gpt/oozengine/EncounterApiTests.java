@@ -253,6 +253,93 @@ class EncounterApiTests {
         .andExpect(jsonPath("$.combatants.length()").value(0));
   }
 
+  @Test
+  @DisplayName("A room is outlined in one stroke, not two hundred requests")
+  void paintingAnOutline() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The vault", "map": {"width": 20, "height": 20, "cellFeet": 5, "cells": []}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "OUTLINE", "x1": 2, "y1": 2, "x2": 9, "y2": 9,
+              "brush": {"x": 0, "y": 0, "terrain": "WALL"}}]
+            """))
+        .andExpect(status().isOk())
+        // The ring of an 8x8 is 28 squares. Painting that one request at a time
+        // is what makes a hand-built board unusable.
+        .andExpect(jsonPath("$.map.cells.length()").value(28));
+  }
+
+  @Test
+  @DisplayName("Strokes apply in order, so a doorway can be cut after the wall")
+  void strokesApplyInOrder() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The cell", "map": {"width": 20, "height": 20, "cellFeet": 5, "cells": []}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "OUTLINE", "x1": 0, "y1": 0, "x2": 5, "y2": 5,
+              "brush": {"x": 0, "y": 0, "terrain": "WALL"}},
+             {"shape": "RECTANGLE", "x1": 0, "y1": 2, "x2": 0, "y2": 3, "erase": true}]
+            """))
+        .andExpect(status().isOk())
+        // 20 in the ring, less the two erased for the door.
+        .andExpect(jsonPath("$.map.cells.length()").value(18));
+  }
+
+  @Test
+  @DisplayName("A brush leaves alone what it does not mention")
+  void brushesArePartial() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The ledge", "map": {"width": 20, "height": 20, "cellFeet": 5, "cells": []}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2,
+              "brush": {"x": 0, "y": 0, "terrain": "RUBBLE"}},
+             {"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2,
+              "brush": {"x": 0, "y": 0, "elevationFeet": 10}}]
+            """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.cells.length()").value(4))
+        // Raising the ground across a room must not repaint its terrain.
+        .andExpect(jsonPath("$.map.cells[0].terrain").value("RUBBLE"))
+        .andExpect(jsonPath("$.map.cells[0].elevationFeet").value(10));
+  }
+
+  @Test
+  @DisplayName("Erasing shrinks the board rather than storing empty squares")
+  void erasingRemovesRows() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Scratch", "map": {"width": 20, "height": 20, "cellFeet": 5,
+         "cells": [{"x": 1, "y": 1, "terrain": "WALL"}, {"x": 2, "y": 2, "terrain": "WALL"}]}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "RECTANGLE", "x1": 0, "y1": 0, "x2": 5, "y2": 5, "erase": true}]
+            """))
+        .andExpect(status().isOk())
+        // Sparse storage means an erased square has no row at all, not a row
+        // full of nulls.
+        .andExpect(jsonPath("$.map.cells.length()").value(0));
+  }
+
+  @Test
+  @DisplayName("A stroke that is not an erase needs a brush")
+  void strokeWithoutABrushIsRejected() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Blank\"}");
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2}]
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
   private static void assertBoard(JsonNode e, int width, int height, int cellFeet) {
     var map = e.get("map");
     assertThat(map.get("width").asInt()).isEqualTo(width);

@@ -7,6 +7,8 @@ import com.gpt.oozengine.constant.rules.LightLevel;
 import com.gpt.oozengine.constant.rules.TerrainKind;
 import com.gpt.oozengine.model.encounter.BattleMap;
 import com.gpt.oozengine.model.encounter.MapCell;
+import com.gpt.oozengine.model.mechanics.DiceRoll;
+import com.gpt.oozengine.util.Falling;
 import com.gpt.oozengine.util.Geometry;
 import com.gpt.oozengine.util.Geometry.Footprint;
 import com.gpt.oozengine.util.Geometry.Point;
@@ -148,6 +150,31 @@ public final class Battlefield {
 
   /** A creature standing in a square, from the mover's point of view. */
   public record Occupant(CreatureSize size, boolean ally) {}
+
+  /**
+   * How far a creature drops moving between two squares, in feet.
+   *
+   * <p>This is where the board's elevation becomes damage. Zero when the ground
+   * rises or holds level — walking up a slope is not a negative fall — and the
+   * SRD's ten-feet-per-d6 does the rest.
+   */
+  public int dropEntering(int fromX, int fromY, int toX, int toY) {
+    return Falling.dropBetween(elevationAt(fromX, fromY), elevationAt(toX, toY));
+  }
+
+  /**
+   * What a creature takes for that drop, or null if the step hurts nobody.
+   *
+   * @see Falling
+   */
+  public DiceRoll fallDamageEntering(int fromX, int fromY, int toX, int toY) {
+    return Falling.damage(dropEntering(fromX, fromY, toX, toY));
+  }
+
+  /** Whether a fall into this square is a fall into liquid, which can be halved. */
+  public boolean liquidLanding(int cx, int cy) {
+    return Falling.isLiquid(terrainAt(cx, cy));
+  }
 
   // region Sight and cover
 

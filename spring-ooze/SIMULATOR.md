@@ -333,12 +333,21 @@ Three independent axes, deliberately not one enum:
 
 | # | What | Ships as |
 |---|---|---|
-| 1 | `Encounter`, map, terrain, `Combatant`, placement, CRUD | A DM can build and save a tactical map |
+| 1 | ✅ **Done.** `Encounter`, map, terrain, `Combatant`, placement, painting, geometry, falling, REST | A DM can build and save a tactical map |
 | 2 | Sheets, scaling descriptors, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
 | 3 | **`tracker` module** — `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
 | 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, movement | The simulator proper |
 | 5 | Reaction windows, **rewriting a declared action**, on-deck promotion, surprise, duration ticking | The part the epic is for |
 | 6 | WebGL board, reusing what JPSS taught us | The table |
+
+### What phase 1 actually shipped
+
+- **Geometry in half-feet.** Chebyshev on continuous positions; footprints measured edge to edge. The unit is the half-foot because every SRD distance is a multiple of 5 feet and a Tiny creature's square is 2½ — so every number in the engine is an exact integer and no placement ever rounds.
+- **A sparse terrain raster.** Cells exist only where a square differs from the map's defaults. Terrain, light, cover, opacity, elevation and a static movement cost.
+- **`Battlefield`,** answering live: line of sight by a supercover walk, cover by tracing to a target's corners, movement cost including the half that can never be cached, and falling off a ledge.
+- **Placement that refuses to stack tokens,** with the exception read off the creature — a swarm carries `OCCUPY_CREATURE_SPACE` and may share a square.
+- **Painting in strokes** — rectangle, outline, line, erase — because outlining a cave one square at a time is a few hundred requests.
+- **`/encounter`,** gated on `MANAGE_CONTENT` including the reads, 404 for a stranger, 409 for an occupied space.
 
 **Phase 3 is a module, not a step.** The tracker owns turn order and the log and
 knows nothing about maps or terrain; the simulator supplies combatants and a map

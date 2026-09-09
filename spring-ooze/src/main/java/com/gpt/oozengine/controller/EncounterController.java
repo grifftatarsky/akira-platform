@@ -2,12 +2,14 @@ package com.gpt.oozengine.controller;
 
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
+import com.gpt.oozengine.model.dto.request.PaintRequest;
 import com.gpt.oozengine.model.dto.response.CombatantResponse;
 import com.gpt.oozengine.model.dto.response.EncounterResponse;
 import com.gpt.oozengine.model.dto.response.EncounterSummaryResponse;
 import com.gpt.oozengine.service.EncounterService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -78,6 +80,20 @@ public class EncounterController {
   public ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
     encounters.delete(id, requireUserId(jwt));
     return ResponseEntity.noContent().build();
+  }
+
+  /**
+   * Paints strokes onto the board, in order.
+   *
+   * <p>A list rather than one, so "outline the room, then flood it with water,
+   * then erase the doorway" is a single request and a single version bump.
+   */
+  @PostMapping("/{id}/map/paint")
+  public EncounterResponse paint(
+      @PathVariable UUID id,
+      @Valid @RequestBody List<PaintRequest> strokes,
+      @AuthenticationPrincipal Jwt jwt) {
+    return encounters.paint(id, requireUserId(jwt), strokes);
   }
 
   // region Combatants

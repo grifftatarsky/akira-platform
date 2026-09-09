@@ -275,4 +275,50 @@ class BattlefieldTests {
           List.of(in(9, 9, CreatureSize.MEDIUM)), List.of(NONE))).isTrue();
     }
   }
+
+  @Nested
+  @DisplayName("Elevation, where the board becomes damage")
+  class Elevation {
+
+    @Test
+    @DisplayName("Stepping off a ledge is a fall of the height difference")
+    void steppingOff() {
+      cell(2, 2).setElevationFeet(30);
+      var f = field();
+
+      assertThat(f.dropEntering(2, 2, 3, 2)).isEqualTo(30);
+      assertThat(f.fallDamageEntering(2, 2, 3, 2).getCount()).isEqualTo(3);
+      assertThat(f.fallDamageEntering(2, 2, 3, 2).getFaces()).isEqualTo(6);
+    }
+
+    @Test
+    @DisplayName("Climbing onto the ledge is not a fall")
+    void climbingUp() {
+      cell(2, 2).setElevationFeet(30);
+      var f = field();
+
+      assertThat(f.dropEntering(3, 2, 2, 2)).isZero();
+      assertThat(f.fallDamageEntering(3, 2, 2, 2)).isNull();
+    }
+
+    @Test
+    @DisplayName("A short step down costs nothing")
+    void shortDrop() {
+      cell(2, 2).setElevationFeet(5);
+      // "for every 10 feet it fell" — five feet is no dice at all.
+      assertThat(field().fallDamageEntering(2, 2, 3, 2)).isNull();
+    }
+
+    @Test
+    @DisplayName("Falling into water is the case that can be halved")
+    void intoWater() {
+      cell(2, 2).setElevationFeet(40);
+      cell(3, 2).setTerrain(TerrainKind.WATER);
+      var f = field();
+
+      assertThat(f.fallDamageEntering(2, 2, 3, 2).getCount()).isEqualTo(4);
+      assertThat(f.liquidLanding(3, 2)).isTrue();
+      assertThat(f.liquidLanding(4, 2)).isFalse();
+    }
+  }
 }

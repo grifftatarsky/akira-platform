@@ -6,6 +6,8 @@ import com.gpt.oozengine.model.GameCharacter;
 import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.CombatantRequest;
 import com.gpt.oozengine.model.dto.request.EncounterRequest;
+import com.gpt.oozengine.model.dto.request.PaintRequest;
+import com.gpt.oozengine.model.encounter.MapCell;
 import com.gpt.oozengine.model.encounter.BattleMap;
 import com.gpt.oozengine.repository.CharacterRepository;
 import com.gpt.oozengine.repository.StatBlockRepository;
@@ -20,7 +22,9 @@ import com.gpt.oozengine.util.Geometry.Footprint;
 import com.gpt.oozengine.util.Geometry.Point;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -85,6 +89,68 @@ public class EncounterService {
   public CombatantResponse updateCombatantAndView(
       UUID id, UUID ownerId, UUID combatantId, CombatantRequest req) {
     return CombatantResponse.from(updateCombatant(id, ownerId, combatantId, req));
+  }
+
+  /**
+   * Paints a stroke onto the board.
+   *
+   * <p>Strokes rather than a whole canvas because a cave outlined wall by wall
+   * is a few hundred requests, and because a stroke says what changed — a
+   * repaint of the whole map cannot distinguish "I erased that wall" from "I did
+   * not mention it".
+   *
+   * <p>Squares that end up matching the map's defaults are dropped rather than
+   * stored, so erasing genuinely shrinks the board's storage instead of filling
+   * it with rows that say nothing.
+   */
+  @Transactional
+  public EncounterResponse paint(UUID id, UUID ownerId, List<PaintRequest> strokes) {
+    Encounter e = get(id, ownerId);
+    BattleMap map = e.getMap();
+    Map<Long, MapCell> byPosition = new HashMap<>();
+    map.getCells().forEach(c -> byPosition.put(positionKey(c.getX(), c.getY()), c));
+
+    for (PaintRequest stroke : strokes) {
+      if (Painter.needsBrush(stroke) && stroke.brush() == null) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "A stroke that is not an erase needs a brush");
+      }
+      for (Painter.Square sq : Painter.cover(stroke, map.getWidth(), map.getHeight())) {
+        long key = positionKey(sq.x(), sq.y());
+        if (stroke.erasing()) {
+          byPosition.remove(key);
+          continue;
+        }
+        MapCell cell = byPosition.computeIfAbsent(key, k -> EncounterMapper.blank(sq.x(), sq.y()));
+        EncounterMapper.stamp(stroke.brush(), cell);
+      }
+    }
+
+    // Rebuilt rather than mutated in place, and flushed between, for the same
+    // reason a repaint is: Hibernate orders inserts ahead of deletes, so a
+    // square that survives the stroke would collide with its own old row.
+    var survivors = byPosition.values().stream().filter(c -> !EncounterMapper.isDefault(c)).toList();
+    map.getCells().clear();
+    repo.flush();
+    map.getCells().addAll(survivors.stream().map(EncounterService::detachedCopy).toList());
+    repo.flush();
+    return EncounterResponse.from(e);
+  }
+
+  private static MapCell detachedCopy(MapCell c) {
+    MapCell copy = EncounterMapper.blank(c.getX(), c.getY());
+    copy.setElevationFeet(c.getElevationFeet());
+    copy.setTerrain(c.getTerrain());
+    copy.setLight(c.getLight());
+    copy.setCover(c.getCover());
+    copy.setOpaque(c.getOpaque());
+    copy.setExtraMoveCostFeet(c.getExtraMoveCostFeet());
+    copy.setNotes(c.getNotes());
+    return copy;
+  }
+
+  private static long positionKey(int x, int y) {
+    return ((long) x << 32) ^ (y & 0xffffffffL);
   }
 
   @Transactional(readOnly = true)
