@@ -1,7 +1,7 @@
 import {
   AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, Mesh,
   MeshLambertMaterial, MeshBasicMaterial, OrthographicCamera, PerspectiveCamera, PCFSoftShadowMap,
-  RingGeometry, Scene, Vector3, WebGLRenderer,
+  Plane, Raycaster, RingGeometry, Scene, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, TerrainTile, TokenPlacement } from './board.models';
 import { WALL_HEIGHT } from './board-scene';
@@ -45,6 +45,16 @@ export class BoardRenderer {
   private centre = new Vector3(0, 0, 0);
   private width = 1;
   private height = 1;
+
+  /** Where the camera is looking, as an offset from the board's middle. */
+  private pan = new Vector3(0, 0, 0);
+
+  /** Orbit angles, used only by the perspective camera. */
+  private azimuth = 0;
+  private elevation = 0.9;
+
+  private readonly raycaster = new Raycaster();
+  private readonly pointer = new Vector2();
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -174,15 +184,23 @@ export class BoardRenderer {
       this.camera.right = halfX;
       this.camera.top = halfY;
       this.camera.bottom = -halfY;
-      this.camera.position.set(this.centre.x, this.centre.y, 1000);
-      this.camera.lookAt(this.centre);
+      const target = new Vector3().addVectors(this.centre, this.pan);
+      this.camera.position.set(target.x, target.y, 1000);
+      this.camera.lookAt(target);
       this.camera.updateProjectionMatrix();
       return;
     }
     this.camera.aspect = aspect;
-    // Behind and above, at the angle a person leans over a table.
-    this.camera.position.set(this.centre.x, this.centre.y - this.zoom * 0.9, this.zoom * 0.75);
-    this.camera.lookAt(this.centre);
+    // Spherical around the look-at point, so orbiting keeps the board centred
+    // rather than swinging it out of frame.
+    const target = new Vector3().addVectors(this.centre, this.pan);
+    const radius = this.zoom * 1.2;
+    this.camera.position.set(
+      target.x + radius * Math.cos(this.elevation) * Math.sin(this.azimuth),
+      target.y - radius * Math.cos(this.elevation) * Math.cos(this.azimuth),
+      target.z + radius * Math.sin(this.elevation),
+    );
+    this.camera.lookAt(target);
     this.camera.updateProjectionMatrix();
   }
 
@@ -247,11 +265,104 @@ export class BoardRenderer {
     }
   }
 
+  // region Picking and camera control
+
+  /**
+   * The token under a screen pixel, or null.
+   *
+   * <p>Raycasting rather than projecting token centres and comparing distances,
+   * because a token is a disc of its creature's footprint and a Gargantuan one
+   * is four times the width of a Medium: "nearest centre" would let a click on
+   * the tarrasque's flank select the knight standing behind it.
+   */
+  pickToken(screenX: number, screenY: number): string | null {
+    this.aim(screenX, screenY);
+    const hits = this.raycaster.intersectObjects(this.tokens.children, true);
+    for (const hit of hits) {
+      // The disc is a child of the token group, so walk up to whatever carries
+      // the id.
+      let node: import('three').Object3D | null = hit.object;
+      while (node && !node.userData?.['id']) {
+        node = node.parent;
+      }
+      if (node) {
+        return node.userData['id'] as string;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Where a screen pixel lands on the ground, in half-feet.
+   *
+   * <p>Against the z = 0 plane rather than against the terrain, deliberately.
+   * Dropping a token onto the *visible* top of a wall would put it eight feet up
+   * on a surface nothing can stand on; the board's coordinates are ground
+   * coordinates, and elevation comes from the cell underneath.
+   */
+  groundAt(screenX: number, screenY: number): { x: number; y: number } | null {
+    this.aim(screenX, screenY);
+    const target = new Vector3();
+    const hit = this.raycaster.ray.intersectPlane(GROUND, target);
+    return hit ? { x: target.x, y: target.y } : null;
+  }
+
+  private aim(screenX: number, screenY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.set(
+      ((screenX - rect.left) / rect.width) * 2 - 1,
+      -((screenY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+  }
+
+  /**
+   * Pans by a drag, in screen pixels.
+   *
+   * <p>Converted through the current zoom so a drag moves the board under the
+   * pointer by the same amount however far out the camera is — anything else
+   * feels like the board is on ice.
+   */
+  panBy(dxPixels: number, dyPixels: number): void {
+    const perPixel = this.zoom / Math.max(1, this.height);
+    this.pan.x -= dxPixels * perPixel;
+    this.pan.y += dyPixels * perPixel;
+    this.place();
+  }
+
+  /** Orbits, for the perspective camera. Ignored while the view is locked overhead. */
+  orbitBy(dxPixels: number, dyPixels: number): void {
+    if (this.mode !== 'PERSPECTIVE') {
+      return;
+    }
+    this.azimuth -= dxPixels * 0.005;
+    // Clamped short of straight down and short of the horizon: past either the
+    // board becomes unreadable and the camera feels broken rather than free.
+    this.elevation = Math.max(0.15, Math.min(1.45, this.elevation - dyPixels * 0.005));
+    this.place();
+  }
+
+  /** Puts the camera back over the middle of the board. */
+  recentre(): void {
+    this.pan.set(0, 0, 0);
+    this.place();
+  }
+
+  // endregion
+
   /** Exposed so a test can assert what was built without a WebGL context. */
   meshCounts(): { tiles: number; tokens: number } {
     return { tiles: this.terrain.children.length, tokens: this.tokens.children.length };
   }
 }
+
+/**
+ * The ground.
+ *
+ * <p>Constructed once: a Plane is immutable here and allocating one per pointer
+ * move would churn the heap on the hottest path the board has.
+ */
+const GROUND = new Plane(new Vector3(0, 0, 1), 0);
 
 /** Wall height, re-exported so a caller can size a legend without importing the scene. */
 export { WALL_HEIGHT };

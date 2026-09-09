@@ -30,7 +30,8 @@ describe('board scene', () => {
 
   function combatant(over: Partial<Combatant> = {}): Combatant {
     return {
-      id: 'c1', name: 'Owlbear', xHalfFeet: 20, yHalfFeet: 20, zHalfFeet: 0,
+      id: 'c1', statBlockId: 'sb1', gameCharacterId: null,
+      name: 'Owlbear', xHalfFeet: 20, yHalfFeet: 20, zHalfFeet: 0,
       disposition: 'ACTIVE', surprised: false, size: 'LARGE', spaceHalfFeet: 20,
       capabilities: [], ...over,
     };

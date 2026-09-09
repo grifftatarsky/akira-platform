@@ -43,6 +43,15 @@ export interface BattleMap {
 
 export interface Combatant {
   readonly id: string;
+  /**
+   * Exactly one of these two is set, enforced by a check constraint on the
+   * server. They are carried here because updating a placement is a whole-object
+   * PUT — sending it back without the base would violate that constraint, and
+   * "combatants must have exactly one base" is a confusing 500 to debug from a
+   * drag.
+   */
+  readonly statBlockId: string | null;
+  readonly gameCharacterId: string | null;
   readonly name: string | null;
   readonly xHalfFeet: number;
   readonly yHalfFeet: number;
