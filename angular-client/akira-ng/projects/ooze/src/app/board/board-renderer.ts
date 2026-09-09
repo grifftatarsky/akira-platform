@@ -448,6 +448,25 @@ export class BoardRenderer {
     })));
   }
 
+  /**
+   * Rings the token under the pointer.
+   *
+   * <p>Feedback before commitment: without it a board gives no sign that a
+   * press would pick anything up, so a drag that starts a few pixels off a
+   * token pans the whole board instead — and the two gestures are told apart by
+   * exactly this, whether something was under the pointer when it went down.
+   */
+  setHovered(id: string | null): void {
+    for (const token of this.tokens.children) {
+      const wanted = token.userData?.['id'] === id;
+      for (const child of token.children) {
+        if (child.userData?.['hoverRing']) {
+          child.visible = wanted;
+        }
+      }
+    }
+  }
+
   /** Shows or hides the squares. */
   setGrid(on: boolean): void {
     this.showGrid = on;
@@ -736,6 +755,19 @@ export class BoardRenderer {
       ring.position.z = height + 0.05;
       group.add(ring);
     }
+
+    // Built now and hidden, rather than made on hover. A pointer moving across
+    // a board would otherwise allocate a geometry, a material and a shader
+    // compile per token it crossed — for a highlight that lasts as long as the
+    // pointer keeps moving.
+    const hover = new Mesh(
+      new RingGeometry(radius * 1.16, radius * 1.3, 40),
+      new MeshBasicMaterial({ color: 0xdce6f0, transparent: true, opacity: 0.75 }),
+    );
+    hover.position.z = height + 0.05;
+    hover.visible = false;
+    hover.userData = { hoverRing: true };
+    group.add(hover);
 
     group.position.set(t.x, t.y, t.z);
     group.userData = { id: t.id, name: t.name, down: t.down, bloodied: t.bloodied };

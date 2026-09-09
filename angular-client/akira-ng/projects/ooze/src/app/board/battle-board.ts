@@ -47,6 +47,7 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
               (pointermove)="onPointerMove($event)"
               (pointerup)="onPointerUp($event)"
               (pointercancel)="onPointerCancel()"
+              (pointerleave)="onPointerLeave()"
               (wheel)="onWheel($event)"
               (contextmenu)="$event.preventDefault()"></canvas>
 
@@ -315,7 +316,15 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   protected onPointerMove(event: PointerEvent): void {
     const start = this.press;
     const renderer = this.renderer;
-    if (!start || !renderer) {
+    if (!renderer) {
+      return;
+    }
+    if (!start) {
+      // Nothing is pressed, so this is only the pointer passing over. Picking
+      // is a raycast against a dozen discs, which is cheaper than the frame it
+      // happens in — and it is the only thing that tells a DM that a press
+      // here would move a creature rather than pan the board.
+      renderer.setHovered(renderer.pickToken(event.clientX, event.clientY));
       return;
     }
     const gesture = gestureFor(start, event.clientX, event.clientY);
@@ -375,6 +384,12 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   protected onPointerCancel(): void {
     this.press = null;
     this.dragging.set(false);
+    this.renderer?.setHovered(null);
+  }
+
+  /** The pointer left the board, so nothing is under it any more. */
+  protected onPointerLeave(): void {
+    this.renderer?.setHovered(null);
   }
 
   protected onWheel(event: WheelEvent): void {
