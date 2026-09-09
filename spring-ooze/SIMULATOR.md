@@ -573,14 +573,51 @@ and it is doing 2D work inside a 3D engine.
 walls with height you see past, minis on a table you can tilt — then three is the
 answer and the paperdoll compositing becomes a small canvas utility beside it.
 
-### Recommendation
+### Decided: three.js
 
-**PixiJS 8**, unless the board is meant to be 3D.
+3D is the ambition, so the board is built with **three** — and the shape of the
+build is what makes that ambition cheap rather than a promise.
 
-It is the right shape for the job, the incumbent's choice in this space, and the
-lowest-drama option under the constraint that has actually hurt this project. The
-131 KB three saves is not worth doing sprite work in a 3D engine; the 87 KB Konva
-saves costs the shader lighting the light model was built for.
+**The scene is three-dimensional from the first frame; only the camera is
+locked.** A floor is a box of zero height, a wall is a box eight feet tall, and a
+token sits at its ground elevation plus whatever it is flying. Under an
+orthographic camera looking straight down that reads as a flat tactical board.
+Swap in a perspective camera — one method, no data change — and the walls are
+already walls and the balcony is already above the floor.
+
+Lights are real from the start too, and materials are lit rather than unlit. It
+costs nothing under an overhead view and it is the half of 3D-readiness that is
+awkward to retrofit.
+
+**World units are half-feet**, matching the engine, so no conversion happens in
+the renderer and no rounding decision lives there.
+
+**Z is up**, not three's Y-up default, because the engine's elevation is Z.
+Re-basing the world would put a conversion between the data and the picture,
+which is the one place it must not be.
+
+**The rules live in a pure function.** `board-scene.ts` turns what the server
+sent into a description of what to draw and names three nowhere. jsdom has no
+WebGL context, so anything asserted inside a renderer could not be tested at all
+— this way every rule about what the board *shows* is provable in the same suite
+as the rest of the app, and the renderer stays swappable.
+
+### The comparison that led there
+
+**PixiJS 8** would have been the answer for a purely top-down board.
+
+It is the right shape for a 2D board, the incumbent's choice in this space, and
+the lowest-drama option under the constraint that has hurt this project. What
+decides against it is the 3D ambition: Pixi is a 2D engine, and reaching 3D from
+it is a rewrite rather than a camera swap. three is one package with zero runtime
+dependencies — the safest thing in the comparison under federation — and 36 KB
+smaller besides.
+
+Paperdolls remain the thing three is worst at: compositing a body, armour and a
+weapon into one token is 2D sprite layering. In three that is a 2D canvas drawn
+once and uploaded as a texture, which is a small utility rather than a problem —
+but it is genuinely more work than `RenderTexture` would have been, and worth
+saying out loud rather than discovering later.
 
 **The hedge is real, though.** Everything the engine exposes is renderer-agnostic
 — positions and footprints in half-feet, terrain and light per cell, cover as a

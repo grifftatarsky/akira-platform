@@ -14,6 +14,14 @@ export const OOZE_ROUTES: Routes = [
     component: OozeLayout,
     children: [
       { path: '', component: OozeDashboard, data: { title: 'Oozengine' } },
+      {
+        // Lazy, and deliberately so: three is ~130 KB gzipped and the finder
+        // has no use for it, so the compendium should not pay for a renderer
+        // nobody has opened.
+        path: 'board/:encounterId',
+        loadComponent: () => import('./board/board-page').then(m => m.BoardPage),
+        data: { title: 'Board' },
+      },
     ],
   },
 ];

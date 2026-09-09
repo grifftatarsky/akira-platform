@@ -69,6 +69,20 @@ Read these before touching the relevant area.
   required to refuse — same silent blank globe as above. `nginx.conf` adds the
   `types { application/javascript mjs; }` block; any other host serving this
   remote needs the same.
+- **A remote's chunks appear twice in `dist`, and that is fine.** Every remote is
+  built as two graphs — the standalone app that `index.html` loads, and the
+  federated `remoteEntry`/`routes` the host loads — so each lazy chunk has a
+  copy in both. `three` shows up as two 532 kB chunks in `dist/ooze`, and
+  `/bff/ooz/` shows up in four, which is the same duplication for the app code.
+  Only one graph is ever loaded in a page, so this is **not** the deck.gl
+  failure below: that one had two copies live in the *same* page with singletons
+  diverging. Check which entry reaches a chunk before spending an afternoon on
+  it.
+- **A remote must not rely on `withComponentInputBinding()`.** Its routes load
+  into whichever router the *host* provides, and route-parameter inputs only
+  bind if that host opted in. `akira-ng` has not, so a remote reading a route
+  param through `input.required()` works standalone and throws in the shell —
+  read `ActivatedRoute` instead.
 - **Assets go on the `esbuild` target, not `build`.** `build` is
   `@angular-architects/native-federation:build`, which only wraps; the real
   Angular options live in the `esbuild` target. `assets` on `build` is silently
