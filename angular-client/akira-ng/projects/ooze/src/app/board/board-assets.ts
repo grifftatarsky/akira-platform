@@ -44,6 +44,22 @@ export interface PieceModel {
   readonly heightHalfFeet?: number;
 }
 
+/**
+ * The light a theme brings with it.
+ *
+ * <p>Part of the theme rather than the renderer, because the light *is* art
+ * direction: a cellar capture and a bright studio are two different rooms, not
+ * two settings. Swapping the pack should swap the mood with it.
+ *
+ * @param intensity how hard it drives the scene. One is the capture as
+ *     measured; a dungeon usually wants less, so the local light a DM places
+ *     has something to be brighter than.
+ */
+export interface BoardEnvironment {
+  readonly url: string;
+  readonly intensity: number;
+}
+
 export interface BoardTheme {
   readonly id: string;
   readonly name: string;
@@ -58,10 +74,18 @@ export interface BoardTheme {
    * measures to nothing gets.
    */
   readonly unitsPerModelUnit: number;
+  /**
+   * Image-based lighting, if the pack ships any.
+   *
+   * <p>Absent is fine — the renderer falls back to a generated room, and the
+   * board is never unlit.
+   */
+  readonly environment?: BoardEnvironment;
   readonly pieces: Partial<Record<BoardPiece, PieceModel>>;
 }
 
 const KAYKIT_ROOT = 'assets/board/kaykit';
+const HDRI_ROOT = 'assets/board/hdri';
 
 /**
  * KayKit Dungeon Remastered, CC0.
@@ -89,8 +113,13 @@ const KAYKIT_ROOT = 'assets/board/kaykit';
 export const KAYKIT_THEME: BoardTheme = {
   id: 'kaykit',
   name: 'KayKit Dungeon Remastered',
-  attribution: 'Dungeon art by Kay Lousberg (kaylousberg.com), CC0',
+  attribution: 'Dungeon art by Kay Lousberg (kaylousberg.com) and lighting by '
+    + 'Andreas Mischok (polyhaven.com), both CC0',
   unitsPerModelUnit: 2.5,
+  // A chapel basement, which is as close to a crypt as a real capture gets.
+  // Medium contrast on purpose: a high-contrast interior is one bright window,
+  // and one bright window fights the sun for authorship of the whole board.
+  environment: { url: `${HDRI_ROOT}/sepulchral_chapel_basement_1k.hdr`, intensity: 0.85 },
   pieces: {
     FLOOR: { url: `${KAYKIT_ROOT}/floor_tile_large.gltf.glb` },
     FLOOR_ROUGH: { url: `${KAYKIT_ROOT}/floor_tile_large_rocks.gltf.glb` },

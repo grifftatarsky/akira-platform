@@ -277,7 +277,11 @@ export interface TokenPlacement {
  * screen.
  */
 export interface PropPlacement {
-  readonly piece: BoardPiece;
+  /**
+   * Narrower than {@link BoardPiece} on purpose: a floor or a wall piece is
+   * chosen by the square under it and can never be something somebody placed.
+   */
+  readonly piece: PropKind;
   /** Centre, in half-feet. */
   readonly x: number;
   readonly y: number;

@@ -1,0 +1,17 @@
+Environment maps from Poly Haven (polyhaven.com), CC0 1.0 Universal.
+
+  sepulchral_chapel_basement_1k.hdr — "Sepulchral Chapel Basement"
+  drachenfels_cellar_1k.hdr         — "Drachenfels Cellar"
+
+Both by Andreas Mischok. CC0 waives all copyright: no attribution is
+required, no permission is needed, and they may be modified, redistributed
+or replaced freely. Credited here anyway, and in the board's theme, because
+the work is good.
+
+Checked 2026-09-09 against https://polyhaven.com/license — Poly Haven
+publishes its entire library under CC0 with no exceptions.
+
+These are used only as image-based lighting: the renderer convolves each into
+an irradiance map (PMREM) and never draws it as a backdrop. That is why 1k is
+enough — a rough-surfaced dungeon shows none of the detail a larger one carries,
+and the same file at 8k is 98 MB.

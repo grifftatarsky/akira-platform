@@ -1,12 +1,15 @@
 import {
   AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, Mesh,
-  MeshLambertMaterial, MeshBasicMaterial, OrthographicCamera, PCFShadowMap, PerspectiveCamera,
-  PlaneGeometry, Plane, Raycaster, RingGeometry, Scene, Vector2, Vector3, WebGLRenderer,
+  DataTexture, LinearFilter, Material, MeshBasicMaterial, NeutralToneMapping, MeshStandardMaterial,
+  Object3D, OrthographicCamera, PCFShadowMap, PerspectiveCamera, Plane, Raycaster, RGBAFormat,
+  RingGeometry, Scene, ClampToEdgeWrapping, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, TerrainTile, TokenPlacement } from './board.models';
 import { BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
-import { LIGHT_FACTOR, WALL_HEIGHT } from './board-scene';
+import { WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
+import { EnvironmentLibrary } from './environment';
+import { LIGHT_RANGE, lightField } from './light-field';
 
 /** Top-down and locked, or a camera you can orbit. */
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
@@ -24,15 +27,6 @@ export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
  * clamps to, small enough that the step it leaves is invisible.
  */
 const ART_CLEARANCE = 0.2;
-
-/**
- * How far the film of dark floats over a square, in half-feet.
- *
- * <p>Above the thickest floor art in the pack, which is the rubble tile at 0.64
- * of its own units — 1.6 here. At the 0.3 it started at, the film was *inside*
- * every floor tile it was meant to darken.
- */
-const SHADE_LIFT = 2;
 
 /**
  * Draws a {@link BoardScene} with three.
@@ -79,14 +73,6 @@ export class BoardRenderer {
    * pickable — a DM dragging the rogue past a table is dragging the rogue.
    */
   private readonly props = new Group();
-  /**
-   * The dark, as a film over everything under it.
-   *
-   * <p>Its own group because it has to be laid *after* the art it covers, and
-   * because the terrain group's index is the tile's index — anything else added
-   * there would silently shift which box belongs to which square.
-   */
-  private readonly shading = new Group();
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
@@ -131,10 +117,30 @@ export class BoardRenderer {
    */
   private readonly sun = new DirectionalLight(0xffffff, 1.1);
 
+  /**
+   * The board's light, shared by every material that answers to it.
+   *
+   * <p>One object handed to every patched shader, so replacing the texture on a
+   * new board updates all of them at once rather than four hundred times.
+   */
+  private readonly light: { value: DataTexture | null } = { value: null };
+  private readonly extent = { value: new Vector2(1, 1) };
+
+  /**
+   * Materials already patched.
+   *
+   * <p>Weak, and needed: a cloned model shares its source's material, so a room
+   * with thirty barrels hands the same material back thirty times, and patching
+   * a shader twice injects the sample twice — which squares the light and turns
+   * a torch into a floodlight.
+   */
+  private readonly patched = new WeakSet<Material>();
+
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
 
   private library: ModelLibrary;
+  private readonly environments: EnvironmentLibrary;
   private theme: BoardTheme;
 
   constructor(private readonly canvas: HTMLCanvasElement, theme: BoardTheme = PLAIN_THEME) {
@@ -148,17 +154,33 @@ export class BoardRenderer {
     // the behaviour identical.
     this.renderer.shadowMap.type = PCFShadowMap;
 
+    // Khronos PBR Neutral rather than ACES.
+    //
+    // Both roll highlights off instead of clipping them, which is the point of
+    // tone mapping at all. ACES also desaturates hard as it does it — it is a
+    // film emulation, and film does that — and this board is painted rather
+    // than photographed: torchlight that goes cream at the centre of the pool
+    // is exactly the look we are aiming away from. Neutral keeps the hue and
+    // only compresses the level.
+    this.renderer.toneMapping = NeutralToneMapping;
+    // Slightly under one, so a torch has headroom to be the brightest thing on
+    // the board rather than one more surface at full white.
+    this.renderer.toneMappingExposure = 0.95;
+
+    this.environments = new EnvironmentLibrary(this.renderer);
+    void this.lightScene(theme);
+
     this.scene.add(this.terrain);
     this.scene.add(this.terrainArt);
     this.scene.add(this.props);
-    this.scene.add(this.shading);
     this.scene.add(this.tokens);
 
-    // Lit rather than unlit, even though the top-down view barely shows it. A
-    // board drawn with MeshBasicMaterial looks identical from above and has
-    // nothing to turn on when the camera tilts — the lights are the cheap half
-    // of being ready for 3D.
-    this.scene.add(new AmbientLight(0xffffff, 0.75));
+    // A trace of flat fill, and no more. The ambient term used to be 0.75 and
+    // was doing the job an environment map does properly — flatly, from every
+    // direction at once, which is why nothing on the board had a lit side and a
+    // shaded side. Now the environment carries the ambient and this only keeps
+    // the deepest corners off pure black.
+    this.scene.add(new AmbientLight(0xffffff, 0.08));
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     // Offset along the surface normal rather than in depth. Plain `bias` on a
@@ -186,15 +208,9 @@ export class BoardRenderer {
     this.clear(this.terrain);
     this.clear(this.terrainArt);
     this.clear(this.props);
-    this.clear(this.shading);
     this.clear(this.tokens);
-    board.tiles.forEach(t => {
-      this.terrain.add(this.tile(t));
-      const dark = this.shadeOver(t);
-      if (dark) {
-        this.shading.add(dark);
-      }
-    });
+    this.relight(board);
+    board.tiles.forEach(t => this.terrain.add(this.tile(t)));
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
     this.aimSun(board);
     this.place();
@@ -235,8 +251,29 @@ export class BoardRenderer {
 
   /** Swaps the art without touching anything else about the board. */
   setTheme(theme: BoardTheme): void {
+    if (theme.id === this.theme.id) {
+      return;
+    }
     this.theme = theme;
     this.library = new ModelLibrary(theme);
+    void this.lightScene(theme);
+  }
+
+  /**
+   * Hands the scene the theme's environment.
+   *
+   * <p>Asynchronous and unawaited: the board draws immediately under the sun
+   * alone and gains its ambient a moment later, the same way it draws boxes
+   * before the models arrive. A blank rectangle that resolves all at once is
+   * worse than a plain one that improves.
+   */
+  private async lightScene(theme: BoardTheme): Promise<void> {
+    const map = await this.environments.forTheme(theme);
+    if (this.disposed || this.theme.id !== theme.id) {
+      return;
+    }
+    this.scene.environment = map;
+    this.scene.environmentIntensity = theme.environment?.intensity ?? 1;
   }
 
   /**
@@ -262,7 +299,7 @@ export class BoardRenderer {
       const box = this.terrain.children[i];
       model.position.set(tile.x, tile.y, tile.base);
       model.rotation.z += tile.rotation;
-      this.terrainArt.add(model);
+      this.terrainArt.add(this.litTree(model));
       // The box goes quiet only under a floor tile at ground level, where the
       // model covers the square exactly and the box is nothing but colour
       // underneath. It stays under a raised floor, where it is the plinth — and
@@ -297,27 +334,91 @@ export class BoardRenderer {
       }
       model.position.set(prop.x, prop.y, prop.z);
       model.rotation.z += prop.rotation;
-      this.props.add(model);
+      this.props.add(this.litTree(model));
     }
   }
 
   /**
-   * A film of dark over a square that is not brightly lit.
+   * Rebuilds the board's light and hands it to every shader.
    *
-   * <p>Only over floor: the top of a wall is not somewhere anyone stands, and
-   * shading it would draw a grid of dark lids over the room walls from above.
+   * <p>Cheap enough to do on every render — a whole level is 104 by 80 texels
+   * and a millisecond of arithmetic — so there is no cache to invalidate and no
+   * way for the light to disagree with the board it is lighting.
    */
-  private shadeOver(t: TerrainTile): Mesh | null {
-    const factor = LIGHT_FACTOR[t.light];
-    if (factor >= 1 || t.height > 0) {
-      return null;
+  private relight(board: BoardScene): void {
+    const field = lightField(board);
+    this.light.value?.dispose();
+    const texture = new DataTexture(field.data, field.width, field.height, RGBAFormat);
+    // Linear, which is what turns 104 by 80 texels into a smooth gradient
+    // across a 130-foot room: the hardware interpolates between them for free
+    // and the field never has to be stored at the resolution it is seen at.
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    // Clamped, so a surface a hair past the edge of the board samples the edge
+    // rather than wrapping round to the far corner of the map.
+    texture.wrapS = ClampToEdgeWrapping;
+    texture.wrapT = ClampToEdgeWrapping;
+    texture.needsUpdate = true;
+    this.light.value = texture;
+    this.extent.value.set(field.extentXHalfFeet, field.extentYHalfFeet);
+  }
+
+  /**
+   * Makes a material answer to the board's light.
+   *
+   * <p>An injection into three's own shader rather than a material of our own,
+   * because the alternative is reimplementing physically-based shading to add
+   * one multiply — and losing the environment map, the shadows and every future
+   * three release along with it.
+   *
+   * <p><b>The multiply lands before tone mapping, not after.</b> Three's last
+   * chunk is the obvious hook and the wrong one: by then the colour has been
+   * through the tone curve and encoded to sRGB, so scaling it there darkens a
+   * display value rather than reducing an amount of light, and a torch could
+   * never be brighter than white. Injected ahead of `tonemapping_fragment` the
+   * light is still linear radiance, so a pool over 1.0 rolls off into a warm
+   * highlight the way a flame should.
+   */
+  private lit<T extends Material>(material: T): T {
+    if (this.patched.has(material)) {
+      return material;
     }
-    const mesh = new Mesh(new PlaneGeometry(t.size, t.size), shadeMaterial(factor));
-    // Above the floor and below a token, so a creature standing in the dark is
-    // still the brightest thing on its square — which is what a DM needs to
-    // see, whatever the light is doing.
-    mesh.position.set(t.x, t.y, t.base + SHADE_LIFT);
-    return mesh;
+    this.patched.add(material);
+    material.onBeforeCompile = shader => {
+      shader.uniforms['uBoardLight'] = this.light;
+      shader.uniforms['uBoardExtent'] = this.extent;
+      shader.vertexShader = 'varying vec3 vBoardPos;\n' + shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+      shader.fragmentShader =
+        'varying vec3 vBoardPos;\nuniform sampler2D uBoardLight;\nuniform vec2 uBoardExtent;\n'
+        + shader.fragmentShader.replace(
+          '#include <tonemapping_fragment>',
+          `gl_FragColor.rgb *= texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb
+             * ${LIGHT_RANGE.toFixed(1)};
+           #include <tonemapping_fragment>`);
+    };
+    // Without this three reuses a cached program compiled from an identical
+    // material that was never patched, and the injection silently does nothing
+    // for every material after the first.
+    material.customProgramCacheKey = () => 'board-light';
+    return material;
+  }
+
+  /** Makes every material under a node answer to the board's light. */
+  private litTree(node: Object3D): Object3D {
+    node.traverse(child => {
+      if (child instanceof Mesh) {
+        const material = child.material;
+        if (Array.isArray(material)) {
+          material.forEach(m => this.lit(m));
+        } else {
+          this.lit(material);
+        }
+      }
+    });
+    return node;
   }
 
   /**
@@ -338,10 +439,21 @@ export class BoardRenderer {
     const wall = t.height > 0;
     const depth = Math.max(0.2, (wall ? t.height : Math.max(0.5, t.base)) - ART_CLEARANCE);
     const geometry = new BoxGeometry(t.size, t.size, depth);
-    // The unlit colour, because this renderer lights the scene itself — with a
-    // lamp and, over anything dim, a film of dark. Using the pre-shaded colour
-    // here applied the light level twice over.
-    const material = new MeshLambertMaterial({ color: new Color(t.baseColour) });
+    // Standard rather than Lambert, so the ground answers to the environment
+    // map the same way every model on top of it does. Lambert has no roughness
+    // and no ambient specular, so the one surface covering the whole board was
+    // the one surface that stayed flat.
+    //
+    // The unlit colour, because this renderer lights the scene itself. Using
+    // the pre-shaded one applied the light level twice over.
+    const material = new MeshStandardMaterial({
+      color: new Color(t.baseColour),
+      // Stone and water, not polish. Water gets the only smooth surface on the
+      // board, which is what makes it read as water from above rather than as
+      // blue floor.
+      roughness: t.kind === 'WATER' || t.kind === 'DEEP_WATER' || t.kind === 'ICE' ? 0.25 : 0.9,
+      metalness: 0,
+    });
     const mesh = new Mesh(geometry, material);
     // A wall grows up from its base and a plinth hangs down from the ledge, so
     // the clearance is taken off the top in both cases.
@@ -364,9 +476,14 @@ export class BoardRenderer {
     const group = new Group();
     const radius = t.size / 2;
 
+    // Unlit, like the turn ring above it and for the same reason. A token is a
+    // marker rather than an object in the room: its colour *is* information —
+    // healthy, bloodied, down, waiting — and a marker that dims because the
+    // crypt is dark is a marker a DM cannot use. Everything else on the board
+    // answers to the light; these deliberately do not.
     const body = new Mesh(
       new CircleGeometry(radius * 0.92, 32),
-      new MeshLambertMaterial({
+      new MeshBasicMaterial({
         color: new Color(t.colour),
         transparent: t.onDeck,
         opacity: t.onDeck ? 0.45 : 1,
@@ -517,8 +634,9 @@ export class BoardRenderer {
     this.clear(this.terrain);
     this.clear(this.terrainArt);
     this.clear(this.props);
-    this.clear(this.shading);
     this.clear(this.tokens);
+    this.light.value?.dispose();
+    this.environments.dispose();
     this.renderer.dispose();
   }
 
@@ -534,12 +652,9 @@ export class BoardRenderer {
       if (child instanceof Mesh) {
         child.geometry.dispose();
         const material = child.material;
-        // Shared materials are not this node's to free. The shade quads all
-        // point at one of two, and disposing them with the first board would
-        // leave every later one drawing against a released program.
         if (Array.isArray(material)) {
-          material.forEach(m => shared(m) || m.dispose());
-        } else if (!shared(material)) {
+          material.forEach(m => m.dispose());
+        } else {
           material.dispose();
         }
       }
@@ -632,46 +747,14 @@ export class BoardRenderer {
   // endregion
 
   /** Exposed so a test can assert what was built without a WebGL context. */
-  meshCounts(): { tiles: number; art: number; props: number; shaded: number; tokens: number } {
+  meshCounts(): { tiles: number; art: number; props: number; tokens: number } {
     return {
       tiles: this.terrain.children.length,
       art: this.terrainArt.children.length,
       props: this.props.children.length,
-      shaded: this.shading.children.length,
       tokens: this.tokens.children.length,
     };
   }
-}
-
-/**
- * Unlit black, laid over anything not in bright light.
- *
- * <p>Module-wide, and there are only ever two, because there are only two
- * levels below bright. Tinting each tile's own material instead would mean
- * cloning a material per square — and, worse, would not touch the models, which
- * carry their own: the moment art loaded, a pitch-dark crypt would light right
- * back up. A quad over the top shades the art and the box alike.
- */
-const SHADE_MATERIALS = new Map<number, MeshBasicMaterial>();
-
-function shadeMaterial(factor: number): MeshBasicMaterial {
-  let material = SHADE_MATERIALS.get(factor);
-  if (!material) {
-    material = new MeshBasicMaterial(
-      { color: 0x000000, transparent: true, opacity: 1 - factor, depthWrite: false });
-    SHADE_MATERIALS.set(factor, material);
-  }
-  return material;
-}
-
-/** Whether a material is one of the shared ones, and so not a mesh's to free. */
-function shared(material: { uuid: string }): boolean {
-  for (const m of SHADE_MATERIALS.values()) {
-    if (m.uuid === material.uuid) {
-      return true;
-    }
-  }
-  return false;
 }
 
 /**

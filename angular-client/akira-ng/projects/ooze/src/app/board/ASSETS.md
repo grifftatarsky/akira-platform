@@ -68,9 +68,50 @@ lived in (beds, tables, chairs, shelves, barrels, crates, kegs, chests, banners,
 torches, rubble) — plus its `LICENSE.txt`. 1.9 MB of the pack's 8.6 MB. Adding
 more is a file and a line in `board-assets.ts`.
 
-**Deleting the directory is a supported thing to do.** The board falls back to
-coloured tiles, which is what the `Plain` theme is and what building your own
-pack starts from. Nothing switches off; the models simply are not found.
+`public/assets/board/hdri/` holds two 1k HDR environment maps from Poly Haven,
+CC0, by Andreas Mischok — `sepulchral_chapel_basement` (in use) and
+`drachenfels_cellar` — 3.3 MB together. They are used **only** as image-based
+lighting: the renderer convolves each into an irradiance map and never draws it
+as a backdrop, which is why 1k is enough. Nothing here is mirror-smooth, so
+nothing can show detail the convolution has already discarded, and the same
+capture at 8k is 98 MB.
+
+**Deleting either directory is a supported thing to do.** Without models the
+board falls back to coloured tiles, which is what the `Plain` theme is and what
+building your own pack starts from. Without an environment map it falls back to
+three's generated `RoomEnvironment` — a worse dungeon and a perfectly good
+light. Nothing switches off; the files simply are not found.
+
+## Lighting
+
+**An environment map is not decoration, it is most of the lighting.** Every
+KayKit piece is a `MeshStandardMaterial` at metalness 0, roughness 0.45 —
+measured, not assumed — and a physically-based material with no environment gets
+no ambient specular at all and no directional ambient. One flat ambient term
+plus one sun is the light you would use to photograph plasticine, and it looked
+like it. `scene.environment` was the single biggest change on this board; the
+ambient light went from 0.75 to 0.08 in the same commit because the environment
+had taken over its job and was doing it with a direction.
+
+**Local light is a texture, not lights.** A dungeon wants a lamp on every torch,
+and a renderer wants nothing of the sort — every real light costs shader work on
+every surface, and a shadow-casting point light costs six renders of the scene.
+`light-field.ts` bakes the board's light levels and every flame on it into a
+small image (four texels to a five-foot square) which every material samples
+once. Two hundred lights cost what two do. The reach of each is the SRD's own
+number: a torch is Bright for 20 feet and Dim for 20 more, drawn.
+
+**The multiply goes before tone mapping, not after.** Three's last shader chunk
+is the obvious hook and the wrong one — by then the colour has been through the
+tone curve and encoded to sRGB, so scaling there darkens a display value rather
+than reducing an amount of light, and a torch can never be brighter than white.
+Injected ahead of `tonemapping_fragment` it is still linear radiance, so a pool
+over 1.0 rolls off into a warm highlight.
+
+**Khronos PBR Neutral, not ACES.** Both roll highlights off; ACES also
+desaturates hard as it does it, because it emulates film and film does that.
+This board is painted rather than photographed, and torchlight that goes cream
+in the middle of the pool is exactly the look we are aiming away from.
 
 ## Two conventions worth fixing now
 
