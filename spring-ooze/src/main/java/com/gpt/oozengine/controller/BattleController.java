@@ -5,6 +5,7 @@ import com.gpt.oozengine.model.battle.Participant;
 import com.gpt.oozengine.model.dto.request.ActionRequest;
 import com.gpt.oozengine.model.dto.request.BattleRequest;
 import com.gpt.oozengine.model.dto.request.HitPointChangeRequest;
+import com.gpt.oozengine.model.dto.request.ReactionRequest;
 import com.gpt.oozengine.model.dto.request.ParticipantRequest;
 import com.gpt.oozengine.model.dto.response.BattleResponse;
 import com.gpt.oozengine.model.dto.response.BattleSummaryResponse;
@@ -119,6 +120,43 @@ public class BattleController {
       @Valid @RequestBody ActionRequest req,
       @AuthenticationPrincipal Jwt jwt) {
     return actions.act(id, userId(jwt), participantId, req.featureId(), req.targets());
+  }
+
+  /**
+   * Declares an action and stops, so a reaction can land.
+   *
+   * <p>The response carries the window: the phase is AWAITING_REACTION and the
+   * log's last line names everyone who could react.
+   */
+  @PostMapping("/{id}/participant/{participantId}/declare")
+  public BattleResponse declare(
+      @PathVariable UUID id,
+      @PathVariable UUID participantId,
+      @Valid @RequestBody ActionRequest req,
+      @AuthenticationPrincipal Jwt jwt) {
+    return actions.declare(id, userId(jwt), participantId, req.featureId(), req.targets());
+  }
+
+  /**
+   * Takes a reaction, and says what it does to the action in flight.
+   *
+   * <p>Cancel, retarget or modify a defence. The engine does not judge whether
+   * the reaction's trigger applies — it shows the book's words and the DM rules.
+   */
+  @PostMapping("/{id}/participant/{participantId}/react")
+  public BattleResponse react(
+      @PathVariable UUID id,
+      @PathVariable UUID participantId,
+      @Valid @RequestBody ReactionRequest req,
+      @AuthenticationPrincipal Jwt jwt) {
+    return battles.reactAndView(id, userId(jwt), participantId, req.reactionName(), req.kind(),
+        req.newTargetIds(), req.armorClassDelta(), req.reason());
+  }
+
+  /** Closes the window and resolves whatever is left of the action. */
+  @PostMapping("/{id}/resolve")
+  public BattleResponse resolve(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+    return actions.resolve(id, userId(jwt));
   }
 
   @PostMapping("/{id}/participant/{participantId}/hit-points")

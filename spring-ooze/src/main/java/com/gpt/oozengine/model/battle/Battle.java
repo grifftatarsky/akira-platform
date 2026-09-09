@@ -4,6 +4,7 @@ import com.gpt.oozengine.constant.rules.BattlePhase;
 import com.gpt.oozengine.model.BaseEntity;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -90,6 +91,32 @@ public class Battle extends BaseEntity {
   /** The next sequence number the log will use. */
   @Column(name = "next_sequence", nullable = false)
   private long nextSequence = 1;
+
+  /**
+   * The action waiting on a reaction window, if any.
+   *
+   * <p>Embedded rather than a table: there is at most one at a time, because the
+   * engine stops when it needs a decision and does not start another action
+   * until this one settles.
+   */
+  @Embedded
+  private PendingAction pending = new PendingAction();
+
+  /**
+   * Never null, whatever Hibernate loaded.
+   *
+   * <p>An {@code @Embedded} whose columns are all null comes back as a null
+   * embeddable, not an empty one — so a battle with nothing pending reads as a
+   * battle with no pending *object*, and the field initialiser above is no help
+   * because Hibernate never runs it on a load. Written out rather than left to
+   * Lombok for exactly that reason.
+   */
+  public PendingAction getPending() {
+    if (pending == null) {
+      pending = new PendingAction();
+    }
+    return pending;
+  }
 
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @JoinColumn(name = "battle_id", nullable = false)

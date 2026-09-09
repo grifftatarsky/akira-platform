@@ -71,6 +71,15 @@ public final class BattleFold {
           }
         }
         case TURN_ENDED -> battle.setPhase(BattlePhase.BETWEEN_TURNS);
+        // A window is a state a DM sits in, so a rewind into one has to land
+        // there rather than in the turn that opened it.
+        case REACTION_WINDOW_OPENED -> battle.setPhase(BattlePhase.AWAITING_REACTION);
+        case ACTION_RESOLVED -> battle.setPhase(BattlePhase.IN_TURN);
+        case REACTION_TAKEN -> {
+          if (p != null) {
+            p.setReactionAvailable(false);
+          }
+        }
         case HIT_POINTS_CHANGED -> {
           if (p != null) {
             p.setCurrentHitPoints(intOf(e, "after"));

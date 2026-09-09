@@ -1,6 +1,7 @@
 package com.gpt.oozengine.service;
 
 import com.gpt.oozengine.constant.DiceModifiers;
+import com.gpt.oozengine.constant.rules.AmendmentKind;
 import com.gpt.oozengine.constant.rules.BattleEventType;
 import com.gpt.oozengine.constant.rules.BattlePhase;
 import com.gpt.oozengine.constant.rules.Disposition;
@@ -152,9 +153,53 @@ public class BattleService {
 
   private void endTurn(Battle b) {
     Participant current = atTurnIndex(b);
+    if (current != null) {
+      expireConditions(b, current);
+    }
     b.setPhase(BattlePhase.BETWEEN_TURNS);
     append(b, BattleEventType.TURN_ENDED, current == null ? null : current.getId(),
         current == null ? "Turn ends" : current.getName() + "'s turn ends", Map.of());
+  }
+
+  /**
+   * Drops conditions whose time is up.
+   *
+   * <p>42 of the imported condition effects say how long they last, and before
+   * this nothing ever took one off — a Poisoned creature stayed poisoned for the
+   * rest of the fight, which is a rules bug that looks like a damage bug three
+   * rounds later.
+   *
+   * <p>Round-scale durations expire at the end of the affected creature's own
+   * turn, which is what "until the end of its next turn" means. Longer ones
+   * (minutes, hours) outlast any fight the tracker will run, so they are left
+   * alone rather than pretended about.
+   */
+  private void expireConditions(Battle b, Participant p) {
+    List<String> expiring = b.getEvents().stream()
+        .filter(e -> e.getType() == BattleEventType.CONDITION_APPLIED)
+        .filter(e -> p.getId().equals(e.getParticipantId()))
+        .filter(e -> "ROUND".equals(String.valueOf(payloadValue(e, "durationUnit"))))
+        .filter(e -> e.getRound() < b.getRound()
+            || (e.getRound() == b.getRound() && durationOf(e) <= 0))
+        .map(e -> String.valueOf(payloadValue(e, "condition")))
+        .filter(p.getConditions()::contains)
+        .distinct()
+        .toList();
+    for (String condition : expiring) {
+      p.getConditions().remove(condition);
+      append(b, BattleEventType.CONDITION_REMOVED, p.getId(),
+          "%s is no longer %s".formatted(p.getName(), condition),
+          Map.of("condition", condition, "reason", "duration expired"));
+    }
+  }
+
+  private static Object payloadValue(BattleEvent e, String key) {
+    return e.getPayload() == null ? null : e.getPayload().get(key);
+  }
+
+  private static int durationOf(BattleEvent e) {
+    Object v = payloadValue(e, "durationAmount");
+    return v instanceof Number n ? n.intValue() : 0;
   }
 
   private void startNextTurn(Battle b) {
@@ -306,7 +351,29 @@ public class BattleService {
   @Transactional
   public Battle act(UUID battleId, UUID ownerId, UUID actorId, Feature feature,
       List<UUID> targetIds, Map<UUID, TargetContext> contexts) {
+    declare(battleId, ownerId, actorId, feature, targetIds);
+    return resolvePending(battleId, ownerId, feature, contexts);
+  }
+
+  /**
+   * Declares an action and stops, opening a reaction window.
+   *
+   * <p>The stop is the whole point. Counterspell has to land after "I cast Hold
+   * Person" and before the save is rolled, so there must be a state in which the
+   * action exists and has not happened — and it has to be a state a client can
+   * render and leave, not a moment inside a method call.
+   */
+  @Transactional
+  public Battle declare(UUID battleId, UUID ownerId, UUID actorId, Feature feature,
+      List<UUID> targetIds) {
     Battle b = get(battleId, ownerId);
+    // The pending check comes first because it is the specific reason. Declaring
+    // twice leaves the phase at AWAITING_REACTION, so the phase check would
+    // answer "nobody is taking a turn" — which is false, and sends a DM looking
+    // at the initiative order for a problem that is in front of them.
+    if (b.getPending().isPending()) {
+      throw conflict("An action is already waiting to resolve");
+    }
     if (b.getPhase() != BattlePhase.IN_TURN) {
       throw conflict("Nobody is taking a turn");
     }
@@ -319,18 +386,166 @@ public class BattleService {
         Map.of("feature", feature.getName(),
             "targets", targets.stream().map(p -> p.getId().toString()).toList()));
 
-    var resolution = ActionResolver.resolve(actor, feature, targets,
-        contexts == null ? Map.of() : contexts, dice(b), b.getRollCount());
-    b.setRollCount(b.getRollCount() + resolution.rollsUsed());
+    var pending = b.getPending();
+    pending.setActorId(actorId);
+    pending.setFeatureId(feature.getId());
+    pending.setFeatureName(feature.getName());
+    pending.setTargetIds(new ArrayList<>(targetIds));
+    pending.setDeclaredAt(declared);
 
-    for (var outcome : resolution.outcomes()) {
-      applyOutcome(b, outcome, declared);
-    }
-    append(b, BattleEventType.ACTION_RESOLVED, actor.getId(),
-        "%s finishes %s".formatted(actor.getName(), feature.getName()),
-        Map.of("feature", feature.getName(), "declaredAt", declared));
+    var eligible = eligibleReactors(b, actor);
+    b.setPhase(BattlePhase.AWAITING_REACTION);
+    appendCaused(b, BattleEventType.REACTION_WINDOW_OPENED, actor.getId(),
+        eligible.isEmpty() ? "No reactions available"
+            : "Reactions available: " + eligible.stream().map(Participant::getName).toList(),
+        Map.of("eligible", eligible.stream().map(p -> p.getId().toString()).toList()),
+        declared);
     repo.flush();
     return b;
+  }
+
+  /**
+   * Who could react right now.
+   *
+   * <p>Everyone in the fight who has not spent their Reaction, except the
+   * creature acting — "you can take a Reaction on another creature's turn".
+   *
+   * <p><b>Whether their trigger actually matches is not decided here.</b> The
+   * engine offers the candidates and shows the book's words; a DM rules on
+   * whether a Parry that says "hit by a melee attack" applies to a spell. It
+   * will not hide an option on the strength of a regex.
+   */
+  public static List<Participant> eligibleReactors(Battle b, Participant actor) {
+    return order(b).stream()
+        .filter(p -> !p.getId().equals(actor.getId()))
+        .filter(Participant::isReactionAvailable)
+        .filter(p -> !p.isDown())
+        .toList();
+  }
+
+  /**
+   * Takes a reaction, and says what it does to the action in flight.
+   *
+   * <p>Three verbs, not one. Cancelling is the easy case and the misleading one:
+   * Shield amends a number and Redirect Attack amends who is being hit, and
+   * neither stops the action.
+   */
+  @Transactional
+  public Battle react(UUID battleId, UUID ownerId, UUID reactorId, String reactionName,
+      AmendmentKind kind, List<UUID> newTargetIds, Integer armorClassDelta, String reason) {
+    Battle b = get(battleId, ownerId);
+    if (b.getPhase() != BattlePhase.AWAITING_REACTION) {
+      throw conflict("No action is waiting on a reaction");
+    }
+    Participant reactor = participant(b, reactorId);
+    if (!reactor.isReactionAvailable()) {
+      // "Once you take a Reaction, you can't take another one until the start of
+      // your next turn."
+      throw conflict(reactor.getName() + " has already taken a Reaction");
+    }
+    reactor.setReactionAvailable(false);
+    var pending = b.getPending();
+    long declared = pending.getDeclaredAt() == null ? 0 : pending.getDeclaredAt();
+
+    appendCaused(b, BattleEventType.REACTION_TAKEN, reactor.getId(),
+        "%s reacts with %s".formatted(reactor.getName(), reactionName),
+        Map.of("reaction", reactionName, "kind", kind.name(),
+            "reason", reason == null ? "" : reason),
+        declared);
+
+    switch (kind) {
+      case CANCEL -> {
+        pending.setCancelled(true);
+        appendCaused(b, BattleEventType.ACTION_CANCELLED, reactor.getId(),
+            "%s is countered".formatted(pending.getFeatureName()),
+            Map.of("by", reactor.getName()), declared);
+      }
+      case RETARGET -> {
+        // "The goblin and that ally swap places, and the ally becomes the target
+        // of the attack instead." The action still happens, to somebody else.
+        pending.setTargetIds(new ArrayList<>(newTargetIds == null ? List.of() : newTargetIds));
+        appendCaused(b, BattleEventType.ACTION_AMENDED, reactor.getId(),
+            "%s now targets %s".formatted(pending.getFeatureName(),
+                pending.getTargetIds().stream()
+                    .map(id -> participant(b, id).getName()).toList()),
+            Map.of("targets", pending.getTargetIds().stream().map(UUID::toString).toList()),
+            declared);
+      }
+      case MODIFY_DEFENCE -> {
+        int delta = armorClassDelta == null ? 0 : armorClassDelta;
+        pending.setArmorClassDelta(
+            (pending.getArmorClassDelta() == null ? 0 : pending.getArmorClassDelta()) + delta);
+        appendCaused(b, BattleEventType.ACTION_AMENDED, reactor.getId(),
+            "%s adds %d to AC against this attack".formatted(reactor.getName(), delta),
+            Map.of("armorClassDelta", pending.getArmorClassDelta()), declared);
+      }
+      case PROCEED -> { }
+      default -> throw new IllegalStateException("Unhandled amendment " + kind);
+    }
+    repo.flush();
+    return b;
+  }
+
+  /**
+   * Closes the window and resolves whatever is left of the action.
+   *
+   * <p>Reads the pending action rather than the declared one, so a retarget
+   * lands on the new creature and a cancellation resolves nothing at all.
+   */
+  @Transactional
+  public Battle resolvePending(UUID battleId, UUID ownerId, Feature feature,
+      Map<UUID, TargetContext> contexts) {
+    Battle b = get(battleId, ownerId);
+    var pending = b.getPending();
+    if (!pending.isPending()) {
+      throw conflict("No action is waiting to resolve");
+    }
+    Participant actor = participant(b, pending.getActorId());
+    long declared = pending.getDeclaredAt() == null ? 0 : pending.getDeclaredAt();
+
+    if (!pending.wasCancelled()) {
+      List<Participant> targets = pending.getTargetIds() == null ? List.of()
+          : pending.getTargetIds().stream().map(id -> participant(b, id)).toList();
+      var resolution = ActionResolver.resolve(actor, feature, targets,
+          withDefence(contexts, pending.getArmorClassDelta(), targets),
+          dice(b), b.getRollCount());
+      b.setRollCount(b.getRollCount() + resolution.rollsUsed());
+      for (var outcome : resolution.outcomes()) {
+        applyOutcome(b, outcome, declared);
+      }
+    }
+    append(b, BattleEventType.ACTION_RESOLVED, actor.getId(),
+        pending.wasCancelled()
+            ? "%s does not happen".formatted(pending.getFeatureName())
+            : "%s finishes %s".formatted(actor.getName(), pending.getFeatureName()),
+        Map.of("feature", pending.getFeatureName(), "declaredAt", declared,
+            "cancelled", pending.wasCancelled()));
+    pending.clear();
+    b.setPhase(BattlePhase.IN_TURN);
+    repo.flush();
+    return b;
+  }
+
+  /**
+   * Folds a Shield-style amendment into the cover the board already reported.
+   *
+   * <p>It rides on the target context rather than on the participant, because
+   * that is exactly its lifetime — "against that attack". Writing it onto the
+   * creature would leave the next attacker facing it too.
+   */
+  private static Map<UUID, TargetContext> withDefence(Map<UUID, TargetContext> contexts,
+      Integer delta, List<Participant> targets) {
+    Map<UUID, TargetContext> out = new LinkedHashMap<>(contexts == null ? Map.of() : contexts);
+    if (delta == null || delta == 0) {
+      return out;
+    }
+    for (Participant t : targets) {
+      var base = out.getOrDefault(t.getId(), TargetContext.open(t.getId()));
+      out.put(t.getId(), new TargetContext(t.getId(),
+          base.coverArmorClassBonus() + delta, base.totalCover(), base.inRange(),
+          base.hasLineOfSight()));
+    }
+    return out;
   }
 
   /** One outcome, logged and applied. Every branch does both or neither. */
@@ -481,6 +696,14 @@ public class BattleService {
   @Transactional
   public BattleResponse promoteAndView(UUID battleId, UUID ownerId, UUID participantId) {
     promote(battleId, ownerId, participantId);
+    return BattleResponse.from(get(battleId, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse reactAndView(UUID battleId, UUID ownerId, UUID reactorId,
+      String reactionName, AmendmentKind kind, List<UUID> newTargetIds, Integer armorClassDelta,
+      String reason) {
+    react(battleId, ownerId, reactorId, reactionName, kind, newTargetIds, armorClassDelta, reason);
     return BattleResponse.from(get(battleId, ownerId));
   }
 

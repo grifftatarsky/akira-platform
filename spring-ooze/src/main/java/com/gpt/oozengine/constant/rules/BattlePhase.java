@@ -19,6 +19,17 @@ public enum BattlePhase {
   IN_TURN,
 
   /**
+   * An action has been declared and has not resolved yet.
+   *
+   * <p>The whole reason declaration and resolution are separate events.
+   * Counterspell has to land after "I cast Hold Person" and before the save is
+   * rolled, so there has to be a state in which the action exists and has not
+   * happened — and it has to be a real state a client can render, not a moment
+   * inside a method call.
+   */
+  AWAITING_REACTION,
+
+  /**
    * The pause between one turn and the next.
    *
    * <p>Not cosmetic. Reactions, environmental effects and a surprise arrival all

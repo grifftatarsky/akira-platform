@@ -337,7 +337,7 @@ Three independent axes, deliberately not one enum:
 | 2 | ✅ **Done.** Scaling descriptors, encounter-scoped copy-on-write, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
 | 3 | ✅ **Done.** `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause, rewind. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
 | 4 | ✅ **Done.** Feature → Step → Effect: attacks, saves, damage with resistances, conditions, riders, adjudication | The simulator proper |
-| 5 | Reaction windows, **rewriting a declared action**, on-deck promotion, surprise, duration ticking | The part the epic is for |
+| 5 | ✅ **Mostly done.** Reaction windows, amending a declared action, on-deck promotion, surprise, duration ticking. Opportunity attacks wait on movement | The part the epic is for |
 | 6 | WebGL board, reusing what JPSS taught us | The table |
 
 ### What phase 1 actually shipped
@@ -360,6 +360,44 @@ something a battle *may* have come from, never something it needs. The seam that
 lifts one into the other lives on the **simulator** side, where the code already
 knows about both — putting it in `BattleService` would have inverted the
 dependency and quietly made the tracker need a board.
+
+### What phase 5 shipped
+
+An action is now **two calls**: `declare` opens a window and stops, `resolve`
+closes it. The stop is the whole point — there has to be a state in which the
+action exists and has not happened, and it has to be one a client can render and
+leave rather than a moment inside a method call. `BattlePhase.AWAITING_REACTION`
+and a persisted `PendingAction` are that state.
+
+**Three verbs, not one.** Cancelling is the easy case and the misleading one:
+
+| Reaction | What it does | Amendment |
+|---|---|---|
+| Counterspell | the action does not happen | `CANCEL` |
+| Shield, Parry, Protection | it happens, against a different number | `MODIFY_DEFENCE` |
+| Redirect Attack | it happens, to somebody else | `RETARGET` |
+
+The defence rides on the pending action rather than on the participant, because
+that is exactly its lifetime — "against that attack". Writing it onto the
+creature leaves the next attacker facing it too, and there is a test that
+attacks twice to prove it does not.
+
+**The engine offers candidates; it does not judge triggers.** Everyone in the
+fight with an unspent Reaction is eligible, and the DM rules on whether a Parry
+that says "hit by a melee attack" applies to a spell. It will not hide an option
+on the strength of a regex.
+
+**Conditions expire.** 42 of the imported condition effects state a duration and
+nothing ever took one off, so a Poisoned creature stayed poisoned for the rest of
+the fight — a rules bug that reads as a damage bug three rounds later.
+Round-scale durations now drop at the end of the affected creature's own turn;
+minute- and hour-scale ones outlast any fight the tracker runs and are left
+alone rather than pretended about.
+
+**Still open:** opportunity attacks. The `LEAVING_REACH` window needs movement to
+be an engine action, and movement is still something a DM performs on the board
+rather than something the battle resolves. That is the honest next piece, not a
+window with nothing to open it.
 
 ### What phase 4 shipped
 

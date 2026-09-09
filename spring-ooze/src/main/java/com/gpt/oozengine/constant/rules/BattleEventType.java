@@ -36,6 +36,20 @@ public enum BattleEventType {
    * settles it.
    */
   ACTION_DECLARED,
+
+  /** The engine has stopped and is offering the DM everyone who could react. */
+  REACTION_WINDOW_OPENED,
+  REACTION_TAKEN,
+
+  /**
+   * A reaction changed the declared action instead of stopping it.
+   *
+   * <p>Shield amends a number; Redirect Attack amends who is being hit. Both are
+   * amendments rather than cancellations, and a pipeline that could only cancel
+   * would make the second impossible to add later without reshaping it.
+   */
+  ACTION_AMENDED,
+  ACTION_CANCELLED,
   ATTACK_ROLLED,
   SAVE_ROLLED,
   ACTION_RESOLVED,

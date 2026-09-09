@@ -40,20 +40,58 @@ public class BattleActionService {
   private final EncounterRepository encounters;
   private final StatBlockRepository statBlocks;
 
+  /**
+   * Declares an action and opens the reaction window.
+   *
+   * <p>Stops there. Resolving is a second call, because the gap is where a DM
+   * takes a reaction — and a route that declared and resolved together would
+   * give Counterspell nowhere to land, whatever the engine underneath supported.
+   */
+  @Transactional
+  public BattleResponse declare(UUID battleId, UUID ownerId, UUID actorId, UUID featureId,
+      List<UUID> targetIds) {
+    Battle b = battles.get(battleId, ownerId);
+    Feature feature = featureOf(actor(b, actorId), featureId);
+    battles.declare(battleId, ownerId, actorId, feature, targetIds);
+    return battles.view(battleId, ownerId);
+  }
+
+  /**
+   * Closes the window and resolves whatever is left of the action.
+   *
+   * <p>The board is consulted here rather than at declaration, because a
+   * reaction can move people: a Redirect Attack swaps two creatures around, and
+   * cover computed a moment earlier would be cover for the wrong pair.
+   */
+  @Transactional
+  public BattleResponse resolve(UUID battleId, UUID ownerId) {
+    Battle b = battles.get(battleId, ownerId);
+    var pending = b.getPending();
+    if (!pending.isPending()) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "No action is waiting to resolve");
+    }
+    Participant acting = actor(b, pending.getActorId());
+    Feature feature = featureOf(acting, pending.getFeatureId());
+    var contexts = board(b, acting,
+        pending.getTargetIds() == null ? List.of() : pending.getTargetIds(), feature);
+    battles.resolvePending(battleId, ownerId, feature, contexts);
+    return battles.view(battleId, ownerId);
+  }
+
+  /** Declare and resolve in one call, for an action nobody is reacting to. */
   @Transactional
   public BattleResponse act(UUID battleId, UUID ownerId, UUID actorId, UUID featureId,
       List<UUID> targetIds) {
-    Battle b = battles.get(battleId, ownerId);
-    Participant actor = b.getParticipants().stream()
+    declare(battleId, ownerId, actorId, featureId, targetIds);
+    return resolve(battleId, ownerId);
+  }
+
+  private static Participant actor(Battle b, UUID actorId) {
+    return b.getParticipants().stream()
         .filter(p -> p.getId().equals(actorId))
         .findFirst()
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
             "No participant " + actorId));
-
-    Feature feature = featureOf(actor, featureId);
-    var contexts = board(b, actor, targetIds, feature);
-    battles.act(battleId, ownerId, actorId, feature, targetIds, contexts);
-    return battles.view(battleId, ownerId);
   }
 
   /**

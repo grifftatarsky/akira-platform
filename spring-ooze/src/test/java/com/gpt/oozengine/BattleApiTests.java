@@ -297,6 +297,71 @@ class BattleApiTests {
         .andExpect(status().isBadRequest());
   }
 
+  @Test
+  @DisplayName("Declaring opens a window on the wire, and resolving closes it")
+  void reactionWindowOverHttp() throws Exception {
+    var battle = postJson(dm, post("/battle"), "{\"name\": \"Ford\", \"seed\": 51}");
+    String id = battle.get("id").asText();
+    postJson(dm, post("/battle/{id}/participant", id),
+        "{\"name\": \"Thalia\", \"maxHitPoints\": 31, \"initiativeBonus\": 9}");
+    postJson(dm, post("/battle/{id}/participant", id),
+        "{\"name\": \"Bram\", \"maxHitPoints\": 40}");
+    var started = postJson(dm, post("/battle/{id}/initiative", id), null);
+    String actorId = started.get("currentParticipantId").asText();
+
+    // A participant a DM typed has no stat block, so its actions are
+    // adjudicated — which is exactly the standalone-tracker case.
+    mvc.perform(as(dm, post("/battle/{id}/participant/{p}/declare", id, actorId)).content("""
+            {"featureId": "%s", "targetIds": []}
+            """.formatted(UUID.randomUUID())))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  @DisplayName("Counterspell on the wire: declared, countered, and it never happens")
+  void counterspellOverHttp() throws Exception {
+    var e = postJson(dm, post("/encounter"), "{\"name\": \"The ford\"}");
+    String encounterId = e.get("id").asText();
+    postJson(dm, post("/encounter/{id}/combatant", encounterId), """
+        {"statBlockId": "%s", "name": "Owlbear", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear")));
+    postJson(dm, post("/encounter/{id}/combatant", encounterId), """
+        {"statBlockId": "%s", "name": "Goblin", "xHalfFeet": 40, "yHalfFeet": 20}
+        """.formatted(statBlockId("Goblin Warrior")));
+    var battle = postJson(dm, post("/encounter/{id}/battle", encounterId),
+        "{\"name\": \"Round one\", \"seed\": 52}");
+    String id = battle.get("id").asText();
+    var started = postJson(dm, post("/battle/{id}/initiative", id), null);
+    String actorId = started.get("currentParticipantId").asText();
+    var actor = java.util.stream.StreamSupport.stream(started.get("order").spliterator(), false)
+        .filter(p -> p.get("id").asText().equals(actorId)).findFirst().orElseThrow();
+    String targetId = java.util.stream.StreamSupport.stream(started.get("order").spliterator(),
+            false)
+        .filter(p -> !p.get("id").asText().equals(actorId)).findFirst().orElseThrow()
+        .get("id").asText();
+
+    var declared = postJson(dm, post("/battle/{id}/participant/{p}/declare", id, actorId), """
+        {"featureId": "%s", "targetIds": ["%s"]}
+        """.formatted(featureId(actor.get("name").asText(), "Rend", "Scimitar"), targetId));
+
+    // The window is on the wire: a state the client renders and can leave.
+    assertThat(declared.get("phase").asText()).isEqualTo("AWAITING_REACTION");
+    assertThat(declared.get("pending").get("featureName").asText()).isNotBlank();
+    assertThat(declared.get("pending").get("eligibleReactorIds")).isNotEmpty();
+
+    postJson(dm, post("/battle/{id}/participant/{p}/react", id, targetId), """
+        {"reactionName": "Counterspell", "kind": "CANCEL", "reason": "countered"}
+        """);
+    var after = postJson(dm, post("/battle/{id}/resolve", id), null);
+
+    var types = java.util.stream.StreamSupport.stream(after.get("log").spliterator(), false)
+        .map(n -> n.get("type").asText()).toList();
+    assertThat(types).contains("REACTION_WINDOW_OPENED", "REACTION_TAKEN", "ACTION_CANCELLED");
+    assertThat(types).doesNotContain("ATTACK_ROLLED");
+    assertThat(after.get("phase").asText()).isEqualTo("IN_TURN");
+    assertThat(after.get("pending").isNull()).isTrue();
+  }
+
   /** The id of the first named feature that this creature actually has. */
   private UUID featureId(String monster, String... candidates) {
     for (String name : candidates) {
