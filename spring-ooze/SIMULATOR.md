@@ -221,10 +221,39 @@ on the map — which changes reach and cover for everyone around it — and move
 action, still lands in the log, still undoes cleanly. The only difference is that
 the outcome came from the DM instead of from dice.
 
-**Why it is load-bearing:** 416 of the bestiary's 988 actionable features are
-like Shape-Shift. If "cannot execute" were an error, four in ten monster actions
-would be unusable. Supporting it as a normal path is what makes the simulator
-work against the data we actually have.
+**Why it is load-bearing:** the count was 416 when this was written and is now
+**58**, after linking everything that pointed at a spell, a sibling feature or a
+standard action, and giving every passive a rider, a capability or a trigger. The
+path still matters — Shape-Shift genuinely has nothing to roll — but it is the
+exception it should always have been rather than four actions in ten.
+
+### The rule this all serves
+
+**The simulator has to be able to do everything the book can, as a representable
+quantity, triggerable where the book triggers it.** That is the standard the
+import is held to, and it is asserted rather than asserted-about: a test fails if
+any seeded passive is left with no rider, capability, trigger, aura, component,
+shape or effect.
+
+Where a thing genuinely resists mechanism — a 30 percent chance of knowing Wish,
+a GM's choice of dragon — it is still *represented*, as `Capability.OTHER`
+carrying the book's words, and the count of those is asserted so it cannot
+quietly grow. Sixteen, today.
+
+**The three voices, and the fourth thing.** Damage and conditions were all the
+model had. It now has:
+
+| Shape | Says | Count |
+|---|---|---|
+| `Effect` | what happens — damage, conditions, healing, movement, temp HP, summons, terrain | 1,255 |
+| `Rider` | what is modified — Advantage, a bonus, halved Speed, a denied Reaction, an auto-succeeded save | 160 |
+| `Capability` | what is permitted — breathes water, climbs ceilings, provokes nothing on exit | 161 |
+| `TriggerEvent` | *when* it fires — on death, at 0 HP, on Lightning damage, at turn end while Bloodied | 95 |
+
+`INFORMATION` effects and `Capability.OTHER` are the surface for anything that
+changes no state but that a DM must still see. Both land on the turn's record,
+which is what the "things to consider" panel reads — it is not a separate model,
+it is a view over effects that carry prose instead of numbers.
 
 ### Walkthrough 3 — the interrupt
 
@@ -254,6 +283,26 @@ log-first design earns its cost.
 | `LEAVING_REACH` | Opportunity Attack — the SRD is specific: *"The attack occurs right before the creature leaves your reach"* |
 | `DAMAGE_PENDING` | Absorb Elements, Uncanny Dodge |
 | `TURN_ENDED` | the general pause |
+
+### A reaction must be able to rewrite the declared action, not only cancel it
+
+The goblin's Redirect Attack:
+
+> "Trigger: A creature the goblin can see makes an attack roll against it.
+> Response: The goblin chooses a Small or Medium ally within 5 feet of itself.
+> The goblin and that ally swap places, and the ally becomes the target of the
+> attack instead."
+
+Two creatures change square **and** the attack's target changes, all while the
+attack is mid-flight. So a reaction window returns an *amended* declaration, not
+just a yes/no on whether the original proceeds. The pipeline is
+`declare → window → (amend | cancel | proceed) → resolve`, and because the
+declaration is an event like everything else, the amendment is another event
+pointing at it with `causedBySeq`.
+
+Counterspell is the cancel case, Shield the amend-the-AC case, Redirect Attack
+the amend-the-target-and-positions case. Building only cancel would make the
+third impossible to add later without reshaping the pipeline.
 
 ---
 
@@ -288,7 +337,7 @@ Three independent axes, deliberately not one enum:
 | 2 | Sheets, scaling descriptors, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
 | 3 | **`tracker` module** — `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
 | 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, movement | The simulator proper |
-| 5 | Reaction windows, on-deck promotion, surprise, duration ticking | The part the epic is for |
+| 5 | Reaction windows, **rewriting a declared action**, on-deck promotion, surprise, duration ticking | The part the epic is for |
 | 6 | WebGL board, reusing what JPSS taught us | The table |
 
 **Phase 3 is a module, not a step.** The tracker owns turn order and the log and
