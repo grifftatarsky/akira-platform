@@ -1,10 +1,10 @@
 import {
-  AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, Mesh,
-  AdditiveBlending, CanvasTexture, Color as ThreeColor, CylinderGeometry, DataTexture,
-  LinearFilter, Material, MeshBasicMaterial, NeutralToneMapping, MeshStandardMaterial, Sprite,
-  SpriteMaterial,
-  Object3D, OrthographicCamera, PCFShadowMap, PerspectiveCamera, Plane, Raycaster, RGBAFormat,
-  RingGeometry, Scene, ClampToEdgeWrapping, Vector2, Vector3, WebGLRenderer,
+  AdditiveBlending, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture,
+  ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DirectionalLight,
+  Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, LinearFilter, Material, Mesh,
+  MeshBasicMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D, OrthographicCamera,
+  PCFShadowMap, PerspectiveCamera, Plane, RGBAFormat, Raycaster, RingGeometry, Scene, Sprite,
+  SpriteMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
 import { BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
@@ -39,6 +39,15 @@ const ART_CLEARANCE = 0.2;
  * unreadable is not a marker.
  */
 const TOKEN_LIGHT_BLEND = 0.55;
+
+/**
+ * How far the grid floats over the ground it marks, in half-feet.
+ *
+ * <p>A quarter of a foot: clear of a plain floor tile, and deliberately *not*
+ * clear of the rubble, so a grid line disappears into a pile of loose stone
+ * rather than floating over it. Well under a token, which stands on top of it.
+ */
+const GRID_LIFT = 0.5;
 
 /**
  * Draws a {@link BoardScene} with three.
@@ -85,6 +94,18 @@ export class BoardRenderer {
    * pickable — a DM dragging the rogue past a table is dragging the rogue.
    */
   private readonly props = new Group();
+  /**
+   * The squares, drawn.
+   *
+   * <p>Lit, which took two tries to get right. An unlit line is a constant
+   * colour against a floor whose brightness varies five-fold across the board,
+   * so it cannot hold its contrast: a warm line was invisible in the torchlit
+   * hall and glaring in the crypt, and a mid-grey one was merely faint in both.
+   * Taking the same light as the floor makes the line a fixed *fraction*
+   * brighter than whatever it is drawn on, which is what constant contrast
+   * actually means.
+   */
+  private readonly grid = new Group();
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
@@ -179,6 +200,7 @@ export class BoardRenderer {
    */
   private post: PostChain | null = null;
   private effects = true;
+  private showGrid = true;
   private theme: BoardTheme;
 
   constructor(private readonly canvas: HTMLCanvasElement, theme: BoardTheme = PLAIN_THEME) {
@@ -211,6 +233,7 @@ export class BoardRenderer {
     this.scene.add(this.terrain);
     this.scene.add(this.terrainArt);
     this.scene.add(this.props);
+    this.scene.add(this.grid);
     this.scene.add(this.tokens);
 
     // A trace of flat fill, and no more. The ambient term used to be 0.75 and
@@ -246,10 +269,13 @@ export class BoardRenderer {
     this.clear(this.terrain);
     this.clear(this.terrainArt);
     this.clear(this.props);
+    this.clear(this.grid);
     this.clear(this.tokens);
     this.flames.length = 0;
     this.relight(board);
     board.tiles.forEach(t => this.terrain.add(this.tile(t)));
+    this.grid.add(this.squares(board));
+    this.grid.visible = this.showGrid;
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
     this.aimSun(board);
     this.place();
@@ -383,6 +409,56 @@ export class BoardRenderer {
   }
 
   /**
+   * The five-foot squares, as one set of lines.
+   *
+   * <p>Every square is a cost: five feet of movement, and the unit reach and
+   * cover are counted in. A board that does not show them makes a DM estimate
+   * something the engine is being exact about, which is the one job a tactical
+   * board has.
+   *
+   * <p>Drawn per tile at that tile's own height, so a raised terrace carries
+   * its own grid rather than one floating across it — and only two edges per
+   * square, so every interior line is drawn exactly once. Four would double
+   * every shared edge, and a translucent line drawn twice is twice as bright as
+   * one drawn once: the grid would come out with a brighter mesh inside a
+   * fainter border.
+   */
+  private squares(board: BoardScene): LineSegments {
+    const points: number[] = [];
+    for (const tile of board.tiles) {
+      // Not over walls. Nothing stands on one, and a grid across the tops of
+      // the room walls reads as a floor you could walk on.
+      if (tile.height > 0) {
+        continue;
+      }
+      const half = tile.size / 2;
+      const z = tile.base + GRID_LIFT;
+      points.push(tile.x - half, tile.y - half, z, tile.x + half, tile.y - half, z);
+      points.push(tile.x - half, tile.y - half, z, tile.x - half, tile.y + half, z);
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+    return new LineSegments(geometry, this.lit(new LineBasicMaterial({
+      // Roughly twice the stone it is drawn on, so once both are multiplied by
+      // the same light the line is consistently the brighter of the two.
+      color: 0xcec2a6,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+    })));
+  }
+
+  /** Shows or hides the squares. */
+  setGrid(on: boolean): void {
+    this.showGrid = on;
+    this.grid.visible = on;
+  }
+
+  gridOn(): boolean {
+    return this.showGrid;
+  }
+
+  /**
    * The visible glow on something that is burning.
    *
    * <p>The light field already lights the room a torch is in; this is the
@@ -402,7 +478,7 @@ export class BoardRenderer {
     }
     const sprite = new Sprite(new SpriteMaterial({
       map: glow(),
-      color: new ThreeColor(FLAME_COLOUR[0], FLAME_COLOUR[1], FLAME_COLOUR[2]),
+      color: new Color(FLAME_COLOUR[0], FLAME_COLOUR[1], FLAME_COLOUR[2]),
       blending: AdditiveBlending,
       depthWrite: false,
       transparent: true,
@@ -839,6 +915,7 @@ export class BoardRenderer {
     this.clear(this.terrain);
     this.clear(this.terrainArt);
     this.clear(this.props);
+    this.clear(this.grid);
     this.clear(this.tokens);
     this.light.value?.dispose();
     this.post?.dispose();

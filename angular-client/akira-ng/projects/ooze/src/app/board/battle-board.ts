@@ -84,6 +84,13 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
             }
           </div>
 
+          <button type="button" (click)="toggleGrid()"
+                  [attr.aria-pressed]="grid()"
+                  [class]="grid() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
+                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
+                         font-medium backdrop-blur transition"
+                  title="Five-foot squares">Grid</button>
+
           <button type="button" (click)="toggleEffects()"
                   [attr.aria-pressed]="effects()"
                   [class]="effects() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
@@ -171,6 +178,15 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    */
   protected readonly effects = signal(true);
 
+  /**
+   * Whether the five-foot squares are drawn.
+   *
+   * <p>On by default: every square is five feet of movement and the unit reach
+   * and cover are counted in, so a board that hides them asks a DM to estimate
+   * something the engine is being exact about. Off for a screenshot.
+   */
+  protected readonly grid = signal(true);
+
   protected readonly dragging = signal(false);
   protected readonly selectedId = signal<string | null>(null);
 
@@ -255,6 +271,12 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     // lost, which reads as "the tab got slow" hours later.
     this.renderer?.dispose();
     this.renderer = null;
+  }
+
+  protected toggleGrid(): void {
+    const on = !this.grid();
+    this.grid.set(on);
+    this.renderer?.setGrid(on);
   }
 
   protected toggleEffects(): void {
