@@ -27,6 +27,11 @@ public record ParticipantResponse(
     List<String> conditions,
     Disposition disposition,
     boolean reactionAvailable,
+    int xHalfFeet,
+    int yHalfFeet,
+    int zHalfFeet,
+    int speedFeet,
+    int movementRemainingFeet,
     UUID combatantId,
     UUID statBlockId,
     String notes) {
@@ -35,7 +40,9 @@ public record ParticipantResponse(
     return new ParticipantResponse(p.getId(), p.getName(), p.getInitiative(),
         p.getInitiativeBonus(), p.isSurprised(), p.getMaxHitPoints(), p.getCurrentHitPoints(),
         p.getTemporaryHitPoints(), p.isDown(), p.isBloodied(), List.copyOf(p.getConditions()),
-        p.getDisposition(), p.isReactionAvailable(), p.getCombatantId(), p.getStatBlockId(),
+        p.getDisposition(), p.isReactionAvailable(),
+        p.getX(), p.getY(), p.getZ(), p.getSpeedFeet(), p.getMovementRemainingFeet(),
+        p.getCombatantId(), p.getStatBlockId(),
         p.getNotes());
   }
 }

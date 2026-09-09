@@ -171,9 +171,19 @@ public final class Battlefield {
     return Falling.damage(dropEntering(fromX, fromY, toX, toY));
   }
 
-  /** Whether a fall into this square is a fall into liquid, which can be halved. */
+  /**
+   * Whether a fall into this square lands in liquid, which the DC 15 Reaction
+   * can halve.
+   *
+   * <p>Asked here rather than of {@link Falling}, because "what is the ground
+   * made of" is the board's question and the falling rules are a table the
+   * tracker applies without one.
+   */
   public boolean liquidLanding(int cx, int cy) {
-    return Falling.isLiquid(terrainAt(cx, cy));
+    return switch (terrainAt(cx, cy)) {
+      case WATER, DEEP_WATER, LAVA, MUD -> true;
+      default -> false;
+    };
   }
 
   // region Sight and cover

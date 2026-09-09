@@ -5,12 +5,14 @@ import com.gpt.oozengine.model.battle.Participant;
 import com.gpt.oozengine.model.dto.request.ActionRequest;
 import com.gpt.oozengine.model.dto.request.BattleRequest;
 import com.gpt.oozengine.model.dto.request.HitPointChangeRequest;
+import com.gpt.oozengine.model.dto.request.MoveRequest;
 import com.gpt.oozengine.model.dto.request.ReactionRequest;
 import com.gpt.oozengine.model.dto.request.ParticipantRequest;
 import com.gpt.oozengine.model.dto.response.BattleResponse;
 import com.gpt.oozengine.model.dto.response.BattleSummaryResponse;
 import com.gpt.oozengine.model.dto.response.ParticipantResponse;
 import com.gpt.oozengine.service.BattleActionService;
+import com.gpt.oozengine.service.BattleMovementService;
 import com.gpt.oozengine.service.BattleService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -51,6 +53,7 @@ public class BattleController {
 
   private final BattleService battles;
   private final BattleActionService actions;
+  private final BattleMovementService movement;
 
   @GetMapping
   public PagedModel<BattleSummaryResponse> list(
@@ -151,6 +154,29 @@ public class BattleController {
       @AuthenticationPrincipal Jwt jwt) {
     return battles.reactAndView(id, userId(jwt), participantId, req.reactionName(), req.kind(),
         req.newTargetIds(), req.armorClassDelta(), req.reason());
+  }
+
+  /**
+   * Moves a creature along a route.
+   *
+   * <p>Stops at the first square that leaves somebody's reach — "the attack
+   * occurs right before the creature leaves your reach" — so a route through a
+   * threatened square is two calls, with a window in between.
+   */
+  @PostMapping("/{id}/participant/{participantId}/move")
+  public BattleResponse move(
+      @PathVariable UUID id,
+      @PathVariable UUID participantId,
+      @Valid @RequestBody MoveRequest req,
+      @AuthenticationPrincipal Jwt jwt) {
+    return movement.move(id, userId(jwt), participantId,
+        req.waypoints().stream().map(MoveRequest.Waypoint::toPoint).toList());
+  }
+
+  /** Resumes a move that stopped for an Opportunity Attack. */
+  @PostMapping("/{id}/resume-move")
+  public BattleResponse resumeMove(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+    return movement.resume(id, userId(jwt));
   }
 
   /** Closes the window and resolves whatever is left of the action. */

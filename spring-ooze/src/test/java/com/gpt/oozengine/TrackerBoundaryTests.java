@@ -34,10 +34,21 @@ class TrackerBoundaryTests {
       SOURCE.resolve("service/BattleFold.java"),
       SOURCE.resolve("repository/BattleRepository.java"));
 
-  /** Names that mean the board, in the order they would show up in an import. */
+  /**
+   * Names that mean the board.
+   *
+   * <p>{@code util.Falling} used to be on this list and has come off it, which
+   * is a relaxation worth writing down rather than doing quietly. Falling damage
+   * is a rules table — feet in, dice out — and the tracker legitimately applies
+   * it when a creature drops off a ledge. What made it look like the board was
+   * one method asking whether the ground was water; that question moved to
+   * {@code Battlefield}, where it belongs, and {@code Falling} now imports no
+   * terrain at all. The rule below asserts that, so the exemption cannot quietly
+   * become a hole.
+   */
   private static final List<String> BOARD = List.of(
       "model.encounter", "util.Geometry", "service.Battlefield", "service.EncounterService",
-      "service.Painter", "util.Falling");
+      "service.Painter");
 
   private static Stream<Path> javaFiles(Path root) throws IOException {
     if (Files.isRegularFile(root)) {
@@ -66,6 +77,21 @@ class TrackerBoundaryTests {
         }
       }
     }
+  }
+
+  @Test
+  @DisplayName("The falling rules stay a rules table, with no terrain in them")
+  void fallingCarriesNoBoard() throws IOException {
+    List<String> imports = Files.readString(SOURCE.resolve("util/Falling.java")).lines()
+        .filter(l -> l.startsWith("import "))
+        .toList();
+
+    // Imports, not prose. A comment that names Battlefield to say where the
+    // terrain question went is exactly the documentation this exemption needs;
+    // an import of it would be the hole the exemption must not become.
+    assertThat(imports).noneMatch(l -> l.contains("TerrainKind"));
+    assertThat(imports).noneMatch(l -> l.contains("model.encounter"));
+    assertThat(imports).noneMatch(l -> l.contains("Battlefield"));
   }
 
   @Test

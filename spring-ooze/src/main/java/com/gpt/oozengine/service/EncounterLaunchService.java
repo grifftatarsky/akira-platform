@@ -80,6 +80,15 @@ public class EncounterLaunchService {
     // for the duration, so resolution reads one row and never has to work out
     // which of three sources the real Armor Class came from. Scaling lands here
     // too, which is the only place it is ever applied.
+    // Where it was placed becomes where it starts, and the board's positions
+    // are already in the engine's half-feet.
+    p.setX(c.getX());
+    p.setY(c.getY());
+    p.setZ(c.getZ());
+    int walk = sb == null ? 30
+        : sb.getSpeeds().getOrDefault(com.gpt.oozengine.constant.rules.MovementType.WALK, 30);
+    p.setSpeedFeet(walk);
+
     int armorClass = sb == null || sb.getArmorClass() == null ? 10 : sb.getArmorClass();
     var scaling = c.getScaling();
     p.setArmorClass(armorClass + (scaling == null ? 0 : scaling.getArmorClassDelta()));

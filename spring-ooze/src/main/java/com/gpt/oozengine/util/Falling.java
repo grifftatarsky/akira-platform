@@ -1,6 +1,5 @@
 package com.gpt.oozengine.util;
 
-import com.gpt.oozengine.constant.rules.TerrainKind;
 import com.gpt.oozengine.model.mechanics.DiceRoll;
 
 /**
@@ -17,6 +16,11 @@ import com.gpt.oozengine.model.mechanics.DiceRoll;
  * into damage, and because every clause of it has an edge the engine must not
  * get wrong: the dice round <em>down</em> per ten feet, they cap, and the Prone
  * is conditional on damage rather than on distance.
+ *
+ * <p><b>Deliberately free of terrain.</b> This is a rules table — feet in,
+ * dice out — and the tracker applies it when a creature falls, so it must not
+ * drag a board in with it. Whether the ground here is water is the board's
+ * question and lives on {@code Battlefield}.
  */
 public final class Falling {
 
@@ -60,12 +64,6 @@ public final class Falling {
    */
   public static boolean landsProne(int damageTaken) {
     return damageTaken > 0;
-  }
-
-  /** Whether landing here is a landing in liquid, which the Reaction applies to. */
-  public static boolean isLiquid(TerrainKind terrain) {
-    return terrain == TerrainKind.WATER || terrain == TerrainKind.DEEP_WATER
-        || terrain == TerrainKind.LAVA || terrain == TerrainKind.MUD;
   }
 
   /**

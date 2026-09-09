@@ -2,7 +2,6 @@ package com.gpt.oozengine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.gpt.oozengine.constant.rules.TerrainKind;
 import com.gpt.oozengine.util.Falling;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,10 +61,10 @@ class FallingTests {
   @Test
   @DisplayName("A good landing in water halves the damage")
   void liquidLanding() {
+    // Whether the ground is water is the board's question — Battlefield answers
+    // it, and BattlefieldTests asserts it. What belongs here is the rule the
+    // check buys: "any damage resulting from the fall is halved".
     assertThat(Falling.LIQUID_CHECK_DC).isEqualTo(15);
-    assertThat(Falling.isLiquid(TerrainKind.WATER)).isTrue();
-    assertThat(Falling.isLiquid(TerrainKind.DEEP_WATER)).isTrue();
-    assertThat(Falling.isLiquid(TerrainKind.FLOOR)).isFalse();
     assertThat(Falling.halved(35)).isEqualTo(17);
   }
 

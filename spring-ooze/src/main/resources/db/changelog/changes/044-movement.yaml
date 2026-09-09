@@ -1,0 +1,37 @@
+databaseChangeLog:
+  # Movement as something the battle resolves rather than something a DM does on
+  # the board behind its back.
+
+  - changeSet:
+      id: 044-participant-position
+      author: oozengine
+      # Position lives on the participant for the same reason hit points do: the
+      # Combatant is where a creature was *placed* and must not be scarred by
+      # playing, while the Participant is what the fight does to it. That also
+      # makes a rewind put a creature back where it was, which it could not do
+      # while position lived only on the board.
+      changes:
+        - addColumn:
+            tableName: participants
+            columns:
+              - column: {name: x_half_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: y_half_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: z_half_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: speed_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 30}
+              - column: {name: movement_remaining_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+
+  - changeSet:
+      id: 044-pending-movement
+      author: oozengine
+      # A move stopped partway. "The attack occurs right before the creature
+      # leaves your reach", so a move cannot be one atomic hop — it has to be
+      # walkable, stoppable at the square that provokes, and resumable once the
+      # reaction has landed. A creature halfway across a room while a DM decides
+      # whether the ogre swings is a real state and has to survive the request.
+      changes:
+        - addColumn:
+            tableName: battles
+            columns:
+              - column: {name: moving_participant_id, type: UUID}
+              - column: {name: moving_remaining_legs, type: JSONB}
+              - column: {name: moving_declared_at, type: BIGINT}

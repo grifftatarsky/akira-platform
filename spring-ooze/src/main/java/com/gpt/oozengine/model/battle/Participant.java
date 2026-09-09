@@ -134,6 +134,35 @@ public class Participant extends BaseEntity {
   @Column(name = "condition_name", nullable = false)
   private Set<String> conditions = new LinkedHashSet<>();
 
+  // region Where it is, and how much further it can go
+  //
+  // Position lives here for the same reason hit points do: the Combatant is
+  // where a DM *placed* the creature and must not be scarred by playing, while
+  // the Participant is what the fight does to it. Copied in at launch, moved by
+  // MOVED events, and restored by the fold — so a rewind puts a creature back
+  // where it was as surely as it puts its hit points back.
+  //
+  // Three integers are not a map. The tracker still has no terrain, no geometry
+  // and no idea what is under these coordinates; whoever has a board works out
+  // what a move costs and hands the answer over.
+  @Column(name = "x_half_feet", nullable = false)
+  private int x;
+
+  @Column(name = "y_half_feet", nullable = false)
+  private int y;
+
+  @Column(name = "z_half_feet", nullable = false)
+  private int z;
+
+  /** The creature's walking Speed in feet, for the turn's budget. */
+  @Column(name = "speed_feet", nullable = false)
+  private int speedFeet = 30;
+
+  /** What is left of that budget this turn. Refilled at the start of its turn. */
+  @Column(name = "movement_remaining_feet", nullable = false)
+  private int movementRemainingFeet;
+  // endregion
+
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 16)
   private Disposition disposition = Disposition.ACTIVE;

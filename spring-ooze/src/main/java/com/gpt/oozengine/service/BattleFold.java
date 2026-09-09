@@ -43,6 +43,13 @@ public final class BattleFold {
         .toList()) {
       Participant p = e.getParticipantId() == null ? null : byId.get(e.getParticipantId());
       switch (e.getType()) {
+        case PARTICIPANT_ADDED -> {
+          if (p != null && e.getPayload() != null && e.getPayload().containsKey("x")) {
+            p.setX(intOf(e, "x"));
+            p.setY(intOf(e, "y"));
+            p.setZ(intOf(e, "z"));
+          }
+        }
         case INITIATIVE_ROLLED -> {
           battle.setRollCount(battle.getRollCount() + 1);
           if (p != null) {
@@ -95,6 +102,15 @@ public final class BattleFold {
             p.getConditions().add(stringOf(e, "condition"));
           }
         }
+        case MOVED -> {
+          if (p != null && e.getPayload() != null && e.getPayload().containsKey("x")) {
+            p.setX(intOf(e, "x"));
+            p.setY(intOf(e, "y"));
+            p.setZ(intOf(e, "z"));
+            p.setMovementRemainingFeet(intOf(e, "remainingFeet"));
+          }
+        }
+        case MOVEMENT_PROVOKED -> battle.setPhase(BattlePhase.AWAITING_REACTION);
         case CONDITION_REMOVED -> {
           if (p != null) {
             p.getConditions().remove(stringOf(e, "condition"));
@@ -129,6 +145,10 @@ public final class BattleFold {
     p.setInitiative(null);
     p.setReactionAvailable(true);
     p.setDisposition(Disposition.ON_DECK);
+    // Position is restored by replaying MOVED, so a rewind puts a creature back
+    // where it was as surely as it puts its hit points back — but only because
+    // the reset does not clear it to zero and strand anyone at the origin.
+    p.setMovementRemainingFeet(p.getSpeedFeet());
   }
 
   private static int intOf(BattleEvent e, String key) {

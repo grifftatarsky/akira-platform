@@ -66,6 +66,20 @@ public enum BattleEventType {
    */
   ADJUDICATED,
 
+  /** A creature moved, and what it cost out of its Speed. */
+  MOVED,
+
+  /**
+   * A move stopped because it is about to leave somebody's reach.
+   *
+   * <p>"The attack occurs right before the creature leaves your reach" — so the
+   * window opens between two legs of a move rather than before or after it.
+   */
+  MOVEMENT_PROVOKED,
+
+  /** Off a ledge: 1d6 per 10 feet, and Prone unless it took nothing. */
+  FELL,
+
   HIT_POINTS_CHANGED,
   TEMPORARY_HIT_POINTS_SET,
   CONDITION_APPLIED,

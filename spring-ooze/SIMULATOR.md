@@ -337,7 +337,7 @@ Three independent axes, deliberately not one enum:
 | 2 | ✅ **Done.** Scaling descriptors, encounter-scoped copy-on-write, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
 | 3 | ✅ **Done.** `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause, rewind. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
 | 4 | ✅ **Done.** Feature → Step → Effect: attacks, saves, damage with resistances, conditions, riders, adjudication | The simulator proper |
-| 5 | ✅ **Mostly done.** Reaction windows, amending a declared action, on-deck promotion, surprise, duration ticking. Opportunity attacks wait on movement | The part the epic is for |
+| 5 | ✅ **Done.** Reaction windows, amending a declared action, movement, opportunity attacks, on-deck promotion, surprise, duration ticking | The part the epic is for |
 | 6 | WebGL board, reusing what JPSS taught us | The table |
 
 ### What phase 1 actually shipped
@@ -394,10 +394,32 @@ Round-scale durations now drop at the end of the affected creature's own turn;
 minute- and hour-scale ones outlast any fight the tracker runs and are left
 alone rather than pretended about.
 
-**Still open:** opportunity attacks. The `LEAVING_REACH` window needs movement to
-be an engine action, and movement is still something a DM performs on the board
-rather than something the battle resolves. That is the honest next piece, not a
-window with nothing to open it.
+**Movement is an engine action**, which is what opportunity attacks were waiting
+on. A move is a route of waypoints, not a destination: what a square costs, whose
+reach it leaves and how far it is down all depend on the path, and two routes to
+the same spot can cost very different amounts.
+
+The legs arrive already costed, because costing them needs a board. The tracker
+walks them one at a time, spending the Speed budget, and stops at the square that
+provokes — **before** taking it, because "the attack occurs right before the
+creature leaves your reach". A route through a threatened square is two calls
+with a window between them.
+
+**Position moved onto the participant**, for exactly the reason hit points live
+there: the Combatant is where a creature was *placed* and must not be scarred by
+playing. That is also what makes a rewind put a creature back where it was; while
+position lived only on the board, undo restored the hit points and left the
+creature standing wherever the undone move had taken it.
+
+Three integers are not a map. The tracker still has no terrain and no geometry —
+it carries the answer, not the reasoning.
+
+**One boundary was relaxed, deliberately.** `util.Falling` came off the tracker's
+forbidden list: falling damage is a rules table, feet in and dice out, and the
+tracker legitimately applies it when a creature drops off a ledge. What made it
+look like the board was one method asking whether the ground was water; that
+moved to `Battlefield`, and a test now asserts `Falling` imports no terrain at
+all, so the exemption cannot quietly become a hole.
 
 ### What phase 4 shipped
 

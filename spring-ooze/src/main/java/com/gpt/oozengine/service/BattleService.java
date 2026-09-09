@@ -14,6 +14,7 @@ import com.gpt.oozengine.model.dto.response.BattleSummaryResponse;
 import com.gpt.oozengine.model.dto.response.ParticipantResponse;
 import com.gpt.oozengine.repository.BattleRepository;
 import com.gpt.oozengine.util.BattleDice;
+import com.gpt.oozengine.util.Falling;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -72,8 +73,13 @@ public class BattleService {
     repo.flush();
     append(b, BattleEventType.PARTICIPANT_ADDED, p.getId(),
         "%s joins (%d HP)".formatted(p.getName(), p.getMaxHitPoints()),
+        // The starting position rides along because the fold has to be able to
+        // put a creature back: rewinding replays MOVED events, and with nothing
+        // saying where it began there is nothing for the first one to move it
+        // from.
         Map.of("name", p.getName(), "maxHitPoints", p.getMaxHitPoints(),
-            "disposition", p.getDisposition().name()));
+            "disposition", p.getDisposition().name(),
+            "x", p.getX(), "y", p.getY(), "z", p.getZ(), "speedFeet", p.getSpeedFeet()));
     return p;
   }
 
@@ -223,6 +229,9 @@ public class BattleService {
     // "Once you take a Reaction, you can't take another one until the start of
     // your next turn" — so the refresh belongs here, at the start of the turn.
     p.setReactionAvailable(true);
+    // And the movement budget, for the same reason: a creature's Speed is what
+    // it may spend on its own turn, not a pool that carries.
+    p.setMovementRemainingFeet(p.getSpeedFeet());
     append(b, BattleEventType.TURN_STARTED, p.getId(),
         "%s's turn (round %d)".formatted(p.getName(), b.getRound()),
         Map.of("round", b.getRound(), "turnIndex", next));
@@ -630,6 +639,149 @@ public class BattleService {
         .ifPresent(e -> e.setCausedBySequence(causedBy));
   }
 
+  // region Movement
+
+  /**
+   * Walks a move, stopping at the first step that provokes.
+   *
+   * <p>A move is not one hop. The SRD is specific — "The attack occurs right
+   * before the creature leaves your reach" — so the legs are walked one at a
+   * time, and the one that provokes opens a window before it is taken rather
+   * than after.
+   *
+   * <p>The legs arrive already costed, because working out what a square costs
+   * needs a board and the tracker has none.
+   */
+  @Transactional
+  public Battle move(UUID battleId, UUID ownerId, UUID participantId, List<MovementLeg> legs) {
+    Battle b = get(battleId, ownerId);
+    // Specific reason first, for the same reason declare() does: a move stopped
+    // at a provoking square leaves the phase at AWAITING_REACTION, so the phase
+    // check would answer "nobody is taking a turn" — false, and it points a DM
+    // at the initiative order instead of at the half-finished move.
+    if (b.getMovement().isMoving()) {
+      throw conflict("A move is already under way");
+    }
+    if (b.getPhase() != BattlePhase.IN_TURN) {
+      throw conflict("Nobody is taking a turn");
+    }
+    Participant p = participant(b, participantId);
+    long declared = append(b, BattleEventType.MOVED, p.getId(),
+        "%s begins moving".formatted(p.getName()),
+        Map.of("legs", legs.size(), "budgetFeet", p.getMovementRemainingFeet()));
+    b.getMovement().setParticipantId(participantId);
+    b.getMovement().setDeclaredAt(declared);
+    b.getMovement().setRemainingLegs(legs.stream().map(MovementLeg::toMap).toList());
+    walk(b);
+    repo.flush();
+    return b;
+  }
+
+  /**
+   * Resumes a move that stopped for an Opportunity Attack.
+   *
+   * <p>"Right before the creature leaves your reach" means the attack has landed
+   * and the creature still goes — unless something dropped it, which is checked
+   * here rather than assumed away.
+   */
+  @Transactional
+  public Battle continueMovement(UUID battleId, UUID ownerId) {
+    Battle b = get(battleId, ownerId);
+    if (!b.getMovement().isMoving()) {
+      throw conflict("No move is under way");
+    }
+    walk(b);
+    repo.flush();
+    return b;
+  }
+
+  private void walk(Battle b) {
+    var moving = b.getMovement();
+    Participant p = participant(b, moving.getParticipantId());
+    long declared = moving.getDeclaredAt() == null ? 0 : moving.getDeclaredAt();
+    List<Map<String, Object>> remaining = new ArrayList<>(
+        moving.getRemainingLegs() == null ? List.of() : moving.getRemainingLegs());
+
+    while (!remaining.isEmpty()) {
+      MovementLeg leg = MovementLeg.fromMap(remaining.getFirst());
+
+      if (leg.provokes()) {
+        // The window opens *before* the step is taken, and the step stays on the
+        // queue — so a reaction that drops the mover stops it here rather than
+        // after it has already gone.
+        remaining.removeFirst();
+        moving.setRemainingLegs(new ArrayList<>(remaining));
+        var stillHere = new MovementLeg(leg.x(), leg.y(), leg.z(), leg.costFeet(),
+            List.of(), leg.fallFeet());
+        appendCaused(b, BattleEventType.MOVEMENT_PROVOKED, p.getId(),
+            "%s leaves the reach of %s".formatted(p.getName(),
+                leg.provokesFrom().stream().map(id -> participant(b, id).getName()).toList()),
+            Map.of("from", leg.provokesFrom().stream().map(UUID::toString).toList()),
+            declared);
+        b.setPhase(BattlePhase.AWAITING_REACTION);
+        // The provoking step itself is put back at the front, stripped of its
+        // provocation so resuming does not open the same window forever.
+        remaining.addFirst(stillHere.toMap());
+        moving.setRemainingLegs(new ArrayList<>(remaining));
+        return;
+      }
+
+      if (leg.costFeet() > p.getMovementRemainingFeet()) {
+        append(b, BattleEventType.NOTE, p.getId(),
+            "%s has no movement left".formatted(p.getName()),
+            Map.of("remainingFeet", p.getMovementRemainingFeet(),
+                "neededFeet", leg.costFeet()));
+        break;
+      }
+
+      remaining.removeFirst();
+      p.setMovementRemainingFeet(p.getMovementRemainingFeet() - leg.costFeet());
+      p.setX(leg.x());
+      p.setY(leg.y());
+      p.setZ(leg.z());
+      appendCaused(b, BattleEventType.MOVED, p.getId(),
+          "%s moves (%d ft)".formatted(p.getName(), leg.costFeet()),
+          Map.of("x", leg.x(), "y", leg.y(), "z", leg.z(), "costFeet", leg.costFeet(),
+              "remainingFeet", p.getMovementRemainingFeet()),
+          declared);
+
+      if (leg.fallFeet() > 0) {
+        applyFall(b, p, leg.fallFeet(), declared);
+      }
+    }
+
+    moving.clear();
+    b.setPhase(BattlePhase.IN_TURN);
+  }
+
+  /**
+   * A fall at the end of a step.
+   *
+   * <p>"1d6 Bludgeoning damage… for every 10 feet it fell, to a maximum of 20d6.
+   * When the creature lands, it has the Prone condition unless it avoids taking
+   * any damage from the fall" — so the Prone is keyed to the damage rather than
+   * to the distance.
+   */
+  private void applyFall(Battle b, Participant p, int feet, long causedBy) {
+    var dice = Falling.damage(feet);
+    int amount = dice == null ? 0
+        : dice.getAverage() == null ? 0 : dice.getAverage();
+    appendCaused(b, BattleEventType.FELL, p.getId(),
+        "%s falls %d feet".formatted(p.getName(), feet),
+        Map.of("feet", feet, "damage", amount), causedBy);
+    if (amount > 0) {
+      applyHitPoints(b, p, -amount, "%s takes %d falling damage".formatted(p.getName(), amount),
+          Map.of("reason", "fall"), causedBy);
+      if (Falling.landsProne(amount) && p.getConditions().add("Prone")) {
+        appendCaused(b, BattleEventType.CONDITION_APPLIED, p.getId(),
+            "%s has the Prone condition".formatted(p.getName()),
+            Map.of("condition", "Prone", "reason", "fall"), causedBy);
+      }
+    }
+  }
+
+  // endregion
+
   /**
    * Rewinds the fight to just after a given event.
    *
@@ -704,6 +856,12 @@ public class BattleService {
       String reactionName, AmendmentKind kind, List<UUID> newTargetIds, Integer armorClassDelta,
       String reason) {
     react(battleId, ownerId, reactorId, reactionName, kind, newTargetIds, armorClassDelta, reason);
+    return BattleResponse.from(get(battleId, ownerId));
+  }
+
+  @Transactional
+  public BattleResponse continueMovementAndView(UUID battleId, UUID ownerId) {
+    continueMovement(battleId, ownerId);
     return BattleResponse.from(get(battleId, ownerId));
   }
 

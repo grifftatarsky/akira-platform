@@ -102,6 +102,10 @@ public class Battle extends BaseEntity {
   @Embedded
   private PendingAction pending = new PendingAction();
 
+  /** A move stopped partway, waiting on an Opportunity Attack. */
+  @Embedded
+  private PendingMovement movement = new PendingMovement();
+
   /**
    * Never null, whatever Hibernate loaded.
    *
@@ -116,6 +120,14 @@ public class Battle extends BaseEntity {
       pending = new PendingAction();
     }
     return pending;
+  }
+
+  /** Never null, for the same reason as {@link #getPending()}. */
+  public PendingMovement getMovement() {
+    if (movement == null) {
+      movement = new PendingMovement();
+    }
+    return movement;
   }
 
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
