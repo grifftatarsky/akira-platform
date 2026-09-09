@@ -118,3 +118,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/041-overrides.yaml
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/changes/042-participant-defences.yaml
+      relativeToChangelogFile: false

@@ -234,4 +234,81 @@ class BattleApiTests {
     mvc.perform(get("/battle").with(jwt().jwt(j -> j.subject(dm.toString()))))
         .andExpect(status().isForbidden());
   }
+
+  @Test
+  @DisplayName("An action taken over HTTP resolves against the board")
+  void actOverHttp() throws Exception {
+    var e = postJson(dm, post("/encounter"), "{\"name\": \"The ford\"}");
+    String encounterId = e.get("id").asText();
+    var owlbear = postJson(dm, post("/encounter/{id}/combatant", encounterId), """
+        {"statBlockId": "%s", "name": "Owlbear", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear")));
+    postJson(dm, post("/encounter/{id}/combatant", encounterId), """
+        {"statBlockId": "%s", "name": "Goblin", "xHalfFeet": 40, "yHalfFeet": 20}
+        """.formatted(statBlockId("Goblin Warrior")));
+
+    var battle = postJson(dm, post("/encounter/{id}/battle", encounterId),
+        "{\"name\": \"Round one\", \"seed\": 21}");
+    String id = battle.get("id").asText();
+    var started = postJson(dm, post("/battle/{id}/initiative", id), null);
+
+    String actorId = started.get("currentParticipantId").asText();
+    var actor = java.util.stream.StreamSupport.stream(started.get("order").spliterator(), false)
+        .filter(p -> p.get("id").asText().equals(actorId)).findFirst().orElseThrow();
+    String targetId = java.util.stream.StreamSupport.stream(started.get("order").spliterator(),
+            false)
+        .filter(p -> !p.get("id").asText().equals(actorId)).findFirst().orElseThrow()
+        .get("id").asText();
+
+    UUID featureId = featureId(actor.get("name").asText(), "Rend", "Scimitar");
+
+    var after = postJson(dm, post("/battle/{id}/participant/{p}/act", id, actorId), """
+        {"featureId": "%s", "targetIds": ["%s"]}
+        """.formatted(featureId, targetId));
+
+    var types = java.util.stream.StreamSupport.stream(after.get("log").spliterator(), false)
+        .map(n -> n.get("type").asText()).toList();
+    assertThat(types).contains("ACTION_DECLARED", "ATTACK_ROLLED", "ACTION_RESOLVED");
+    // Every consequence points back at the declaration, which is what will hang
+    // a reaction off the right action in phase 5.
+    var attack = java.util.stream.StreamSupport.stream(after.get("log").spliterator(), false)
+        .filter(n -> n.get("type").asText().equals("ATTACK_ROLLED")).findFirst().orElseThrow();
+    assertThat(attack.get("causedBySequence").asLong()).isPositive();
+  }
+
+  @Test
+  @DisplayName("A creature cannot use a feature that is not its own")
+  void featuresBelongToTheirCreature() throws Exception {
+    var e = postJson(dm, post("/encounter"), "{\"name\": \"Mismatch\"}");
+    String encounterId = e.get("id").asText();
+    postJson(dm, post("/encounter/{id}/combatant", encounterId), """
+        {"statBlockId": "%s", "name": "Goblin", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Goblin Warrior")));
+    var battle = postJson(dm, post("/encounter/{id}/battle", encounterId), null);
+    String id = battle.get("id").asText();
+    var started = postJson(dm, post("/battle/{id}/initiative", id), null);
+    String actorId = started.get("currentParticipantId").asText();
+
+    // A dragon's breath weapon, sent to a goblin. Looked up through the actor's
+    // own stat block, so the id alone buys nothing.
+    mvc.perform(as(dm, post("/battle/{id}/participant/{p}/act", id, actorId)).content("""
+            {"featureId": "%s", "targetIds": []}
+            """.formatted(featureId("Adult Black Dragon", "Acid Breath"))))
+        .andExpect(status().isBadRequest());
+  }
+
+  /** The id of the first named feature that this creature actually has. */
+  private UUID featureId(String monster, String... candidates) {
+    for (String name : candidates) {
+      var found = em.createQuery("""
+          select f.id from Monster m join m.statBlock sb join sb.features f
+          where m.ownerId is null and m.name = :m and f.name = :f
+          """, UUID.class).setParameter("m", monster).setParameter("f", name)
+          .getResultList();
+      if (!found.isEmpty()) {
+        return found.getFirst();
+      }
+    }
+    throw new AssertionError(monster + " has none of " + java.util.Arrays.toString(candidates));
+  }
 }

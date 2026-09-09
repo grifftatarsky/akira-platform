@@ -7,6 +7,7 @@ import com.gpt.oozengine.constant.rules.Disposition;
 import com.gpt.oozengine.model.battle.Battle;
 import com.gpt.oozengine.model.battle.BattleEvent;
 import com.gpt.oozengine.model.battle.Participant;
+import com.gpt.oozengine.model.mechanics.Feature;
 import com.gpt.oozengine.model.dto.response.BattleResponse;
 import com.gpt.oozengine.model.dto.response.BattleSummaryResponse;
 import com.gpt.oozengine.model.dto.response.ParticipantResponse;
@@ -288,6 +289,131 @@ public class BattleService {
   }
 
   // endregion
+
+  /**
+   * Resolves a feature by the acting creature against some targets.
+   *
+   * <p>Declared first, then resolved, and both are events. The gap between them
+   * is not ceremony — it is where a reaction goes, and an action that both
+   * declared and settled itself in one event would leave Counterspell nowhere to
+   * land.
+   *
+   * <p>The resolver is pure and applies nothing; this walks its outcomes, writes
+   * each to the log and moves the state. So the numbers are decided in one place
+   * that a test can drive without a database, and applied in another that can be
+   * replayed.
+   */
+  @Transactional
+  public Battle act(UUID battleId, UUID ownerId, UUID actorId, Feature feature,
+      List<UUID> targetIds, Map<UUID, TargetContext> contexts) {
+    Battle b = get(battleId, ownerId);
+    if (b.getPhase() != BattlePhase.IN_TURN) {
+      throw conflict("Nobody is taking a turn");
+    }
+    Participant actor = participant(b, actorId);
+    List<Participant> targets = targetIds.stream().map(id -> participant(b, id)).toList();
+
+    long declared = append(b, BattleEventType.ACTION_DECLARED, actor.getId(),
+        "%s uses %s%s".formatted(actor.getName(), feature.getName(),
+            targets.isEmpty() ? "" : " on " + targets.stream().map(Participant::getName).toList()),
+        Map.of("feature", feature.getName(),
+            "targets", targets.stream().map(p -> p.getId().toString()).toList()));
+
+    var resolution = ActionResolver.resolve(actor, feature, targets,
+        contexts == null ? Map.of() : contexts, dice(b), b.getRollCount());
+    b.setRollCount(b.getRollCount() + resolution.rollsUsed());
+
+    for (var outcome : resolution.outcomes()) {
+      applyOutcome(b, outcome, declared);
+    }
+    append(b, BattleEventType.ACTION_RESOLVED, actor.getId(),
+        "%s finishes %s".formatted(actor.getName(), feature.getName()),
+        Map.of("feature", feature.getName(), "declaredAt", declared));
+    repo.flush();
+    return b;
+  }
+
+  /** One outcome, logged and applied. Every branch does both or neither. */
+  private void applyOutcome(Battle b, ActionResolver.Outcome outcome, long causedBy) {
+    UUID targetId = outcome.targetId();
+    Participant target = targetId == null ? null : findParticipant(b, targetId);
+    switch (outcome) {
+      case ActionResolver.AttackRoll r -> appendCaused(b, BattleEventType.ATTACK_ROLLED, targetId,
+          r.summary(), r.payload(), causedBy);
+      case ActionResolver.SavingThrow r -> appendCaused(b, BattleEventType.SAVE_ROLLED, targetId,
+          r.summary(), r.payload(), causedBy);
+      case ActionResolver.Damage d -> {
+        if (target != null) {
+          applyHitPoints(b, target, -d.afterResponse(), d.summary(), d.payload(), causedBy);
+        }
+      }
+      case ActionResolver.Healing h -> {
+        if (target != null) {
+          applyHitPoints(b, target, h.amount(), h.summary(), h.payload(), causedBy);
+        }
+      }
+      case ActionResolver.TemporaryHitPoints t -> {
+        if (target != null) {
+          // "Temporary Hit Points don't stack: take the higher" — so this is a
+          // max rather than a sum, and the event records the value it settled on
+          // so the fold does not have to redo the comparison.
+          int value = Math.max(target.getTemporaryHitPoints(), t.amount());
+          target.setTemporaryHitPoints(value);
+          appendCaused(b, BattleEventType.TEMPORARY_HIT_POINTS_SET, targetId, t.summary(),
+              Map.of("value", value, "offered", t.amount()), causedBy);
+        }
+      }
+      case ActionResolver.ConditionApplied c -> {
+        if (target != null && !c.condition().isBlank() && target.getConditions().add(c.condition())) {
+          appendCaused(b, BattleEventType.CONDITION_APPLIED, targetId, c.summary(), c.payload(),
+              causedBy);
+        }
+      }
+      case ActionResolver.RiderApplied r -> appendCaused(b, BattleEventType.RIDER_APPLIED, targetId,
+          r.summary(), r.payload(), causedBy);
+      case ActionResolver.Moved m -> appendCaused(b, BattleEventType.NOTE, targetId, m.summary(),
+          m.payload(), causedBy);
+      case ActionResolver.Information i -> appendCaused(b, BattleEventType.NOTE, targetId,
+          i.summary(), i.payload(), causedBy);
+      case ActionResolver.NeedsAdjudication a -> appendCaused(b, BattleEventType.ADJUDICATED,
+          targetId, a.summary(), a.payload(), causedBy);
+    }
+  }
+
+  /** Damage and healing share one path, so temporary hit points cannot be skipped. */
+  private void applyHitPoints(Battle b, Participant p, int delta, String summary,
+      Map<String, Object> payload, long causedBy) {
+    int before = p.getCurrentHitPoints();
+    int remaining = delta;
+    if (delta < 0 && p.getTemporaryHitPoints() > 0) {
+      int absorbed = Math.min(p.getTemporaryHitPoints(), -delta);
+      p.setTemporaryHitPoints(p.getTemporaryHitPoints() - absorbed);
+      remaining = delta + absorbed;
+    }
+    p.setCurrentHitPoints(
+        Math.max(0, Math.min(p.getMaxHitPoints(), p.getCurrentHitPoints() + remaining)));
+    Map<String, Object> full = new LinkedHashMap<>(payload);
+    full.put("before", before);
+    full.put("after", p.getCurrentHitPoints());
+    full.put("delta", delta);
+    appendCaused(b, BattleEventType.HIT_POINTS_CHANGED, p.getId(), summary, full, causedBy);
+  }
+
+  private static Participant findParticipant(Battle b, UUID id) {
+    return b.getParticipants().stream().filter(p -> p.getId().equals(id)).findFirst().orElse(null);
+  }
+
+  private void appendCaused(Battle b, BattleEventType type, UUID participantId, String summary,
+      Map<String, Object> payload, long causedBy) {
+    long seq = append(b, type, participantId, summary, payload);
+    b.getEvents().stream()
+        .filter(e -> e.getSequence() == seq)
+        .findFirst()
+        // Pointing back at the declaration is what lets the log show a hit as an
+        // answer to an action rather than as an unrelated thing that happened
+        // next — and it is what a reaction will hang off in phase 5.
+        .ifPresent(e -> e.setCausedBySequence(causedBy));
+  }
 
   /**
    * Rewinds the fight to just after a given event.

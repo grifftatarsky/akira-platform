@@ -2,12 +2,14 @@ package com.gpt.oozengine.controller;
 
 import com.gpt.oozengine.constant.rules.Disposition;
 import com.gpt.oozengine.model.battle.Participant;
+import com.gpt.oozengine.model.dto.request.ActionRequest;
 import com.gpt.oozengine.model.dto.request.BattleRequest;
 import com.gpt.oozengine.model.dto.request.HitPointChangeRequest;
 import com.gpt.oozengine.model.dto.request.ParticipantRequest;
 import com.gpt.oozengine.model.dto.response.BattleResponse;
 import com.gpt.oozengine.model.dto.response.BattleSummaryResponse;
 import com.gpt.oozengine.model.dto.response.ParticipantResponse;
+import com.gpt.oozengine.service.BattleActionService;
 import com.gpt.oozengine.service.BattleService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -47,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class BattleController {
 
   private final BattleService battles;
+  private final BattleActionService actions;
 
   @GetMapping
   public PagedModel<BattleSummaryResponse> list(
@@ -99,6 +102,23 @@ public class BattleController {
       @PathVariable UUID participantId,
       @AuthenticationPrincipal Jwt jwt) {
     return battles.promoteAndView(id, userId(jwt), participantId);
+  }
+
+  /**
+   * The acting creature takes an action.
+   *
+   * <p>The board is consulted here if there is one — cover, line of sight and
+   * reach are worked out and handed to a resolver that has never heard of a map.
+   * A battle with no encounter behind it still works; every target is simply in
+   * the open.
+   */
+  @PostMapping("/{id}/participant/{participantId}/act")
+  public BattleResponse act(
+      @PathVariable UUID id,
+      @PathVariable UUID participantId,
+      @Valid @RequestBody ActionRequest req,
+      @AuthenticationPrincipal Jwt jwt) {
+    return actions.act(id, userId(jwt), participantId, req.featureId(), req.targets());
   }
 
   @PostMapping("/{id}/participant/{participantId}/hit-points")

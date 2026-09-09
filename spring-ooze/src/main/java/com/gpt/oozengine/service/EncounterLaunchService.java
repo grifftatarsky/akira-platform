@@ -75,6 +75,18 @@ public class EncounterLaunchService {
     p.setSurprised(c.isSurprised());
     p.setDisposition(c.getDisposition());
     p.setNotes(c.getNotes());
+
+    // Copied in rather than looked up later: the participant *is* the creature
+    // for the duration, so resolution reads one row and never has to work out
+    // which of three sources the real Armor Class came from. Scaling lands here
+    // too, which is the only place it is ever applied.
+    int armorClass = sb == null || sb.getArmorClass() == null ? 10 : sb.getArmorClass();
+    var scaling = c.getScaling();
+    p.setArmorClass(armorClass + (scaling == null ? 0 : scaling.getArmorClassDelta()));
+    if (sb != null) {
+      sb.getDamageResponses().forEach(
+          d -> p.getDamageResponses().put(d.getDamageType(), d.getResponse()));
+    }
     return p;
   }
 

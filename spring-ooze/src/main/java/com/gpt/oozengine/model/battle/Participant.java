@@ -1,5 +1,7 @@
 package com.gpt.oozengine.model.battle;
 
+import com.gpt.oozengine.constant.rules.DamageResponseKind;
+import com.gpt.oozengine.constant.rules.DamageType;
 import com.gpt.oozengine.constant.rules.Disposition;
 import com.gpt.oozengine.model.BaseEntity;
 import jakarta.persistence.CollectionTable;
@@ -9,8 +11,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.MapKeyColumn;
+import jakarta.persistence.MapKeyEnumerated;
 import jakarta.persistence.Table;
+import java.util.EnumMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.Getter;
@@ -85,6 +91,33 @@ public class Participant extends BaseEntity {
   // endregion
 
   // region What the fight does to it
+  /**
+   * What an attack has to beat.
+   *
+   * <p>On the participant rather than looked up, because the participant *is*
+   * the creature for the duration of the fight: scaling and any private stat
+   * block were resolved when the battle started, so resolution reads one row and
+   * never has to ask which of three sources the real number came from.
+   */
+  @Column(name = "armor_class", nullable = false)
+  private int armorClass = 10;
+
+  /**
+   * How this creature answers each damage type.
+   *
+   * <p>Copied in at launch for the same reason as the Armor Class. A resistance
+   * the engine forgets is a creature taking double what it should, which reads
+   * as a damage bug rather than a lookup one.
+   */
+  @ElementCollection
+  @CollectionTable(name = "participant_damage_responses",
+      joinColumns = @JoinColumn(name = "participant_id"))
+  @MapKeyColumn(name = "damage_type")
+  @MapKeyEnumerated(EnumType.STRING)
+  @Column(name = "response", nullable = false)
+  @Enumerated(EnumType.STRING)
+  private Map<DamageType, DamageResponseKind> damageResponses = new EnumMap<>(DamageType.class);
+
   @Column(name = "max_hit_points", nullable = false)
   private int maxHitPoints;
 
@@ -116,6 +149,24 @@ public class Participant extends BaseEntity {
   /** Down but not necessarily out; the tracker shows it, the DM rules on it. */
   public boolean isDown() {
     return currentHitPoints <= 0;
+  }
+
+  /**
+   * The damage this creature actually takes from {@code amount} of a type.
+   *
+   * <p>Halved for Resistance, doubled for Vulnerability, ignored for Immunity —
+   * and halving rounds down, which is the book's rule everywhere it rounds.
+   */
+  public int afterDamageResponse(int amount, DamageType type) {
+    DamageResponseKind response = type == null ? null : damageResponses.get(type);
+    if (response == null) {
+      return amount;
+    }
+    return switch (response) {
+      case IMMUNITY -> 0;
+      case RESISTANCE -> amount / 2;
+      case VULNERABILITY -> amount * 2;
+    };
   }
 
   /** The book's threshold for "Bloodied": half its hit points or fewer. */

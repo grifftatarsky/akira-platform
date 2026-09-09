@@ -92,8 +92,14 @@ public final class BattleFold {
           }
         }
         case BATTLE_ENDED -> battle.setPhase(BattlePhase.ENDED);
-        // A note changes nothing by definition, and adding or starting are
-        // already reflected by the rows existing at all.
+        // Every roll advances the sequence, so a rewind that lost count would
+        // make the fight roll different numbers from the same seed — which is
+        // the one thing the seed exists to prevent.
+        case ATTACK_ROLLED, SAVE_ROLLED -> battle.setRollCount(battle.getRollCount() + 1);
+        // A note, a declaration, a rider and an adjudication all change nothing
+        // the fold tracks: the hit points and conditions they led to arrive as
+        // their own events, which is what keeps this a fold rather than a second
+        // implementation of the rules.
         default -> { }
       }
     }

@@ -27,6 +27,31 @@ public enum BattleEventType {
   PARTICIPANT_PROMOTED,
   PARTICIPANT_REMOVED,
 
+  /**
+   * A creature has said what it is doing, and nothing has resolved yet.
+   *
+   * <p>The gap between this and {@link #ACTION_RESOLVED} is where a reaction
+   * goes. Counterspell has to land after "I cast Hold Person" and before the
+   * save is rolled, so an action cannot be a single event that both declares and
+   * settles it.
+   */
+  ACTION_DECLARED,
+  ATTACK_ROLLED,
+  SAVE_ROLLED,
+  ACTION_RESOLVED,
+
+  /** A standing modifier applied to somebody — Advantage, halved Speed, -1 AC. */
+  RIDER_APPLIED,
+
+  /**
+   * A feature the engine cannot execute, resolved by the DM instead.
+   *
+   * <p>Deliberately the same shape as a resolved one: it spends the action,
+   * lands in the log, and rewinds. The only difference is where the outcome came
+   * from, which the payload records rather than the type.
+   */
+  ADJUDICATED,
+
   HIT_POINTS_CHANGED,
   TEMPORARY_HIT_POINTS_SET,
   CONDITION_APPLIED,

@@ -336,7 +336,7 @@ Three independent axes, deliberately not one enum:
 | 1 | ✅ **Done.** `Encounter`, map, terrain, `Combatant`, placement, painting, geometry, falling, REST | A DM can build and save a tactical map |
 | 2 | ✅ **Done.** Scaling descriptors, encounter-scoped copy-on-write, NPC-wraps-monster | "A beefed-up goblin" without touching the compendium |
 | 3 | ✅ **Done.** `Battle`, `Participant`, `BattleEvent`, initiative, turn order, the pause, rewind. No resolution, **no map** | **A standalone initiative tracker.** Useful at a table on its own |
-| 4 | Action resolution: Feature → Step → Effect, attacks, saves, damage, conditions, movement | The simulator proper |
+| 4 | ✅ **Done.** Feature → Step → Effect: attacks, saves, damage with resistances, conditions, riders, adjudication | The simulator proper |
 | 5 | Reaction windows, **rewriting a declared action**, on-deck promotion, surprise, duration ticking | The part the epic is for |
 | 6 | WebGL board, reusing what JPSS taught us | The table |
 
@@ -360,6 +360,33 @@ something a battle *may* have come from, never something it needs. The seam that
 lifts one into the other lives on the **simulator** side, where the code already
 knows about both — putting it in `BattleService` would have inverted the
 dependency and quietly made the tracker need a board.
+
+### What phase 4 shipped
+
+`ActionResolver` is **pure**: it takes an actor, a feature, targets and what the
+board says about them, and returns a list of outcomes. It applies nothing and
+writes no log, so every clause of the SRD in it is provable without starting
+Postgres — and the same code can be replayed during a rewind without
+re-appending anything.
+
+It never looks anything up. Range and cover arrive as a `TargetContext`; the
+creature's Armor Class and resistances live on the participant, copied in at
+launch. **The participant *is* the creature for the duration of the fight**, so
+scaling and any private stat block were already resolved and resolution reads one
+row rather than working out which of three sources the real number came from.
+
+Rules that earned their own test: a natural 20 hits whatever the AC is and a
+natural 1 misses whatever the bonus is (neither is a comparison); a critical
+doubles the dice and not the modifier; cover raises the number to beat rather
+than lowering the roll, so the die stays honest in the log; Total Cover is a
+refusal rather than a penalty; resistance halves and the log keeps *both* numbers
+so a DM can see why 7 became 3; and a chained step only fires when the step
+gating it did what its trigger says.
+
+**Declaration and resolution are separate events**, and every consequence carries
+`causedBySequence` back to the declaration. That gap is where a reaction lands in
+phase 5, and an action that both declared and settled itself in one event would
+leave Counterspell nowhere to go.
 
 **Phases are sequential.** 3 was built before 2 to get that boundary test written
 before anything could couple to the tracker. That was worth doing once; it is not
