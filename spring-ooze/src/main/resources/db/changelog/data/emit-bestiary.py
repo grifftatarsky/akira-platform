@@ -48,7 +48,7 @@ def write(directory, name, header, rows):
 monsters, stat_blocks = [], []
 speeds, saves, skills, senses, damage, immunities = [], [], [], [], [], []
 features, steps, effects, gear, components, known_spells = [], [], [], [], [], []
-riders, shapes, shape_speeds, unique = [], [], [], []
+riders, shapes, shape_speeds, unique, capabilities = [], [], [], [], []
 
 for b in blocks:
     sb = uid('statblock', b['name'])
@@ -123,6 +123,13 @@ for b in blocks:
                 action or '',
                 c['count'], 'true' if c['optional'] else 'false', c['mode'],
                 c['choiceGroup'] if c['choiceGroup'] is not None else '', ci])
+        for ci, cap in enumerate(f.get('capabilities', [])):
+            capabilities.append([
+                uid('capability', b['name'], f['ordinal'], f['name'], ci),
+                STAMP, STAMP, 0, fid, cap['capability'],
+                cap['amount'] if cap['amount'] is not None else '',
+                cap['secondAmount'] if cap['secondAmount'] is not None else '',
+                cap['durationUnit'] or '', cap['damageType'] or '', cap['notes'] or ''])
         for si, sh in enumerate(f.get('shapes', [])):
             shid = uid('shape', b['name'], f['ordinal'], f['name'], si)
             shapes.append([shid, STAMP, STAMP, 0, fid, si, sh['name'],
@@ -135,6 +142,9 @@ for b in blocks:
             f['legendaryCost'] if f['legendaryCost'] is not None else '',
             f['triggerText'] or '', 'false',
             f['usesReset'], f['usesMax'] if f['usesMax'] is not None else '',
+            f['triggerEvent'] or '', f['triggerDamageType'] or '',
+            f['triggerThreshold'] if f['triggerThreshold'] is not None else '',
+            f['auraSizeFeet'] if f['auraSizeFeet'] is not None else '',
             f['rechargeMin'] if f['rechargeMin'] is not None else '',
             f['rechargeMax'] if f['rechargeMax'] is not None else '',
         ])
@@ -209,7 +219,8 @@ write(HERE, 'bestiary-condition-immunities.csv', ['stat_block_id', 'condition_id
 write(HERE, 'bestiary-features.csv',
       ['id', 'created_at', 'updated_at', 'version', 'name', 'description', 'ordinal',
        'stat_block_id', 'activation', 'legendary_cost', 'trigger_text', 'ritual', 'uses_reset',
-       'uses_max', 'recharge_min', 'recharge_max'],
+       'uses_max', 'trigger_event', 'trigger_damage_type', 'trigger_threshold',
+       'aura_size_feet', 'recharge_min', 'recharge_max'],
       features)
 write(HERE, 'bestiary-gear.csv', ['stat_block_id', 'item_name', 'quantity'], gear)
 # Joined on name at load time, like the gear: the spells were seeded across
@@ -244,5 +255,9 @@ write(HERE, 'bestiary-shape-options.csv',
       shapes)
 write(HERE, 'bestiary-shape-speeds.csv',
       ['shape_option_id', 'movement_type', 'speed_feet'], shape_speeds)
+write(HERE, 'bestiary-capabilities.csv',
+      ['id', 'created_at', 'updated_at', 'version', 'feature_id', 'capability', 'amount',
+       'second_amount', 'duration_unit', 'damage_type', 'notes'],
+      capabilities)
 write(HERE, 'bestiary-unique.csv',
       ['stat_block_id', 'unique_behavior', 'unique_data'], unique)

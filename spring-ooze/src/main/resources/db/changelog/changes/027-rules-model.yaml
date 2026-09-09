@@ -598,3 +598,53 @@ databaseChangeLog:
             columns:
               - column: {name: unique_behavior, type: VARCHAR(48)}
               - column: {name: unique_data, type: JSONB}
+
+  - changeSet:
+      id: 027-feature-capabilities
+      author: oozengine
+      # The third thing a passive can be. A rider modifies a roll and a trigger
+      # fires on an event; Amphibious, Spider Climb, Flyby and Swarm do neither —
+      # they change what the rules permit, and the engine has to ask before it
+      # refuses a move or charges double for one. 189 traits had no form at all.
+      changes:
+        - createTable:
+            tableName: feature_capabilities
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: capability, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: amount, type: INT}
+              - column: {name: second_amount, type: INT}
+              - column: {name: duration_unit, type: VARCHAR(16)}
+              - column: {name: damage_type, type: VARCHAR(16)}
+              - column: {name: notes, type: TEXT}
+        - addForeignKeyConstraint:
+            constraintName: fk_feature_capabilities_feature
+            baseTableName: feature_capabilities
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: ix_feature_capabilities_feature
+            tableName: feature_capabilities
+            columns: [{column: {name: feature_id}}]
+
+  - changeSet:
+      id: 027-feature-triggers
+      author: oozengine
+      # trigger_text already carried the book's words, which is enough for a DM
+      # and useless to the engine. A simulator true to the table has to fire
+      # Undead Fortitude at 0 Hit Points rather than wait to be asked.
+      changes:
+        - addColumn:
+            tableName: features
+            columns:
+              - column: {name: trigger_event, type: VARCHAR(40)}
+              - column: {name: trigger_damage_type, type: VARCHAR(16)}
+              - column: {name: trigger_threshold, type: INT}
+              - column: {name: aura_size_feet, type: INT}
+

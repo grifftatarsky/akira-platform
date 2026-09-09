@@ -2,6 +2,8 @@ package com.gpt.oozengine.model.mechanics;
 
 import com.gpt.oozengine.constant.rules.Activation;
 import com.gpt.oozengine.constant.rules.AreaShape;
+import com.gpt.oozengine.constant.rules.DamageType;
+import com.gpt.oozengine.constant.rules.TriggerEvent;
 import com.gpt.oozengine.constant.rules.RangeType;
 import com.gpt.oozengine.constant.rules.TargetKind;
 import com.gpt.oozengine.constant.rules.TimeUnit;
@@ -124,6 +126,36 @@ public class Feature extends BaseEntity {
   @Column(name = "trigger_text", columnDefinition = "text")
   private String triggerText;
 
+  /**
+   * The machine-readable half of {@link #triggerText}.
+   *
+   * <p>Prose is enough for a DM and useless to the engine: a simulator that is
+   * true to the table has to fire Undead Fortitude when the zombie reaches 0 Hit
+   * Points rather than wait to be asked. Null means the feature is not
+   * triggered at all.
+   */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "trigger_event", length = 40)
+  private TriggerEvent triggerEvent;
+
+  /** Narrows {@link TriggerEvent#ON_DAMAGE_TAKEN} to one type of damage. */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "trigger_damage_type", length = 16)
+  private DamageType triggerDamageType;
+
+  /** "took 15+ Slashing damage during that turn" — the number in the condition. */
+  @Column(name = "trigger_threshold")
+  private Integer triggerThreshold;
+
+  /**
+   * Radius of the Emanation this feature projects, for traits that affect the
+   * ground or air around the creature rather than a target — the gibbering
+   * mouther's Aberrant Ground, an elemental's Illumination. Real geometry, so
+   * the board can be asked what is inside it.
+   */
+  @Column(name = "aura_size_feet")
+  private Integer auraSizeFeet;
+
   /** Whether the feature can also be used as a Ritual (spells only). */
   @Column(name = "ritual", nullable = false)
   private boolean ritual;
@@ -207,6 +239,17 @@ public class Feature extends BaseEntity {
   @JoinColumn(name = "feature_id", nullable = false)
   @OrderBy("ordinal ASC")
   private List<ShapeOption> shapes = new ArrayList<>();
+
+  /** Standing capabilities this feature grants. Empty on most features. */
+  @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+  @JoinColumn(name = "feature_id", nullable = false)
+  @OrderBy("capability ASC")
+  @BatchSize(size = 64)
+  private List<FeatureCapability> capabilities = new ArrayList<>();
+
+  public void addCapability(FeatureCapability c) {
+    capabilities.add(c);
+  }
 
   public void addShape(ShapeOption s) {
     s.setOrdinal(shapes.size());

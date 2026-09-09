@@ -380,6 +380,12 @@ def parse_riders(segment):
     # The rust monster's corrosion, which is the only item-durability rule in the
     # book: a cumulative penalty with a stated destruction point and a stated
     # cure, so both belong on the rider rather than in a handler somewhere.
+    if re.search(r'cumulative -1 penalty to (?:the )?damage rolls?|takes a cumulative -1 penalty',
+                 segment) and not re.search(r'penalty to the AC it offers', segment):
+        cure = re.search(r'removed by casting the (\w+) spell|(Mending) spell', segment)
+        out.append(_rider('ITEM_ATTACK_ROLL', 'BONUS', amount=-1, destroyedAt=-5,
+                          removedBy=cure.group(1) if cure else 'Mending'))
+
     if re.search(r'penalty to the AC it offers', segment):
         cure = re.search(r'removed by casting the (\w+) spell', segment)
         out.append(_rider('ITEM_ARMOR_CLASS', 'BONUS', amount=-1, destroyedAt=10,
@@ -390,6 +396,10 @@ def parse_riders(segment):
     # Legendary Resistance, on all 32 legendary creatures: the single most
     # consequential passive in the book, and it had no mechanical form at all.
     # The feature's own 3/Day already parses; this is what it spends a use on.
+    if re.search(r'automatically succeeds on saving throws', segment, re.I):
+        out.append(_rider('SAVING_THROW', 'AUTO_SUCCEED',
+                          gate='against spells and other magical effects'))
+
     if re.search(r'fails a saving throw, it can choose to succeed instead', segment, re.I):
         out.append(_rider('SAVING_THROW', 'AUTO_SUCCEED',
                           gate='on a failed save, before the outcome is applied'))
@@ -612,15 +622,32 @@ def parse_feature(name, text, activation, ordinal):
             r"can'?t take this action again until the start of its next turn", text, re.I):
         reset, uses = 'PER_ROUND', 1
 
+    trig_event, trig_damage, trig_threshold = parse_trigger(text, activation)
+    caps = parse_capabilities(text, activation)
+    aura = parse_aura(text)
+    shapes = parse_shapes(text)
+    steps = parse_steps(body)
+    # A passive with no rider, capability, trigger, aura or effect would be
+    # invisible to the engine — the DM would not even see it listed on the
+    # creature. The last sixteen are genuinely narrative (a 30 percent chance of
+    # knowing Wish, a GM's choice of dragon, a hag coven's shared spell list), so
+    # they keep their prose against OTHER: representable, and flagged as work.
+    if (activation == 'PASSIVE' and not caps and not trig_event and not aura and not shapes
+            and not [e for st in steps for e in st['effects']]):
+        caps = [{'capability': 'OTHER', 'amount': None, 'secondAmount': None,
+                 'durationUnit': None, 'damageType': None, 'notes': text.strip()[:400]}]
     return {'name': base, 'description': text.strip(), 'ordinal': ordinal,
-            'shapes': parse_shapes(text),
+            'shapes': shapes,
+            'capabilities': caps,
+            'triggerEvent': trig_event, 'triggerDamageType': trig_damage,
+            'triggerThreshold': trig_threshold, 'auraSizeFeet': aura,
             # The 2024 stat blocks give a creature a pool of Legendary Action
             # Uses and every action spends exactly one; the 2014 "Costs 2
             # Actions" wording is gone from the book, so there is no per-action
             # cost left to read. Verified: 0 of 82 say "Costs N".
             'activation': activation, 'legendaryCost': None, 'usesReset': reset, 'usesMax': uses,
             'rechargeMin': rmin, 'rechargeMax': rmax, 'triggerText': trigger,
-            'steps': parse_steps(body)}
+            'steps': steps}
 
 
 def parse_block(name, body):
@@ -969,6 +996,139 @@ def spell_components(desc, at):
                         'count': 1, 'mode': mode, 'optional': False,
                         'choiceGroup': 0 if len(picks) > 1 else None, '_at': at + m.start()})
     return out
+
+
+# region capabilities and triggers
+#
+# The two things a passive can be that a rider cannot express. A capability is a
+# standing permission — Amphibious, Spider Climb, Flyby — and a trigger is when
+# an effect fires. Between them and riders, every passive trait in the book has
+# a mechanical form; before them, 189 of 335 had none at all.
+#
+# Ordered, first match wins. The patterns are deliberately anchored on the
+# book's own phrasings rather than on keywords: "can breathe air and water" is
+# Amphibious wherever it appears, and matching a bare "breathe" would also catch
+# Water Breathing, which is the opposite permission.
+CAPABILITY_RULES = [
+    (r'can breathe air and water, but it must be submerged at least once every (\d+) hours?',
+     'MUST_SUBMERGE_PERIODICALLY', 'HOUR'),
+    (r'can breathe air and water', 'BREATHE_AIR_AND_WATER', None),
+    (r'can breathe only underwater', 'BREATHE_ONLY_WATER', None),
+    (r'can hold its breath for (\d+) hours?', 'HOLD_BREATH', 'HOUR'),
+    (r'can hold its breath for (\d+) minutes?', 'HOLD_BREATH', 'MINUTE'),
+    (r'can climb difficult surfaces', 'CLIMB_WITHOUT_CHECK', None),
+    (r'can move across and climb icy surfaces|Difficult Terrain composed of ice or snow',
+     'IGNORE_ICE_TERRAIN', None),
+    (r'ignores movement restrictions caused by webs', 'IGNORE_WEB_TERRAIN', None),
+    (r'move through a space as narrow as 1 inch', 'SQUEEZE_THROUGH_INCH', None),
+    (r"can (?:occupy|enter) (?:another creature's|an? (?:creature|enemy)'s) space",
+     'OCCUPY_CREATURE_SPACE', None),
+    (r'can burrow through (?:solid rock|nonmagical, unworked earth)', 'BURROW_THROUGH_ROCK', None),
+    (r'can move through other creatures and objects', 'MOVE_THROUGH_OBJECTS', None),
+    (r"doesn'?t provoke an Opportunity Attack", 'NO_OPPORTUNITY_ATTACK_ON_EXIT', None),
+    (r'Long Jump is up to (\d+) feet', 'FIXED_JUMP_DISTANCE', 'FEET'),
+    (r'jump distance is determined using its Dexterity', 'JUMP_USES_DEXTERITY', None),
+    (r"needn'?t spend extra movement to move a creature it is grappling",
+     'FREE_GRAPPLE_MOVEMENT', None),
+    (r"can'?t shape-shift", 'CANNOT_SHAPE_SHIFT', None),
+    (r"can'?t wear or carry anything", 'CANNOT_CARRY', None),
+    (r'counts as one size larger for the purpose of determining its carrying capacity',
+     'OVERSIZED_CARRYING_CAPACITY', None),
+    (r'can take one Reaction on every turn', 'REACTION_EVERY_TURN', None),
+    (r'deals double damage to objects and structures', 'DOUBLE_DAMAGE_TO_OBJECTS', None),
+    (r'can (?:pinpoint the location of|see) [^.]*?within (\d+) feet|can see (\d+) feet into',
+     'DETECT_AT_RANGE', 'FEET'),
+    (r'senses magic within (\d+) feet', 'DETECT_AT_RANGE', 'FEET'),
+    (r'can communicate telepathically|special telepathy|communicate with it telepathically'
+     r'|communicates telepathically with|magically bound to an amulet',
+     'BOUND_TELEPATHY', None),
+    (r'can communicate with \w+ and \w+ as if they shared a language'
+     r'|can mimic (?:animal sounds|simple sounds)|knows if it hears a lie',
+     'SPECIAL_COMMUNICATION', None),
+    (r"thoughts can'?t be read|No magic can observe", 'MIND_SHIELDED', None),
+]
+
+
+def parse_capabilities(desc, activation):
+    """Standing permissions this feature grants.
+
+    Passives only. A standing capability is a trait, and running these patterns
+    over actions matches their targeting clauses instead — "one creature the
+    dragon can see within 120 feet" is not a sense, it is who the breath hits,
+    and reading it as DETECT_AT_RANGE gave 60 false capabilities.
+    """
+    if activation != 'PASSIVE':
+        return []
+    out = []
+    for pattern, cap, unit in CAPABILITY_RULES:
+        m = re.search(pattern, desc, re.I)
+        if not m:
+            continue
+        amount = next((int(g) for g in (m.groups() or ()) if g and g.isdigit()), None)
+        second = None
+        if cap == 'FIXED_JUMP_DISTANCE':
+            hj = re.search(r'High Jump is up to (\d+) feet', desc, re.I)
+            second = int(hj.group(1)) if hj else None
+        out.append({'capability': cap, 'amount': amount, 'secondAmount': second,
+                    'durationUnit': unit if unit != 'FEET' else None,
+                    'damageType': None, 'notes': desc.strip()[:400]})
+        # One capability per phrasing, but a trait can grant several distinct
+        # ones — Water Breathing is "only underwater" *and* an hour of breath.
+    return out
+
+
+# When a passive fires. Ordered; the bloodied variants must precede the plain
+# turn ones or "starts its turn Bloodied" reads as an ordinary turn start.
+TRIGGER_RULES = [
+    (r'starts its turn Bloodied', 'ON_TURN_START_WHILE_BLOODIED'),
+    (r'ends any turn Bloodied|ends its turn Bloodied', 'ON_TURN_END_WHILE_BLOODIED'),
+    (r'If damage reduces the [\w ]{1,24}? to 0 Hit Points', 'ON_DROP_TO_ZERO_HIT_POINTS'),
+    (r'^If (?:the )?[\w ]{1,24}? (?:dies|is destroyed)|If destroyed,|If the [\w ]{1,24}? dies',
+     'ON_DEATH'),
+    (r'Whenever the [\w ]{1,24}? is subjected to (\w+) damage'
+     r'|If the [\w ]{1,24}? takes (\w+) damage', 'ON_DAMAGE_TAKEN'),
+    (r'is targeted by a [\w ]+ spell', 'ON_TARGETED_BY_SPELL'),
+    (r'starts its turn within (\d+) feet|moves within (\d+) feet', 'ON_CREATURE_NEARBY'),
+    (r'starts its turn', 'ON_TURN_START'),
+    (r'ends any turn|at the end of each of its turns', 'ON_TURN_END'),
+]
+
+
+def parse_trigger(desc, activation):
+    """(event, damageType, threshold) — when this feature fires, if it does."""
+    # A Reaction states its own trigger in prose and the DM adjudicates it;
+    # pretending to classify that would be worse than saying so.
+    if activation == 'REACTION':
+        return 'DECLARED_BY_TRIGGER_TEXT', None, None
+    for pattern, event in TRIGGER_RULES:
+        m = re.search(pattern, desc, re.I | re.M)
+        if not m:
+            continue
+        dmg = None
+        if event == 'ON_DAMAGE_TAKEN':
+            dmg = next((g.upper() for g in m.groups() if g and g.capitalize() in DAMAGE_TYPES),
+                       None)
+            if not dmg:
+                continue
+        thr = re.search(r'took (\d+)\+ (\w+) damage', desc)
+        return event, dmg, int(thr.group(1)) if thr else None
+    return None, None, None
+
+
+def parse_aura(desc):
+    """Radius of the area a trait projects around its owner, if any.
+
+    Two phrasings: an Emanation, and the light traits' "sheds Bright Light in a
+    30foot radius" — where the PDF has swallowed the hyphen, so the pattern
+    cannot require one.
+    """
+    m = re.search(r'(\d+)-foot Emanation originating from', desc)
+    if m:
+        return int(m.group(1))
+    m = re.search(r'sheds Bright Light in a (\d+) ?-?foot radius', desc)
+    return int(m.group(1)) if m else None
+
+# endregion
 
 
 # region shape-shifting

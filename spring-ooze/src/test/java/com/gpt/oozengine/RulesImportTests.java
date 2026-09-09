@@ -458,17 +458,17 @@ class RulesImportTests {
   void riders() {
     // 303 passive traits and 15 actions had no representation at all before
     // this: Pack Tactics attacked as though the creature stood alone.
-    assertThat(count("select count(r) from Rider r")).isEqualTo(157);
+    assertThat(count("select count(r) from Rider r")).isEqualTo(160);
     assertThat(count("select count(r) from Rider r where r.target ="
         + " com.gpt.oozengine.constant.rules.RiderTarget.ATTACK_ROLL")).isEqualTo(38);
     // Legendary Resistance is on all 32 legendary creatures and was the single
     // most consequential passive with no mechanical form. Its 3/Day already
     // parsed; what it spends a use on did not.
     assertThat(count("select count(r) from Rider r where r.mode ="
-        + " com.gpt.oozengine.constant.rules.RiderMode.AUTO_SUCCEED")).isEqualTo(32);
+        + " com.gpt.oozengine.constant.rules.RiderMode.AUTO_SUCCEED")).isEqualTo(33);
     // The rust monster's corrosion is the book's only item-durability rule, and
     // it states both its destruction point and its cure, so both ride along.
-    assertThat(count("select count(r) from Rider r where r.removedBy = 'Mending'")).isEqualTo(6);
+    assertThat(count("select count(r) from Rider r where r.removedBy = 'Mending'")).isEqualTo(8);
     assertThat(count("select count(r) from Rider r where r.destroyedAt is not null"
         + " and r.removedBy is null")).isZero();
     // A BONUS with neither a flat amount nor dice would apply nothing.
@@ -505,6 +505,76 @@ class RulesImportTests {
    * to its owning feature — the join column lives on Feature's collection — so
    * this walks the tables rather than the object graph.
    */
+  @Test
+  @DisplayName("Every passive trait has a mechanical form, none is only prose")
+  void everyPassiveIsRepresented() {
+    // The claim this asserts: a simulator true to the table has to be able to
+    // represent everything the book grants. 221 of 335 passives had no form at
+    // all — a Pack Tactics creature attacked alone, an Amphibious one could not
+    // be told it breathes water, Undead Fortitude never fired.
+    long bare = ((Number) em.createNativeQuery("""
+        select count(*) from features f
+        join stat_blocks sb on sb.id = f.stat_block_id
+        join monsters m on m.stat_block_id = sb.id
+        where m.owner_id is null and f.activation = 'PASSIVE'
+          and f.trigger_event is null and f.aura_size_feet is null
+          and not exists (select 1 from feature_capabilities c where c.feature_id = f.id)
+          and not exists (select 1 from feature_components fc where fc.feature_id = f.id)
+          and not exists (select 1 from shape_options so where so.feature_id = f.id)
+          and not exists (select 1 from effects e
+                          join feature_steps st on st.id = e.step_id
+                          where st.feature_id = f.id)
+        """).getSingleResult()).longValue();
+    assertThat(bare).isZero();
+  }
+
+  @Test
+  @DisplayName("Capabilities carry their numbers, not just their names")
+  void capabilities() {
+    assertThat(count("select count(c) from FeatureCapability c")).isEqualTo(161);
+    // Amphibious is the commonest trait in the bestiary.
+    assertThat(count("select count(c) from FeatureCapability c where c.capability ="
+        + " com.gpt.oozengine.constant.rules.Capability.BREATHE_AIR_AND_WATER")).isEqualTo(33);
+    // Sixteen traits are genuinely narrative — a 30 percent chance of knowing
+    // Wish, a GM's choice of dragon — and keep their prose against OTHER. That
+    // number is the honest size of what no mechanism reaches, so it is asserted
+    // rather than left to drift.
+    assertThat(count("select count(c) from FeatureCapability c where c.capability ="
+        + " com.gpt.oozengine.constant.rules.Capability.OTHER")).isEqualTo(16);
+    // A capability that needs a number and lacks one says a frog jumps further
+    // without saying how much further.
+    assertThat(count("select count(c) from FeatureCapability c where c.capability in ("
+        + " com.gpt.oozengine.constant.rules.Capability.HOLD_BREATH,"
+        + " com.gpt.oozengine.constant.rules.Capability.DETECT_AT_RANGE,"
+        + " com.gpt.oozengine.constant.rules.Capability.FIXED_JUMP_DISTANCE)"
+        + " and c.amount is null")).isZero();
+    // Every one keeps the book's wording so a DM can check our reading.
+    assertThat(count("select count(c) from FeatureCapability c where c.notes is null")).isZero();
+  }
+
+  @Test
+  @DisplayName("Triggered passives say when they fire, not just that they do")
+  void triggers() {
+    assertThat(count("select count(f) from Feature f where f.triggerEvent is not null"))
+        .isEqualTo(95);
+    // The Restoration family, on 33 fiends, celestials and undead.
+    assertThat(count("select count(f) from Feature f where f.triggerEvent ="
+        + " com.gpt.oozengine.constant.rules.TriggerEvent.ON_DEATH")).isEqualTo(33);
+    // A damage-keyed trigger with no damage type would fire on everything.
+    assertThat(count("select count(f) from Feature f where f.triggerEvent ="
+        + " com.gpt.oozengine.constant.rules.TriggerEvent.ON_DAMAGE_TAKEN"
+        + " and f.triggerDamageType is null")).isZero();
+    // Every Reaction states its trigger in prose, and says so rather than
+    // pretending to a classification it does not have.
+    assertThat(count("select count(f) from Feature f where f.activation ="
+        + " com.gpt.oozengine.constant.rules.Activation.REACTION"
+        + " and f.triggerEvent <> com.gpt.oozengine.constant.rules.TriggerEvent"
+        + ".DECLARED_BY_TRIGGER_TEXT")).isZero();
+    // Auras are real geometry: the board gets asked what is inside them.
+    assertThat(count("select count(f) from Feature f where f.auraSizeFeet is not null"))
+        .isEqualTo(39);
+  }
+
   private long seededComponents(String extra) {
     return ((Number) em.createNativeQuery("""
         select count(*) from feature_components c
