@@ -1,6 +1,6 @@
 import {
   Battle, BattleMap, BoardScene, Combatant, CoverDegree, Encounter, LightLevel, MapCell,
-  Participant, TerrainKind, TerrainTile, TokenPlacement,
+  Participant, PropPlacement, TerrainKind, TerrainTile, TokenPlacement,
 } from './board.models';
 
 /**
@@ -114,6 +114,7 @@ export function terrainTiles(map: BattleMap): TerrainTile[] {
         cover: cell?.cover ?? (kind === 'WALL' ? 'TOTAL' : 'NONE'),
         rotation: kind === 'WALL' ? wallRotation(x, y, isWall) : 0,
         colour: shade(TERRAIN_COLOURS[kind], LIGHT_FACTOR[light]),
+        baseColour: TERRAIN_COLOURS[kind],
       });
     }
   }
@@ -243,22 +244,47 @@ function token(
   };
 }
 
+/**
+ * Props, sat on the ground they stand on.
+ *
+ * <p>A prop's `z` is a height *above the floor*, not an absolute one, for the
+ * same reason a creature's is: a chest carried up onto a ten-foot dais should
+ * not need its own elevation edited, and one authored at z = 0 must never end
+ * up buried in the plinth. Which floor it is is a question about the map, so it
+ * is answered here rather than by whoever placed the furniture.
+ */
+export function placedProps(
+  map: BattleMap,
+  props: readonly PropPlacement[],
+): PropPlacement[] {
+  return props.map(p => ({ ...p, z: groundAt(map, p.x, p.y) + p.z }));
+}
+
 /** The whole scene for an encounter, before a fight. */
-export function sceneForEncounter(encounter: Encounter): BoardScene {
+export function sceneForEncounter(
+  encounter: Encounter,
+  props: readonly PropPlacement[] = [],
+): BoardScene {
   return {
     tiles: terrainTiles(encounter.map),
     tokens: encounterTokens(encounter),
+    props: placedProps(encounter.map, props),
     widthHalfFeet: encounter.map.width * cellSize(encounter.map),
     heightHalfFeet: encounter.map.height * cellSize(encounter.map),
   };
 }
 
 /** The whole scene for a battle running on an encounter's board. */
-export function sceneForBattle(encounter: Encounter, battle: Battle): BoardScene {
+export function sceneForBattle(
+  encounter: Encounter,
+  battle: Battle,
+  props: readonly PropPlacement[] = [],
+): BoardScene {
   const sizes = new Map(encounter.combatants.map(c => [c.id, c.spaceHalfFeet]));
   return {
     tiles: terrainTiles(encounter.map),
     tokens: battleTokens(encounter.map, battle, sizes),
+    props: placedProps(encounter.map, props),
     widthHalfFeet: encounter.map.width * cellSize(encounter.map),
     heightHalfFeet: encounter.map.height * cellSize(encounter.map),
   };

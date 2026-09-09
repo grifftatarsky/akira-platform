@@ -62,10 +62,11 @@ and not worth paying twice.
 
 ## What is vendored here
 
-`public/assets/board/kaykit/` holds eight pieces from KayKit Dungeon Remastered
-(floors, walls, a doorway, a pillar, stairs, a column) plus its `LICENSE.txt` —
-368 KB of the pack's 8.6 MB. Adding more is a file and a line in
-`board-assets.ts`.
+`public/assets/board/kaykit/` holds 37 pieces from KayKit Dungeon Remastered —
+floors, walls, a doorway, pillars, stairs, and the furniture a room needs to look
+lived in (beds, tables, chairs, shelves, barrels, crates, kegs, chests, banners,
+torches, rubble) — plus its `LICENSE.txt`. 1.9 MB of the pack's 8.6 MB. Adding
+more is a file and a line in `board-assets.ts`.
 
 **Deleting the directory is a supported thing to do.** The board falls back to
 coloured tiles, which is what the `Plain` theme is and what building your own
@@ -76,7 +77,29 @@ pack starts from. Nothing switches off; the models simply are not found.
 **Scale, and which way is up.** The board's world unit is the half-foot, so a
 5-foot square is 10 units. `ModelLibrary` measures each model and fits its
 footprint to the square rather than trusting a nominal scale, because packs vary
-piece to piece — KayKit's floor tile is 4×4 of its own units and its wall is not.
+piece to piece.
+
+**A pack will disagree with D&D about how big a tile is, and both sides have to
+give.** Measured out of the glTF: every KayKit floor and wall piece is 4.00 model
+units across and its walls are 4.00 *tall* — a tile as tall as it is wide, which
+is a 10-foot dungeon, not a 5-foot one. Floors and walls have no choice but to
+fit the square, because the grid is 5 feet; props are drawn at the pack's own
+scale instead, so a table is 10 feet long and a chair 1.9 rather than a doll's
+table in a giant's room. Two scales, one file, written down because the numbers
+look arbitrary otherwise.
+
+**Where the art and the rules disagree, the rules win.** A KayKit wall fitted to
+a 5-foot square is 5 feet tall — a wall you could see over and shoot across, and
+the engine has already decided you cannot. `PieceModel.heightHalfFeet` and the
+`heightHalfFeet` argument to `ModelLibrary.piece` stretch a piece on its up axis
+to the height the board declares. Walls and doorways use it to reach 8 feet;
+stairs use it to rise exactly the 5 feet of the step they serve, instead of the
+10.2 their proportions would give.
+
+**Measure, do not eyeball.** Every number above came from parsing the GLB
+accessors, and so did the direction a staircase climbs — a stair placed by guess
+faced the wrong way, which is a bug visible from one camera angle and not the
+one you happen to be looking from.
 
 **glTF is Y-up and this world is Z-up.** The loader rotates every model a quarter
 turn about X, once, so packs do not each need to know. Without it a floor tile

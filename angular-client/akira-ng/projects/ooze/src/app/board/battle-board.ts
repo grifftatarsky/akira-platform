@@ -2,7 +2,7 @@ import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, computed,
   effect, input, output, signal, viewChild,
 } from '@angular/core';
-import { Battle, BoardScene, Encounter } from './board.models';
+import { Battle, BoardScene, Encounter, PropPlacement } from './board.models';
 import { BoardRenderer, CameraMode } from './board-renderer';
 import { BoardTheme, KAYKIT_THEME } from './board-assets';
 import { PointerStart, dropAt, gestureFor, pathBetween, zoomAfterWheel } from './board-gestures';
@@ -61,21 +61,39 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
           }
         </div>
 
-        <div class="pointer-events-auto flex items-center gap-1">
-          <button type="button" (click)="recentre()"
-                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
-                         text-fg-muted backdrop-blur transition hover:text-fg">Centre</button>
-          <button type="button" (click)="toggleCamera()"
-                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
-                         text-fg-muted backdrop-blur transition hover:text-fg">
-            {{ cameraMode() === 'TOP_DOWN' ? 'Top-down' : 'Perspective' }}
-          </button>
-          <button type="button" (click)="zoomBy(0.8)" aria-label="Zoom in"
-                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
-                         text-fg-muted backdrop-blur transition hover:text-fg">+</button>
-          <button type="button" (click)="zoomBy(1.25)" aria-label="Zoom out"
-                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
-                         text-fg-muted backdrop-blur transition hover:text-fg">−</button>
+        <div class="pointer-events-auto flex items-center gap-2">
+          <!--
+            Both options shown with the active one marked, rather than one
+            button carrying the current mode. A lone button labelled "Top-down"
+            is genuinely ambiguous — it reads equally as "you are looking from
+            above" and as "click to look from above" — and a camera control is a
+            bad place to make someone find out by pressing it.
+          -->
+          <div role="group" aria-label="Camera"
+               class="flex overflow-hidden rounded-md border border-rule bg-bg/85 backdrop-blur">
+            @for (mode of cameraModes; track mode.id) {
+              <button type="button"
+                      (click)="setCamera(mode.id)"
+                      [attr.aria-pressed]="cameraMode() === mode.id"
+                      [class]="cameraMode() === mode.id
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-fg-subtle hover:text-fg'"
+                      class="px-2 py-1 text-[0.7rem] font-medium transition">
+                {{ mode.label }}
+              </button>
+            }
+          </div>
+
+          <div class="flex overflow-hidden rounded-md border border-rule bg-bg/85 backdrop-blur">
+            <button type="button" (click)="zoomBy(0.8)" aria-label="Zoom in"
+                    class="px-2 py-1 text-[0.7rem] text-fg-subtle transition hover:text-fg">+</button>
+            <button type="button" (click)="zoomBy(1.25)" aria-label="Zoom out"
+                    class="border-l border-rule px-2 py-1 text-[0.7rem] text-fg-subtle transition
+                           hover:text-fg">−</button>
+            <button type="button" (click)="recentre()"
+                    class="border-l border-rule px-2 py-1 text-[0.7rem] text-fg-subtle transition
+                           hover:text-fg">Centre</button>
+          </div>
         </div>
       </div>
 
@@ -92,7 +110,7 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
 
       <p class="pointer-events-none absolute bottom-2 right-2 rounded-md border border-rule
                 bg-bg/85 px-2 py-1 text-[0.65rem] text-fg-subtle backdrop-blur">
-        Drag a token to move · drag the board to pan · hold Alt to place freely
+        Drag a token to move · drag the board to pan · scroll to zoom · Alt to place freely@if (cameraMode() === 'PERSPECTIVE') { · Shift-drag to orbit }
       </p>
     </div>
   `,
@@ -110,6 +128,17 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    * deleting a pack looks like — and what building your own starts from.
    */
   readonly theme = input<BoardTheme>(KAYKIT_THEME);
+
+  /**
+   * Furniture, if the board has any.
+   *
+   * <p>An input rather than part of the encounter, because the server has no
+   * column for it — `map_cells` says a square is difficult and gives half
+   * cover, not that the reason is a barricade. Keeping it out here means the
+   * day it becomes a column, this input is fed from the encounter and nothing
+   * else changes.
+   */
+  readonly props = input<readonly PropPlacement[]>([]);
 
   /** A creature was clicked. */
   readonly selected = output<string | null>();
@@ -130,6 +159,11 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   private observer: ResizeObserver | null = null;
 
   protected readonly cameraMode = signal<CameraMode>('TOP_DOWN');
+
+  protected readonly cameraModes: readonly { id: CameraMode; label: string }[] = [
+    { id: 'TOP_DOWN', label: 'Top-down' },
+    { id: 'PERSPECTIVE', label: 'Perspective' },
+  ];
   protected readonly dragging = signal(false);
   protected readonly selectedId = signal<string | null>(null);
 
@@ -154,7 +188,8 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
       return null;
     }
     const b = this.battle();
-    return b ? sceneForBattle(e, b) : sceneForEncounter(e);
+    const props = this.props();
+    return b ? sceneForBattle(e, b, props) : sceneForEncounter(e, props);
   });
 
   protected readonly phaseLabel = computed(() => {
@@ -199,8 +234,10 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     if (board) {
       this.renderer.render(board);
       // Frame the whole board on first sight, so a 300-foot battlefield does
-      // not open showing one square of floor.
-      this.renderer.setZoom(Math.max(board.widthHalfFeet, board.heightHalfFeet) * 1.1);
+      // not open showing one square of floor. The renderer defers it until the
+      // ResizeObserver has given it a viewport, because framing against a
+      // canvas of unknown size is how a board ends up in a letterbox.
+      this.renderer.frame(board.widthHalfFeet, board.heightHalfFeet);
     }
     this.renderer.start();
   }
@@ -214,10 +251,9 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     this.renderer = null;
   }
 
-  protected toggleCamera(): void {
-    const next: CameraMode = this.cameraMode() === 'TOP_DOWN' ? 'PERSPECTIVE' : 'TOP_DOWN';
-    this.cameraMode.set(next);
-    this.renderer?.setCameraMode(next);
+  protected setCamera(mode: CameraMode): void {
+    this.cameraMode.set(mode);
+    this.renderer?.setCameraMode(mode);
   }
 
   // region Pointer

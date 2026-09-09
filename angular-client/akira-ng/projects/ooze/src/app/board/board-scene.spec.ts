@@ -1,8 +1,10 @@
 import {
   LIGHT_FACTOR, TOKEN_LIFT, WALL_HEIGHT, cellSize, coverBonus, groundAt, opaqueAt,
-  sceneForBattle, sceneForEncounter, shade, terrainTiles,
+  placedProps, sceneForBattle, sceneForEncounter, shade, terrainTiles,
 } from './board-scene';
-import { Battle, BattleMap, Combatant, Encounter, MapCell, Participant } from './board.models';
+import {
+  Battle, BattleMap, Combatant, Encounter, MapCell, Participant, PropPlacement,
+} from './board.models';
 
 /**
  * What the board shows.
@@ -93,6 +95,9 @@ describe('board scene', () => {
       // perspective camera and real lights arrive.
       expect(LIGHT_FACTOR.DARKNESS).toBeLessThan(LIGHT_FACTOR.BRIGHT);
       expect(dark.colour).toBeLessThan(lit.colour);
+      // The material itself is untouched, so a renderer with real lights can
+      // apply the level once instead of inheriting it already applied.
+      expect(dark.baseColour).toBe(lit.baseColour);
       expect(shade(0xffffff, 0.5)).toBe(0x808080);
     });
 
@@ -267,6 +272,55 @@ describe('board scene', () => {
 
       expect(scene.tokens).toHaveLength(2);
       expect(scene.tokens.filter(t => t.onDeck)).toHaveLength(1);
+    });
+  });
+
+  describe('props', () => {
+
+    function prop(over: Partial<PropPlacement> = {}): PropPlacement {
+      return { piece: 'BARREL', x: 5, y: 5, z: 0, rotation: 0, ...over };
+    }
+
+    const encounter: Encounter = {
+      id: 'e', name: 'Ford', map: map(), combatants: [combatant()],
+    };
+
+    const battle: Battle = {
+      id: 'b', name: 'Round one', encounterId: 'e', phase: 'IN_TURN', round: 1,
+      currentParticipantId: null, order: [participant()], onDeck: [],
+    };
+
+    it('stands a prop on the floor under it, not at absolute zero', () => {
+      // A chest carried up onto a ten-foot dais should not need its own
+      // elevation edited, and one authored at z = 0 must not end up buried in
+      // the plinth. So a prop's z is a height above its ground, like a
+      // creature's.
+      const m = map({ cells: [cell(1, 0, { elevationFeet: 10 })] });
+
+      const [onFloor, onLedge] = placedProps(m, [prop(), prop({ x: 15, y: 5 })]);
+
+      expect(onFloor.z).toBe(0);
+      expect(onLedge.z).toBe(20);
+    });
+
+    it('keeps a prop lifted above the ledge it stands on', () => {
+      const m = map({ cells: [cell(1, 0, { elevationFeet: 10 })] });
+
+      // A candle on a table on a dais: 10 feet of dais plus 2½ feet of table.
+      expect(placedProps(m, [prop({ x: 15, y: 5, z: 5 })])[0].z).toBe(25);
+    });
+
+    it('carries props into the scene for an encounter and for a battle', () => {
+      const props = [prop(), prop({ piece: 'TABLE' })];
+
+      expect(sceneForEncounter(encounter, props).props).toHaveLength(2);
+      expect(sceneForBattle(encounter, battle, props).props).toHaveLength(2);
+    });
+
+    it('draws no furniture when none was placed', () => {
+      // Not undefined: the renderer iterates it, and a board with nothing in it
+      // is a normal board rather than a special case.
+      expect(sceneForEncounter(encounter).props).toEqual([]);
     });
   });
 

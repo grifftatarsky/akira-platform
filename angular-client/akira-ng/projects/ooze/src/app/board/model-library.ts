@@ -25,13 +25,20 @@ export class ModelLibrary {
   /**
    * A copy of the model for a piece, ready to place, or null if there is none.
    *
-   * <p>The copy is normalised so one model unit is one 5-foot square, whatever
-   * the pack was authored at, and its origin is moved to the centre of its
-   * footprint at ground level — because that is where the board puts things, and
-   * a pack that disagreed would otherwise need a per-piece offset nobody could
-   * derive by looking.
+   * <p>The copy is normalised so it occupies the footprint the board asked for,
+   * whatever the pack was authored at, and its origin is moved to the centre of
+   * that footprint at ground level — because that is where the board puts
+   * things, and a pack that disagreed would otherwise need a per-piece offset
+   * nobody could derive by looking.
+   *
+   * @param squareHalfFeet how wide the piece should end up, before its own scale
+   * @param heightHalfFeet how tall it must be, where the board has an opinion
    */
-  async piece(piece: BoardPiece | null, squareHalfFeet: number): Promise<Object3D | null> {
+  async piece(
+    piece: BoardPiece | null,
+    squareHalfFeet: number,
+    heightHalfFeet?: number,
+  ): Promise<Object3D | null> {
     const model = modelFor(this.theme, piece);
     if (!model) {
       return null;
@@ -72,6 +79,25 @@ export class ModelLibrary {
       ? (squareHalfFeet / widest) * (model.scale ?? 1)
       : this.theme.unitsPerModelUnit * (model.scale ?? 1);
     upright.scale.setScalar(scale);
+
+    // Stretched to the height the board declares, where it declares one.
+    //
+    // Measured: KayKit's wall is 4.00 units wide and 4.00 tall, i.e. exactly as
+    // tall as a tile is wide — the pack is drawn for 10-foot tiles. Fitted to a
+    // 5-foot D&D square it comes out a 5-foot wall, which is a wall you can see
+    // over and shoot across, and the engine has already decided you cannot. The
+    // art has to follow the rule rather than the other way round, so it is
+    // stretched on the up axis alone; on stone that reads as taller courses,
+    // and a 5-foot wall reads as a bug.
+    //
+    // Scale is applied in the object's own frame and `upright` is the thing
+    // carrying the quarter-turn, so the axis to stretch is its *local Y* — the
+    // one the rotation sends to world Z. Stretching local Z here would widen
+    // the piece north-south and leave it exactly as short as it was.
+    const height = heightHalfFeet ?? model.heightHalfFeet;
+    if (height && size.z > 0) {
+      upright.scale.y = height / size.z;
+    }
 
     // Re-measure after scaling, then sit it on the ground centred on its own
     // footprint — glTF origins are wherever the artist left them, and KayKit's

@@ -18,6 +18,60 @@ export type CoverDegree = 'NONE' | 'HALF' | 'THREE_QUARTERS' | 'TOTAL';
 
 export type Disposition = 'ACTIVE' | 'ON_DECK' | 'REMOVED';
 
+/**
+ * The pieces a board is built from, named by what they are rather than by file.
+ *
+ * <p>Here rather than beside the art, because this is the board's own
+ * vocabulary: a scene says "a table stands on that square" and a theme is only
+ * a lookup from that word to a model. Put the words in the theme and every
+ * consumer of a scene has to import the art to read it.
+ *
+ * <p>Split by how a piece is chosen, not by what it looks like. Structure is
+ * derived — the square is a wall, so a wall piece goes there. Props are placed,
+ * because which corner the barrels are stacked in is a decision and no rule
+ * about the floor produces it.
+ */
+export type BoardPiece =
+  // Structure, chosen by the terrain under it.
+  | 'FLOOR'
+  | 'FLOOR_ROUGH'
+  | 'FLOOR_DIRT'
+  | 'WALL'
+  | 'WALL_CORNER'
+  | 'WALL_ARCH'
+  | 'WALL_TSPLIT'
+  | 'DOORWAY'
+  // Placed.
+  | 'PILLAR'
+  | 'PILLAR_DECORATED'
+  | 'COLUMN'
+  | 'STAIRS'
+  | 'BARRIER'
+  | 'BARREL'
+  | 'BARRELS'
+  | 'CRATE'
+  | 'CRATES'
+  | 'CHEST'
+  | 'TABLE'
+  | 'TABLE_BROKEN'
+  | 'CHAIR'
+  | 'STOOL'
+  | 'KEG'
+  | 'SHELVES'
+  | 'SHELF_CANDLES'
+  | 'BED'
+  | 'TORCH'
+  | 'CANDLES'
+  | 'BANNER_BLUE'
+  | 'BANNER_GREEN'
+  | 'RUBBLE'
+  | 'RUBBLE_SMALL'
+  | 'ARMS'
+  | 'COINS'
+  | 'TRUNK'
+  | 'BOTTLE'
+  | 'PLATE';
+
 /** One painted square. Nulls mean "the map's default", which is why it is sparse. */
 export interface MapCell {
   readonly x: number;
@@ -138,8 +192,23 @@ export interface TerrainTile {
    * because it is a fact about the shape of the wall and not about the square.
    */
   readonly rotation: number;
-  /** Base colour, before light. */
+  /**
+   * What the square looks like in the light it is in.
+   *
+   * <p>For a renderer that has no lighting of its own — light folded into the
+   * colour is the only way a flat drawing can show a dark room.
+   */
   readonly colour: number;
+  /**
+   * The same square's material, before any light reaches it.
+   *
+   * <p>Both are carried because a renderer that *does* light the scene must not
+   * use the first. Shading the colour and then laying a dark film over the
+   * square applies the light level twice: deep water in an unlit room came out
+   * at five per cent of its own colour, which is to say black, and a DM could
+   * not tell a flooded cellar from a chasm.
+   */
+  readonly baseColour: number;
 }
 
 /** One creature on the board. */
@@ -161,10 +230,38 @@ export interface TokenPlacement {
   readonly colour: number;
 }
 
+/**
+ * One prop, standing somewhere.
+ *
+ * <p>Decoration, and deliberately not terrain. A square knows it is difficult
+ * to cross and gives half cover; it does not know that the reason is a
+ * barricade. Keeping the two apart means a DM can furnish a room without
+ * changing what the engine computes, and — the part that matters — that
+ * furniture can never quietly become a rule the server did not agree to.
+ *
+ * <p>The server has no column for this yet. `map_cells` carries terrain, light,
+ * cover, elevation and cost, and nothing that says "a table stands here". This
+ * is the shape that column will take.
+ */
+export interface PropPlacement {
+  readonly piece: BoardPiece;
+  /** Centre, in half-feet. */
+  readonly x: number;
+  readonly y: number;
+  /**
+   * How far above the ground under it, in half-feet. Zero for anything standing
+   * on the floor; set for a banner hung on a wall or a chest on a ledge.
+   */
+  readonly z: number;
+  /** Radians about Z, so a room is not all facing north. */
+  readonly rotation: number;
+}
+
 /** Everything to draw, and how big the board is. */
 export interface BoardScene {
   readonly tiles: readonly TerrainTile[];
   readonly tokens: readonly TokenPlacement[];
+  readonly props: readonly PropPlacement[];
   /** Extent in half-feet, for framing the camera. */
   readonly widthHalfFeet: number;
   readonly heightHalfFeet: number;

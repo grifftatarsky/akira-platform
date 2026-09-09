@@ -1,11 +1,11 @@
 import {
   AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, Mesh,
   MeshLambertMaterial, MeshBasicMaterial, OrthographicCamera, PCFShadowMap, PerspectiveCamera,
-  Plane, Raycaster, RingGeometry, Scene, Vector2, Vector3, WebGLRenderer,
+  PlaneGeometry, Plane, Raycaster, RingGeometry, Scene, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, TerrainTile, TokenPlacement } from './board.models';
 import { BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
-import { WALL_HEIGHT } from './board-scene';
+import { LIGHT_FACTOR, WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
 
 /** Top-down and locked, or a camera you can orbit. */
@@ -47,10 +47,28 @@ export class BoardRenderer {
    * what had finished loading.
    */
   private readonly terrainArt = new Group();
+  /**
+   * Furniture.
+   *
+   * <p>Its own group rather than part of the terrain art, because it is
+   * addressed differently: terrain art is one piece per square and indexed by
+   * the tile it dresses, props are a list somebody wrote. And it must never be
+   * pickable — a DM dragging the rogue past a table is dragging the rogue.
+   */
+  private readonly props = new Group();
+  /**
+   * The dark, as a film over everything under it.
+   *
+   * <p>Its own group because it has to be laid *after* the art it covers, and
+   * because the terrain group's index is the tile's index — anything else added
+   * there would silently shift which box belongs to which square.
+   */
+  private readonly shading = new Group();
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
-  private frame = 0;
+  /** The pending requestAnimationFrame handle, so the loop can be stopped. */
+  private animation = 0;
   private disposed = false;
 
   /** Bumped on every render, so a model that loads late knows it is stale. */
@@ -58,6 +76,16 @@ export class BoardRenderer {
 
   /** Half-feet of board visible across the viewport's shorter side. */
   private zoom = 200;
+
+  /**
+   * A board waiting to be framed, once the viewport has a size.
+   *
+   * <p>Deferred rather than done on the spot: the canvas is measured by a
+   * ResizeObserver, which has not fired when the first board arrives, so
+   * framing then divides by a viewport of one pixel by one. Held until there is
+   * a real size and then dropped, so it never fights a zoom the DM chose.
+   */
+  private framing: { width: number; height: number } | null = null;
   private centre = new Vector3(0, 0, 0);
   private width = 1;
   private height = 1;
@@ -88,6 +116,8 @@ export class BoardRenderer {
 
     this.scene.add(this.terrain);
     this.scene.add(this.terrainArt);
+    this.scene.add(this.props);
+    this.scene.add(this.shading);
     this.scene.add(this.tokens);
 
     // Lit rather than unlit, even though the top-down view barely shows it. A
@@ -116,11 +146,21 @@ export class BoardRenderer {
     this.centre = new Vector3(board.widthHalfFeet / 2, board.heightHalfFeet / 2, 0);
     this.clear(this.terrain);
     this.clear(this.terrainArt);
+    this.clear(this.props);
+    this.clear(this.shading);
     this.clear(this.tokens);
-    board.tiles.forEach(t => this.terrain.add(this.tile(t)));
+    board.tiles.forEach(t => {
+      this.terrain.add(this.tile(t));
+      const dark = this.shadeOver(t);
+      if (dark) {
+        this.shading.add(dark);
+      }
+    });
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
     this.place();
-    void this.dressTerrain(board);
+    const generation = ++this.generation;
+    void this.dressTerrain(board, generation);
+    void this.dressProps(board, generation);
   }
 
   /** Swaps the art without touching anything else about the board. */
@@ -136,11 +176,11 @@ export class BoardRenderer {
    * pack removable: delete the files and the board reverts to what it always
    * drew, with nothing to switch off.
    */
-  private async dressTerrain(board: BoardScene): Promise<void> {
-    const generation = ++this.generation;
+  private async dressTerrain(board: BoardScene, generation: number): Promise<void> {
     for (let i = 0; i < board.tiles.length; i++) {
       const tile = board.tiles[i];
-      const model = await this.library.piece(pieceFor(tile.kind), tile.size);
+      const model = await this.library.piece(
+        pieceFor(tile.kind), tile.size, tile.height > 0 ? tile.height : undefined);
       // The board may have been replaced or disposed while a model loaded; a
       // late arrival must not decorate a scene nobody is looking at.
       if (this.disposed || generation !== this.generation) {
@@ -153,13 +193,61 @@ export class BoardRenderer {
       model.position.set(tile.x, tile.y, tile.base);
       model.rotation.z += tile.rotation;
       this.terrainArt.add(model);
-      // The box stays when it is holding a raised floor up; otherwise it is
-      // just colour under the art and can go quiet. Either way it is still
-      // there, so the index still means the tile.
-      if (box && tile.base <= 0) {
+      // The box goes quiet only under a floor tile at ground level, where the
+      // model covers the square exactly and the box is nothing but colour
+      // underneath. It stays under a raised floor, where it is the plinth — and
+      // it stays behind a wall, where it is the wall's mass: KayKit's wall is a
+      // 1¼-foot-deep facing panel, so hiding the box left every corner and
+      // every junction with a hole through it and rooms you could walk out of.
+      // Either way the box is still in the group, so the index still means the
+      // tile.
+      if (box && tile.base <= 0 && tile.height === 0) {
         box.visible = false;
       }
     }
+  }
+
+  /**
+   * Stands the furniture up.
+   *
+   * <p>Nothing is drawn for a prop the theme has no model for, unlike terrain:
+   * a square with no art still has to be walked on and is drawn as a box, but a
+   * barrel with no art is simply a room without a barrel in it. Which is why
+   * the plain theme is an empty dungeon rather than one full of grey cubes.
+   */
+  private async dressProps(board: BoardScene, generation: number): Promise<void> {
+    const square = board.tiles[0]?.size ?? 10;
+    for (const prop of board.props) {
+      const model = await this.library.piece(prop.piece, square);
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+      if (!model) {
+        continue;
+      }
+      model.position.set(prop.x, prop.y, prop.z);
+      model.rotation.z += prop.rotation;
+      this.props.add(model);
+    }
+  }
+
+  /**
+   * A film of dark over a square that is not brightly lit.
+   *
+   * <p>Only over floor: the top of a wall is not somewhere anyone stands, and
+   * shading it would draw a grid of dark lids over the room walls from above.
+   */
+  private shadeOver(t: TerrainTile): Mesh | null {
+    const factor = LIGHT_FACTOR[t.light];
+    if (factor >= 1 || t.height > 0) {
+      return null;
+    }
+    const mesh = new Mesh(new PlaneGeometry(t.size, t.size), shadeMaterial(factor));
+    // Above the floor and below a token, so a creature standing in the dark is
+    // still the brightest thing on its square — which is what a DM needs to
+    // see, whatever the light is doing.
+    mesh.position.set(t.x, t.y, t.base + 0.3);
+    return mesh;
   }
 
   /**
@@ -176,7 +264,10 @@ export class BoardRenderer {
     const wall = t.height > 0;
     const depth = wall ? t.height : Math.max(0.5, t.base);
     const geometry = new BoxGeometry(t.size, t.size, depth);
-    const material = new MeshLambertMaterial({ color: new Color(t.colour) });
+    // The unlit colour, because this renderer lights the scene itself — with a
+    // lamp and, over anything dim, a film of dark. Using the pre-shaded colour
+    // here applied the light level twice over.
+    const material = new MeshLambertMaterial({ color: new Color(t.baseColour) });
     const mesh = new Mesh(geometry, material);
     mesh.position.set(t.x, t.y, wall ? t.base + depth / 2 : t.base - depth / 2);
     mesh.receiveShadow = true;
@@ -287,6 +378,31 @@ export class BoardRenderer {
     this.place();
   }
 
+  /**
+   * Fits a whole board in view.
+   *
+   * <p>Both axes, against the viewport's own shape. Zooming to the longer side
+   * alone opens a wide board with half the canvas empty above and below it,
+   * which is what happened — a 130-foot level in a letterbox, framed as if it
+   * were square.
+   */
+  frame(widthHalfFeet: number, heightHalfFeet: number): void {
+    this.framing = { width: widthHalfFeet, height: heightHalfFeet };
+    this.applyFrame();
+  }
+
+  private applyFrame(): void {
+    const wanted = this.framing;
+    if (!wanted || this.width <= 1 || this.height <= 1) {
+      return;
+    }
+    const aspect = this.width / this.height;
+    // `zoom` is the vertical extent, so a board wider than the viewport has to
+    // be converted through the aspect before the two can be compared.
+    this.setZoom(Math.max(wanted.height, wanted.width / aspect) * 1.06);
+    this.framing = null;
+  }
+
   zoomLevel(): number {
     return this.zoom;
   }
@@ -295,6 +411,7 @@ export class BoardRenderer {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.renderer.setSize(this.width, this.height, false);
+    this.applyFrame();
     this.place();
   }
 
@@ -304,7 +421,7 @@ export class BoardRenderer {
         return;
       }
       this.renderer.render(this.scene, this.camera);
-      this.frame = requestAnimationFrame(loop);
+      this.animation = requestAnimationFrame(loop);
     };
     loop();
   }
@@ -319,9 +436,11 @@ export class BoardRenderer {
    */
   dispose(): void {
     this.disposed = true;
-    cancelAnimationFrame(this.frame);
+    cancelAnimationFrame(this.animation);
     this.clear(this.terrain);
     this.clear(this.terrainArt);
+    this.clear(this.props);
+    this.clear(this.shading);
     this.clear(this.tokens);
     this.renderer.dispose();
   }
@@ -338,9 +457,12 @@ export class BoardRenderer {
       if (child instanceof Mesh) {
         child.geometry.dispose();
         const material = child.material;
+        // Shared materials are not this node's to free. The shade quads all
+        // point at one of two, and disposing them with the first board would
+        // leave every later one drawing against a released program.
         if (Array.isArray(material)) {
-          material.forEach(m => m.dispose());
-        } else {
+          material.forEach(m => shared(m) || m.dispose());
+        } else if (!shared(material)) {
           material.dispose();
         }
       }
@@ -433,13 +555,46 @@ export class BoardRenderer {
   // endregion
 
   /** Exposed so a test can assert what was built without a WebGL context. */
-  meshCounts(): { tiles: number; art: number; tokens: number } {
+  meshCounts(): { tiles: number; art: number; props: number; shaded: number; tokens: number } {
     return {
       tiles: this.terrain.children.length,
       art: this.terrainArt.children.length,
+      props: this.props.children.length,
+      shaded: this.shading.children.length,
       tokens: this.tokens.children.length,
     };
   }
+}
+
+/**
+ * Unlit black, laid over anything not in bright light.
+ *
+ * <p>Module-wide, and there are only ever two, because there are only two
+ * levels below bright. Tinting each tile's own material instead would mean
+ * cloning a material per square — and, worse, would not touch the models, which
+ * carry their own: the moment art loaded, a pitch-dark crypt would light right
+ * back up. A quad over the top shades the art and the box alike.
+ */
+const SHADE_MATERIALS = new Map<number, MeshBasicMaterial>();
+
+function shadeMaterial(factor: number): MeshBasicMaterial {
+  let material = SHADE_MATERIALS.get(factor);
+  if (!material) {
+    material = new MeshBasicMaterial(
+      { color: 0x000000, transparent: true, opacity: 1 - factor, depthWrite: false });
+    SHADE_MATERIALS.set(factor, material);
+  }
+  return material;
+}
+
+/** Whether a material is one of the shared ones, and so not a mesh's to free. */
+function shared(material: { uuid: string }): boolean {
+  for (const m of SHADE_MATERIALS.values()) {
+    if (m.uuid === material.uuid) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
