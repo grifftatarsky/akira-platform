@@ -9,6 +9,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.BatchSize;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -45,8 +46,11 @@ public class Encounter extends BaseEntity {
   @JoinColumn(name = "battle_map_id", nullable = false)
   private BattleMap map;
 
+  // Batched rather than fetched alongside the map's cells: two bag fetches in
+  // one query is a cartesian product, and Hibernate refuses it outright.
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @JoinColumn(name = "encounter_id", nullable = false)
+  @BatchSize(size = 64)
   private List<Combatant> combatants = new ArrayList<>();
 
   public void addCombatant(Combatant c) {

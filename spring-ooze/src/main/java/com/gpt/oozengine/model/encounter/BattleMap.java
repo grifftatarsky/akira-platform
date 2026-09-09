@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.BatchSize;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
@@ -60,5 +61,6 @@ public class BattleMap extends BaseEntity {
   /** Only the squares that differ from the defaults. */
   @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
   @JoinColumn(name = "battle_map_id", nullable = false)
+  @BatchSize(size = 64)
   private List<MapCell> cells = new ArrayList<>();
 }
