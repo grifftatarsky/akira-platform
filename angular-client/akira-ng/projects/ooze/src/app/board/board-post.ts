@@ -95,10 +95,19 @@ export class PostChain {
     this.ao.camera = camera;
   }
 
+  /**
+   * Resizes the whole chain.
+   *
+   * <p>Only the composer, and deliberately: it multiplies by the pixel ratio
+   * and forwards the *device* size to every pass it owns. Calling `setSize` on
+   * a pass afterwards undoes that with the CSS size — which is identical on a
+   * 1x display and half the resolution on a 2x one, so the board rendered into
+   * a quarter of its own canvas with the rest left black. It looked like a
+   * layout bug and was not.
+   */
   setSize(width: number, height: number, pixelRatio: number): void {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
-    this.ao.setSize(width, height);
   }
 
   draw(): void {

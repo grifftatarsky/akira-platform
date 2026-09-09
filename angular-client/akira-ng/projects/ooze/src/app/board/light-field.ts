@@ -58,7 +58,10 @@ export const LIGHT_RANGE = 2;
 const LEVEL_COLOUR: Record<LightLevel, readonly [number, number, number]> = {
   BRIGHT: [1, 0.97, 0.9],
   DIM: [0.42, 0.44, 0.55],
-  DARKNESS: [0.13, 0.15, 0.24],
+  // Lifted once, after looking at an unlit crypt on a graded, tone-mapped
+  // board and failing to make out the floor. A DM has to be able to read a dark
+  // room; the creatures in it are the ones who cannot see.
+  DARKNESS: [0.18, 0.2, 0.29],
 };
 
 /** What a flame adds, on top of whatever the square's level already was. */

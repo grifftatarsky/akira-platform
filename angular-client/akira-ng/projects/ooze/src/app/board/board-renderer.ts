@@ -126,8 +126,12 @@ export class BoardRenderer {
    * around the world origin: on a 130-foot level that covers one square, aimed
    * at a corner nothing stands in, so nothing cast a shadow and what did fell
    * outside the map and shimmered.
+   *
+   * <p>Warm, and dimmer than it was. It is no longer carrying the whole scene —
+   * the environment map does the ambient now — so its job is shape and shadow,
+   * and a neutral white key over a warm cellar reads as two rooms disagreeing.
    */
-  private readonly sun = new DirectionalLight(0xffffff, 1.1);
+  private readonly sun = new DirectionalLight(0xffe9cc, 0.95);
 
   /**
    * The board's light, shared by every material that answers to it.
@@ -137,6 +141,9 @@ export class BoardRenderer {
    */
   private readonly light: { value: DataTexture | null } = { value: null };
   private readonly extent = { value: new Vector2(1, 1) };
+
+  /** Seconds since the board opened, for anything that moves in a shader. */
+  private readonly time = { value: 0 };
 
   /**
    * Materials already patched.
@@ -479,7 +486,7 @@ export class BoardRenderer {
    * light is still linear radiance, so a pool over 1.0 rolls off into a warm
    * highlight the way a flame should.
    */
-  private lit<T extends Material>(material: T, blend = 1): T {
+  private lit<T extends Material>(material: T, blend = 1, ripple = false): T {
     if (this.patched.has(material)) {
       return material;
     }
@@ -487,12 +494,15 @@ export class BoardRenderer {
     material.onBeforeCompile = shader => {
       shader.uniforms['uBoardLight'] = this.light;
       shader.uniforms['uBoardExtent'] = this.extent;
+      shader.uniforms['uBoardTime'] = this.time;
       shader.vertexShader = 'varying vec3 vBoardPos;\n' + shader.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
          vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
       shader.fragmentShader =
         'varying vec3 vBoardPos;\nuniform sampler2D uBoardLight;\nuniform vec2 uBoardExtent;\n'
+        + 'uniform float uBoardTime;\n'
+        + (ripple ? RIPPLE : '') + '\n'
         + shader.fragmentShader.replace(
           '#include <tonemapping_fragment>',
           `gl_FragColor.rgb *= mix(
@@ -500,12 +510,22 @@ export class BoardRenderer {
              texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb * ${LIGHT_RANGE.toFixed(1)},
              ${blend.toFixed(2)});
            #include <tonemapping_fragment>`);
+      if (ripple) {
+        // After three has finished deciding what the surface normal is —
+        // including any normal map — and before it lights anything with it.
+        // Perturbing the normal rather than the geometry is the whole trick: it
+        // costs four sines, it is what the reflection actually reads, and a
+        // flat quad ripples without a single extra vertex.
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <normal_fragment_maps>',
+          '#include <normal_fragment_maps>\n normal = rippled(normal, vBoardPos, uBoardTime);');
+      }
     };
     // Without this three reuses a cached program compiled from an identical
     // material that was never patched, and the injection silently does nothing
     // for every material after the first. The blend is in the key because it is
     // compiled into the shader, so two blends are two programs.
-    material.customProgramCacheKey = () => `board-light-${blend}`;
+    material.customProgramCacheKey = () => `board-light-${blend}-${ripple ? 'wet' : 'dry'}`;
     return material;
   }
 
@@ -549,12 +569,20 @@ export class BoardRenderer {
     //
     // The unlit colour, because this renderer lights the scene itself. Using
     // the pre-shaded one applied the light level twice over.
+    const wet = t.kind === 'WATER' || t.kind === 'DEEP_WATER';
     const material = new MeshStandardMaterial({
       color: new Color(t.baseColour),
       // Stone and water, not polish. Water gets the only smooth surface on the
       // board, which is what makes it read as water from above rather than as
       // blue floor.
-      roughness: t.kind === 'WATER' || t.kind === 'DEEP_WATER' || t.kind === 'ICE' ? 0.25 : 0.9,
+      // Smooth, so the environment shows up in it as a highlight that moves
+      // when the surface does.
+      roughness: wet ? 0.12 : t.kind === 'ICE' ? 0.25 : 0.9,
+      // Zero, even for water, and this was worth getting wrong once. Metalness
+      // tints the reflection by the base colour and drops the diffuse, so a
+      // blue surface at 0.35 reflected a warm cellar as bright cyan and stopped
+      // looking like water at all. Water is a dielectric: a dark body with a
+      // clean highlight on top, which is what these two numbers now are.
       metalness: 0,
     });
     const mesh = new Mesh(geometry, material);
@@ -659,7 +687,12 @@ export class BoardRenderer {
       camera.up.set(0, 1, 0);
       return camera;
     }
-    const camera = new PerspectiveCamera(50, 1, 1, 6000);
+    // A long lens, not a wide one. Fifty degrees puts the near corner of a
+    // room a great deal closer than the far one and the board reads as a
+    // fishbowl; thirty-four flattens the perspective toward the isometric look
+    // this is aimed at, while keeping enough of it that a wall still has a
+    // visible face.
+    const camera = new PerspectiveCamera(34, 1, 1, 6000);
     // Z is up, because the engine's elevation is Z and re-basing the world to
     // three's Y-up default would put a conversion between the data and the
     // picture — the one place it must not be.
@@ -776,7 +809,8 @@ export class BoardRenderer {
       if (this.disposed) {
         return;
       }
-      this.flicker(performance.now() / 1000);
+      this.time.value = performance.now() / 1000;
+      this.flicker(this.time.value);
       // Through the effect chain when there is one, straight to the canvas
       // when there is not. Both are real paths: the chain is several
       // full-screen passes and a machine that cannot afford them should still
@@ -928,6 +962,23 @@ export class BoardRenderer {
     };
   }
 }
+
+/**
+ * Two crossed wave trains, as a normal perturbation.
+ *
+ * <p>Enough to make water look like water from above and nothing like a
+ * simulation. Four sines at unrelated frequencies never visibly repeat, which
+ * is the only property a surface seen for ten seconds at a time needs — and it
+ * costs no vertices, no texture and no second pass.
+ */
+const RIPPLE = `
+  vec3 rippled(vec3 n, vec3 world, float t) {
+    vec2 p = world.xy * 0.22;
+    float x = 0.16 * sin(p.x + t * 0.9) + 0.10 * sin(p.y * 1.7 - t * 1.35);
+    float y = 0.16 * sin(p.y * 1.1 + t * 1.1) + 0.10 * sin(p.x * 1.4 + t * 0.75);
+    return normalize(n + vec3(x, y, 0.0));
+  }
+`;
 
 /**
  * A soft round glow, drawn once and shared by every flame on the board.
