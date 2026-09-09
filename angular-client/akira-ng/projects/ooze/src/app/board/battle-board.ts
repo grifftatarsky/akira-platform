@@ -84,6 +84,13 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
             }
           </div>
 
+          <button type="button" (click)="toggleEffects()"
+                  [attr.aria-pressed]="effects()"
+                  [class]="effects() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
+                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
+                         font-medium backdrop-blur transition"
+                  title="Ambient occlusion and bloom">Effects</button>
+
           <div class="flex overflow-hidden rounded-md border border-rule bg-bg/85 backdrop-blur">
             <button type="button" (click)="zoomBy(0.8)" aria-label="Zoom in"
                     class="px-2 py-1 text-[0.7rem] text-fg-subtle transition hover:text-fg">+</button>
@@ -153,6 +160,17 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     { id: 'TOP_DOWN', label: 'Top-down' },
     { id: 'PERSPECTIVE', label: 'Perspective' },
   ];
+  /**
+   * Whether the expensive passes are on.
+   *
+   * <p>A real control rather than a debug flag. Ambient occlusion and bloom are
+   * several full-screen passes, and a board that will not hold a frame rate is
+   * worse than a board that is merely lit — the environment map, the tone curve
+   * and the light field all live in the scene itself and cost nothing extra, so
+   * turning this off leaves the board lit and only takes away the polish.
+   */
+  protected readonly effects = signal(true);
+
   protected readonly dragging = signal(false);
   protected readonly selectedId = signal<string | null>(null);
 
@@ -237,6 +255,12 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     // lost, which reads as "the tab got slow" hours later.
     this.renderer?.dispose();
     this.renderer = null;
+  }
+
+  protected toggleEffects(): void {
+    const on = !this.effects();
+    this.effects.set(on);
+    this.renderer?.setEffects(on);
   }
 
   protected setCamera(mode: CameraMode): void {

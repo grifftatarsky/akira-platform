@@ -1,15 +1,18 @@
 import {
   AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, Mesh,
-  DataTexture, LinearFilter, Material, MeshBasicMaterial, NeutralToneMapping, MeshStandardMaterial,
+  AdditiveBlending, CanvasTexture, Color as ThreeColor, CylinderGeometry, DataTexture,
+  LinearFilter, Material, MeshBasicMaterial, NeutralToneMapping, MeshStandardMaterial, Sprite,
+  SpriteMaterial,
   Object3D, OrthographicCamera, PCFShadowMap, PerspectiveCamera, Plane, Raycaster, RGBAFormat,
   RingGeometry, Scene, ClampToEdgeWrapping, Vector2, Vector3, WebGLRenderer,
 } from 'three';
-import { BoardScene, TerrainTile, TokenPlacement } from './board.models';
+import { BoardScene, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
 import { BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
 import { WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
 import { EnvironmentLibrary } from './environment';
-import { LIGHT_RANGE, lightField } from './light-field';
+import { FLAME_COLOUR, LIGHT_RANGE, lightField, lightSource } from './light-field';
+import { PostChain } from './board-post';
 
 /** Top-down and locked, or a camera you can orbit. */
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
@@ -27,6 +30,15 @@ export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
  * clamps to, small enough that the step it leaves is invisible.
  */
 const ART_CLEARANCE = 0.2;
+
+/**
+ * How much of the board's light a token's face takes, from none to all.
+ *
+ * <p>About half. Enough that a creature in the crypt is visibly in the crypt,
+ * and never enough to make it hard to find — a marker that can become
+ * unreadable is not a marker.
+ */
+const TOKEN_LIGHT_BLEND = 0.55;
 
 /**
  * Draws a {@link BoardScene} with three.
@@ -136,11 +148,30 @@ export class BoardRenderer {
    */
   private readonly patched = new WeakSet<Material>();
 
+  /**
+   * Everything burning, and how big it was drawn.
+   *
+   * <p>Held so the render loop can make them move. A flame that is perfectly
+   * still is the one thing on a lit board that reads as a light *source* and
+   * looks like a decal — and a torch is the first thing an eye goes to, so it
+   * is the worst place on the board to be still.
+   */
+  private readonly flames: { sprite: Sprite; scale: number; seed: number }[] = [];
+
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
 
   private library: ModelLibrary;
   private readonly environments: EnvironmentLibrary;
+  /**
+   * Ambient occlusion and bloom, if this machine is having them.
+   *
+   * <p>Built on the first resize rather than in the constructor, because both
+   * passes allocate render targets the size of the viewport and the viewport is
+   * one pixel by one until the ResizeObserver has spoken.
+   */
+  private post: PostChain | null = null;
+  private effects = true;
   private theme: BoardTheme;
 
   constructor(private readonly canvas: HTMLCanvasElement, theme: BoardTheme = PLAIN_THEME) {
@@ -209,6 +240,7 @@ export class BoardRenderer {
     this.clear(this.terrainArt);
     this.clear(this.props);
     this.clear(this.tokens);
+    this.flames.length = 0;
     this.relight(board);
     board.tiles.forEach(t => this.terrain.add(this.tile(t)));
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
@@ -335,6 +367,74 @@ export class BoardRenderer {
       model.position.set(prop.x, prop.y, prop.z);
       model.rotation.z += prop.rotation;
       this.props.add(this.litTree(model));
+      const flame = this.flame(prop);
+      if (flame) {
+        this.props.add(flame.sprite);
+        this.flames.push(flame);
+      }
+    }
+  }
+
+  /**
+   * The visible glow on something that is burning.
+   *
+   * <p>The light field already lights the room a torch is in; this is the
+   * flame itself, which is a different thing and the one you look at. An
+   * additive sprite rather than an emissive material, because the flame is a
+   * few pixels of a shared texture atlas and there is no way to make part of an
+   * atlas glow — and because a sprite always faces the camera, which is exactly
+   * right for something that has no shape of its own.
+   *
+   * <p>Brighter than full white on purpose. That is what the bloom pass looks
+   * for, and it is the whole reason the chain carries half-float buffers.
+   */
+  private flame(prop: PropPlacement): { sprite: Sprite; scale: number; seed: number } | null {
+    const source = lightSource(prop.piece);
+    if (!source) {
+      return null;
+    }
+    const sprite = new Sprite(new SpriteMaterial({
+      map: glow(),
+      color: new ThreeColor(FLAME_COLOUR[0], FLAME_COLOUR[1], FLAME_COLOUR[2]),
+      blending: AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+      // Over one, so the bloom pass has something above its threshold to find.
+      opacity: 1,
+    }));
+    // Sized and lifted off the piece it belongs to: a wall torch burns at head
+    // height and a candle burns at table height, and the pack's own proportions
+    // are the only thing that knows which.
+    const scale = source.bright * 0.22;
+    sprite.scale.set(scale, scale, 1);
+    sprite.position.set(prop.x, prop.y, prop.z + source.bright * 0.14);
+    // Seeded from where it stands, so two torches in a room never flicker in
+    // step — which is the thing that gives a fake flame away instantly — and so
+    // the same board always flickers the same way.
+    return { sprite, scale, seed: (prop.x * 7 + prop.y * 13) % 100 };
+  }
+
+  /**
+   * Makes the flames move.
+   *
+   * <p>Two sine waves at unrelated speeds rather than a random number per
+   * frame: noise reads as television static, and a flame is not random — it
+   * surges and settles. The pair beat against each other and never repeat
+   * inside a session, which is all "never repeats" has to mean here.
+   *
+   * <p>The pool of light on the floor deliberately does not flicker with it.
+   * That would mean rebuilding and re-uploading the light field every frame for
+   * an effect nobody would consciously notice, and the sprite is the part an
+   * eye is actually watching.
+   */
+  private flicker(seconds: number): void {
+    for (const flame of this.flames) {
+      const wobble = 1
+        + 0.10 * Math.sin(seconds * 6.1 + flame.seed)
+        + 0.05 * Math.sin(seconds * 13.7 + flame.seed * 2.3);
+      flame.sprite.scale.set(flame.scale * wobble, flame.scale * wobble, 1);
+      const material = flame.sprite.material;
+      material.opacity = 0.78 + 0.22 * wobble;
     }
   }
 
@@ -379,7 +479,7 @@ export class BoardRenderer {
    * light is still linear radiance, so a pool over 1.0 rolls off into a warm
    * highlight the way a flame should.
    */
-  private lit<T extends Material>(material: T): T {
+  private lit<T extends Material>(material: T, blend = 1): T {
     if (this.patched.has(material)) {
       return material;
     }
@@ -395,14 +495,17 @@ export class BoardRenderer {
         'varying vec3 vBoardPos;\nuniform sampler2D uBoardLight;\nuniform vec2 uBoardExtent;\n'
         + shader.fragmentShader.replace(
           '#include <tonemapping_fragment>',
-          `gl_FragColor.rgb *= texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb
-             * ${LIGHT_RANGE.toFixed(1)};
+          `gl_FragColor.rgb *= mix(
+             vec3(1.0),
+             texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb * ${LIGHT_RANGE.toFixed(1)},
+             ${blend.toFixed(2)});
            #include <tonemapping_fragment>`);
     };
     // Without this three reuses a cached program compiled from an identical
     // material that was never patched, and the injection silently does nothing
-    // for every material after the first.
-    material.customProgramCacheKey = () => 'board-light';
+    // for every material after the first. The blend is in the key because it is
+    // compiled into the shader, so two blends are two programs.
+    material.customProgramCacheKey = () => `board-light-${blend}`;
     return material;
   }
 
@@ -466,40 +569,67 @@ export class BoardRenderer {
   }
 
   /**
-   * A creature, as a disc of its own footprint.
+   * A creature, as a miniature's base.
    *
-   * <p>A disc rather than a square because a token is round on a table, and its
-   * diameter is the creature's space — so a Gargantuan creature covers the
-   * twenty feet it actually occupies rather than an icon's worth.
+   * <p>Round, and as wide as the creature's space — so a Gargantuan one covers
+   * the twenty feet it actually occupies rather than an icon's worth.
+   *
+   * <p><b>The side takes the light and the face takes about half of it.</b>
+   * Both extremes are wrong and it took building them to see it. Fully lit, a
+   * token vanishes the moment a creature walks into the dark — which is exactly
+   * when a DM needs to find it. Fully unlit, it escapes the atmosphere
+   * entirely: once the room around it had an environment map, a tone curve and
+   * a colour grade, a flat disc of constant colour read as a plastic counter
+   * dropped onto a painting, and got worse every time the lighting got better.
+   *
+   * <p>Half-lit is neither. The face still darkens as a creature walks into the
+   * crypt, so it belongs to the room, and it never darkens past legible, so it
+   * is still a marker. The base's side is fully lit and casts a shadow like
+   * anything else standing on the floor.
    */
   private token(t: TokenPlacement): Group {
     const group = new Group();
     const radius = t.size / 2;
+    // Proportional but capped: a base scaled straight off a Gargantuan
+    // creature's twenty-foot space would be a two-foot plinth.
+    const height = Math.min(2.2, Math.max(0.9, t.size * 0.11))
+      // A creature on the floor is flat on the floor. Prone is a condition a DM
+      // has to see from across the table, and a low base says it without a
+      // legend.
+      * (t.down ? 0.35 : 1);
 
-    // Unlit, like the turn ring above it and for the same reason. A token is a
-    // marker rather than an object in the room: its colour *is* information —
-    // healthy, bloodied, down, waiting — and a marker that dims because the
-    // crypt is dark is a marker a DM cannot use. Everything else on the board
-    // answers to the light; these deliberately do not.
-    const body = new Mesh(
-      new CircleGeometry(radius * 0.92, 32),
-      new MeshBasicMaterial({
-        color: new Color(t.colour),
-        transparent: t.onDeck,
-        opacity: t.onDeck ? 0.45 : 1,
-      }),
-    );
+    const geometry = new CylinderGeometry(radius * 0.92, radius * 0.92, height, 40);
+    // Three's cylinder stands up its own Y; this world's up is Z.
+    geometry.rotateX(Math.PI / 2);
+
+    const face = this.lit(new MeshBasicMaterial({
+      color: new Color(t.colour),
+      transparent: t.onDeck,
+      opacity: t.onDeck ? 0.5 : 1,
+    }), TOKEN_LIGHT_BLEND);
+    const side = this.lit(new MeshStandardMaterial({
+      // Pewter, so it belongs to the room rather than to the token's state —
+      // the colour above is the information and this must not compete with it.
+      color: 0x26262c,
+      roughness: 0.5,
+      metalness: 0.15,
+      transparent: t.onDeck,
+      opacity: t.onDeck ? 0.5 : 1,
+    }));
+    // Cylinder groups are side, top, bottom in that order.
+    const body = new Mesh(geometry, [side, face, face]);
+    body.position.z = height / 2;
     body.castShadow = !t.down;
+    body.receiveShadow = true;
     group.add(body);
 
     if (t.acting) {
-      // The ring is the turn marker, drawn unlit so it stays legible whatever
-      // the light level does to the ground under it.
+      // The turn marker, unlit for the same reason the face is.
       const ring = new Mesh(
-        new RingGeometry(radius * 0.95, radius * 1.12, 40),
+        new RingGeometry(radius * 0.97, radius * 1.14, 40),
         new MeshBasicMaterial({ color: 0xf0c674 }),
       );
-      ring.position.z = 0.2;
+      ring.position.z = height + 0.05;
       group.add(ring);
     }
 
@@ -515,6 +645,7 @@ export class BoardRenderer {
     }
     this.mode = mode;
     this.camera = this.makeCamera(mode);
+    this.post?.setCamera(this.camera);
     this.place();
   }
 
@@ -605,8 +736,39 @@ export class BoardRenderer {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     this.renderer.setSize(this.width, this.height, false);
+    const ratio = Math.min(globalThis.devicePixelRatio ?? 1, 2);
+    if (this.effects && !this.post) {
+      this.post = new PostChain(this.renderer, this.scene, this.camera, this.width, this.height);
+    }
+    this.post?.setSize(this.width, this.height, ratio);
     this.applyFrame();
     this.place();
+  }
+
+  /**
+   * Turns the expensive passes off, and on.
+   *
+   * <p>A real setting rather than a debug flag: ambient occlusion and bloom are
+   * several full-screen passes, and a board that will not hold a frame rate is
+   * worse than a board that is merely lit. Off, everything else still applies —
+   * the environment, the tone curve and the light field are all in the scene
+   * itself and cost nothing extra.
+   */
+  setEffects(on: boolean): void {
+    this.effects = on;
+    if (!on) {
+      this.post?.dispose();
+      this.post = null;
+      return;
+    }
+    if (!this.post && this.width > 1) {
+      this.post = new PostChain(this.renderer, this.scene, this.camera, this.width, this.height);
+      this.post.setSize(this.width, this.height, Math.min(globalThis.devicePixelRatio ?? 1, 2));
+    }
+  }
+
+  effectsOn(): boolean {
+    return this.effects;
   }
 
   start(): void {
@@ -614,7 +776,16 @@ export class BoardRenderer {
       if (this.disposed) {
         return;
       }
-      this.renderer.render(this.scene, this.camera);
+      this.flicker(performance.now() / 1000);
+      // Through the effect chain when there is one, straight to the canvas
+      // when there is not. Both are real paths: the chain is several
+      // full-screen passes and a machine that cannot afford them should still
+      // get a lit board.
+      if (this.post) {
+        this.post.draw();
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
       this.animation = requestAnimationFrame(loop);
     };
     loop();
@@ -636,6 +807,7 @@ export class BoardRenderer {
     this.clear(this.props);
     this.clear(this.tokens);
     this.light.value?.dispose();
+    this.post?.dispose();
     this.environments.dispose();
     this.renderer.dispose();
   }
@@ -755,6 +927,38 @@ export class BoardRenderer {
       tokens: this.tokens.children.length,
     };
   }
+}
+
+/**
+ * A soft round glow, drawn once and shared by every flame on the board.
+ *
+ * <p>Generated rather than shipped: it is a radial gradient, and a file for a
+ * radial gradient is a file to lose.
+ */
+let glowTexture: CanvasTexture | null = null;
+
+function glow(): CanvasTexture {
+  if (glowTexture) {
+    return glowTexture;
+  }
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    // A hot core that falls away fast, then a long tail. A linear falloff reads
+    // as a disc with a soft edge; this reads as something burning.
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.18, 'rgba(255,226,170,0.85)');
+    gradient.addColorStop(0.45, 'rgba(255,160,70,0.28)');
+    gradient.addColorStop(1, 'rgba(255,140,40,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+  }
+  glowTexture = new CanvasTexture(canvas);
+  return glowTexture;
 }
 
 /**

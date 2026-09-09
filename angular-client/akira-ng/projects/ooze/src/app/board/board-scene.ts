@@ -22,13 +22,13 @@ export const WALL_HEIGHT = 16;
 /**
  * How far a token floats above its ground, in half-feet.
  *
- * <p>Above the floor art *and* above the film of dark laid over an unlit
- * square, so a creature standing in the crypt is still the brightest thing on
- * its square — which is what a DM needs to see, whatever the light is doing.
- * The rubble tile is 0.8 feet of loose stone, so a foot and a half clears
- * everything the pack puts on the ground.
+ * <p>Enough to clear a plain floor tile and no more. It was three while an
+ * unlit square was drawn as a film of black that a token had to sit above; the
+ * light is a texture now, and nothing is laid over the floor for a creature to
+ * clear. Half a foot leaves a creature standing *among* loose rubble rather
+ * than hovering over it, which is what it would be doing.
  */
-export const TOKEN_LIFT = 3;
+export const TOKEN_LIFT = 1;
 
 const TERRAIN_COLOURS: Record<TerrainKind, number> = {
   FLOOR: 0x6b6558,
@@ -159,10 +159,14 @@ export function groundAt(map: BattleMap, xHalfFeet: number, yHalfFeet: number): 
   return (cell?.elevationFeet ?? 0) * 2;
 }
 
-const ON_DECK_COLOUR = 0x6f6a7d;
-const DOWN_COLOUR = 0x4a4a4a;
-const BLOODIED_COLOUR = 0x9c3b30;
-const HEALTHY_COLOUR = 0x4f7d5c;
+// Muted on purpose, and re-muted once the board had a colour grade on it: a
+// saturation lift that flatters painted stone also flatters a flat disc, and
+// four bright counters were briefly the most eye-catching thing in a dungeon.
+// These are close to what a printed miniature base actually is.
+const ON_DECK_COLOUR = 0x5f5b69;
+const DOWN_COLOUR = 0x46464a;
+const BLOODIED_COLOUR = 0x8a3b31;
+const HEALTHY_COLOUR = 0x4a705a;
 
 /**
  * Tokens from a saved encounter — the board before anybody rolls.

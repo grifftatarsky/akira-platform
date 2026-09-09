@@ -1,5 +1,5 @@
 import { EquirectangularReflectionMapping, PMREMGenerator, Texture, WebGLRenderer } from 'three';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { BoardTheme } from './board-assets';
 
@@ -78,7 +78,7 @@ export class EnvironmentLibrary {
       // rather than a 404 — so a wrong path arrives as HTML and fails somewhere
       // far away from the mistake.
       const resolved = new URL(url, import.meta.url).href;
-      new RGBELoader().load(
+      new HDRLoader().load(
         resolved,
         source => {
           source.mapping = EquirectangularReflectionMapping;

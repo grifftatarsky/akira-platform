@@ -62,7 +62,16 @@ const LEVEL_COLOUR: Record<LightLevel, readonly [number, number, number]> = {
 };
 
 /** What a flame adds, on top of whatever the square's level already was. */
-const FLAME_COLOUR: readonly [number, number, number] = [1, 0.6, 0.26];
+export const FLAME_COLOUR: readonly [number, number, number] = [1, 0.6, 0.26];
+
+/** One thing that burns: how far it reaches and how hard. */
+export interface LightSource {
+  /** Half-feet of full brightness. */
+  readonly bright: number;
+  /** Half-feet at which it has died entirely. */
+  readonly dim: number;
+  readonly strength: number;
+}
 
 /**
  * How far a light reaches, in half-feet: full out to the first, gone by the
@@ -72,7 +81,7 @@ const FLAME_COLOUR: readonly [number, number, number] = [1, 0.6, 0.26];
  * Dim Light for an additional 20 feet", so the ramp is not a lighting artist's
  * choice — it is the rule, drawn.
  */
-const REACH: Partial<Record<PropKind, { bright: number; dim: number; strength: number }>> = {
+const REACH: Partial<Record<PropKind, LightSource>> = {
   TORCH: { bright: 40, dim: 80, strength: 0.55 },
   CANDLES: { bright: 10, dim: 20, strength: 0.3 },
   SHELF_CANDLES: { bright: 10, dim: 20, strength: 0.3 },
@@ -80,6 +89,11 @@ const REACH: Partial<Record<PropKind, { bright: number; dim: number; strength: n
 
 /** How far light bleeds sideways, in texels, to turn steps into gradients. */
 const BLUR_PASSES = 2;
+
+/** Whether a prop is on fire, and how brightly. Null for anything that is not. */
+export function lightSource(piece: PropKind): LightSource | null {
+  return REACH[piece] ?? null;
+}
 
 export interface LightField {
   readonly width: number;
@@ -160,7 +174,7 @@ function addFlames(
   height: number,
 ): void {
   for (const prop of board.props) {
-    const reach = REACH[prop.piece];
+    const reach = lightSource(prop.piece);
     if (!reach) {
       continue;
     }
