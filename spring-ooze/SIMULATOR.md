@@ -505,3 +505,85 @@ What is still open, and matters before phase 4:
 4. **Threatened area is not modelled.** Opportunity attacks need "this creature
    threatens these cells", derived from its best melee reach — *"a creature has a
    reach of 5 feet unless a rule says otherwise."*
+
+---
+
+## Phase 6: choosing a renderer
+
+Measured on 2026-09-09, against Angular 22, TypeScript 6 and Native Federation
+22. Sizes are **minified and gzipped from a realistic import surface** — a
+renderer, a camera, sprites, textures, a couple of primitives and hit-testing —
+bundled with esbuild. Not `npm` unpacked size, which counts source maps and three
+build formats and is roughly ten times the truth.
+
+### The question that decides it
+
+**Is the board a top-down 2.5D scene, or a 3D one you move a camera through?**
+
+Everything else follows from that, and the answer is not obvious from "paperdolls
+and environments": a paperdoll is layered 2D art, and an environment could be
+either a beautifully lit top-down map or a room you look around inside.
+
+### The comparison
+
+| | Size (gz) | Packages | Federation risk | What it is for | WebGPU |
+|---|---|---|---|---|---|
+| **PixiJS 8** | **167 KB** | 1 + leaves | **Low** — v8 collapsed the `@pixi/*` graph into one package | 2D sprite compositing, masks, filters, batching | Yes, v8 |
+| **three 0.186** | **131 KB** | **1, zero deps** | **Lowest** | General 3D; 2D is planes and sprites | Yes, `three/webgpu` |
+| **Babylon 9** | **328 KB** deep imports · 1 508 KB from the barrel | 1 core + ecosystem | **High** — `loaders`/`materials`/`gui` all depend on `core`: the deck.gl diamond shape | Full 3D engine, editor-adjacent | Yes |
+| **deck.gl 9.4** | **254 KB** | 4+ | **Known-bad, already solved once** | Data-driven marks; an `OrthographicView` board is plausible | Via luma |
+| **Konva 10** | **57 KB** | 1, zero deps | **Lowest** | 2D canvas scene graph — no GL, so no shader lighting | No |
+
+### Federation is the axis this repo has actually been burned on
+
+Twice, and both are written into `CLAUDE.md` and `jpss-ui/federation.config.mjs`.
+Native Federation builds each shared package as a **self-contained chunk** and
+does not externalise one shared package from inside another — so any library
+whose own packages depend on each other gets duplicated, and singletons inside it
+break. deck.gl's `ShaderAssembler` ended up registered on one copy and compiled
+against another: every fragment shader failed at runtime, from a green build.
+
+That makes package *count* a first-class selection criterion here, not a detail:
+
+- **three** is one package with zero runtime dependencies. Nothing to duplicate.
+- **Pixi v8** is one package whose remaining dependencies are all leaves
+  (`earcut`, `eventemitter3`, `tiny-lru`…). v7's `@pixi/*` layout *was* the
+  diamond shape; v8 removed it. Worth knowing: `earcut` is CJS, and it is the
+  same package the JPSS build already warns about.
+- **Babylon** has the diamond. It is survivable — `skip` the whole graph, as
+  JPSS does — but it is the pattern that cost this repo an afternoon.
+- **deck.gl** is the known case. Reusing it in `ooze` means repeating the `skip`
+  block; the lesson is already paid for.
+
+### Fit
+
+**The engine already models what a VTT renderer draws.** Light level per cell
+(BRIGHT / DIM / DARKNESS), cover, opacity, elevation, footprints in half-feet,
+threatened squares, movement paths. That is a dynamic-lighting and fog-of-war
+feature set, and it is the feature set Foundry VTT implements **on PixiJS** — it
+moved to v8 and is beginning to use WebGPU. The incumbent in this exact problem
+space chose this tool, which is worth more than a benchmark.
+
+**Paperdolls are the tell.** Compositing a body, armour and a weapon into one
+token is 2D sprite layering — Pixi's `RenderTexture` is precisely that. In three
+you would draw it to a 2D canvas and upload the result as a texture: it works,
+and it is doing 2D work inside a 3D engine.
+
+**But if the environment is genuinely three-dimensional** — a camera that orbits,
+walls with height you see past, minis on a table you can tilt — then three is the
+answer and the paperdoll compositing becomes a small canvas utility beside it.
+
+### Recommendation
+
+**PixiJS 8**, unless the board is meant to be 3D.
+
+It is the right shape for the job, the incumbent's choice in this space, and the
+lowest-drama option under the constraint that has actually hurt this project. The
+131 KB three saves is not worth doing sprite work in a 3D engine; the 87 KB Konva
+saves costs the shader lighting the light model was built for.
+
+**The hedge is real, though.** Everything the engine exposes is renderer-agnostic
+— positions and footprints in half-feet, terrain and light per cell, cover as a
+degree, the initiative order, the log. Nothing about the API commits to a
+renderer, so a Canvas2D prototype could settle the interaction design in a day,
+and be thrown away, before any of this is committed to.
