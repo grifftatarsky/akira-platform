@@ -129,6 +129,15 @@ export interface TerrainTile {
   readonly light: LightLevel;
   readonly opaque: boolean;
   readonly cover: CoverDegree;
+  /**
+   * Radians about Z, for a model that is not symmetrical.
+   *
+   * <p>A wall piece is a long, thin thing: it has to lie along the run it is
+   * part of, or a room comes out with its side walls facing the wrong way and
+   * gaps between them. Worked out from the neighbours rather than stored,
+   * because it is a fact about the shape of the wall and not about the square.
+   */
+  readonly rotation: number;
   /** Base colour, before light. */
   readonly colour: number;
 }

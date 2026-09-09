@@ -106,6 +106,35 @@ describe('board scene', () => {
       expect(opaqueAt(m, null)).toBe(false);
     });
 
+    it('turns a wall to run along the wall it is part of', () => {
+      // A wall model is long and thin. Left alone, a room's side walls face the
+      // same way as its top and bottom and the run comes out as a dashed line
+      // of gaps — which reads as a broken renderer rather than as a wall
+      // pointing the wrong way.
+      const northSouth = map({ cells: [
+        cell(0, 0, { terrain: 'WALL' }), cell(0, 1, { terrain: 'WALL' }),
+        cell(0, 2, { terrain: 'WALL' })] });
+      const eastWest = map({ cells: [
+        cell(0, 0, { terrain: 'WALL' }), cell(1, 0, { terrain: 'WALL' }),
+        cell(2, 0, { terrain: 'WALL' })] });
+
+      expect(terrainTiles(northSouth).find(t => t.x === 5 && t.y === 15)!.rotation)
+        .toBeCloseTo(Math.PI / 2);
+      expect(terrainTiles(eastWest).find(t => t.x === 15 && t.y === 5)!.rotation).toBe(0);
+    });
+
+    it('leaves a corner and a lone piece alone', () => {
+      // A corner is a different model, and guessing an angle for one would be
+      // worse than not turning it.
+      const corner = map({ cells: [
+        cell(0, 0, { terrain: 'WALL' }), cell(1, 0, { terrain: 'WALL' }),
+        cell(0, 1, { terrain: 'WALL' })] });
+
+      expect(terrainTiles(corner).find(t => t.x === 5 && t.y === 5)!.rotation).toBe(0);
+      expect(terrainTiles(map({ cells: [cell(2, 2, { terrain: 'WALL' })] }))
+        .find(t => t.x === 25 && t.y === 25)!.rotation).toBe(0);
+    });
+
     it('gives a wall Total Cover without being told', () => {
       const tiles = terrainTiles(map({ cells: [cell(0, 0, { terrain: 'WALL' })] }));
 

@@ -90,6 +90,8 @@ export function shade(colour: number, factor: number): number {
 export function terrainTiles(map: BattleMap): TerrainTile[] {
   const size = cellSize(map);
   const tiles: TerrainTile[] = [];
+  const isWall = (x: number, y: number) =>
+    (cellAt(map, x, y)?.terrain ?? map.defaultTerrain) === 'WALL';
 
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
@@ -110,11 +112,35 @@ export function terrainTiles(map: BattleMap): TerrainTile[] {
         light,
         opaque: opaqueAt(map, cell),
         cover: cell?.cover ?? (kind === 'WALL' ? 'TOTAL' : 'NONE'),
+        rotation: kind === 'WALL' ? wallRotation(x, y, isWall) : 0,
         colour: shade(TERRAIN_COLOURS[kind], LIGHT_FACTOR[light]),
       });
     }
   }
   return tiles;
+}
+
+/**
+ * Which way a wall piece should lie.
+ *
+ * <p>A wall model is long and thin, so it has to run along the wall it is part
+ * of. Left alone, a room's side walls face the same way as its top and bottom
+ * and the run comes out as a dashed line of gaps — which reads as a broken
+ * renderer rather than as a wall pointing the wrong way.
+ *
+ * <p>Decided by neighbours: a wall with walls above and below runs north-south
+ * and is turned a quarter. A lone piece, or a corner, keeps the default — a
+ * corner is a different model, and guessing an angle for one would be worse
+ * than not turning it.
+ */
+export function wallRotation(
+  x: number,
+  y: number,
+  isWall: (x: number, y: number) => boolean,
+): number {
+  const horizontal = isWall(x - 1, y) || isWall(x + 1, y);
+  const vertical = isWall(x, y - 1) || isWall(x, y + 1);
+  return vertical && !horizontal ? Math.PI / 2 : 0;
 }
 
 /** The ground level under a point, in half-feet. */

@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { Battle, BoardScene, Encounter } from './board.models';
 import { BoardRenderer, CameraMode } from './board-renderer';
+import { BoardTheme, KAYKIT_THEME } from './board-assets';
 import { PointerStart, dropAt, gestureFor, pathBetween, zoomAfterWheel } from './board-gestures';
 import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
 
@@ -22,10 +23,24 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
   selector: 'ooze-battle-board',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // A custom element is display:inline with no height by default, so every
+  // percentage height inside it resolves against nothing and the canvas grows
+  // until it drives the page — 7 155 CSS pixels, in this case. The host has to
+  // be a block with a height before anything below it can have one.
+  host: { class: 'block h-full w-full min-h-0' },
   template: `
-    <div class="relative h-full w-full overflow-hidden rounded-lg border border-rule bg-bg-subtle">
+    <div class="relative h-full w-full min-h-0 overflow-hidden rounded-lg border border-rule
+                bg-bg-subtle">
+      <!--
+        Absolutely positioned, never h-full. A canvas is a replaced element: give
+        it a percentage height inside a parent whose height comes from its
+        content and the two chase each other — the canvas grew to 14 467 CSS
+        pixels before this was pinned down. Taking it out of flow means the
+        container's height is the only input, and the ResizeObserver feeds that
+        to the drawing buffer.
+      -->
       <canvas #canvas
-              class="block h-full w-full touch-none"
+              class="absolute inset-0 block h-full w-full touch-none"
               [class.cursor-grabbing]="dragging()"
               [class.cursor-grab]="!dragging()"
               (pointerdown)="onPointerDown($event)"
@@ -86,6 +101,15 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
 
   readonly encounter = input<Encounter | null>(null);
   readonly battle = input<Battle | null>(null);
+
+  /**
+   * Which art pack to draw with.
+   *
+   * <p>An input rather than a constant, so a DM can swap or remove one without
+   * the board caring. A theme with no models draws coloured tiles, which is what
+   * deleting a pack looks like — and what building your own starts from.
+   */
+  readonly theme = input<BoardTheme>(KAYKIT_THEME);
 
   /** A creature was clicked. */
   readonly selected = output<string | null>();
@@ -150,15 +174,19 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     // in JPSS.
     effect(() => {
       const board = this.scene();
-      if (board && this.renderer) {
-        this.renderer.render(board);
+      const theme = this.theme();
+      if (this.renderer) {
+        this.renderer.setTheme(theme);
+        if (board) {
+          this.renderer.render(board);
+        }
       }
     });
   }
 
   ngAfterViewInit(): void {
     const canvas = this.canvasRef().nativeElement;
-    this.renderer = new BoardRenderer(canvas);
+    this.renderer = new BoardRenderer(canvas, this.theme());
     this.observer = new ResizeObserver(entries => {
       const box = entries[0]?.contentRect;
       if (box) {

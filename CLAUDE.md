@@ -69,6 +69,17 @@ Read these before touching the relevant area.
   required to refuse — same silent blank globe as above. `nginx.conf` adds the
   `types { application/javascript mjs; }` block; any other host serving this
   remote needs the same.
+- **`ng serve ooze` had no CSS at all until 2026-09-09.** Its `styles` in
+  `angular.json` pointed at `projects/ooze/src/styles.css`, which was a single
+  comment — so every Tailwind class in ooze was inert standalone, component
+  hosts stayed `display:inline`, and a canvas with `h-full` grew until it drove
+  the page to 14 000 pixels tall. It points at the host's `src/styles.css` now,
+  the way `jpss-ui` always did. A remote that is also served on its own needs
+  the host stylesheet, because that is what `@source`s it.
+- **A component host is `display:inline` with no height.** Angular does not
+  style it for you, so `h-full` on anything inside resolves against nothing.
+  Any component that owns a canvas or fills its container needs
+  `host: { class: 'block h-full w-full min-h-0' }`.
 - **A remote's chunks appear twice in `dist`, and that is fine.** Every remote is
   built as two graphs — the standalone app that `index.html` loads, and the
   federated `remoteEntry`/`routes` the host loads — so each lazy chunk has a

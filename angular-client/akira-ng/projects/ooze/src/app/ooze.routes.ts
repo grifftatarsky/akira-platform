@@ -15,6 +15,13 @@ export const OOZE_ROUTES: Routes = [
     children: [
       { path: '', component: OozeDashboard, data: { title: 'Oozengine' } },
       {
+        // A board with nothing behind it, so the renderer can be looked at
+        // without a database, a Keycloak or a signed-in DM.
+        path: 'board',
+        loadComponent: () => import('./board/board-demo').then(m => m.BoardDemo),
+        data: { title: 'Board preview' },
+      },
+      {
         // Lazy, and deliberately so: three is ~130 KB gzipped and the finder
         // has no use for it, so the compendium should not pay for a renderer
         // nobody has opened.

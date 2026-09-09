@@ -60,13 +60,29 @@ https://game-icons.net"*, and the authors are per-icon, so the set actually used
 has to be tracked. That is the cost; it is worth paying once for status icons
 and not worth paying twice.
 
+## What is vendored here
+
+`public/assets/board/kaykit/` holds eight pieces from KayKit Dungeon Remastered
+(floors, walls, a doorway, a pillar, stairs, a column) plus its `LICENSE.txt` —
+368 KB of the pack's 8.6 MB. Adding more is a file and a line in
+`board-assets.ts`.
+
+**Deleting the directory is a supported thing to do.** The board falls back to
+coloured tiles, which is what the `Plain` theme is and what building your own
+pack starts from. Nothing switches off; the models simply are not found.
+
 ## Two conventions worth fixing now
 
-**Scale.** The board's world unit is the half-foot, so a 5-foot square is 10
-units and a Medium creature's token is 10 across. A model authored at 1 unit = 1
-metre needs roughly ×16 (a 5-foot square is ~1.5 m). Put the factor in the loader
-rather than in each asset, so re-sourcing a pack does not mean re-scaling a
-scene.
+**Scale, and which way is up.** The board's world unit is the half-foot, so a
+5-foot square is 10 units. `ModelLibrary` measures each model and fits its
+footprint to the square rather than trusting a nominal scale, because packs vary
+piece to piece — KayKit's floor tile is 4×4 of its own units and its wall is not.
+
+**glTF is Y-up and this world is Z-up.** The loader rotates every model a quarter
+turn about X, once, so packs do not each need to know. Without it a floor tile
+stands on its edge — KayKit's is 4×4 across and 0.15 thick, and unrotated that
+thickness becomes the footprint. It draws as pale strips with gaps, which looks
+like a scaling bug and is not one.
 
 **Bookkeeping.** Keep a `licenses.md` beside the assets naming, per pack: where
 it came from, its licence, and the date it was checked. "Where did this tile come

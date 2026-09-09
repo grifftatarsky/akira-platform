@@ -1,10 +1,12 @@
 import {
   AmbientLight, BoxGeometry, CircleGeometry, Color, DirectionalLight, Group, Mesh,
-  MeshLambertMaterial, MeshBasicMaterial, OrthographicCamera, PerspectiveCamera, PCFSoftShadowMap,
+  MeshLambertMaterial, MeshBasicMaterial, OrthographicCamera, PCFShadowMap, PerspectiveCamera,
   Plane, Raycaster, RingGeometry, Scene, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, TerrainTile, TokenPlacement } from './board.models';
+import { BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
 import { WALL_HEIGHT } from './board-scene';
+import { ModelLibrary } from './model-library';
 
 /** Top-down and locked, or a camera you can orbit. */
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
@@ -34,11 +36,25 @@ export class BoardRenderer {
   private readonly renderer: WebGLRenderer;
   private readonly scene = new Scene();
   private readonly terrain = new Group();
+  /**
+   * Art laid over the terrain.
+   *
+   * <p>Kept apart from the boxes rather than replacing them. The boxes are the
+   * structure — they carry the plinth under a raised ledge, and their index is
+   * the tile's index — while models are decoration that may or may not arrive.
+   * Swapping them in place meant an elevated floor lost the plinth with the box
+   * and hung in the air, and it made a tile's position in the group depend on
+   * what had finished loading.
+   */
+  private readonly terrainArt = new Group();
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
   private frame = 0;
   private disposed = false;
+
+  /** Bumped on every render, so a model that loads late knows it is stale. */
+  private generation = 0;
 
   /** Half-feet of board visible across the viewport's shorter side. */
   private zoom = 200;
@@ -56,13 +72,22 @@ export class BoardRenderer {
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  private library: ModelLibrary;
+  private theme: BoardTheme;
+
+  constructor(private readonly canvas: HTMLCanvasElement, theme: BoardTheme = PLAIN_THEME) {
+    this.theme = theme;
+    this.library = new ModelLibrary(theme);
     this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = PCFSoftShadowMap;
+    // PCFSoftShadowMap was removed in three 0.186 and silently downgraded to
+    // this with a console warning; naming it directly keeps the warning out and
+    // the behaviour identical.
+    this.renderer.shadowMap.type = PCFShadowMap;
 
     this.scene.add(this.terrain);
+    this.scene.add(this.terrainArt);
     this.scene.add(this.tokens);
 
     // Lit rather than unlit, even though the top-down view barely shows it. A
@@ -78,14 +103,63 @@ export class BoardRenderer {
     this.camera = this.makeCamera('TOP_DOWN');
   }
 
-  /** Replaces everything drawn. Cheap enough at board sizes; correct always. */
+  /**
+   * Replaces everything drawn.
+   *
+   * <p>Boxes go down first and models replace them as they arrive, rather than
+   * waiting for the pack. A board that is legible immediately and prettier a
+   * moment later beats a blank rectangle that resolves all at once — and it is
+   * the same code path whether the art exists or not, which is what stops the
+   * no-art case from rotting.
+   */
   render(board: BoardScene): void {
     this.centre = new Vector3(board.widthHalfFeet / 2, board.heightHalfFeet / 2, 0);
     this.clear(this.terrain);
+    this.clear(this.terrainArt);
     this.clear(this.tokens);
     board.tiles.forEach(t => this.terrain.add(this.tile(t)));
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
     this.place();
+    void this.dressTerrain(board);
+  }
+
+  /** Swaps the art without touching anything else about the board. */
+  setTheme(theme: BoardTheme): void {
+    this.theme = theme;
+    this.library = new ModelLibrary(theme);
+  }
+
+  /**
+   * Replaces each tile's box with the theme's model, where it has one.
+   *
+   * <p>The box stays when the model is missing, which is the whole of making a
+   * pack removable: delete the files and the board reverts to what it always
+   * drew, with nothing to switch off.
+   */
+  private async dressTerrain(board: BoardScene): Promise<void> {
+    const generation = ++this.generation;
+    for (let i = 0; i < board.tiles.length; i++) {
+      const tile = board.tiles[i];
+      const model = await this.library.piece(pieceFor(tile.kind), tile.size);
+      // The board may have been replaced or disposed while a model loaded; a
+      // late arrival must not decorate a scene nobody is looking at.
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+      if (!model) {
+        continue;
+      }
+      const box = this.terrain.children[i];
+      model.position.set(tile.x, tile.y, tile.base);
+      model.rotation.z += tile.rotation;
+      this.terrainArt.add(model);
+      // The box stays when it is holding a raised floor up; otherwise it is
+      // just colour under the art and can go quiet. Either way it is still
+      // there, so the index still means the tile.
+      if (box && tile.base <= 0) {
+        box.visible = false;
+      }
+    }
   }
 
   /**
@@ -95,13 +169,16 @@ export class BoardRenderer {
    * kind of object and raising one is a number rather than a different mesh.
    */
   private tile(t: TerrainTile): Mesh {
-    // A hair of thickness on flat ground, so it takes shadow and never
-    // z-fights whatever is drawn on it.
-    const depth = t.height > 0 ? t.height : 0.5;
+    // Walls stand up from their base; floors sit on a plinth reaching down to
+    // ground level. Without the plinth a raised ledge floats with nothing under
+    // it — the walkable surface is at the right height either way, but a DM
+    // reading the picture sees a bug rather than a ledge.
+    const wall = t.height > 0;
+    const depth = wall ? t.height : Math.max(0.5, t.base);
     const geometry = new BoxGeometry(t.size, t.size, depth);
     const material = new MeshLambertMaterial({ color: new Color(t.colour) });
     const mesh = new Mesh(geometry, material);
-    mesh.position.set(t.x, t.y, t.base + depth / 2);
+    mesh.position.set(t.x, t.y, wall ? t.base + depth / 2 : t.base - depth / 2);
     mesh.receiveShadow = true;
     mesh.castShadow = t.height > 0;
     mesh.userData = { kind: t.kind, cover: t.cover, opaque: t.opaque, light: t.light };
@@ -244,6 +321,7 @@ export class BoardRenderer {
     this.disposed = true;
     cancelAnimationFrame(this.frame);
     this.clear(this.terrain);
+    this.clear(this.terrainArt);
     this.clear(this.tokens);
     this.renderer.dispose();
   }
@@ -251,18 +329,22 @@ export class BoardRenderer {
   private clear(group: Group): void {
     for (const child of [...group.children]) {
       group.remove(child);
-      child.traverse(node => {
-        if (node instanceof Mesh) {
-          node.geometry.dispose();
-          const material = node.material;
-          if (Array.isArray(material)) {
-            material.forEach(m => m.dispose());
-          } else {
-            material.dispose();
-          }
-        }
-      });
+      this.disposeNode(child);
     }
+  }
+
+  private disposeNode(node: import('three').Object3D): void {
+    node.traverse(child => {
+      if (child instanceof Mesh) {
+        child.geometry.dispose();
+        const material = child.material;
+        if (Array.isArray(material)) {
+          material.forEach(m => m.dispose());
+        } else {
+          material.dispose();
+        }
+      }
+    });
   }
 
   // region Picking and camera control
@@ -351,8 +433,12 @@ export class BoardRenderer {
   // endregion
 
   /** Exposed so a test can assert what was built without a WebGL context. */
-  meshCounts(): { tiles: number; tokens: number } {
-    return { tiles: this.terrain.children.length, tokens: this.tokens.children.length };
+  meshCounts(): { tiles: number; art: number; tokens: number } {
+    return {
+      tiles: this.terrain.children.length,
+      art: this.terrainArt.children.length,
+      tokens: this.tokens.children.length,
+    };
   }
 }
 
