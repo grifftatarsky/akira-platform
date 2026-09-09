@@ -19,7 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Building a board out of the creatures we actually imported.
@@ -79,7 +81,9 @@ class EncounterTests {
     // No authority grants you someone else's encounter, so the rule lives in
     // the service — and a stranger should not learn the id exists.
     assertThatThrownBy(() -> encounters.get(e.getId(), UUID.randomUUID()))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(ResponseStatusException.class)
+        .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
+        .isEqualTo(HttpStatus.NOT_FOUND);
   }
 
   @Test
@@ -89,7 +93,7 @@ class EncounterTests {
     encounters.place(e.getId(), dm, token("Owlbear", 10, 10));
 
     assertThatThrownBy(() -> encounters.place(e.getId(), dm, token("Goblin Warrior", 10, 10)))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("occupied");
   }
 
@@ -118,7 +122,7 @@ class EncounterTests {
 
     assertThatThrownBy(() ->
         encounters.moveTo(e.getId(), dm, owlbear.getId(), new Point(feet(30), feet(10), 0)))
-        .isInstanceOf(IllegalStateException.class);
+        .isInstanceOf(ResponseStatusException.class);
 
     assertThat(owlbear.getX()).isEqualTo(feet(10));
     assertThat(owlbear.getY()).isEqualTo(feet(10));
@@ -149,7 +153,7 @@ class EncounterTests {
     }
 
     assertThatThrownBy(() -> encounters.place(e.getId(), dm, token("Goblin Warrior", 90, 90)))
-        .isInstanceOf(IllegalStateException.class)
+        .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("at most");
   }
 

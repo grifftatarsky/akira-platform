@@ -2,8 +2,17 @@ package com.gpt.oozengine.service;
 
 import com.gpt.oozengine.constant.rules.Capability;
 import com.gpt.oozengine.constant.rules.CreatureSize;
+import com.gpt.oozengine.model.GameCharacter;
+import com.gpt.oozengine.model.creature.StatBlock;
+import com.gpt.oozengine.model.dto.request.CombatantRequest;
+import com.gpt.oozengine.model.dto.request.EncounterRequest;
 import com.gpt.oozengine.model.encounter.BattleMap;
+import com.gpt.oozengine.repository.CharacterRepository;
+import com.gpt.oozengine.repository.StatBlockRepository;
 import com.gpt.oozengine.model.encounter.Combatant;
+import com.gpt.oozengine.model.dto.response.CombatantResponse;
+import com.gpt.oozengine.model.dto.response.EncounterResponse;
+import com.gpt.oozengine.model.dto.response.EncounterSummaryResponse;
 import com.gpt.oozengine.model.encounter.Encounter;
 import com.gpt.oozengine.repository.EncounterRepository;
 import com.gpt.oozengine.util.Geometry;
@@ -15,6 +24,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -35,10 +46,45 @@ public class EncounterService {
   public static final int MAX_COMBATANTS = 40;
 
   private final EncounterRepository repo;
+  private final StatBlockRepository statBlocks;
+  private final CharacterRepository characters;
+
+  /**
+   * Summaries, mapped inside the transaction.
+   *
+   * <p>Returning entities and letting the controller map them reads the map
+   * through a lazy proxy after the session has closed, which is a
+   * LazyInitializationException rather than a list.
+   */
+  @Transactional(readOnly = true)
+  public Page<EncounterSummaryResponse> list(UUID ownerId, Pageable pageable) {
+    return repo.findByOwnerId(ownerId, pageable).map(EncounterSummaryResponse::from);
+  }
 
   @Transactional(readOnly = true)
-  public Page<Encounter> list(UUID ownerId, Pageable pageable) {
-    return repo.findByOwnerId(ownerId, pageable);
+  public EncounterResponse view(UUID id, UUID ownerId) {
+    return EncounterResponse.from(get(id, ownerId));
+  }
+
+  @Transactional
+  public EncounterResponse createAndView(UUID ownerId, EncounterRequest req) {
+    return EncounterResponse.from(create(ownerId, req));
+  }
+
+  @Transactional
+  public EncounterResponse updateAndView(UUID id, UUID ownerId, EncounterRequest req) {
+    return EncounterResponse.from(update(id, ownerId, req));
+  }
+
+  @Transactional
+  public CombatantResponse placeAndView(UUID id, UUID ownerId, CombatantRequest req) {
+    return CombatantResponse.from(place(id, ownerId, req));
+  }
+
+  @Transactional
+  public CombatantResponse updateCombatantAndView(
+      UUID id, UUID ownerId, UUID combatantId, CombatantRequest req) {
+    return CombatantResponse.from(updateCombatant(id, ownerId, combatantId, req));
   }
 
   @Transactional(readOnly = true)
@@ -55,8 +101,113 @@ public class EncounterService {
     Encounter e = new Encounter();
     e.setOwnerId(ownerId);
     e.setName(name);
+    // A default 20x20 board at 5 feet a square: a DM who wants to drop monsters
+    // somewhere and think about terrain later should not have to describe a
+    // board first.
     e.setMap(map == null ? new BattleMap() : map);
     return repo.save(e);
+  }
+
+  @Transactional
+  public Encounter create(UUID ownerId, EncounterRequest req) {
+    Encounter e = create(ownerId, req.name(), EncounterMapper.newMap(req.map()));
+    e.setDescription(req.description());
+    return e;
+  }
+
+  /** Renames, re-describes, and repaints. Combatants are edited separately. */
+  @Transactional
+  public Encounter update(UUID id, UUID ownerId, EncounterRequest req) {
+    Encounter e = get(id, ownerId);
+    e.setName(req.name());
+    e.setDescription(req.description());
+    EncounterMapper.applyScalars(req.map(), e.getMap());
+    if (req.map() != null && req.map().cells() != null) {
+      var repainted = EncounterMapper.cellsFrom(req.map(), e.getMap());
+      // Hibernate orders inserts ahead of deletes within a flush, so repainting
+      // a square that was already painted collides on uq_map_cells_position.
+      // Flushing between makes the delete land first.
+      e.getMap().getCells().clear();
+      repo.flush();
+      e.getMap().getCells().addAll(repainted);
+    }
+    repo.flush();
+    return e;
+  }
+
+  /**
+   * Places a combatant described by a request, resolving its base.
+   *
+   * <p>The base is looked up rather than trusted: a request naming a stat block
+   * that does not exist should fail here, not when the engine tries to execute
+   * a null creature three turns into a battle.
+   */
+  @Transactional
+  public Combatant place(UUID encounterId, UUID ownerId, CombatantRequest req) {
+    Combatant c = new Combatant();
+    EncounterMapper.apply(req, c, resolveStatBlock(req), resolveCharacter(req, ownerId));
+    return place(encounterId, ownerId, c);
+  }
+
+  @Transactional
+  public Combatant updateCombatant(
+      UUID encounterId, UUID ownerId, UUID combatantId, CombatantRequest req) {
+    Encounter e = get(encounterId, ownerId);
+    Combatant c = combatant(e, combatantId);
+    int x = c.getX();
+    int y = c.getY();
+    int z = c.getZ();
+    EncounterMapper.apply(req, c, resolveStatBlock(req), resolveCharacter(req, ownerId));
+    try {
+      requireClear(e, c);
+    } catch (ResponseStatusException ex) {
+      c.setX(x);
+      c.setY(y);
+      c.setZ(z);
+      throw ex;
+    }
+    repo.flush();
+    return c;
+  }
+
+  @Transactional
+  public void removeCombatant(UUID encounterId, UUID ownerId, UUID combatantId) {
+    Encounter e = get(encounterId, ownerId);
+    e.getCombatants().remove(combatant(e, combatantId));
+    repo.flush();
+  }
+
+  private StatBlock resolveStatBlock(CombatantRequest req) {
+    if (req.statBlockId() == null) {
+      return null;
+    }
+    return statBlocks.findById(req.statBlockId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "No stat block " + req.statBlockId()));
+  }
+
+  private GameCharacter resolveCharacter(CombatantRequest req, UUID ownerId) {
+    if (req.gameCharacterId() == null) {
+      return null;
+    }
+    GameCharacter c = characters.findById(req.gameCharacterId())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+            "No character " + req.gameCharacterId()));
+    // Characters are private, so placing someone else's is a not-found rather
+    // than a forbidden — the same rule the encounter itself follows.
+    if (!ownerId.equals(c.getOwnerId())) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "No character " + req.gameCharacterId());
+    }
+    return c;
+  }
+
+  private static Combatant combatant(Encounter e, UUID id) {
+    return e.getCombatants().stream()
+        .filter(x -> x.getId().equals(id))
+        .findFirst()
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+            "No combatant " + id));
   }
 
   @Transactional
@@ -77,7 +228,7 @@ public class EncounterService {
   public Combatant place(UUID encounterId, UUID ownerId, Combatant combatant) {
     Encounter e = get(encounterId, ownerId);
     if (e.getCombatants().size() >= MAX_COMBATANTS) {
-      throw new IllegalStateException(
+      throw new ResponseStatusException(HttpStatus.CONFLICT,
           "An encounter holds at most " + MAX_COMBATANTS + " combatants");
     }
     requireClear(e, combatant);
@@ -95,10 +246,7 @@ public class EncounterService {
   @Transactional
   public Combatant moveTo(UUID encounterId, UUID ownerId, UUID combatantId, Point to) {
     Encounter e = get(encounterId, ownerId);
-    Combatant c = e.getCombatants().stream()
-        .filter(x -> x.getId().equals(combatantId))
-        .findFirst()
-        .orElseThrow(() -> new IllegalArgumentException("No combatant " + combatantId));
+    Combatant c = combatant(e, combatantId);
     int x = c.getX();
     int y = c.getY();
     int z = c.getZ();
@@ -107,7 +255,7 @@ public class EncounterService {
     c.setZ(to.z());
     try {
       requireClear(e, c);
-    } catch (IllegalStateException ex) {
+    } catch (ResponseStatusException ex) {
       // Put it back, so a refused move leaves the board exactly as it was rather
       // than half-applied.
       c.setX(x);
@@ -131,22 +279,32 @@ public class EncounterService {
       theirCapabilities.add(capabilitiesOf(other));
     }
     if (!field.canStand(footprintOf(moving), capabilitiesOf(moving), others, theirCapabilities)) {
-      throw new IllegalStateException("That space is occupied");
+      // A conflict, not a bad request: the body was fine, the board disagreed.
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "That space is occupied");
     }
   }
 
-  /** Size comes from the combatant's override, else its base stat block. */
+  /**
+   * The size actually in effect: the combatant's override if it has one, else
+   * its base's. Usually the base's, so a response that returned the override
+   * would report null for almost every token on the board.
+   */
+  public static CreatureSize sizeOf(Combatant c) {
+    if (c.getSize() != null) {
+      return c.getSize();
+    }
+    if (c.getStatBlock() != null && c.getStatBlock().getSize() != null) {
+      return c.getStatBlock().getSize();
+    }
+    if (c.getGameCharacter() != null && c.getGameCharacter().getStatBlock() != null
+        && c.getGameCharacter().getStatBlock().getSize() != null) {
+      return c.getGameCharacter().getStatBlock().getSize();
+    }
+    return CreatureSize.MEDIUM;
+  }
+
   public static Footprint footprintOf(Combatant c) {
-    CreatureSize size = c.getSize();
-    if (size == null && c.getStatBlock() != null) {
-      size = c.getStatBlock().getSize();
-    }
-    if (size == null && c.getGameCharacter() != null
-        && c.getGameCharacter().getStatBlock() != null) {
-      size = c.getGameCharacter().getStatBlock().getSize();
-    }
-    return Footprint.of(new Point(c.getX(), c.getY(), c.getZ()),
-        size == null ? CreatureSize.MEDIUM : size);
+    return Footprint.of(new Point(c.getX(), c.getY(), c.getZ()), sizeOf(c));
   }
 
   /**
@@ -165,8 +323,12 @@ public class EncounterService {
     return out;
   }
 
-  private static IllegalArgumentException notFound(UUID id) {
-    return new IllegalArgumentException("No encounter " + id);
+  /**
+   * Not found rather than forbidden, deliberately: an encounter is a plan for a
+   * session, and a stranger should not learn that a given id exists.
+   */
+  private static ResponseStatusException notFound(UUID id) {
+    return new ResponseStatusException(HttpStatus.NOT_FOUND, "No encounter " + id);
   }
 
   /** Chebyshev distance between two placed combatants, edge to edge, in feet. */
