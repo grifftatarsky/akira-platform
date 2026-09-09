@@ -69,6 +69,15 @@ Read these before touching the relevant area.
   required to refuse — same silent blank globe as above. `nginx.conf` adds the
   `types { application/javascript mjs; }` block; any other host serving this
   remote needs the same.
+- **A remote's own assets must be resolved with `import.meta.url`.** Served
+  standalone, ooze is at `/` and its assets at `/assets/…`; inside the host it
+  is at `/ooze/…` and its assets at `/remotes/ooze/assets/…`. A relative path is
+  right in one shell and wrong in the other — and the failure is invisible,
+  because nginx's SPA fallback answers the miss with **`index.html`, 200,
+  `text/html`** rather than a 404. The board loaded HTML into a glTF parser and
+  silently drew plain tiles. `new URL(path, import.meta.url)` resolves against
+  the chunk, which sits under the remote's base in both shells; the globe does
+  the same for maplibre's worker.
 - **`ng serve ooze` had no CSS at all until 2026-09-09.** Its `styles` in
   `angular.json` pointed at `projects/ooze/src/styles.css`, which was a single
   comment — so every Tailwind class in ooze was inert standalone, component

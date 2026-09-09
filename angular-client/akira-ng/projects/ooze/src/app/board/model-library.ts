@@ -105,20 +105,51 @@ export class ModelLibrary {
       Object.keys(this.theme.pieces).map(k => this.piece(k as BoardPiece, 10)));
   }
 
+  /**
+   * Resolves an asset path against this module, not the document.
+   *
+   * <p>Ooze is a federation remote. Served on its own the board is at `/board`
+   * and its assets at `/assets/...`; inside the host it is at `/ooze/board` and
+   * its assets are at `/remotes/ooze/assets/...`. A relative path is right in
+   * one shell and wrong in the other.
+   *
+   * <p>Worse than wrong: nginx serves the host's `index.html` as an SPA
+   * fallback, so the miss came back **200 with `text/html`** rather than 404.
+   * The loader parsed HTML, failed, and the board quietly drew boxes — the
+   * fallback working perfectly for entirely the wrong reason.
+   *
+   * <p>`import.meta.url` points at the chunk this code was loaded from, which is
+   * under the remote's own base in both shells. The same technique the globe
+   * uses for maplibre's worker, and for the same reason.
+   */
+  private resolve(url: string): string {
+    try {
+      return new URL(url, import.meta.url).href;
+    } catch {
+      return url;
+    }
+  }
+
   private load(url: string): Promise<Object3D | null> {
     const cached = this.cache.get(url);
     if (cached) {
       return cached;
     }
     const pending = new Promise<Object3D | null>(resolve => {
+      const resolved = this.resolve(url);
       this.loader.load(
-        url,
+        resolved,
         gltf => resolve(gltf.scene),
         undefined,
-        // Swallowed on purpose. A missing model is a board without art, not a
-        // board that fails to draw, and a console full of 404s is the correct
-        // amount of noise for "you deleted the pack".
-        () => resolve(null),
+        // A missing model is a board without art, not a board that fails to
+        // draw — but it is said out loud. Silence here hid a path bug behind a
+        // fallback that was working as designed, and "the art just never
+        // appears" is not a debuggable symptom.
+        error => {
+          console.warn('[board] no model at %s — drawing a plain tile instead',
+            resolved, error);
+          resolve(null);
+        },
       );
     });
     this.cache.set(url, pending);
