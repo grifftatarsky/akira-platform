@@ -59,11 +59,23 @@ export class Stage {
     this.camera = new ArcRotateCamera(
       'view', -Math.PI / 2, 1.05, 300, Vector3.Zero(), this.scene,
     );
-    this.camera.attachControl(canvas, true);
+    // `false`, and it matters: the second argument is *noPreventDefault*, so
+    // passing `true` leaves the wheel event to the document and the page
+    // scrolls away underneath while the camera zooms. The canvas also needs
+    // `touch-action: none` for the same reason on a trackpad.
+    this.camera.attachControl(canvas, false);
     this.camera.minZ = 1;
     this.camera.maxZ = 8000;
-    this.camera.wheelDeltaPercentage = 0.02;
-    this.camera.panningSensibility = 12;
+    this.camera.wheelDeltaPercentage = 0.04;
+    this.camera.pinchDeltaPercentage = 0.02;
+    this.camera.useNaturalPinchZoom = true;
+    // Panning is in world units per pixel and Babylon does not scale it with
+    // distance, so one number is either unusable across the whole board or
+    // unusable standing in the grass. This keeps the *screen* distance
+    // constant instead, which is what a hand expects from a map.
+    this.scene.onBeforeRenderObservable.add(() => {
+      this.camera.panningSensibility = Math.max(8, 4200 / Math.max(1, this.camera.radius));
+    });
     this.camera.lowerBetaLimit = 0.05;
     // Just short of the horizon: past it the camera goes under the ground and
     // there is nothing down there to see.
@@ -74,7 +86,10 @@ export class Stage {
     this.shadows.lambda = 0.9;
     this.shadows.cascadeBlendPercentage = 0.05;
     this.shadows.stabilizeCascades = true;
-    this.shadows.shadowMaxZ = 900;
+    // Four hundred half-feet, not nine hundred. Cascades are fitted across
+    // this range, so a range twice what anything casts across spends half its
+    // resolution on empty air.
+    this.shadows.shadowMaxZ = 400;
     this.shadows.filteringQuality = CascadedShadowGenerator.QUALITY_HIGH;
     this.shadows.usePercentageCloserFiltering = true;
 
@@ -119,6 +134,10 @@ export class Stage {
     });
     try {
       await engine.initAsync();
+      // Has to be set once the device exists and before any frame: the query
+      // pool is sized at that point, and turning it on later throws
+      // "WebGPUDurationMeasure: index out of range" from inside a render pass.
+      engine.enableGPUTimingMeasurements = true;
     } catch (error) {
       // Give the device back. A page that reloads onto a failed init half a
       // dozen times leaves that many adapters outstanding, and the next

@@ -75,7 +75,8 @@ import { type Terrain, buildTerrain } from './terrain';
       }
 
       <div class="relative min-h-0 flex-1 overflow-hidden rounded">
-        <canvas #canvas class="h-full w-full outline-none"></canvas>
+        <canvas #canvas class="h-full w-full outline-none"
+          style="touch-action: none; overscroll-behavior: contain"></canvas>
         @if (fault(); as message) {
           <p class="absolute inset-x-0 top-1/2 px-6 text-center text-sm text-fg">
             {{ message }}
@@ -139,10 +140,24 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       const field = groundField(scene);
       const started = performance.now();
       this.terrain = buildTerrain(ground, field, stage.scene);
+      // The ground casts its own shadows — a rise has to darken the hollow
+      // behind it or the relief reads as a painting of relief. It is also the
+      // only caster now that the meadow is not one, and a cascade generator
+      // with an empty render list does not skip the pass: it samples an
+      // unwritten map and returns nothing but shadow, which looks exactly like
+      // a sun that has gone out.
+      this.terrain.chunks.forEach(chunk => stage.shadows.addShadowCaster(chunk));
       const built = Math.round(performance.now() - started);
 
       this.meadow = sowMeadow(field, stage.scene, assetUrl(ground.layers[0].color));
-      stage.shadows.addShadowCaster(this.meadow.mesh);
+      // <b>The meadow does not cast shadows.</b> Six hundred thousand blades
+      // rendered again into every shadow cascade is the most expensive thing
+      // on the board, and it is paid whenever the camera moves — because that
+      // is when cascades refit — which is exactly the moment it is felt as lag
+      // rather than seen as a frame rate. It is also what *Ghost of Tsushima*
+      // does: grass casts no real shadow there either, and nobody has ever
+      // written about the shadows the grass in that game does not have. It
+      // still receives them, which is the half that reads.
       // The wind is a re-sow, so it happens once a frame before anything is
       // drawn. Six hundred thousand threads that each write four vec4s; the
       // GPU does not notice, and nothing touches the main thread.

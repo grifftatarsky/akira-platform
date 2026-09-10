@@ -2,10 +2,18 @@ import { ShaderLanguage } from '@babylonjs/core/Materials/shaderLanguage';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { ProceduralTexture } from '@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture';
-import { Vector2, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Vector4 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { SplatGround } from '../board-assets';
 import type { GroundField } from '../ground-field';
+// Side-effect, and the second time this exact trap has been hit: without the
+// scene component a `ProceduralTexture` is never added to the scene's render
+// list, so it is never drawn. It still reports `isReady`, its effect still
+// compiles without complaint, and the texture it hands the material is simply
+// empty — a terrain that renders solid black with nothing wrong anywhere the
+// eye can reach. Babylon splits optional capability into a tree-shakable half
+// and a half that registers with the scene; both halves are load-bearing.
+import '@babylonjs/core/Materials/Textures/Procedurals/proceduralTextureSceneComponent';
 import { assetUrl } from './assets';
 
 /**
@@ -47,11 +55,17 @@ var layerB: texture_2d<f32>;
 var layerCSampler: sampler;
 var layerC: texture_2d<f32>;
 
-uniform extentHalfFeet: vec2f;
-uniform layerFeet: vec3f;
-uniform tintA: vec3f;
-uniform tintB: vec3f;
-uniform tintC: vec3f;
+// <b>Every uniform is a vec4, and that is not tidiness.</b> A vec3 aligns to
+// sixteen bytes in a WGSL uniform block but Babylon packs its uniform buffer
+// by declaration order, so a vec2 followed by a vec3 lands the vec3's fields
+// in the wrong slots. Here that made the feet-per-repeat read as zero, the UVs
+// divide to infinity, and every sample come back black — from a shader that
+// compiled without a word of complaint.
+uniform sizing: vec4f;   // extentX, extentY, feetA, feetB
+uniform reach: vec4f;    // feetC, wearLo, wearHi, unused
+uniform tintA: vec4f;
+uniform tintB: vec4f;
+uniform tintC: vec4f;
 
 // Stochastic tiling, in the triangle-grid form: three taps at hashed offsets,
 // weighted by where the point falls in its triangle. A photograph tiled
@@ -108,18 +122,18 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   // Three layers chosen by how worn the ground is: lush, verge, bare track.
   // The middle one has to be a band rather than a threshold, or the road gets
   // an outline instead of an edge.
-  let toVerge = smoothstep(0.12, 0.55, wear);
-  let toTrack = smoothstep(0.55, 0.92, wear);
+  let toVerge = smoothstep(uniforms.reach.y, uniforms.reach.z, wear);
+  let toTrack = smoothstep(uniforms.reach.z, 0.92, wear);
   let wA = 1.0 - toVerge;
   let wB = toVerge * (1.0 - toTrack);
   let wC = toTrack;
 
   // Repeats per axis, from feet-per-repeat and the board's real extent — a
   // single scalar would stretch the material on a board that is not square.
-  let world = uv * uniforms.extentHalfFeet;
-  let cA = shuffled(layerA, layerASampler, world / (uniforms.layerFeet.x * 2.0)) * uniforms.tintA;
-  let cB = shuffled(layerB, layerBSampler, world / (uniforms.layerFeet.y * 2.0)) * uniforms.tintB;
-  let cC = shuffled(layerC, layerCSampler, world / (uniforms.layerFeet.z * 2.0)) * uniforms.tintC;
+  let world = uv * uniforms.sizing.xy;
+  let cA = shuffled(layerA, layerASampler, world / (uniforms.sizing.z * 2.0)) * uniforms.tintA.rgb;
+  let cB = shuffled(layerB, layerBSampler, world / (uniforms.sizing.w * 2.0)) * uniforms.tintB.rgb;
+  let cC = shuffled(layerC, layerCSampler, world / (uniforms.reach.x * 2.0)) * uniforms.tintC.rgb;
 
   var color = cA * wA + cB * wB + cC * wC;
 
@@ -171,6 +185,8 @@ export function bakeGround(
     return texture;
   });
 
+  const source = fieldTexture(field, scene);
+
   const macro = new ProceduralTexture(
     'groundMacro', { width, height }, { fragmentSource: BAKE_SHADER }, scene,
     { shaderLanguage: ShaderLanguage.WGSL, generateMipMaps: true },
@@ -178,21 +194,47 @@ export function bakeGround(
   macro.refreshRate = 0;
   macro.wrapU = Texture.CLAMP_ADDRESSMODE;
   macro.wrapV = Texture.CLAMP_ADDRESSMODE;
-  macro.setTexture('field', fieldTexture(field, scene));
+  macro.setTexture('field', source);
   sources.forEach((texture, index) => {
     macro.setTexture(['layerA', 'layerB', 'layerC'][index], texture);
   });
 
-  macro.setVector2('extentHalfFeet', new Vector2(widthFeet, heightFeet));
-  macro.setVector3('layerFeet', new Vector3(
-    ground.layers[0].feet, ground.layers[1].feet, ground.layers[2].feet,
+  macro.setVector4('sizing', new Vector4(
+    widthFeet, heightFeet, ground.layers[0].feet, ground.layers[1].feet,
   ));
+  macro.setVector4('reach', new Vector4(ground.layers[2].feet, 0.12, 0.55, 0));
   ground.layers.forEach((layer, index) => {
     const tint = layer.tint ?? [1, 1, 1];
-    macro.setVector3(
+    macro.setVector4(
       ['tintA', 'tintB', 'tintC'][index],
-      new Vector3(tint[0], tint[1], tint[2]),
+      new Vector4(tint[0], tint[1], tint[2], 1),
     );
+  });
+
+  // <b>Bake once every source has arrived, and poll for it.</b>
+  //
+  // <p>`refreshRate = 0` means "render once", and once is the first frame —
+  // which is before three JPEGs have come off the network. It bakes black and
+  // never renders again: a board that is green when the images happen to be in
+  // the browser cache and pitch black when they are not, with every diagnostic
+  // saying it is fine. `isReady()` is true, the effect compiles without a word,
+  // the texture is in `scene.proceduralTextures`, and it reads back as 8.6 MB
+  // of zeros — alpha included, from a shader that writes alpha 1.
+  //
+  // <p>`Texture.WhenAllReady` looks like the answer and is not: it waits on
+  // load observables, and the field is a `RawTexture` built from an array that
+  // never loads anything and so never fires one. The callback simply never
+  // came. Polling `isReady` is duller and cannot miss.
+  const ready = scene.onBeforeRenderObservable.add(() => {
+    if (!sources.every(texture => texture.isReady())) {
+      return;
+    }
+    // Reset the counter rather than calling `render()`. On WebGPU the commands
+    // go into the frame's encoder, so a render started outside
+    // `beginFrame`/`endFrame` is never submitted; letting the scene draw it on
+    // its own next frame is the difference between a bake and nothing at all.
+    macro.resetRefreshCounter();
+    scene.onBeforeRenderObservable.remove(ready);
   });
 
   return { macro, sources };
