@@ -244,6 +244,23 @@ import { clockLabel, dateLabel, latitudeName } from './sun-position';
               you let go — turn the readout on to see what it costs.</span>
           </label>
 
+          <!--
+            Dragged live, unlike the other two: the wind is a uniform read by
+            the vertex shader, so nothing is rebuilt to change it.
+          -->
+          <label class="mb-3 block">
+            <span class="flex items-baseline justify-between">
+              <span class="font-medium text-fg">Wind</span>
+              <span class="tabular-nums">{{ windLabel() }}</span>
+            </span>
+            <input type="range" min="0" max="1" step="0.05"
+                   [value]="wind()" (input)="setWind($event)"
+                   aria-label="How hard the wind blows"
+                   class="mt-1 h-1 w-full cursor-pointer accent-accent" />
+            <span class="text-fg-subtle">Gusts cross the field in patches, with lulls
+              between. All the way down is a still day.</span>
+          </label>
+
           <label class="flex items-start gap-2">
             <input type="checkbox" [checked]="mixed()" (change)="toggleMixed()"
                    class="mt-0.5 accent-accent" />
@@ -350,10 +367,21 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   protected readonly panel = signal<'sun' | 'plants' | null>(null);
 
   /** Whether the meadow grows the other four species or grass alone. */
-  protected readonly mixed = signal(false);
+  protected readonly mixed = signal(true);
 
   /** How thickly it stands, against the theme's own spacing. */
-  protected readonly spread = signal(1);
+  protected readonly spread = signal(3);
+
+  /** How hard the wind blows, from a still day to the most it was built for. */
+  protected readonly wind = signal(1);
+  protected readonly windLabel = computed(() => {
+    const w = this.wind();
+    if (w < 0.02) return 'still';
+    if (w < 0.3) return 'a breath';
+    if (w < 0.6) return 'a breeze';
+    if (w < 0.85) return 'blowing';
+    return 'gusting';
+  });
   protected readonly date = computed(() => dateLabel(this.dayOfYear()));
   protected readonly place = computed(() => latitudeName(this.latitude()));
 
@@ -466,6 +494,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     this.hasClock.set(this.renderer.hasClock());
     this.mixed.set(this.renderer.mixedPlantsOn());
     this.spread.set(this.renderer.plantSpreadValue());
+    this.wind.set(this.renderer.windStrength());
     this.readSun();
     const board = this.scene();
     if (board) {
@@ -535,6 +564,12 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     const on = !this.mixed();
     this.mixed.set(on);
     this.renderer?.setMixedPlants(on);
+  }
+
+  protected setWind(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.wind.set(value);
+    this.renderer?.setWind(value);
   }
 
   protected setSpread(event: Event): void {

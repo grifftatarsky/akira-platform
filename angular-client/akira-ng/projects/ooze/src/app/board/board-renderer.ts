@@ -166,7 +166,7 @@ export class BoardRenderer {
    * side by side: a mixture reads as country and one species reads as turf, and
    * which of those a given board wants is a judgement about the board.
    */
-  private mixedPlants = false;
+  private mixedPlants = true;
 
   /**
    * How many plants per square foot, against the theme's own spacing.
@@ -175,7 +175,7 @@ export class BoardRenderer {
    * anyone can work out from a number — it has to be looked at, and looked at
    * against what it costs, which is what the stats readout is for.
    */
-  private plantSpread = 1;
+  private plantSpread = 3;
 
   /**
    * The most pixels tall the picture will be rendered at.
@@ -279,6 +279,9 @@ export class BoardRenderer {
    * pixel" is not a thing a vertex shader can work out on its own.
    */
   private readonly viewport = { value: new Vector2(1, 1) };
+
+  /** How hard it is blowing, from still to a stiff summer breeze. */
+  private readonly wind = { value: 1 };
 
   /**
    * Materials already patched.
@@ -424,7 +427,7 @@ export class BoardRenderer {
       if (ground.blades) {
         this.plants = meadow(
           board, field, m => this.lit(m), this.time,
-          ground.blades, this.mixedPlants, this.plantSpread, this.viewport);
+          ground.blades, this.mixedPlants, this.plantSpread, this.viewport, this.wind);
         this.plants?.meshes.forEach(mesh => {
           // Its own layer, so the occlusion pass can be told not to look at it.
           // See MEADOW_LAYER.
@@ -629,6 +632,21 @@ export class BoardRenderer {
 
   plantSpreadValue(): number {
     return this.plantSpread;
+  }
+
+  /**
+   * How hard the wind blows, from nothing to the most the meadow was built for.
+   *
+   * <p>A uniform rather than a rebuild: the wind is entirely in the vertex
+   * shader, so this is the one plant control that costs nothing to change and
+   * can be dragged.
+   */
+  setWind(strength: number): void {
+    this.wind.value = Math.max(0, Math.min(1, strength));
+  }
+
+  windStrength(): number {
+    return this.wind.value;
   }
 
   /**

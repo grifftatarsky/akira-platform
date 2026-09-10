@@ -47,6 +47,15 @@ import { MESH_DETAIL } from './ground-splat';
  * supply, has to be painted into the plants themselves. It is a cheaper way to
  * get the same reading: the shade at a blade's base is not really a
  * screen-space effect, it is a fact about grass.
+ *
+ * <p><b>But the pale end has to stay honest.</b> This board's default camera
+ * looks straight down, and from straight down a meadow is nothing *but* tips —
+ * so a tip colour chosen to look good on a blade seen edge-on becomes the
+ * colour of the whole field seen from above. It showed up the moment the
+ * density went to three: the same ramp that read as sunlit grass at one
+ * plant per spot read as a dried-out cream field at three, because there were
+ * three times as many tips and no more roots. The tips are green now, and
+ * only the flowers are allowed to be pale.
  */
 
 /**
@@ -117,6 +126,24 @@ interface Species {
   /** How hard it clusters. Zero would scatter it evenly and defeat the point. */
   readonly clumping: number;
   /**
+   * Whether it punctuates the meadow rather than filling it.
+   *
+   * <p>Grass, clover and plantain are the sward: twice as many of them is a
+   * thicker meadow, which is what the density knob is for. Seed heads and
+   * flowers are not — a July field has about so many daisies in it, and
+   * tripling them along with everything else does not make the meadow denser,
+   * it makes it a bed of daisies. Turning the density up did exactly that: the
+   * field went from green with a scatter of cream to cream with some green
+   * showing through.
+   *
+   * <p>So a species that punctuates has its share divided by the density,
+   * which holds its count roughly fixed while the fill grows around it. Fixed
+   * *count*, not fixed fraction — how much of a field reads as flowers is a
+   * question about how many flowers there are per acre, and has nothing to do
+   * with how many blades of grass are standing between them.
+   */
+  readonly punctuates: boolean;
+  /**
    * How worn the ground may be and still grow it.
    *
    * <p>Not one number for the meadow, because it is not one meadow. Rank grass
@@ -161,7 +188,7 @@ function grassStrips(): Strip[] {
     tall: 0.72 + ((i * 7) % 5) * 0.13,
     bend: 0.34 + ((i * 3) % 4) * 0.13,
     width: 0.048, taper: 0.15, segments: 3,
-    root: 0x30431a, tip: 0x9cb85a,
+    root: 0x2c3f18, tip: 0x74963a,
   }));
 }
 
@@ -179,7 +206,7 @@ function seedStrips(): Strip[] {
     tall: 2.5 + ((i * 5) % 3) * 0.35,
     bend: 0.16 + (i % 2) * 0.08,
     width: 0.036, taper: 0.35, segments: 4,
-    root: 0x3c4a20, tip: 0xb8b46a,
+    root: 0x39471e, tip: 0x94974f,
   }));
   const heads = stalks.flatMap(stalk => [0, 1].map(k => ({
     // Rooted where the stalk's tip lands, so the head sits on the stalk rather
@@ -189,7 +216,7 @@ function seedStrips(): Strip[] {
     yaw: stalk.yaw + k * Math.PI / 2,
     tall: 0.5, bend: 0.1,
     width: 0.07, taper: 0.45, segments: 3,
-    root: 0xa39a5c, tip: 0xd6cf92,
+    root: 0xa39a5f, tip: 0xcabe86,
     lift: stalk.tall,
   } as Strip & { lift: number })));
   return [...stalks, ...heads];
@@ -228,12 +255,17 @@ function cloverStrips(): Strip[] {
       rootX, rootY, yaw: yaw + lobe * 2.094,
       // Held up at an angle rather than pressed flat. Clover is a mat, but
       // each trefoil tilts its faces to the light, and flat leaflets give the
-      // whole patch one shading value — which is the other half of why it read
-      // as painted cardboard.
-      tall: 0.3, bend: 0.55, width: 0.085, taper: 1, leaf: 0.5, segments: 3,
+      // whole patch one shading value.
+      //
+      // <p>Wider than it is long, and broad almost from the base: a clover
+      // leaflet is a heart, not a spear, and the previous one — long, pointed,
+      // widest a quarter of the way up — was reading as a tiny fern. The low
+      // leaf exponent puts the widest part near the stalk and holds it there,
+      // which is the shape the eye actually names the plant by.
+      tall: 0.24, bend: 0.5, width: 0.125, taper: 1, leaf: 0.35, segments: 3,
       // Pale toward the tip, which from above is the whitish band across a
-      // clover leaf and is most of how the eye names the plant.
-      root: 0x335620, tip: 0x8fb857, lift,
+      // clover leaf.
+      root: 0x2f4f1d, tip: 0x6b9538, lift,
     } as Strip & { lift: number }));
   }).flat() as Strip[];
 }
@@ -280,27 +312,27 @@ function spread<T>(
 
 const SPECIES: readonly Species[] = [
   {
-    name: 'grass', share: 1, patch: 0.035, clumping: 1, tolerates: 0.42,
+    name: 'grass', punctuates: false, share: 1, patch: 0.035, clumping: 1, tolerates: 0.42,
     scale: [0.7, 1.5], sway: 0.16, casts: false,
     lush: 0x6f8a3a, dry: 0xb0ab5c, strips: grassStrips,
   },
   {
-    name: 'seed', share: 0.9, patch: 0.05, clumping: 2, tolerates: 0.3,
+    name: 'seed', punctuates: true, share: 0.55, patch: 0.055, clumping: 3, tolerates: 0.3,
     scale: [0.9, 1.4], sway: 0.26, casts: true,
-    lush: 0x8e9a52, dry: 0xc4b878, strips: seedStrips,
+    lush: 0x93924e, dry: 0xbdb173, strips: seedStrips,
   },
   {
-    name: 'clover', share: 0.95, patch: 0.07, clumping: 2, tolerates: 0.55,
-    scale: [0.9, 1.5], sway: 0.05, casts: false,
+    name: 'clover', punctuates: false, share: 0.95, patch: 0.07, clumping: 2, tolerates: 0.55,
+    scale: [0.9, 1.5], sway: 0.015, casts: false,
     lush: 0x6d9c3c, dry: 0x8fae52, strips: cloverStrips,
   },
   {
-    name: 'broadleaf', share: 0.75, patch: 0.09, clumping: 2, tolerates: 0.72,
-    scale: [0.8, 1.6], sway: 0.04, casts: false,
+    name: 'broadleaf', punctuates: false, share: 0.75, patch: 0.09, clumping: 2, tolerates: 0.72,
+    scale: [0.8, 1.6], sway: 0.012, casts: false,
     lush: 0x6f9440, dry: 0x93a054, strips: broadleafStrips,
   },
   {
-    name: 'flower', share: 0.5, patch: 0.16, clumping: 4, tolerates: 0.26,
+    name: 'flower', punctuates: true, share: 0.4, patch: 0.16, clumping: 4, tolerates: 0.26,
     scale: [0.85, 1.25], sway: 0.3, casts: false,
     lush: 0xefe8d2, dry: 0xd8bf5e, strips: flowerStrips,
   },
@@ -433,6 +465,7 @@ export function meadow(
   mixed: boolean,
   spread: number,
   viewport: { value: Vector2 },
+  wind: { value: number },
 ): Meadow | null {
   // Grass alone, or grass with the four others competing for the ground.
   const growing = mixed ? SPECIES : SPECIES.slice(0, 1);
@@ -471,7 +504,8 @@ export function meadow(
           continue;
         }
         const drift = noise(jx * species.patch + s * 37.3, jy * species.patch + s * 91.7);
-        weights[s] = species.share * Math.pow(drift, species.clumping);
+        const share = species.punctuates ? species.share / spread : species.share;
+        weights[s] = share * Math.pow(drift, species.clumping);
         total += weights[s];
       }
       if (total <= 0) {
@@ -543,7 +577,7 @@ export function meadow(
     if (plot.length === 0) {
       return;
     }
-    const material = plantMaterial(species, light, time, viewport);
+    const material = plantMaterial(species, light, time, viewport, wind);
     const mesh = new InstancedMesh(speciesGeometry(species), material, plot.length);
     mesh.receiveShadow = true;
     mesh.castShadow = species.casts;
@@ -619,6 +653,7 @@ function plantMaterial(
   light: (material: Material) => Material,
   time: { value: number },
   viewport: { value: Vector2 },
+  wind: { value: number },
 ): MeshStandardMaterial {
   const material = light(new MeshStandardMaterial({
     vertexColors: true,
@@ -638,6 +673,7 @@ function plantMaterial(
     lit(shader, renderer);
     shader.uniforms['uBoardTime'] = time;
     shader.uniforms['uViewport'] = viewport;
+    shader.uniforms['uWind'] = wind;
     shader.fragmentShader = 'varying float vBoardCover;\n' + shader.fragmentShader.replace(
       '#include <color_fragment>',
       `#include <color_fragment>
@@ -646,26 +682,39 @@ function plantMaterial(
        // of the meadow in shadow for a reason that has nothing to do with
        // light. Most of the way is enough to stop the flowers shouting.
        diffuseColor.rgb *= mix(1.0, clamp(vBoardCover, 0.0, 1.0), 0.7);`);
-    shader.vertexShader = 'uniform float uBoardTime;\nuniform vec2 uViewport;\n'
+    shader.vertexShader = 'uniform float uBoardTime;\nuniform float uWind;\nuniform vec2 uViewport;\n'
       + 'attribute vec3 boardSide;\nvec3 boardCentre;\nvarying float vBoardCover;\n'
       + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
        // Wind, bent by the square of the height up the plant so the root stays
-       // planted and the tip does the moving. A blade that swayed evenly would
+       // planted and the tip does the moving. A plant that swayed evenly would
        // look like it was sliding rather than bending.
        //
-       // <b>The gust has to be a wave, not a beat.</b> A phase taken from the
-       // plant's position alone gives everything within about ten feet the
-       // same value, so the whole near field leans together and the meadow
-       // reads as combed. Three frequencies at three wavelengths, the longest
-       // of them tens of feet across, put crests between the leaning parts and
-       // the still ones — which is what wind over grass actually looks like.
+       // <p><b>Why this is four terms and not one.</b> A gust phased on
+       // distance along the wind alone is a plane wave: everything on a line
+       // across the wind leans by exactly the same amount at exactly the same
+       // moment, and a meadow doing that reads as a rolling carpet — smooth,
+       // regular and obviously mechanical. Real wind over a field is a patch
+       // of moving air, and what gives it away is the *lulls*: parts of the
+       // field standing still while a gust crosses somewhere else.
+       //
+       // <p>So there is a slow front that sweeps across and takes the strength
+       // down to almost nothing between passes; a body of three waves phased on
+       // the crosswind direction as well as the downwind one, which makes the
+       // crests patches rather than bands; and a fast term unique to each
+       // plant, so neighbours in the same gust are never quite in step.
        vec3 plant = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
        float lead = plant.x * 0.82 + plant.y * 0.57;
-       float gust = sin(uBoardTime * 1.9 - lead * 0.28) * 0.45
-                  + sin(uBoardTime * 3.1 - lead * 0.91) * 0.28
-                  + sin(uBoardTime * 0.7 - lead * 0.11) * 0.27;
+       float side = plant.x * -0.57 + plant.y * 0.82;
+       float front = 0.18 + 0.82 * max(0.0,
+           sin(uBoardTime * 0.29 - lead * 0.031) * 0.6
+         + sin(uBoardTime * 0.17 - side * 0.024) * 0.4 + 0.35);
+       float body = sin(uBoardTime * 1.9 - lead * 0.28 + side * 0.11) * 0.45
+                  + sin(uBoardTime * 3.1 - lead * 0.91 + side * 0.24) * 0.28
+                  + sin(uBoardTime * 0.7 - lead * 0.11 - side * 0.06) * 0.27;
+       float own = fract(sin(dot(plant.xy, vec2(12.9898, 78.233))) * 43758.545) * 6.2831;
+       float gust = (body + sin(uBoardTime * 4.7 + own) * 0.14) * front * uWind;
        float along = clamp(transformed.z, 0.0, 2.2);
        // The wind blows one way across the field, but every plant is turned a
        // random amount, so a push written in the plant's own frame would send
@@ -673,7 +722,11 @@ function plantMaterial(
        // matrix is a turn about Z and a uniform scale, so its normalised
        // columns are the plant's axes, and projecting the wind onto them puts
        // a single world direction back into the plant's frame.
-       vec3 wind = vec3(0.82, 0.57, 0.0);
+       //
+       // <p>Not quite one direction: a little of it is thrown sideways, which
+       // is what stops a gust looking like a piston.
+       vec3 wind = normalize(vec3(0.82, 0.57, 0.0)
+         + vec3(-0.57, 0.82, 0.0) * sin(uBoardTime * 0.43 - lead * 0.05) * 0.3);
        vec2 local = vec2(
          dot(normalize(instanceMatrix[0].xyz), wind),
          dot(normalize(instanceMatrix[1].xyz), wind));
