@@ -109,6 +109,13 @@ export class Stage {
       // The one number the old renderer had to fight for. Nothing here caps it
       // below the display's own, because nothing here is fill-bound any more.
       adaptToDeviceRatio: true,
+      deviceDescriptor: {
+        // What makes `EngineInstrumentation.captureGPUFrameTime` real. Babylon
+        // filters this against what the adapter actually offers, so asking for
+        // it costs nothing where it is missing — the counter reads zero and
+        // the CPU-side numbers carry on.
+        requiredFeatures: ['timestamp-query'],
+      },
     });
     try {
       await engine.initAsync();

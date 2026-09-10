@@ -55,6 +55,7 @@
     "@angular/build": "^22.0.0",
     "@angular/cli": "^22.0.0",
     "@angular/compiler-cli": "^22.0.0",
+    "@babylonjs/inspector": "^9.26.0",
     "@softarc/native-federation-orchestrator": "^4.2.2",
     "@types/three": "^0.185.4",
     "@webgpu/types": "^0.1.70",

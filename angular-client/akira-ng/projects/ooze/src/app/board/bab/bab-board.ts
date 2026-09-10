@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, signal,
   viewChild,
@@ -8,6 +9,7 @@ import { groundField } from '../ground-field';
 import { ROAD_NAME, roadMap } from '../road-level';
 import { clockLabel } from '../sun-position';
 import { Stage } from './stage';
+import { type FrameCost, Stats } from './stats';
 import { type Terrain, buildTerrain } from './terrain';
 
 /**
@@ -21,6 +23,7 @@ import { type Terrain, buildTerrain } from './terrain';
 @Component({
   selector: 'ooze-bab-board',
   standalone: true,
+  imports: [DecimalPipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block h-full w-full min-h-0' },
   template: `
@@ -37,7 +40,29 @@ import { type Terrain, buildTerrain } from './terrain';
           <span class="tabular-nums">{{ clock() }}</span>
         </label>
         <span class="tabular-nums text-fg-subtle">{{ status() }}</span>
+        <button type="button" (click)="inspect()"
+          class="rounded border border-rule px-2 py-0.5 hover:border-accent">
+          Inspector
+        </button>
       </div>
+
+      @if (cost(); as c) {
+        <dl class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
+          <div><dt class="inline">fps</dt> <dd class="inline tabular-nums text-fg">{{ c.fps }}</dd></div>
+          <div>
+            <dt class="inline">gpu</dt>
+            <dd class="inline tabular-nums text-fg">
+              {{ c.gpuMs ? c.gpuMs + ' ms' : 'not measured' }}
+            </dd>
+          </div>
+          <div><dt class="inline">frame</dt> <dd class="inline tabular-nums text-fg">{{ c.frameMs }} ms</dd></div>
+          <div><dt class="inline">cull</dt> <dd class="inline tabular-nums text-fg">{{ c.cullMs }} ms</dd></div>
+          <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
+          <div><dt class="inline">meshes</dt> <dd class="inline tabular-nums text-fg">{{ c.activeMeshes }}</dd></div>
+          <div><dt class="inline">tris</dt> <dd class="inline tabular-nums text-fg">{{ c.triangles | number }}</dd></div>
+          <div><dt class="inline">shaders</dt> <dd class="inline tabular-nums text-fg">{{ c.shaderMs }} ms</dd></div>
+        </dl>
+      }
 
       <div class="relative min-h-0 flex-1 overflow-hidden rounded">
         <canvas #canvas class="h-full w-full outline-none"></canvas>
@@ -56,10 +81,13 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly hour = signal(13);
   protected readonly clock = signal(clockLabel(13));
   protected readonly status = signal('starting…');
+  protected readonly cost = signal<FrameCost | null>(null);
   protected readonly fault = signal<string | null>(null);
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private stage: Stage | null = null;
+  private stats: Stats | null = null;
+  private ticker = 0;
   private gone = false;
   private terrain: Terrain | null = null;
   private observer: ResizeObserver | null = null;
@@ -111,6 +139,11 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       // inspected does not get measured.
       (globalThis as unknown as Record<string, unknown>)['bab'] = { stage, terrain: this.terrain, field };
       stage.start();
+      this.stats = new Stats(stage.scene);
+      // Once a second: the counters are already rolling averages over exactly
+      // that window, so reading them faster shows the same number more often
+      // and drags change detection along for nothing.
+      this.ticker = window.setInterval(() => this.cost.set(this.stats?.read() ?? null), 1000);
       this.status.set(
         `${this.terrain.chunks.length} chunks · built in ${built} ms`,
       );
@@ -124,6 +157,26 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Babylon's own debug layer, loaded only when asked for.
+   *
+   * <p>Two megabytes of React that has no business in the board's chunk until
+   * somebody wants it — and when they do, it is the tool that would have found
+   * a 93 ms ground shader in about a minute.
+   */
+  protected async inspect(): Promise<void> {
+    const scene = this.stage?.scene;
+    if (!scene) {
+      return;
+    }
+    await import('@babylonjs/inspector');
+    if (scene.debugLayer.isVisible()) {
+      scene.debugLayer.hide();
+    } else {
+      await scene.debugLayer.show({ embedMode: true, overlay: true });
+    }
+  }
+
   protected setHour(hour: number): void {
     this.hour.set(hour);
     this.clock.set(clockLabel(hour));
@@ -132,6 +185,8 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.gone = true;
+    window.clearInterval(this.ticker);
+    this.stats?.dispose();
     this.observer?.disconnect();
     this.terrain?.dispose();
     this.stage?.dispose();
