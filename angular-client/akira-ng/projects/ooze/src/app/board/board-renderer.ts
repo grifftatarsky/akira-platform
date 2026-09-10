@@ -1,13 +1,14 @@
 import {
   AdditiveBlending, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture,
   ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DirectionalLight,
-  Float32BufferAttribute, Group, LineBasicMaterial, LineSegments, LinearFilter, Material, Mesh,
+  Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, LinearFilter,
+  Material, Matrix4, Mesh,
   MeshBasicMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D, OrthographicCamera,
   PCFShadowMap, PerspectiveCamera, Plane, RGBAFormat, Raycaster, RingGeometry, Scene, Sprite,
   SpriteMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
-import { BoardScene, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
-import { BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
+import { BoardScene, PropKind, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
+import { BoardPiece, BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
 import { WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
 import { EnvironmentLibrary } from './environment';
@@ -176,6 +177,9 @@ export class BoardRenderer {
    */
   private readonly patched = new WeakSet<Material>();
 
+  /** Where each tile's box ended up, so its art can switch it off later. */
+  private tileSlots: ({ mesh: InstancedMesh; slot: number } | undefined)[] = [];
+
   /**
    * Everything burning, and how big it was drawn.
    *
@@ -273,7 +277,7 @@ export class BoardRenderer {
     this.clear(this.tokens);
     this.flames.length = 0;
     this.relight(board);
-    board.tiles.forEach(t => this.terrain.add(this.tile(t)));
+    this.layGround(board);
     this.grid.add(this.squares(board));
     this.grid.visible = this.showGrid;
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
@@ -320,6 +324,9 @@ export class BoardRenderer {
       return;
     }
     this.theme = theme;
+    // The old library owns shared buffers on the device that nothing else is in
+    // a position to free — a theme swap makes a whole one garbage at once.
+    this.library.dispose();
     this.library = new ModelLibrary(theme);
     void this.lightScene(theme);
   }
@@ -349,10 +356,27 @@ export class BoardRenderer {
    * drew, with nothing to switch off.
    */
   private async dressTerrain(board: BoardScene, generation: number): Promise<void> {
-    for (let i = 0; i < board.tiles.length; i++) {
-      const tile = board.tiles[i];
-      const model = await this.library.piece(
-        pieceFor(tile.kind), tile.size, tile.height > 0 ? tile.height : undefined);
+    const byPiece = new Map<BoardPiece, number[]>();
+    board.tiles.forEach((tile, index) => {
+      const piece = pieceFor(tile.kind);
+      if (!piece) {
+        return;
+      }
+      const bucket = byPiece.get(piece);
+      if (bucket) {
+        bucket.push(index);
+      } else {
+        byPiece.set(piece, [index]);
+      }
+    });
+
+    const matrix = new Matrix4();
+    for (const [piece, indices] of byPiece) {
+      const first = board.tiles[indices[0]];
+      // Every tile of a kind is the same size, and a wall is the same height as
+      // every other wall — so one shape serves the whole bucket.
+      const model = await this.library.instanced(
+        piece, first.size, first.height > 0 ? first.height : undefined);
       // The board may have been replaced or disposed while a model loaded; a
       // late arrival must not decorate a scene nobody is looking at.
       if (this.disposed || generation !== this.generation) {
@@ -361,21 +385,27 @@ export class BoardRenderer {
       if (!model) {
         continue;
       }
-      const box = this.terrain.children[i];
-      model.position.set(tile.x, tile.y, tile.base);
-      model.rotation.z += tile.rotation;
-      this.terrainArt.add(this.litTree(model));
-      // The box goes quiet only under a floor tile at ground level, where the
-      // model covers the square exactly and the box is nothing but colour
-      // underneath. It stays under a raised floor, where it is the plinth — and
-      // it stays behind a wall, where it is the wall's mass: KayKit's wall is a
-      // 1¼-foot-deep facing panel, so hiding the box left every corner and
-      // every junction with a hole through it and rooms you could walk out of.
-      // Either way the box is still in the group, so the index still means the
-      // tile.
-      if (box && tile.base <= 0 && tile.height === 0) {
-        box.visible = false;
-      }
+      const mesh = new InstancedMesh(model.geometry, this.litAll(model.material), indices.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      indices.forEach((tileIndex, slot) => {
+        const tile = board.tiles[tileIndex];
+        matrix.makeRotationZ(tile.rotation);
+        matrix.setPosition(tile.x, tile.y, tile.base);
+        mesh.setMatrixAt(slot, matrix);
+        // The box goes quiet only under a floor tile at ground level, where the
+        // model covers the square exactly and the box is nothing but colour
+        // underneath. It stays under a raised floor, where it is the plinth —
+        // and it stays behind a wall, where it is the wall's mass: KayKit's
+        // wall is a 1 1/4-foot facing panel, so hiding the box left every
+        // corner and junction with a hole through it and rooms you could walk
+        // out of.
+        if (tile.base <= 0 && tile.height === 0) {
+          this.hideBox(tileIndex);
+        }
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.terrainArt.add(mesh);
     }
   }
 
@@ -389,22 +419,40 @@ export class BoardRenderer {
    */
   private async dressProps(board: BoardScene, generation: number): Promise<void> {
     const square = board.tiles[0]?.size ?? 10;
+    const byPiece = new Map<PropKind, PropPlacement[]>();
     for (const prop of board.props) {
-      const model = await this.library.piece(prop.piece, square);
+      const bucket = byPiece.get(prop.piece);
+      if (bucket) {
+        bucket.push(prop);
+      } else {
+        byPiece.set(prop.piece, [prop]);
+      }
+      const flame = this.flame(prop);
+      if (flame) {
+        this.props.add(flame.sprite);
+        this.flames.push(flame);
+      }
+    }
+
+    const matrix = new Matrix4();
+    for (const [piece, placements] of byPiece) {
+      const model = await this.library.instanced(piece, square);
       if (this.disposed || generation !== this.generation) {
         return;
       }
       if (!model) {
         continue;
       }
-      model.position.set(prop.x, prop.y, prop.z);
-      model.rotation.z += prop.rotation;
-      this.props.add(this.litTree(model));
-      const flame = this.flame(prop);
-      if (flame) {
-        this.props.add(flame.sprite);
-        this.flames.push(flame);
-      }
+      const mesh = new InstancedMesh(model.geometry, this.litAll(model.material), placements.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      placements.forEach((prop, slot) => {
+        matrix.makeRotationZ(prop.rotation);
+        matrix.setPosition(prop.x, prop.y, prop.z);
+        mesh.setMatrixAt(slot, matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.props.add(mesh);
     }
   }
 
@@ -593,7 +641,16 @@ export class BoardRenderer {
       shader.vertexShader = 'varying vec3 vBoardPos;\n' + shader.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-         vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+         #ifdef USE_INSTANCING
+           // Three applies the instance matrix in <project_vertex>, which runs
+           // after this. Without it every barrel in a room would sample the
+           // light at the position of the first one — one lit crate and
+           // twenty-nine in the dark, or worse, all thirty lit by a torch that
+           // is only over one of them.
+           vBoardPos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+         #else
+           vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+         #endif`);
       shader.fragmentShader =
         'varying vec3 vBoardPos;\nuniform sampler2D uBoardLight;\nuniform vec2 uBoardExtent;\n'
         + 'uniform float uBoardTime;\n'
@@ -624,6 +681,21 @@ export class BoardRenderer {
     return material;
   }
 
+  /**
+   * The same, for a piece that turned out to have more than one material.
+   *
+   * <p>Rare — every piece in the pack is one mesh off one atlas — but a pack
+   * that is not must not silently lose its lighting.
+   */
+  private litAll<T extends Material | Material[]>(material: T): T {
+    if (Array.isArray(material)) {
+      material.forEach(m => this.lit(m));
+      return material;
+    }
+    this.lit(material);
+    return material;
+  }
+
   /** Makes every material under a node answer to the board's light. */
   private litTree(node: Object3D): Object3D {
     node.traverse(child => {
@@ -640,55 +712,67 @@ export class BoardRenderer {
   }
 
   /**
-   * A square of ground, as a box.
+   * The ground, as instanced boxes.
    *
    * <p>Zero-height boxes rather than planes, so a floor and a wall are the same
    * kind of object and raising one is a number rather than a different mesh.
+   *
+   * <p>Grouped by material and not by terrain, because that is what actually
+   * has to differ: colour rides on the instance, and only roughness, metalness
+   * and whether the surface ripples need their own draw. A 520-square level is
+   * three calls.
    */
-  private tile(t: TerrainTile): Mesh {
-    // Walls stand up from their base; floors sit on a plinth reaching down to
-    // ground level. Without the plinth a raised ledge floats with nothing under
-    // it — the walkable surface is at the right height either way, but a DM
-    // reading the picture sees a bug rather than a ledge.
-    // A hair shorter than the art it backs, always. The box is structure — the
-    // mass behind a wall's facing panel, the plinth under a raised floor — and
-    // a structure whose top surface is exactly level with the art's is a
-    // z-fight across the whole board.
-    const wall = t.height > 0;
-    const depth = Math.max(0.2, (wall ? t.height : Math.max(0.5, t.base)) - ART_CLEARANCE);
-    const geometry = new BoxGeometry(t.size, t.size, depth);
-    // Standard rather than Lambert, so the ground answers to the environment
-    // map the same way every model on top of it does. Lambert has no roughness
-    // and no ambient specular, so the one surface covering the whole board was
-    // the one surface that stayed flat.
-    //
-    // The unlit colour, because this renderer lights the scene itself. Using
-    // the pre-shaded one applied the light level twice over.
-    const wet = t.kind === 'WATER' || t.kind === 'DEEP_WATER';
-    const material = new MeshStandardMaterial({
-      color: new Color(t.baseColour),
-      // Stone and water, not polish. Water gets the only smooth surface on the
-      // board, which is what makes it read as water from above rather than as
-      // blue floor.
-      // Smooth, so the environment shows up in it as a highlight that moves
-      // when the surface does.
-      roughness: wet ? 0.12 : t.kind === 'ICE' ? 0.25 : 0.9,
-      // Zero, even for water, and this was worth getting wrong once. Metalness
-      // tints the reflection by the base colour and drops the diffuse, so a
-      // blue surface at 0.35 reflected a warm cellar as bright cyan and stopped
-      // looking like water at all. Water is a dielectric: a dark body with a
-      // clean highlight on top, which is what these two numbers now are.
-      metalness: 0,
+  private layGround(board: BoardScene): void {
+    const buckets = new Map<GroundSurface, number[]>();
+    board.tiles.forEach((tile, index) => {
+      const surface = surfaceOf(tile);
+      const bucket = buckets.get(surface);
+      if (bucket) {
+        bucket.push(index);
+      } else {
+        buckets.set(surface, [index]);
+      }
     });
-    const mesh = new Mesh(geometry, material);
-    // A wall grows up from its base and a plinth hangs down from the ledge, so
-    // the clearance is taken off the top in both cases.
-    mesh.position.set(t.x, t.y,
-      wall ? t.base + depth / 2 : t.base - ART_CLEARANCE - depth / 2);
-    mesh.receiveShadow = true;
-    mesh.castShadow = t.height > 0;
-    mesh.userData = { kind: t.kind, cover: t.cover, opaque: t.opaque, light: t.light };
-    return mesh;
+
+    this.tileSlots = new Array(board.tiles.length);
+    const matrix = new Matrix4();
+    const colour = new Color();
+
+    for (const [surface, indices] of buckets) {
+      const size = board.tiles[indices[0]].size;
+      const mesh = new InstancedMesh(
+        new BoxGeometry(size, size, 1), this.lit(groundMaterial(surface), 1, surface === 'WET'),
+        indices.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      indices.forEach((tileIndex, slot) => {
+        const tile = board.tiles[tileIndex];
+        mesh.setMatrixAt(slot, boxMatrix(tile, matrix));
+        mesh.setColorAt(slot, colour.set(tile.baseColour));
+        this.tileSlots[tileIndex] = { mesh, slot };
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+      this.terrain.add(mesh);
+    }
+  }
+
+  /**
+   * Takes a square's box out of the scene without disturbing anything else.
+   *
+   * <p>An instance cannot be removed, so it is scaled to nothing. Which is
+   * exactly as good — it contributes no pixels — and leaves every other slot in
+   * the buffer where it was.
+   */
+  private hideBox(tileIndex: number): void {
+    const slot = this.tileSlots[tileIndex];
+    if (!slot) {
+      return;
+    }
+    slot.mesh.setMatrixAt(slot.slot, NOWHERE);
+    slot.mesh.instanceMatrix.needsUpdate = true;
   }
 
   /**
@@ -951,6 +1035,7 @@ export class BoardRenderer {
     this.clear(this.tokens);
     this.light.value?.dispose();
     this.post?.dispose();
+    this.library.dispose();
     this.environments.dispose();
     this.renderer.dispose();
   }
@@ -965,6 +1050,12 @@ export class BoardRenderer {
   private disposeNode(node: import('three').Object3D): void {
     node.traverse(child => {
       if (child instanceof Mesh) {
+        // Anything the model library handed out is shared by every board that
+        // will ever draw this piece, and is its to free. Disposing it here
+        // would leave the next render pointing at a released buffer.
+        if (child.geometry.userData['shared']) {
+          return;
+        }
         child.geometry.dispose();
         const material = child.material;
         if (Array.isArray(material)) {
@@ -1071,6 +1162,49 @@ export class BoardRenderer {
     };
   }
 }
+
+/** Which of the three ground materials a square wants. */
+type GroundSurface = 'DRY' | 'WET' | 'ICE';
+
+function surfaceOf(tile: TerrainTile): GroundSurface {
+  if (tile.kind === 'WATER' || tile.kind === 'DEEP_WATER') {
+    return 'WET';
+  }
+  return tile.kind === 'ICE' ? 'ICE' : 'DRY';
+}
+
+function groundMaterial(surface: GroundSurface): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    // White, because the colour rides on the instance: three multiplies the
+    // per-instance colour into this one, so anything but white would tint the
+    // whole board.
+    color: 0xffffff,
+    // Smooth for water, so the environment shows up in it as a highlight that
+    // moves when the surface does. Metalness stays at zero even there: it tints
+    // the reflection by the base colour and drops the diffuse, so a blue
+    // surface reflected a warm cellar as bright cyan and stopped looking like
+    // water at all. Water is a dielectric — a dark body with a clean highlight.
+    roughness: surface === 'WET' ? 0.12 : surface === 'ICE' ? 0.25 : 0.9,
+    metalness: 0,
+  });
+}
+
+/**
+ * A square's box, as a matrix.
+ *
+ * <p>A wall grows up from its base and a floor's plinth hangs down from the
+ * ledge, so the clearance comes off the top in both cases. The unit box is one
+ * high, so the depth is a scale.
+ */
+function boxMatrix(tile: TerrainTile, into: Matrix4): Matrix4 {
+  const wall = tile.height > 0;
+  const depth = Math.max(0.2, (wall ? tile.height : Math.max(0.5, tile.base)) - ART_CLEARANCE);
+  const z = wall ? tile.base + depth / 2 : tile.base - ART_CLEARANCE - depth / 2;
+  return into.makeScale(1, 1, depth).setPosition(tile.x, tile.y, z);
+}
+
+/** An instance scaled to nothing, which is how one is taken out of a buffer. */
+const NOWHERE = new Matrix4().makeScale(0, 0, 0);
 
 /**
  * Two crossed wave trains, as a normal perturbation.

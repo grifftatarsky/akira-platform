@@ -1,6 +1,19 @@
-import { Box3, Group, Object3D, Vector3 } from 'three';
+import { Box3, BufferGeometry, Group, Material, Mesh, Object3D, Vector3 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { BoardPiece, BoardTheme, modelFor } from './board-assets';
+
+/**
+ * One piece, flattened into something an {@code InstancedMesh} can draw.
+ *
+ * <p>Shared and owned by the library, unlike the copies {@link
+ * ModelLibrary#piece} hands out — a renderer that disposed one of these would
+ * take every future barrel with it.
+ */
+export interface InstancedPiece {
+  readonly geometry: BufferGeometry;
+  readonly material: Material | Material[];
+}
 
 /**
  * Loads a theme's models once and hands out copies.
@@ -19,6 +32,7 @@ export class ModelLibrary {
 
   private readonly loader = new GLTFLoader();
   private readonly cache = new Map<string, Promise<Object3D | null>>();
+  private readonly flattened = new Map<string, Promise<InstancedPiece | null>>();
 
   constructor(private readonly theme: BoardTheme) {}
 
@@ -118,6 +132,117 @@ export class ModelLibrary {
       node.receiveShadow = true;
     });
     return holder;
+  }
+
+  /**
+   * The same piece, as one geometry and one material, ready to instance.
+   *
+   * <p>A furnished level is 520 floor tiles and a hundred props, and drawn one
+   * object at a time that is over a thousand draw calls before the shadow and
+   * occlusion passes double it. Every piece of a given kind is identical, so
+   * they can be one call each — which is what this exists for.
+   *
+   * <p><b>Built by flattening what {@link ModelLibrary#piece} already
+   * produces</b>, rather than by re-deriving the fit. That fit is delicate —
+   * the Y-up rotation, the measure-fit-remeasure, the height stretch on the
+   * rotated node's local axis — and every one of those was got wrong once
+   * already. Baking the group's own world matrices into the geometry cannot
+   * disagree with it, because it *is* it.
+   *
+   * <p>Cached per shape, since two calls for the same piece at the same size
+   * would otherwise be two copies of the same buffer on the device.
+   */
+  async instanced(
+    piece: BoardPiece | null,
+    squareHalfFeet: number,
+    heightHalfFeet?: number,
+  ): Promise<InstancedPiece | null> {
+    if (!piece) {
+      return null;
+    }
+    const key = `${piece}|${squareHalfFeet}|${heightHalfFeet ?? ''}`;
+    const cached = this.flattened.get(key);
+    if (cached) {
+      return cached;
+    }
+    const pending = this.flatten(piece, squareHalfFeet, heightHalfFeet);
+    this.flattened.set(key, pending);
+    return pending;
+  }
+
+  private async flatten(
+    piece: BoardPiece,
+    squareHalfFeet: number,
+    heightHalfFeet?: number,
+  ): Promise<InstancedPiece | null> {
+    const group = await this.piece(piece, squareHalfFeet, heightHalfFeet);
+    if (!group) {
+      return null;
+    }
+    // The fit lives in the wrapper nodes' transforms, not in the geometry, so
+    // the matrices have to be resolved before they can be baked.
+    group.updateMatrixWorld(true);
+
+    const parts: BufferGeometry[] = [];
+    const materials: Material[] = [];
+    group.traverse(node => {
+      if (!(node instanceof Mesh)) {
+        return;
+      }
+      const geometry = node.geometry.clone();
+      geometry.applyMatrix4(node.matrixWorld);
+      parts.push(geometry);
+      materials.push(Array.isArray(node.material) ? node.material[0] : node.material);
+    });
+
+    if (parts.length === 0) {
+      return null;
+    }
+    // Every KayKit piece is a single mesh with a single material off one
+    // atlas, which is the case worth being fast. A pack that is not gets
+    // merged with groups instead and costs a draw call per material — still
+    // once per *kind* rather than once per barrel.
+    const oneMaterial = materials.every(m => m === materials[0]);
+    const merged = parts.length === 1
+      ? parts[0]
+      : mergeGeometries(parts, !oneMaterial);
+    if (!merged) {
+      // Mismatched attributes between a model's own meshes. Rare, and not
+      // worth a second code path: the board draws its coloured box instead,
+      // which is the same thing a missing file does.
+      console.warn('[board] %s could not be merged for instancing — drawing a plain tile', piece);
+      parts.forEach(g => g.dispose());
+      return null;
+    }
+    if (merged !== parts[0]) {
+      parts.forEach(g => g.dispose());
+    }
+    // Marked so a renderer clearing its scene leaves them alone. These belong
+    // to the library and outlive any one board.
+    merged.userData['shared'] = true;
+    materials.forEach(m => (m.userData['shared'] = true));
+    return { geometry: merged, material: oneMaterial ? materials[0] : materials };
+  }
+
+  /**
+   * Frees everything the library owns.
+   *
+   * <p>Needed because {@link ModelLibrary#instanced} hands out shared buffers
+   * rather than copies: nothing else is in a position to free them, and a
+   * theme swap makes a whole library garbage at once.
+   */
+  dispose(): void {
+    void Promise.all([...this.flattened.values()]).then(all => all.forEach(piece => {
+      piece?.geometry.dispose();
+      const material = piece?.material;
+      if (Array.isArray(material)) {
+        material.forEach(m => m.dispose());
+      } else {
+        material?.dispose();
+      }
+    }));
+    this.flattened.clear();
+    this.cache.clear();
   }
 
   /**
