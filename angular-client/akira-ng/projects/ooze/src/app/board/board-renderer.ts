@@ -20,7 +20,7 @@ import {
 } from './sun-position';
 import { SplatSurface, splatGround } from './ground-splat';
 import { ScatterLayer, scatterGround } from './ground-scatter';
-import { Meadow, meadow } from './meadow';
+import { MEADOW, Meadow, meadow } from './meadow';
 import { groundField } from './ground-field';
 
 /**
@@ -293,6 +293,18 @@ export class BoardRenderer {
   private readonly wind = { value: 1 };
 
   /**
+   * Where the light is going and how bright it is, for the things it shines
+   * *through*.
+   *
+   * <p>Three lights surfaces; it has no notion of a leaf being thin enough to
+   * transmit. The meadow does that itself and needs the sun as data.
+   */
+  private readonly sunlit = {
+    direction: { value: new Vector3(0, 0, -1) },
+    glow: { value: new Color(1, 1, 1) },
+  };
+
+  /**
    * Materials already patched.
    *
    * <p>Weak, and needed: a cloned model shares its source's material, so a room
@@ -443,7 +455,8 @@ export class BoardRenderer {
       if (ground.blades) {
         this.plants = meadow(
           board, field, m => this.lit(m), this.time,
-          ground.blades, this.mixedPlants, this.plantSpread, this.viewport, this.wind);
+          ground.blades, this.mixedPlants, this.plantSpread, this.viewport, this.wind,
+          this.sunlit, ground.plants ?? MEADOW);
         this.plants?.meshes.forEach(mesh => {
           // Its own layer, so the occlusion pass can be told not to look at it.
           // See MEADOW_LAYER.
@@ -543,6 +556,11 @@ export class BoardRenderer {
     shadow.near = 1;
     shadow.far = span * 3;
     shadow.updateProjectionMatrix();
+
+    // Which way the light travels, for the meadow's transmission term.
+    this.sunlit.direction.value
+      .subVectors(this.sun.target.position, this.sun.position)
+      .normalize();
 
     // Both offsets are texel-sized, so both have to follow the frustum. Left
     // at the number tuned for a board-wide map, the normal bias would be two
@@ -752,6 +770,7 @@ export class BoardRenderer {
     const light = sunlight(at.elevation);
     this.sun.intensity = light.intensity;
     this.sun.color.set(light.color);
+    this.sunlit.glow.value.set(light.color).multiplyScalar(light.intensity * 0.3);
     // The eye opens as the light falls. Without this the sun model is right and
     // the picture is wrong: six in the evening really is a twentieth of noon on
     // flat ground, and rendering that ratio faithfully at a fixed exposure

@@ -79,8 +79,23 @@ const GRASS_STRIDE = 0.42;
  */
 const ROOT_SINK = 0.06;
 
+/**
+ * The sun, as the meadow needs to know it.
+ *
+ * <p>Not for lighting — three does that. For *transmission*, which three does
+ * not: a blade of grass is thin enough to let light through it, and needs to
+ * know where the light is coming from and how strong it is to work out how much
+ * comes out the other side.
+ */
+export interface SunUniforms {
+  /** Which way the light travels, in world space. */
+  readonly direction: { value: Vector3 };
+  /** Its colour times its strength. */
+  readonly glow: { value: Color };
+}
+
 /** One strip of a plant: a tapered, arching ribbon from the root outward. */
-interface Strip {
+export interface Strip {
   /** Where on the clump it is rooted, in half-feet from the middle. */
   rootX: number;
   rootY: number;
@@ -115,9 +130,28 @@ interface Strip {
   segments: number;
   root: number;
   tip: number;
+  /**
+   * A colour partway along, and where along.
+   *
+   * <p>Because some markings are *bands* and not gradients. The pale crescent
+   * across a clover leaf sits about a third of the way from the base and is the
+   * single most recognisable thing about the plant; approximated as a
+   * root-to-tip ramp it lands in the wrong place and reads as a leaf that
+   * happens to be lighter at the end.
+   */
+  band?: { at: number; color: number };
+  /**
+   * Cuts a notch into the tip.
+   *
+   * <p>The other half of what makes a clover leaflet recognisable: the tip is
+   * not a point, it is a heart. The last segment's centre is pulled back toward
+   * the root by this fraction of the strip's length, which turns the closing
+   * point into a dent between two lobes.
+   */
+  notch?: number;
 }
 
-interface Species {
+export interface Species {
   readonly name: string;
   /** How much of the meadow it takes where it is winning. */
   readonly share: number;
@@ -258,14 +292,15 @@ function cloverStrips(): Strip[] {
       // whole patch one shading value.
       //
       // <p>Wider than it is long, and broad almost from the base: a clover
-      // leaflet is a heart, not a spear, and the previous one — long, pointed,
-      // widest a quarter of the way up — was reading as a tiny fern. The low
-      // leaf exponent puts the widest part near the stalk and holds it there,
-      // which is the shape the eye actually names the plant by.
-      tall: 0.24, bend: 0.5, width: 0.125, taper: 1, leaf: 0.35, segments: 3,
-      // Pale toward the tip, which from above is the whitish band across a
-      // clover leaf.
-      root: 0x2f4f1d, tip: 0x6b9538, lift,
+      // leaflet is a heart, not a spear. Four segments rather than three, so
+      // the outline can round instead of turning a corner.
+      tall: 0.26, bend: 0.5, width: 0.13, taper: 1, leaf: 0.34, segments: 4,
+      // A notched tip and a pale crescent a third of the way up — the two
+      // things that make a person say "clover" instead of "leaf". Neither
+      // survives as a gradient; both are shapes.
+      notch: 0.38,
+      band: { at: 0.36, color: 0xa8c46a },
+      root: 0x2b4a1a, tip: 0x5d8730, lift,
     } as Strip & { lift: number }));
   }).flat() as Strip[];
 }
@@ -310,7 +345,15 @@ function spread<T>(
   return made;
 }
 
-const SPECIES: readonly Species[] = [
+/**
+ * The summer meadow: what grows beside a Virginia cart road in July.
+ *
+ * <p>Exported and named, because it is one planting rather than the definition
+ * of planting. A coast wants sea grass on sand, a wood wants ferns and needle
+ * litter, a snowfield wants nothing at all — and until this was a list a theme
+ * could choose, there could only ever be one kind of ground.
+ */
+export const MEADOW: readonly Species[] = [
   {
     name: 'grass', punctuates: false, share: 1, patch: 0.035, clumping: 1, tolerates: 0.42,
     scale: [0.7, 1.5], sway: 0.16, casts: false,
@@ -376,8 +419,12 @@ function speciesGeometry(species: Species): BufferGeometry {
   // How far each vertex sits off the middle of its own strip, so the shader can
   // rebuild the centreline and widen about it. See MIN_HALF_PIXELS.
   const sides: number[] = [];
+  // How thin the plant is here, from nothing at the root to wholly translucent
+  // at the tip. See the transmission term in plantMaterial.
+  const thin: number[] = [];
   const root = new Color();
   const tip = new Color();
+  const band = new Color();
   const shade = new Color();
   let vertex = 0;
 
@@ -387,6 +434,9 @@ function speciesGeometry(species: Species): BufferGeometry {
     const lift = (strip as Strip & { lift?: number }).lift ?? 0;
     root.setHex(strip.root);
     tip.setHex(strip.tip);
+    if (strip.band) {
+      band.setHex(strip.band.color);
+    }
 
     for (let i = 0; i <= strip.segments; i++) {
       const t = i / strip.segments;
@@ -396,8 +446,19 @@ function speciesGeometry(species: Species): BufferGeometry {
       // Height eases off as the strip leans over, and the lean grows faster
       // than the height, so the last third is nearly horizontal.
       const up = lift + Math.sin(t * Math.PI * 0.5) * strip.tall;
-      const out = t * t * strip.bend * strip.tall;
-      shade.copy(root).lerp(tip, t * t);
+      // The notch: the last step stops short along the strip while its two
+      // edges do not, which leaves a dent between them instead of a point.
+      const notched = strip.notch && i === strip.segments ? 1 - strip.notch : 1;
+      const out = t * t * strip.bend * strip.tall * notched;
+      if (strip.band) {
+        const at = strip.band.at;
+        shade.copy(root).lerp(band, Math.min(1, t / at));
+        if (t > at) {
+          shade.copy(band).lerp(tip, (t - at) / (1 - at));
+        }
+      } else {
+        shade.copy(root).lerp(tip, t * t);
+      }
 
       for (const side of [-1, 1]) {
         const across = side * halfWidth;
@@ -407,6 +468,7 @@ function speciesGeometry(species: Species): BufferGeometry {
           up,
         );
         sides.push(-sin * across, cos * across, 0);
+        thin.push(t);
         colors.push(shade.r, shade.g, shade.b);
         uvs.push((side + 1) / 2, t);
       }
@@ -422,6 +484,7 @@ function speciesGeometry(species: Species): BufferGeometry {
   geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3));
   geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
   geometry.setAttribute('boardSide', new BufferAttribute(new Float32Array(sides), 3));
+  geometry.setAttribute('boardThin', new BufferAttribute(new Float32Array(thin), 1));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -496,6 +559,75 @@ const PLANTS_PER_PIXEL = 0.7;
 
 /** Never below this fraction, or a distant board becomes bare ground. */
 const MIN_DETAIL = 0.25;
+
+/**
+ * Half-feet between clump centres.
+ *
+ * <p><b>Real fields are not random, they are clumpy.</b> That is the sentence
+ * from the Ghost of Tsushima grass talk that this whole mechanism exists for,
+ * and it is stated there as an art problem rather than a technical one. Every
+ * plant here had its own independent height, lean and colour — which is uniform
+ * noise, and uniform noise reads as manufactured however finely it is stirred.
+ * A real meadow has patches of tall grass, patches of short, patches leaning
+ * together because they grew in the same shelter.
+ *
+ * <p>So the ground is divided into cells by nearest-centre — a Voronoi diagram
+ * over a jittered lattice — and the *clump* decides how tall its plants stand,
+ * which way they lean and roughly what colour they are. The plant keeps a
+ * little of its own on top, or the clump would be a stamp.
+ *
+ * <p>Three feet across: big enough that a clump holds several plants at any
+ * density the slider reaches, small enough that a five-foot square holds more
+ * than one.
+ */
+const CLUMP_SPAN = 6;
+
+/** What a clump imposes on everything growing in it. */
+interface Clump {
+  /** Multiplies the plant's own height. */
+  readonly tall: number;
+  /** Which way the whole clump leans, in radians. */
+  readonly lean: number;
+  /** Where along the species' colour range the clump sits. */
+  readonly tone: number;
+}
+
+/**
+ * The clump a point belongs to.
+ *
+ * <p>Nearest of nine candidates — the plant's own lattice cell and its eight
+ * neighbours — because a point near a cell edge is often closer to the centre
+ * next door, and taking its own cell would put the seams of the lattice back
+ * into the picture as straight lines.
+ */
+function clumpAt(x: number, y: number): Clump {
+  const gx = Math.floor(x / CLUMP_SPAN);
+  const gy = Math.floor(y / CLUMP_SPAN);
+  let nearest = Infinity;
+  let ix = gx;
+  let iy = gy;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const cx = gx + i;
+      const cy = gy + j;
+      seedAt(cx * 977 + 13, cy * 641 + 7);
+      const px = (cx + nextRandom()) * CLUMP_SPAN;
+      const py = (cy + nextRandom()) * CLUMP_SPAN;
+      const away = (px - x) * (px - x) + (py - y) * (py - y);
+      if (away < nearest) {
+        nearest = away;
+        ix = cx;
+        iy = cy;
+      }
+    }
+  }
+  seedAt(ix * 1013 + 7, iy * 1777 + 3);
+  return {
+    tall: 0.6 + nextRandom() * 0.8,
+    lean: nextRandom() * Math.PI * 2,
+    tone: nextRandom(),
+  };
+}
 
 /**
  * A deterministic stream of random numbers from a position.
@@ -595,9 +727,11 @@ export function meadow(
   spread: number,
   viewport: { value: Vector2 },
   wind: { value: number },
+  sun: SunUniforms,
+  planting: readonly Species[],
 ): Meadow | null {
   // Grass alone, or grass with the four others competing for the ground.
-  const growing = mixed ? SPECIES : SPECIES.slice(0, 1);
+  const growing = mixed ? planting : planting.slice(0, 1);
   // Plants go up with the *square* of how close together they stand, so the
   // knob is plants-per-area and the spacing is its root. A slider that moved
   // the spacing directly would go from bare to unusable across two notches at
@@ -676,6 +810,10 @@ export function meadow(
         continue;
       }
       const [low, high2] = species.scale;
+      // The clump lookup runs the shared stream, so the plant's own draws are
+      // re-seeded after it. Deterministic either way; it only has to be stable.
+      const clump = clumpAt(jx, jy);
+      seedAt(jx + 0.5, jy + 0.5);
       const cx = Math.min(wide - 1, Math.floor(jx / chunkWide));
       const cy = Math.min(high - 1, Math.floor(jy / chunkHigh));
       const bucket = best * chunks + cy * wide + cx;
@@ -683,7 +821,10 @@ export function meadow(
         x: jx,
         y: jy,
         z: surfaceAt(field, jx, jy) - ROOT_SINK,
-        turn: nextRandom() * Math.PI * 2,
+        // Mostly the clump's heading, a little its own. Plants that grew
+        // together lean together — that is what a clump *is* — but a clump
+        // where every plant faced identically would be a stamp.
+        turn: clump.lean + (nextRandom() - 0.5) * 1.6,
         // Rooted a few degrees off vertical. Nothing grows out of the ground
         // at a right angle, and a meadow where everything does reads as
         // something placed rather than something grown.
@@ -696,9 +837,9 @@ export function meadow(
         // makes the edge of a path look walked rather than drawn. Cubed
         // toward the vigorous end, so the middle of the meadow is untouched
         // and the last two feet do nearly all of the shortening.
-        scale: (low + nextRandom() * (high2 - low))
+        scale: (low + nextRandom() * (high2 - low)) * clump.tall
           * (0.34 + 0.66 * (1 - (1 - vigour) * (1 - vigour) * (1 - vigour))),
-        tone: nextRandom(),
+        tone: clump.tone * 0.65 + nextRandom() * 0.35,
         rank: nextRandom(),
       });
     }
@@ -732,7 +873,7 @@ export function meadow(
 
   growing.forEach((species, s) => {
     const geometry = speciesGeometry(species);
-    const material = plantMaterial(species, light, time, viewport, wind);
+    const material = plantMaterial(species, light, time, viewport, wind, sun);
     const perPlant = (geometry.getIndex()?.count ?? 0) / 3;
     let grown = 0;
 
@@ -892,6 +1033,7 @@ function plantMaterial(
   time: { value: number },
   viewport: { value: Vector2 },
   wind: { value: number },
+  sun: SunUniforms,
 ): MeshStandardMaterial {
   const material = light(new MeshStandardMaterial({
     vertexColors: true,
@@ -912,16 +1054,52 @@ function plantMaterial(
     shader.uniforms['uBoardTime'] = time;
     shader.uniforms['uViewport'] = viewport;
     shader.uniforms['uWind'] = wind;
-    shader.fragmentShader = 'varying float vBoardCover;\n' + shader.fragmentShader.replace(
-      '#include <color_fragment>',
-      `#include <color_fragment>
-       // Not all the way: at the far edge of a big board the widening runs to
-       // several times, and dimming in full proportion would put the far half
-       // of the meadow in shadow for a reason that has nothing to do with
-       // light. Most of the way is enough to stop the flowers shouting.
-       diffuseColor.rgb *= mix(1.0, clamp(vBoardCover, 0.0, 1.0), 0.7);`);
+    shader.uniforms['uSunDir'] = sun.direction;
+    shader.uniforms['uSunGlow'] = sun.glow;
+    shader.fragmentShader =
+      'varying float vBoardCover;\nvarying float vBoardThin;\nvarying vec3 vBoardLeaf;\n'
+      + 'uniform vec3 uSunDir;\nuniform vec3 uSunGlow;\n'
+      + shader.fragmentShader
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+           // Not all the way: at the far edge of a big board the widening runs
+           // to several times, and dimming in full proportion would put the far
+           // half of the meadow in shadow for a reason that has nothing to do
+           // with light. Most of the way is enough to stop the flowers
+           // shouting.
+           diffuseColor.rgb *= mix(1.0, clamp(vBoardCover, 0.0, 1.0), 0.7);`)
+        .replace(
+          '#include <tonemapping_fragment>',
+          `{
+             // <b>Transmission — light that goes *through* a blade.</b>
+             //
+             // <p>A leaf is thin, and most of what makes a photograph of a
+             // field look like a field is the grass with the sun behind it
+             // catching fire. Shaded as an opaque diffuse surface, which is all
+             // three does, an evening meadow comes out warm and completely
+             // flat: every blade facing away from the sun is simply dark, when
+             // in life it is the brightest thing in the picture.
+             //
+             // <p>Crysis's approximation, and still the standard one: the light
+             // arriving on the far side, times how nearly the eye is looking
+             // into the sun through the leaf. No thickness map — a tip is
+             // thinner than a root and the geometry already knows which is
+             // which.
+             vec3 boardEye = normalize(cameraPosition - vBoardPos);
+             float through = max(0.0, dot(vBoardLeaf, uSunDir));
+             float toward = max(0.0, dot(boardEye, uSunDir));
+             // A high power, so this is a rim that appears when you look into
+             // the light and is absent otherwise — which is what it is. A broad
+             // one would just be a second, wronger ambient term.
+             float glow = through * pow(toward, 3.0) * (0.25 + 0.75 * vBoardThin);
+             gl_FragColor.rgb += uSunGlow * diffuseColor.rgb * glow * 2.2;
+           }
+           #include <tonemapping_fragment>`);
     shader.vertexShader = 'uniform float uBoardTime;\nuniform float uWind;\nuniform vec2 uViewport;\n'
-      + 'attribute vec3 boardSide;\nvec3 boardCentre;\nvarying float vBoardCover;\n'
+      + 'attribute vec3 boardSide;\nattribute float boardThin;\n'
+      + 'vec3 boardCentre;\nvarying float vBoardCover;\n'
+      + 'varying float vBoardThin;\nvarying vec3 vBoardLeaf;\n'
       + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
@@ -971,7 +1149,12 @@ function plantMaterial(
        transformed.xy += local * gust * along * along * ${species.sway.toFixed(3)};
        // Kept before the widening, which needs to know where the middle of the
        // strip is. The wind moves the whole strip, so the offset is unchanged.
-       boardCentre = transformed - boardSide;`)
+       boardCentre = transformed - boardSide;
+       vBoardThin = boardThin;
+       // The leaf's facing in world space. Three's own shading normal is in
+       // view space by the time the fragment shader sees it, and transmission
+       // is a question about where the sun is, which is a world-space fact.
+       vBoardLeaf = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);`)
       .replace(
         '#include <project_vertex>',
         `#include <project_vertex>

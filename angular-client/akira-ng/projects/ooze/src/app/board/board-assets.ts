@@ -1,4 +1,5 @@
 import { BoardPiece, PropPlacement, TerrainKind } from './board.models';
+import { Species } from './meadow';
 import { ScatterKind } from './scatter';
 import { WALL_HEIGHT } from './board-scene';
 
@@ -120,6 +121,15 @@ export interface SplatGround {
    * evenly instead of clearing one end of it.
    */
   readonly blades?: number;
+  /**
+   * What grows here, if not the summer meadow.
+   *
+   * <p>Absent means {@link ../meadow#MEADOW} — grass, clover, plantain, seed
+   * heads and daisies. A coast wants sea grass on sand, a wood wants ferns and
+   * needle litter, a snowfield wants nothing at all, and until this could be
+   * chosen per theme there could only ever be one kind of ground.
+   */
+  readonly plants?: readonly Species[];
   /**
    * Models for the things lying on it.
    *
