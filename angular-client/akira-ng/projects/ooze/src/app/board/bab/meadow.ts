@@ -4,6 +4,7 @@ import { ComputeShader } from '@babylonjs/core/Compute/computeShader';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import type { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
+import type { ProceduralTexture } from '@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
@@ -13,6 +14,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
+import { leafTexture } from './leaf-texture';
 import { type Plant, MEADOW, plantGeometry } from './species';
 import { fieldTexture } from './splat-bake';
 
@@ -115,8 +117,13 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // sliver: it is a black scrap on the road verge, hundreds of them, exactly
   // where the wear test culled the most. Scaling all three columns makes a
   // culled plant a point with no area at all.
-  let tall = params.b.x * clumpTall * (0.72 + 0.56 * rand(seed + 2u)) * alive;
-  let wide = params.b.y * (0.82 + 0.36 * rand(seed + 3u)) * alive;
+  // One scale, applied to all three columns. The plant's own proportions are
+  // already in its geometry, so what is left here is how big this particular
+  // one is — and a uniform scale keeps the matrix a rotation as far as a normal
+  // is concerned.
+  let grow = clumpTall * (0.74 + 0.52 * rand(seed + 2u)) * alive;
+  let tall = grow;
+  let wide = grow;
 
   // <b>Facing splays out from the clump.</b> Plants growing together lean away
   // from each other for the light, so a clump is a rosette rather than a
@@ -149,9 +156,15 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // Board is x-east, y-north, z-up; the stage is y-up. Same swap as the mesh.
   matrices[at + 3u] = vec4f(where2.x, ground_z, where2.y, 1.0);
 
-  // The clump's cast, the board's slow drift, and a little of the plant's own.
-  let lift = 0.82 + 0.36 * clumpTone + 0.14 * drift + 0.1 * rand(seed + 7u);
-  tints[index] = vec4f(vec3f(lift), 1.0);
+  // <b>The clump's colour, not just its brightness.</b> A patch of clover is
+  // not a paler version of the patch beside it — it is a different green, and
+  // the difference is mostly in how much yellow is in it. One scalar per clump
+  // gives a field that varies in exposure; three give one that varies in
+  // season, which is what a real sward does from one square yard to the next.
+  let lift = 0.84 + 0.26 * clumpTone + 0.12 * drift + 0.08 * rand(seed + 7u);
+  let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u);
+  let deep = 0.90 + 0.22 * rand(clumpSeed + 22u);
+  tints[index] = vec4f(lift * yellow, lift * deep, lift * (0.80 + 0.24 * drift), 1.0);
 }
 `;
 
@@ -181,13 +194,7 @@ export function sowMeadow(
   const heightTexture = heightsAsTexture(field, scene);
   const groundTexture = fieldTexture(field, scene);
   const total = plants.reduce((sum, plant) => sum + plant.share, 0);
-  // One white texel. It exists so Babylon declares the uv attribute, which the
-  // wind plugin reads for the height up the plant; without a texture there is
-  // no uv, and without the uv the shader does not parse.
-  const keepUv = RawTexture.CreateRGBATexture(
-    new Uint8Array([255, 255, 255, 255]), 1, 1, scene, false, false,
-    Texture.NEAREST_SAMPLINGMODE,
-  );
+  const leaves: ProceduralTexture[] = [];
 
   const flags = Constants.BUFFER_CREATIONFLAG_STORAGE
     | Constants.BUFFER_CREATIONFLAG_VERTEX
@@ -228,7 +235,18 @@ export function sowMeadow(
     material.twoSidedLighting = false;
     material.albedoColor = new Color3(plant.base[0], plant.base[1], plant.base[2]);
     material.specularIntensity = 0.25;
-    material.albedoTexture = keepUv;
+    // <b>The leaf's own surface</b>, baked once: veins, a paler midrib,
+    // mottling and a dried edge. It also keeps the uv attribute alive, which
+    // the wind plugin needs for the height up the plant — without a texture
+    // Babylon does not declare it and the shader will not parse.
+    const leaf = leafTexture(plant, scene);
+    leaves.push(leaf);
+    material.albedoTexture = leaf;
+    material.useAlphaFromAlbedoTexture = false;
+    material.transparencyMode = PBRMaterial.MATERIAL_OPAQUE;
+    // The albedo now carries the colour, so the material's own tint would
+    // double it.
+    material.albedoColor = new Color3(1, 1, 1);
     // Translucency, in the box: the Crysis approximation the old renderer
     // spelled out by hand, except supported and interacting correctly with
     // everything else the material does.
@@ -240,12 +258,11 @@ export function sowMeadow(
 
     const wind = new BladeWind(material);
     wind.strength = 1.35 * plant.stiff;
-    wind.tip = [
-      plant.tip[0] / Math.max(0.01, plant.base[0]),
-      plant.tip[1] / Math.max(0.01, plant.base[1]),
-      plant.tip[2] / Math.max(0.01, plant.base[2]),
-    ];
-    wind.floor = 0.3;
+    // The root-to-tip colour lives in the leaf texture now, so the plugin is
+    // left with the part a texture cannot know: how much light reaches the
+    // bottom of a sward, which depends on what is standing above it.
+    wind.tip = [1, 1, 1];
+    wind.floor = 0.34;
     mesh.material = material;
 
     const matrices = new StorageBuffer(engine, cap * 16 * 4, flags, `${plant.id}-m`);
@@ -297,8 +314,7 @@ export function sowMeadow(
         'a', field.extentXHalfFeet, field.extentYHalfFeet, count, bed.offset,
       );
       bed.params.updateFloat4(
-        'b', bed.sown.plant.tall, bed.sown.plant.wide,
-        bed.sown.plant.wearMax, bed.sown.plant.droop,
+        'b', 1, 1, bed.sown.plant.wearMax, bed.sown.plant.droop,
       );
       bed.params.updateFloat4('c', bed.sown.plant.damp, 0, 0, 0);
       bed.params.update();
@@ -339,7 +355,7 @@ export function sowMeadow(
       }
       heightTexture.dispose();
       groundTexture.dispose();
-      keepUv.dispose();
+      leaves.forEach(leaf => leaf.dispose());
     },
   };
 }

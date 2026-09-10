@@ -7,8 +7,7 @@ import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
-import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
-import { Texture } from '@babylonjs/core/Materials/Textures/texture';
+import { leafTexture } from './leaf-texture';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
@@ -106,21 +105,22 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     this.mesh?.dispose();
     const mesh = new Mesh('plant', scene);
     plantGeometry(plant).applyToMesh(mesh);
-    // The board scales the plant by its instance matrix; here that scale is
-    // applied directly, and then normalised so a daisy and a clover are both
-    // worth looking at rather than one filling the frame.
-    mesh.scaling = new Vector3(plant.wide, 1, plant.wide);
+    // The geometry already carries the plant's proportions, so this only
+    // normalises for the frame — a daisy and a clover are both worth looking
+    // at rather than one filling it.
+    const fit = 1 / Math.max(0.4, plant.tall);
+    mesh.scaling = new Vector3(fit, fit, fit);
 
     const material = new PBRMaterial('plant', scene);
-    material.albedoColor = new Color3(plant.base[0], plant.base[1], plant.base[2]);
+    material.albedoColor = new Color3(1, 1, 1);
+    material.albedoTexture = leafTexture(plant, scene);
+    material.useAlphaFromAlbedoTexture = false;
+    material.transparencyMode = PBRMaterial.MATERIAL_OPAQUE;
     material.metallic = 0;
     material.roughness = 0.75;
     material.backFaceCulling = false;
     material.twoSidedLighting = false;
-    material.albedoTexture = RawTexture.CreateRGBATexture(
-      new Uint8Array([255, 255, 255, 255]), 1, 1, scene, false, false,
-      Texture.NEAREST_SAMPLINGMODE,
-    );
+
     material.subSurface.isTranslucencyEnabled = true;
     material.subSurface.translucencyIntensity = 0.9;
     material.subSurface.minimumThickness = 0.1;
