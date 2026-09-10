@@ -80,6 +80,19 @@ export interface GroundLayer {
    * the color is being placed.
    */
   readonly tint?: readonly [number, number, number];
+  /**
+   * Several photographs of the same material, chosen per stochastic cell.
+   *
+   * <p>The half of texture repetition that shuffling cannot fix. Sampling
+   * stochastically removes the grid; it leaves every pixel coming from one
+   * image, and the eye finds a distinctive clump recurring long before it
+   * finds a seam. Several sources, picked by the same hash that already picks
+   * the offset and the turn, so the variety is close to free.
+   *
+   * <p>Per layer rather than per ground, because the road needs it as badly as
+   * the meadow does and needs entirely different pictures.
+   */
+  readonly variants?: readonly string[];
 }
 
 /**
@@ -93,16 +106,6 @@ export interface GroundLayer {
 export interface SplatGround {
   readonly kind: 'splat';
   readonly layers: readonly [GroundLayer, GroundLayer, GroundLayer];
-  /**
-   * Several photographs of the base layer, chosen per stochastic cell.
-   *
-   * <p>The half of texture repetition that shuffling cannot fix. Sampling
-   * stochastically removes the grid; it leaves every pixel coming from one
-   * image, and the eye finds a distinctive clump recurring long before it finds
-   * a seam. Six sources, picked by the same hash that already picks the offset
-   * and the turn, so the variety is free.
-   */
-  readonly variants?: readonly string[];
   /**
    * How thickly grass grows as geometry, from 0 to 1.
    *
@@ -335,6 +338,22 @@ const PH_ROOT = 'assets/board/polyhaven';
  * because what repeats visibly is the *picture* — the same clump of clover
  * recurring — and not the bumpiness under it.
  */
+/**
+ * Photographs of a road, for the same reason as the grasses below.
+ *
+ * <p>All five are dirt tracks rather than five kinds of soil: what has to vary
+ * is which stones are where, not what the road is made of. Two of them are wet
+ * and two are dry, which the height-blend then sorts out — the wet ones sit in
+ * the hollows because the hollows are where water sat.
+ */
+const ROAD_VARIANTS = [
+  `${PH_ROOT}/red_dirt_mud_01_diff_2k.jpg`,
+  `${PH_ROOT}/red_mud_stones_diff_2k.jpg`,
+  `${PH_ROOT}/stony_dirt_path_diff_2k.jpg`,
+  `${PH_ROOT}/brown_mud_02_diff_2k.jpg`,
+  `${PH_ROOT}/muddy_tracks_diff_2k.jpg`,
+];
+
 const GRASS_VARIANTS = [
   'assets/board/grass/Grass001_Color.jpg',
   'assets/board/grass/Grass003_Color.jpg',
@@ -345,14 +364,19 @@ const GRASS_VARIANTS = [
 ];
 
 function layer(
-  name: string, feet: number, tint?: readonly [number, number, number],
+  name: string,
+  feet: number,
+  tint?: readonly [number, number, number],
+  extra?: { readonly res?: '1k' | '2k'; readonly variants?: readonly string[] },
 ): GroundLayer {
+  const res = extra?.res ?? '1k';
   return {
-    color: `${PH_ROOT}/${name}_diff_1k.jpg`,
-    normal: `${PH_ROOT}/${name}_nor_gl_1k.jpg`,
-    arm: `${PH_ROOT}/${name}_arm_1k.jpg`,
+    color: `${PH_ROOT}/${name}_diff_${res}.jpg`,
+    normal: `${PH_ROOT}/${name}_nor_gl_${res}.jpg`,
+    arm: `${PH_ROOT}/${name}_arm_${res}.jpg`,
     feet,
     tint,
+    variants: extra?.variants,
   };
 }
 
@@ -405,15 +429,24 @@ export const FIELD_THEME: BoardTheme = {
     kind: 'splat',
     layers: [
       // Feet per repeat, picked by eye against a five-foot square: grass reads
-      // as blades at this size, and dirt as ruts rather than as gravel.
-      // Midsummer, so the grass is pushed green and away from the scan's
-      // late-season yellow; the bare ground is pushed toward red clay, which is
-      // what the road between Richmond and Fredericksburg is cut through.
-      layer('leafy_grass', 7, [0.92, 1.04, 0.78]),
+      // as blades at this size, and the road as gravel and clods rather than
+      // as sand. Midsummer, so the grass is pushed green and away from the
+      // scan's late-season yellow.
+      layer('leafy_grass', 7, [0.92, 1.04, 0.78], { variants: GRASS_VARIANTS }),
       layer('sparse_grass', 8, [1.0, 1.0, 0.82]),
-      layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
+      // Red clay with gravel through it, at twice the resolution of everything
+      // else, because the road is the subject of this map and is the one
+      // surface a camera comes down to.
+      //
+      // <p>It replaced `dirt_floor`, which was the wrong photograph rather
+      // than a badly used one: a swept courtyard floor, near-uniform and
+      // near-featureless, tinted hard toward red to stand in for Virginia
+      // clay. Tinting cannot add gravel. This scan is already the right
+      // ground, so it barely needs correcting.
+      layer('red_dirt_mud_01', 5, [1.02, 0.96, 0.92], {
+        res: '2k', variants: ROAD_VARIANTS,
+      }),
     ],
-    variants: GRASS_VARIANTS,
     blades: 0.9,
     // No scatter. Photogrammetry props at this camera distance read as litter
     // rather than as landscape — a stone that is convincing at eye level is a

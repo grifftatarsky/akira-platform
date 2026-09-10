@@ -141,6 +141,7 @@ export function groundField(board: BoardScene): GroundField {
   }
   roughen(wear, width, height);
   shapeGround(ground, wear, width, height);
+  puddle(wet, ground, wear, width, height);
 
   const data = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y++) {
@@ -311,10 +312,14 @@ function rutAt(
   const from = Math.min(
     Math.abs(y - (centre + weave - half)),
     Math.abs(y - (centre + weave + half)));
-  // A trough about a foot across. Deep enough to catch the light and shallow
-  // enough that walking across it is not a slope the rules would charge for.
+  // A trough about a foot across and four inches deep. Deep enough that the
+  // sun finds a wall of it at any hour but noon — which was the whole problem
+  // with the first attempt, at half this depth: the ruts were there, the test
+  // could measure them, and at one in the afternoon there was nothing for the
+  // light to catch. Still shallow enough that stepping across one is not a
+  // slope the rules would charge for, which the tests hold.
   const across = from / (1.1 * per);
-  return Math.exp(-across * across) * 0.42;
+  return Math.exp(-across * across) * 0.8;
 }
 
 /** How high the ground is at a point, in half-feet. */
@@ -324,6 +329,49 @@ export function heightAt(field: GroundField, xHalfFeet: number, yHalfFeet: numbe
   const y = Math.max(0, Math.min(field.height - 1,
     Math.floor((yHalfFeet / field.extentYHalfFeet) * field.height)));
   return field.heights[y * field.width + x];
+}
+
+/**
+ * Wets the low places.
+ *
+ * <p>Where a road is muddy is not a fact about the map; it is a fact about the
+ * shape. Water runs downhill, sits in the wheel ruts and the hollows, and
+ * stands there for days on ground that has been driven into a clay pan — which
+ * is why a cart track is dark in two lines and pale between them, and why the
+ * hoofprints beside it are little dark coins. The height field already knows
+ * all of that, so the wetness is read off it rather than painted.
+ *
+ * <p>Measured against a blurred copy of the ground rather than against a
+ * level, because "low" has to mean low *compared to here*. Against an absolute
+ * height the whole far end of the board would be a swamp for no reason but
+ * that the country slopes.
+ *
+ * <p>Only on bare ground: turf drinks, and a meadow with standing water in it
+ * is a meadow after a storm rather than a meadow in July.
+ */
+function puddle(
+  wet: Float32Array,
+  ground: Float32Array,
+  wear: Float32Array,
+  width: number,
+  height: number,
+): void {
+  const level = Float32Array.from(ground);
+  for (let i = 0; i < 3; i++) {
+    smear(level, width, height);
+  }
+  for (let i = 0; i < wet.length; i++) {
+    // A threshold, not a ramp from zero. Ground *slightly* below its
+    // surroundings is most of the road — the whole surface sits a little under
+    // the verge beside it — and a ramp made the entire track uniformly damp,
+    // which reads as a dark stripe of paint and hides the very ruts it was
+    // added to fill. Three inches down is where water stops running off.
+    const below = level[i] - ground[i];
+    const held = below <= 0.12 ? 0
+      : below >= 0.6 ? 1
+      : (below - 0.12) / 0.48;
+    wet[i] = Math.max(wet[i], held * wear[i]);
+  }
 }
 
 /**

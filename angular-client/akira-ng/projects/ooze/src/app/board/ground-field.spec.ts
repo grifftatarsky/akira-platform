@@ -66,6 +66,72 @@ describe('ground field', () => {
       expect(worst).toBeLessThan(limit);
     });
 
+    it('cuts two wheel ruts an axle apart down the road', () => {
+      // The ruts are derived from the wear rather than declared by the level,
+      // which makes them exactly the kind of feature that can quietly stop
+      // happening: nothing throws, nothing fails to build, the road is simply
+      // smooth. So the shape is measured — across a road, the height profile
+      // has to have two troughs in it, and they have to be about five feet
+      // apart, because that is a cart and not a general hollow.
+      const cells = 24;
+      const tiles: TerrainTile[] = [];
+      for (let y = 0; y < cells; y++) {
+        for (let x = 0; x < cells; x++) {
+          tiles.push({
+            x: x * 10 + 5, y: y * 10 + 5, size: 10, base: 0, height: 0,
+            // A band of road eight cells deep through a meadow, which is what
+            // gives the track a middle to be the middle of.
+            kind: y >= 8 && y < 16 ? 'ROAD' : 'GRASS',
+            light: 'BRIGHT', opaque: false, cover: 'NONE', rotation: 0,
+            color: 0, baseColor: 0,
+          });
+        }
+      }
+      const field = groundField({
+        tiles, tokens: [], props: [],
+        widthHalfFeet: cells * 10, heightHalfFeet: cells * 10,
+      });
+
+      // Across the road at one place, in half-foot steps. Compared against the
+      // same profile smoothed, so a trough is a dip relative to the road's own
+      // camber rather than relative to sea level.
+      const x = 120;
+      const profile: number[] = [];
+      for (let y = 80; y < 160; y++) {
+        profile.push(heightAt(field, x, y));
+      }
+      const smooth = profile.map((_, i) => {
+        let total = 0;
+        let n = 0;
+        for (let step = -8; step <= 8; step++) {
+          const at = i + step;
+          if (at >= 0 && at < profile.length) {
+            total += profile[at];
+            n++;
+          }
+        }
+        return total / n;
+      });
+
+      const troughs: number[] = [];
+      for (let i = 2; i < profile.length - 2; i++) {
+        const depth = smooth[i] - profile[i];
+        const isLowest = profile[i] <= profile[i - 1] && profile[i] <= profile[i + 1]
+          && profile[i] <= profile[i - 2] && profile[i] <= profile[i + 2];
+        if (depth > 0.2 && isLowest) {
+          troughs.push(i);
+        }
+      }
+
+      // Neighbouring samples of the same trough collapse to one.
+      const wheels = troughs.filter((t, i) => i === 0 || t - troughs[i - 1] > 4);
+      expect(wheels.length).toBeGreaterThanOrEqual(2);
+
+      // Five feet between wheel centres, and the pair sits inside the road.
+      const gaps = wheels.slice(1).map((t, i) => t - wheels[i]);
+      expect(gaps.some(gap => Math.abs(gap - 10) <= 3)).toBe(true);
+    });
+
     it('keeps a rutted road under the threshold too', () => {
       // The road is deliberately much lumpier than the turf — clods, ridges
       // and hollows where water sat — and it still has to read as ground a

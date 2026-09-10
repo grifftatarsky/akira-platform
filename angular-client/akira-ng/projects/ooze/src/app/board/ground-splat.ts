@@ -1,5 +1,5 @@
 import {
-  DataTexture, LinearFilter, Mesh, MeshStandardMaterial, PlaneGeometry, RGBAFormat,
+  DataArrayTexture, DataTexture, LinearFilter, Mesh, MeshStandardMaterial, PlaneGeometry, RGBAFormat,
   RepeatWrapping, SRGBColorSpace, Texture, TextureLoader, Vector2, Vector3,
 } from 'three';
 import { SplatGround } from './board-assets';
@@ -159,20 +159,26 @@ export function splatGround(
   lightUniform: { value: DataTexture | null },
   extentUniform: { value: Vector2 },
 ): SplatSurface {
-  // Six photographs of grass, in one binding. Loaded after the material is
-  // built, because it has to be decoded through a canvas and there is no sense
-  // holding the whole board up for it — until it lands the base layer draws
-  // from the first variant alone, which is what it did before.
-  const variants: { value: import('three').DataArrayTexture | null } = { value: null };
-  const variantCount = { value: 1 };
-  if (ground.variants?.length) {
-    void loadTextureArray(ground.variants, true, true).then(array => {
-      if (array) {
-        variants.value = array;
-        variantCount.value = array.image.depth;
-      }
-    });
-  }
+  // Several photographs per layer, each set in one binding. Loaded after the
+  // material is built, because each has to be decoded through a canvas and
+  // there is no sense holding the whole board up for it — until they land a
+  // layer draws from its single `color` map, which is what it did before.
+  const variants = ground.layers.map(layer => {
+    const slot: {
+      texture: { value: DataArrayTexture | null };
+      count: { value: number };
+      declared: boolean;
+    } = { texture: { value: null }, count: { value: 1 }, declared: !!layer.variants?.length };
+    if (layer.variants?.length) {
+      void loadTextureArray(layer.variants, true, true).then(array => {
+        if (array) {
+          slot.texture.value = array;
+          slot.count.value = array.image.depth;
+        }
+      });
+    }
+    return slot;
+  });
   const field = groundField(board);
   const mask = new DataTexture(field.data, field.width, field.height, RGBAFormat);
   mask.minFilter = LinearFilter;
@@ -196,8 +202,13 @@ export function splatGround(
     shader.uniforms['uExtent'] = { value: new Vector2(board.widthHalfFeet, board.heightHalfFeet) };
     shader.uniforms['uBoardLight'] = lightUniform;
     shader.uniforms['uBoardExtent'] = extentUniform;
-    shader.uniforms['uVariants'] = variants;
-    shader.uniforms['uVariantCount'] = variantCount;
+    variants.forEach((slot, i) => {
+      if (!slot.declared) {
+        return;
+      }
+      shader.uniforms[`uVariants${i}`] = slot.texture;
+      shader.uniforms[`uVariantCount${i}`] = slot.count;
+    });
     layers.forEach((layer, i) => {
       shader.uniforms[`uColor${i}`] = { value: layer.color };
       shader.uniforms[`uNormal${i}`] = { value: layer.normal };
@@ -228,13 +239,14 @@ export function splatGround(
       uniform vec2 uExtent;
       uniform sampler2D uBoardLight;
       uniform vec2 uBoardExtent;
-      uniform sampler2DArray uVariants;
-      uniform float uVariantCount;
       uniform sampler2D uColor0; uniform sampler2D uNormal0; uniform sampler2D uArm0;
       uniform sampler2D uColor1; uniform sampler2D uNormal1; uniform sampler2D uArm1;
       uniform sampler2D uColor2; uniform sampler2D uNormal2; uniform sampler2D uArm2;
       uniform float uRepeat0; uniform float uRepeat1; uniform float uRepeat2;
       uniform vec3 uTint0; uniform vec3 uTint1; uniform vec3 uTint2;
+      ${variants.map((slot, i) => slot.declared
+        ? `uniform sampler2DArray uVariants${i}; uniform float uVariantCount${i};`
+        : '').join('\n      ')}
       varying vec2 vGround;
       varying vec3 vBoardPos;
       varying vec3 vGroundNormal;
@@ -266,22 +278,25 @@ export function splatGround(
       // and the ground turns into weather.
       const float COARSE = 3.5;
 
-      // One layer's color, sampled stochastically: three cells, each with its
-      // own offset, turn and — for the grass — its own photograph.
-      vec4 stochasticColor(sampler2D colorMap, vec2 uv, bool useVariants) {
+      // One sampler per layer, generated rather than parameterised: which
+      // binding a layer reads from is a property of the theme, known when the
+      // shader is built, and passing a sampler around as an argument is
+      // exactly what GLSL will not let you do.
+      ${layers.map((_, i) => {
+        const pick = variants[i].declared
+          ? (cell: string) =>
+              `grassVariant(uVariants${i}, uv, ${cell}, uVariantCount${i}, dx, dy)`
+          : (cell: string) => `groundVariant(uColor${i}, uv, ${cell}, dx, dy)`;
+        return `
+      vec4 stochasticColor${i}(vec2 uv) {
         vec3 w; vec2 v1; vec2 v2; vec2 v3;
         groundGrid(uv, w, v1, v2, v3);
         vec3 s = groundSharpen(w);
         vec2 dx = dFdx(uv);
         vec2 dy = dFdy(uv);
-        if (useVariants) {
-          return grassVariant(uVariants, uv, v1, uVariantCount, dx, dy) * s.x
-               + grassVariant(uVariants, uv, v2, uVariantCount, dx, dy) * s.y
-               + grassVariant(uVariants, uv, v3, uVariantCount, dx, dy) * s.z;
-        }
-        return groundVariant(colorMap, uv, v1, dx, dy) * s.x
-             + groundVariant(colorMap, uv, v2, dx, dy) * s.y
-             + groundVariant(colorMap, uv, v3, dx, dy) * s.z;
+        return ${pick('v1')} * s.x
+             + ${pick('v2')} * s.y
+             + ${pick('v3')} * s.z;
       }
 
       /**
@@ -297,12 +312,12 @@ export function splatGround(
        * the coarse one, and the crossover is wide enough that nothing moves
        * through a visible line as the camera pulls back.
        */
-      vec4 scaledColor(sampler2D colorMap, vec2 uv, bool useVariants, float far) {
-        vec4 near = stochasticColor(colorMap, uv, useVariants);
+      vec4 scaledColor${i}(vec2 uv, float far) {
+        vec4 near = stochasticColor${i}(uv);
         if (far < 0.004) {
           return near;
         }
-        return mix(near, stochasticColor(colorMap, uv / COARSE, useVariants), far);
+        return mix(near, stochasticColor${i}(uv / COARSE), far);
       }
 
       // One layer, whole: color at two scales, relief and occlusion at one.
@@ -310,28 +325,27 @@ export function splatGround(
       // scales — at the distance where the coarse color matters, a bump the
       // size of a blade of grass is well under a pixel and paying for it twice
       // buys nothing.
-      void sampleLayer(
-        sampler2D colorMap, sampler2D normalMap, sampler2D armMap, vec2 uv, bool useVariants,
-        float far, out vec4 outColor, out vec3 outNormal, out vec3 outArm
-      ) {
+      void sampleLayer${i}(vec2 uv, float far, out vec4 outColor, out vec3 outNormal,
+                           out vec3 outArm) {
         vec3 w; vec2 v1; vec2 v2; vec2 v3;
         groundGrid(uv, w, v1, v2, v3);
         vec3 s = groundSharpen(w);
         vec2 dx = dFdx(uv);
         vec2 dy = dFdy(uv);
 
-        outColor = scaledColor(colorMap, uv, useVariants, far);
+        outColor = scaledColor${i}(uv, far);
 
         outNormal =
-            (groundVariant(normalMap, uv, v1, dx, dy).xyz * 2.0 - 1.0) * s.x
-          + (groundVariant(normalMap, uv, v2, dx, dy).xyz * 2.0 - 1.0) * s.y
-          + (groundVariant(normalMap, uv, v3, dx, dy).xyz * 2.0 - 1.0) * s.z;
+            (groundVariant(uNormal${i}, uv, v1, dx, dy).xyz * 2.0 - 1.0) * s.x
+          + (groundVariant(uNormal${i}, uv, v2, dx, dy).xyz * 2.0 - 1.0) * s.y
+          + (groundVariant(uNormal${i}, uv, v3, dx, dy).xyz * 2.0 - 1.0) * s.z;
 
         outArm =
-            groundVariant(armMap, uv, v1, dx, dy).xyz * s.x
-          + groundVariant(armMap, uv, v2, dx, dy).xyz * s.y
-          + groundVariant(armMap, uv, v3, dx, dy).xyz * s.z;
-      }
+            groundVariant(uArm${i}, uv, v1, dx, dy).xyz * s.x
+          + groundVariant(uArm${i}, uv, v2, dx, dy).xyz * s.y
+          + groundVariant(uArm${i}, uv, v3, dx, dy).xyz * s.z;
+      }`;
+      }).join('\n')}
     ` + shader.fragmentShader
       .replace('#include <map_fragment>', `
         vec4 groundMask = texture2D(uMask, vGround / uExtent);
@@ -352,9 +366,9 @@ export function splatGround(
         float density = max(length(dFdx(fine)), length(dFdy(fine)));
         float far = smoothstep(FINE_PIXELS, COARSE_PIXELS, density);
 
-        if (lush > 0.002) { sampleLayer(uColor0, uNormal0, uArm0, vGround / uRepeat0, true, far, c0, n0, a0); }
-        if (worn > 0.002) { sampleLayer(uColor1, uNormal1, uArm1, vGround / uRepeat1, false, far, c1, n1, a1); }
-        if (bare > 0.002) { sampleLayer(uColor2, uNormal2, uArm2, vGround / uRepeat2, false, far, c2, n2, a2); }
+        if (lush > 0.002) { sampleLayer0(vGround / uRepeat0, far, c0, n0, a0); }
+        if (worn > 0.002) { sampleLayer1(vGround / uRepeat1, far, c1, n1, a1); }
+        if (bare > 0.002) { sampleLayer2(vGround / uRepeat2, far, c2, n2, a2); }
 
         // Blended by relief rather than cross-faded, so grass stands proud into
         // the bare ground at the verge instead of dissolving into it. The red
@@ -379,8 +393,11 @@ export function splatGround(
         layerNormal = normalize(layerNormal + vec3(detail.xy * 0.55, 0.0));
 
         // Wet ground is darker and shinier. Both, and it has to be both: dark
-        // alone reads as a stain and shiny alone reads as varnish.
-        layerColor.rgb *= mix(1.0, 0.38, groundMask.g);
+        // alone reads as a stain and shiny alone reads as varnish. Not as dark
+        // as it was: at 0.38 the ruts read as tar rather than as clay holding
+        // water, and the wetness now comes from the shape rather than from a
+        // painted MUD square, so it covers far more of the road.
+        layerColor.rgb *= mix(1.0, 0.55, groundMask.g);
         // Slow variation across the whole board — hue as well as brightness,
         // because ground is not one color and a texture that is reads as one.
         float macro = groundMask.b;
@@ -393,7 +410,10 @@ export function splatGround(
       `)
       .replace('#include <roughnessmap_fragment>', `
         float roughnessFactor = roughness * layerArm.g;
-        roughnessFactor = mix(roughnessFactor, 0.12, groundMask.g);
+        // Wet clay, not glass. At 0.12 the sun put a mirror highlight down the
+        // ruts and the bloom pass turned it into a white sheet — that number
+        // is for standing water, and this is ground with water in it.
+        roughnessFactor = mix(roughnessFactor, 0.34, groundMask.g);
       `)
       .replace('#include <normal_fragment_maps>', `
         // A real tangent frame, built from the surface the ground actually has.
