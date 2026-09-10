@@ -23,6 +23,35 @@
     </div>
   </div>
 
+  <!--
+    THE TOOLS. Two doors: the compendium below is the book, and this is the
+    table. The board had a route and no way in for a while, which made it
+    effectively private to whoever knew a UUID.
+  -->
+  <div class="flex flex-wrap gap-2 px-2 max-sm:px-4">
+    <a [routerLink]="['encounters']" [relativeTo]="root"
+       class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
+      <span class="block text-sm font-medium text-fg">Encounters</span>
+      <span class="block text-xs text-fg-subtle">
+        Build a board, place the monsters, roll initiative
+      </span>
+    </a>
+    <a [routerLink]="['board']" [relativeTo]="root"
+       class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
+      <span class="block text-sm font-medium text-fg">Sample board</span>
+      <span class="block text-xs text-fg-subtle">
+        A furnished dungeon level — no sign-in needed
+      </span>
+    </a>
+    <a [routerLink]="['board', 'road']" [relativeTo]="root"
+       class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
+      <span class="block text-sm font-medium text-fg">The road</span>
+      <span class="block text-xs text-fg-subtle">
+        Open country from measured materials — a summer afternoon
+      </span>
+    </a>
+  </div>
+
   <!-- FEDERATION STATUS (dev only; stripped from production builds) -->
   @if (showFederationBadge) {
     @if (user$ | async; as user) {
@@ -65,9 +94,10 @@
         <a class="text-accent hover:underline" href="https://creativecommons.org/licenses/by/4.0/"
            target="_blank" rel="noreferrer">Creative Commons Attribution 4.0</a>
         license. We stock the rules content the SRD covers — spells, monsters, items, species,
-        classes, and backgrounds — with stats kept faithful and descriptions written in our own
-        words. We don't reproduce non-SRD Player's Handbook text, artwork, or Wizards' trademarks
-        and named lore, and anything you create or modify stays yours.
+        classes, and backgrounds — with stats kept faithful and the SRD's own wording carried over
+        where it is the rule, which that license allows so long as it's attributed, as it is below.
+        We don't reproduce non-SRD Player's Handbook text, artwork, or Wizards' trademarks and named
+        lore, and anything you create or modify stays yours.
       </p>
       <p class="mt-3 text-xs/5 text-fg-subtle">
         This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of

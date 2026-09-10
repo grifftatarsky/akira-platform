@@ -69,6 +69,48 @@ Read these before touching the relevant area.
   required to refuse — same silent blank globe as above. `nginx.conf` adds the
   `types { application/javascript mjs; }` block; any other host serving this
   remote needs the same.
+- **A remote's own assets must be resolved with `import.meta.url`.** Served
+  standalone, ooze is at `/` and its assets at `/assets/…`; inside the host it
+  is at `/ooze/…` and its assets at `/remotes/ooze/assets/…`. A relative path is
+  right in one shell and wrong in the other — and the failure is invisible,
+  because nginx's SPA fallback answers the miss with **`index.html`, 200,
+  `text/html`** rather than a 404. The board loaded HTML into a glTF parser and
+  silently drew plain tiles. `new URL(path, import.meta.url)` resolves against
+  the chunk, which sits under the remote's base in both shells; the globe does
+  the same for maplibre's worker.
+- **`ng serve ooze` had no CSS at all until 2026-09-09.** Its `styles` in
+  `angular.json` pointed at `projects/ooze/src/styles.css`, which was a single
+  comment — so every Tailwind class in ooze was inert standalone, component
+  hosts stayed `display:inline`, and a canvas with `h-full` grew until it drove
+  the page to 14 000 pixels tall. It points at the host's `src/styles.css` now,
+  the way `jpss-ui` always did. A remote that is also served on its own needs
+  the host stylesheet, because that is what `@source`s it.
+- **A component host is `display:inline` with no height.** Angular does not
+  style it for you, so `h-full` on anything inside resolves against nothing.
+  Any component that owns a canvas or fills its container needs
+  `host: { class: 'block h-full w-full min-h-0' }`.
+- **A remote's chunks appear twice in `dist`, and that is fine.** Every remote is
+  built as two graphs — the standalone app that `index.html` loads, and the
+  federated `remoteEntry`/`routes` the host loads — so each lazy chunk has a
+  copy in both. `three` shows up as two 532 kB chunks in `dist/ooze`, and
+  `/bff/ooz/` shows up in four, which is the same duplication for the app code.
+  Only one graph is ever loaded in a page, so this is **not** the deck.gl
+  failure below: that one had two copies live in the *same* page with singletons
+  diverging. Check which entry reaches a chunk before spending an afternoon on
+  it.
+- **A link inside a remote must be relative, never absolute.** Ooze is mounted
+  at `''` standalone and at `'ooze'` by the host, so `routerLink="/board"` is
+  correct in exactly one of the two shells and navigates *out of the remote* in
+  the other. It fails silently and late: creating an encounter worked perfectly
+  and then landed on the host's front page. Inject `ActivatedRoute` and use its
+  `.parent` — the layout every view hangs off, which is the remote's own root in
+  both shells — as `relativeTo` on `routerLink` and on `router.navigate`. A link
+  to something the *host* owns (`/login`) is the one case that stays absolute.
+- **A remote must not rely on `withComponentInputBinding()`.** Its routes load
+  into whichever router the *host* provides, and route-parameter inputs only
+  bind if that host opted in. `akira-ng` has not, so a remote reading a route
+  param through `input.required()` works standalone and throws in the shell —
+  read `ActivatedRoute` instead.
 - **Assets go on the `esbuild` target, not `build`.** `build` is
   `@angular-architects/native-federation:build`, which only wraps; the real
   Angular options live in the `esbuild` target. `assets` on `build` is silently
@@ -191,6 +233,29 @@ Realm users `brice`, `brice2`, `brice3`, `igor` all have the password **`secret`
 Use it. Do not reset them via the admin API — the hashes in the realm export are
 the source of truth and a reset only diverges the running container from it
 until the volume is recreated.
+
+`brice` holds `DUNGEON_MASTER`, which is what gates every write in `spring-ooze`
+and every edit control in the ooze finder (`realm_access.roles` → BFF
+authorities → `/me` → `canEdit`). Without it the compendium renders read-only,
+which looks like a broken editor rather than a permissions state.
+
+**`--import-realm` skips a realm that already exists.** Keycloak keeps its data
+in `auth-db` on the shared Postgres, not in a container volume, so editing
+`keycloak/local-keycloak-realm.json` changes nothing on a stack that has already
+run — the edit sits there looking applied. To pick it up:
+
+```
+docker compose stop keycloak
+docker compose run --rm keycloak import \
+  --file /opt/keycloak/data/import/local-keycloak-realm.json --override true
+docker compose up -d keycloak
+```
+
+`--override true` **drops the realm and recreates it** ("Realm 'local-keycloak'
+already exists. Removing it before import"). Anything added through the admin
+console and not written back to the export is gone. That is the intended
+direction — the file is the source of truth — but export first if you have been
+clicking around.
 
 `.env` is tracked and holds **local defaults only**. Production values live in
 the deploy repo's own `.env`; never copy a real credential into this one.

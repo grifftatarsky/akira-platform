@@ -1,9 +1,16 @@
 package com.gpt.oozengine.service;
 
+import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.model.GameCharacter;
+import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.CharacterRequest;
 import com.gpt.oozengine.model.dto.response.CharacterResponse;
+import com.gpt.oozengine.model.mechanics.DiceRoll;
+import com.gpt.oozengine.repository.BackgroundRepository;
 import com.gpt.oozengine.repository.CharacterRepository;
+import com.gpt.oozengine.repository.SpeciesRepository;
+import com.gpt.oozengine.repository.SubclassRepository;
+import com.gpt.oozengine.repository.VocationRepository;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +28,10 @@ import org.springframework.web.server.ResponseStatusException;
 public class CharacterService {
 
   private final CharacterRepository characters;
+  private final SpeciesRepository species;
+  private final VocationRepository vocations;
+  private final SubclassRepository subclasses;
+  private final BackgroundRepository backgrounds;
 
   @Transactional(readOnly = true)
   public List<CharacterResponse> list(UUID userId) {
@@ -72,20 +83,37 @@ public class CharacterService {
   private void apply(CharacterRequest r, GameCharacter c) {
     c.setName(r.name());
     c.setKind(r.kind());
-    c.setSpecies(r.species());
-    c.setCharacterClass(r.characterClass());
-    c.setBackground(r.background());
-    c.setAlignment(r.alignment());
     c.setLevel(r.level());
-    c.setArmorClass(r.armorClass());
-    c.setHitPoints(r.hitPoints());
-    c.setStrength(r.strength());
-    c.setDexterity(r.dexterity());
-    c.setConstitution(r.constitution());
-    c.setIntelligence(r.intelligence());
-    c.setWisdom(r.wisdom());
-    c.setCharisma(r.charisma());
     c.setDescription(r.description());
     c.setNotes(r.notes());
+    c.setSpecies(ref(species, r.speciesId()));
+    c.setVocation(ref(vocations, r.vocationId()));
+    c.setSubclass(ref(subclasses, r.subclassId()));
+    c.setBackground(ref(backgrounds, r.backgroundId()));
+
+    StatBlock s = c.getStatBlock();
+    if (s == null) {
+      s = new StatBlock();
+      c.setStatBlock(s);
+    }
+    s.setAlignment(r.alignment());
+    s.setArmorClass(r.armorClass());
+    s.setHitPoints(new DiceRoll(null, null, null, r.hitPointsAverage()));
+    if (r.walkSpeed() == null || r.walkSpeed() <= 0) {
+      s.getSpeeds().remove(MovementType.WALK);
+    } else {
+      s.getSpeeds().put(MovementType.WALK, r.walkSpeed());
+    }
+    s.setStrength(r.strength());
+    s.setDexterity(r.dexterity());
+    s.setConstitution(r.constitution());
+    s.setIntelligence(r.intelligence());
+    s.setWisdom(r.wisdom());
+    s.setCharisma(r.charisma());
+  }
+
+  /** Resolves an optional foreign key, tolerating an id that no longer exists. */
+  private static <T> T ref(org.springframework.data.jpa.repository.JpaRepository<T, UUID> repo, UUID id) {
+    return id == null ? null : repo.findById(id).orElse(null);
   }
 }

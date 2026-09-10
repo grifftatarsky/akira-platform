@@ -1,9 +1,14 @@
 package com.gpt.oozengine.controller;
 
+import com.gpt.oozengine.constant.SrdVersion;
+import com.gpt.oozengine.model.dto.request.CatalogFilter;
 import com.gpt.oozengine.service.AbstractCatalogService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Shared REST surface for catalog content. Concrete controllers add
@@ -26,9 +32,36 @@ public abstract class AbstractCatalogController<REQ, RES> {
 
   protected abstract AbstractCatalogService<?, REQ, RES> service();
 
+  /**
+   * A page of the catalog.
+   *
+   * <p>Returned as {@link PagedModel} rather than {@code Page}: Spring Data's
+   * own advice, because {@code PageImpl}'s JSON is an implementation detail that
+   * has changed between releases, while PagedModel's {@code page} envelope is a
+   * contract. Sorting is left to each service's default unless {@code ?sort=}
+   * asks for something else.
+   *
+   * @param query case-insensitive name fragment
+   * @param includeLegacy whether to include SRD 5.1 rows (the finder's toggle)
+   */
   @GetMapping
-  public List<RES> list(@AuthenticationPrincipal Jwt jwt) {
-    return service().list(userId(jwt));
+  public PagedModel<RES> list(
+      @RequestParam(required = false) String query,
+      @RequestParam(defaultValue = "true") boolean includeLegacy,
+      @PageableDefault(size = 50) Pageable pageable,
+      @AuthenticationPrincipal Jwt jwt) {
+    CatalogFilter filter = new CatalogFilter(query, includeLegacy);
+    return new PagedModel<>(service().page(userId(jwt), filter, pageable));
+  }
+
+  /**
+   * Which SRD editions this catalog holds. The finder asks so it knows whether
+   * to offer the edition toggle; it can't tell from a page, because a page with
+   * the toggle already off contains no evidence that it should be there.
+   */
+  @GetMapping("/editions")
+  public List<SrdVersion> editions() {
+    return service().editions();
   }
 
   @GetMapping("/{id}")

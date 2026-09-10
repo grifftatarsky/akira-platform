@@ -1,7 +1,25 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { CatalogItem } from './ooze-content.models';
+
+export interface CatalogPageRequest {
+  readonly page?: number;
+  readonly size?: number;
+  readonly query?: string;
+  readonly includeLegacy?: boolean;
+}
+
+/** Spring Data's `PagedModel` JSON. */
+export interface CatalogPage {
+  readonly content: CatalogItem[];
+  readonly page: {
+    readonly size: number;
+    readonly number: number;
+    readonly totalElements: number;
+    readonly totalPages: number;
+  };
+}
 
 /**
  * Generic catalog API for any content type, keyed by its REST path
@@ -17,8 +35,45 @@ export class ContentService {
     return `/bff/ooz/${path}`;
   }
 
-  list(path: string): Observable<CatalogItem[]> {
-    return this.http.get<CatalogItem[]>(this.url(path));
+  /**
+   * One page of a catalog, filtered and ordered by the server.
+   *
+   * The shape is Spring Data's `PagedModel` — `content` plus a `page` envelope
+   * — rather than a bare array: the bestiary is 330 creatures and the finder has
+   * no business holding all of them to show twenty.
+   */
+  list(path: string, opts: CatalogPageRequest = {}): Observable<CatalogPage> {
+    let params = new HttpParams().set('page', opts.page ?? 0);
+    if (opts.size != null) params = params.set('size', opts.size);
+    if (opts.query) params = params.set('query', opts.query);
+    if (opts.includeLegacy === false) params = params.set('includeLegacy', false);
+    return this.http.get<CatalogPage>(this.url(path), { params });
+  }
+
+  /**
+   * Every base row of one item category. The editor's pickers need whole closed
+   * sets — the five kinds of ammunition — which a page of names does not give.
+   */
+  byCategory(category: string): Observable<CatalogItem[]> {
+    return this.http.get<CatalogItem[]>(`${this.url('item')}/by-category/${category}`);
+  }
+
+  /**
+   * Which SRD editions this catalog draws on. Asked for separately because a
+   * page can't answer it: with the edition toggle already off, the rows it
+   * would have to prove itself with are exactly the ones missing.
+   */
+  editions(path: string): Observable<readonly string[]> {
+    return this.http.get<readonly string[]>(`${this.url(path)}/editions`);
+  }
+
+  /**
+   * One row in full. A list row can be a summary — the bestiary omits stat
+   * blocks, or the response is well over a megabyte — so opening an entry
+   * fetches the rest.
+   */
+  get(path: string, id: string): Observable<CatalogItem> {
+    return this.http.get<CatalogItem>(`${this.url(path)}/${id}`);
   }
 
   create(path: string, body: Record<string, unknown>): Observable<CatalogItem> {

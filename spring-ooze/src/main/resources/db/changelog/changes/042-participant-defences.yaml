@@ -1,0 +1,38 @@
+databaseChangeLog:
+  # Phase 4 needs a target to have something to hit and something to resist.
+  # Both live on the participant rather than being looked up: it *is* the
+  # creature for the duration of the fight, so scaling and any private stat block
+  # were already resolved when the battle started, and resolution reads one row.
+
+  - changeSet:
+      id: 042-participant-armor-class
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: participants
+            columns:
+              - column: {name: armor_class, type: INT, constraints: {nullable: false}, defaultValueNumeric: 10}
+
+  - changeSet:
+      id: 042-participant-damage-responses
+      author: oozengine
+      # A resistance the engine forgets is a creature taking double what it
+      # should, which reads as a damage bug rather than a lookup one.
+      changes:
+        - createTable:
+            tableName: participant_damage_responses
+            columns:
+              - column: {name: participant_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: damage_type, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: response, type: VARCHAR(16), constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: participant_damage_responses
+            columnNames: participant_id, damage_type
+            constraintName: pk_participant_damage_responses
+        - addForeignKeyConstraint:
+            constraintName: fk_participant_damage_responses_participant
+            baseTableName: participant_damage_responses
+            baseColumnNames: participant_id
+            referencedTableName: participants
+            referencedColumnNames: id
+            onDelete: CASCADE

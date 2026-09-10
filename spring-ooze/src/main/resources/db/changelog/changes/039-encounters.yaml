@@ -1,0 +1,154 @@
+databaseChangeLog:
+  # Phase 1 of the simulator: a saved setup. A map, its painted terrain, and
+  # everything placed on it. Nothing here changes during a fight — that belongs
+  # to a Battle, so an Encounter can be run ten times without accumulating scars.
+
+  - changeSet:
+      id: 039-battle-maps
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: battle_maps
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: width, type: INT, constraints: {nullable: false}, defaultValueNumeric: 20}
+              - column: {name: height, type: INT, constraints: {nullable: false}, defaultValueNumeric: 20}
+              - column: {name: cell_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 5}
+              - column: {name: default_terrain, type: VARCHAR(16), constraints: {nullable: false}, defaultValue: FLOOR}
+              - column: {name: default_light, type: VARCHAR(16), constraints: {nullable: false}, defaultValue: BRIGHT}
+        - sql:
+            comment: >-
+              A guardrail rather than a technical limit. 60x60 at 5 feet is a
+              300-foot square, which is a bigger battlefield than anyone runs,
+              and a cell_feet of 1 lets a DM paint finer terrain than the tokens
+              are placed on.
+            sql: >-
+              ALTER TABLE battle_maps ADD CONSTRAINT ck_battle_maps_bounds
+              CHECK (width BETWEEN 1 AND 60 AND height BETWEEN 1 AND 60
+                     AND cell_feet BETWEEN 1 AND 20)
+
+  - changeSet:
+      id: 039-map-cells
+      author: oozengine
+      # Sparse: a row exists only where the square differs from the map's
+      # defaults. A 40x40 board is 1,600 squares and nearly all of them are
+      # plain lit floor.
+      changes:
+        - createTable:
+            tableName: map_cells
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: battle_map_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: x, type: INT, constraints: {nullable: false}}
+              - column: {name: y, type: INT, constraints: {nullable: false}}
+              - column: {name: elevation_feet, type: INT}
+              - column: {name: terrain, type: VARCHAR(16)}
+              - column: {name: light, type: VARCHAR(16)}
+              - column: {name: cover, type: VARCHAR(16)}
+              - column: {name: opaque, type: BOOLEAN}
+              - column: {name: extra_move_cost_feet, type: INT}
+              - column: {name: notes, type: TEXT}
+        - addForeignKeyConstraint:
+            constraintName: fk_map_cells_map
+            baseTableName: map_cells
+            baseColumnNames: battle_map_id
+            referencedTableName: battle_maps
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addUniqueConstraint:
+            constraintName: uq_map_cells_position
+            tableName: map_cells
+            columnNames: battle_map_id, x, y
+
+  - changeSet:
+      id: 039-encounters
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: encounters
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: owner_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: name, type: VARCHAR(200), constraints: {nullable: false}}
+              - column: {name: description, type: TEXT}
+              - column: {name: battle_map_id, type: UUID, constraints: {nullable: false}}
+        - addForeignKeyConstraint:
+            constraintName: fk_encounters_map
+            baseTableName: encounters
+            baseColumnNames: battle_map_id
+            referencedTableName: battle_maps
+            referencedColumnNames: id
+        # owner_id carries no foreign key, matching `characters` in 010: the
+        # Keycloak user mirror is provisioned just-in-time, so a constraint here
+        # would make placing an encounter depend on the order two unrelated
+        # things happened in.
+        - createIndex:
+            indexName: ix_encounters_owner
+            tableName: encounters
+            columns: [{column: {name: owner_id}}, {column: {name: name}}]
+
+  - changeSet:
+      id: 039-combatants
+      author: oozengine
+      # Positions are in half-feet, the engine's length unit: every distance the
+      # SRD states is a multiple of 5 feet and a Tiny creature's square is 2 1/2,
+      # so half-feet make every one of them an exact integer.
+      changes:
+        - createTable:
+            tableName: combatants
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: encounter_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: game_character_id, type: UUID}
+              - column: {name: name, type: VARCHAR(200)}
+              - column: {name: x_half_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: y_half_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: z_half_feet, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: disposition, type: VARCHAR(16), constraints: {nullable: false}, defaultValue: ACTIVE}
+              - column: {name: surprised, type: BOOLEAN, constraints: {nullable: false}, defaultValueBoolean: false}
+              - column: {name: max_hit_points, type: INT}
+              - column: {name: size, type: VARCHAR(16)}
+              - column: {name: notes, type: TEXT}
+        - addForeignKeyConstraint:
+            constraintName: fk_combatants_encounter
+            baseTableName: combatants
+            baseColumnNames: encounter_id
+            referencedTableName: encounters
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            constraintName: fk_combatants_stat_block
+            baseTableName: combatants
+            baseColumnNames: stat_block_id
+            referencedTableName: stat_blocks
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            constraintName: fk_combatants_character
+            baseTableName: combatants
+            baseColumnNames: game_character_id
+            referencedTableName: characters
+            referencedColumnNames: id
+        - sql:
+            comment: >-
+              A combatant is one thing or the other. Both set would leave the
+              engine two stat blocks to execute and no rule for choosing.
+            sql: >-
+              ALTER TABLE combatants ADD CONSTRAINT ck_combatants_single_base
+              CHECK (num_nonnulls(stat_block_id, game_character_id) = 1)
+        - createIndex:
+            indexName: ix_combatants_encounter
+            tableName: combatants
+            columns: [{column: {name: encounter_id}}]

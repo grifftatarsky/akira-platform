@@ -15,7 +15,11 @@
              class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" />
     </label>
 
-    @if (metaInputs().length) {
+    @if (usesStatBlock()) {
+      <ooze-stat-block-editor [statBlock]="statBlock()" />
+    }
+
+    @if (!usesStatBlock() && metaInputs().length) {
       <div class="grid grid-cols-2 gap-2">
         @for (f of metaInputs(); track f.key) {
           <label class="grid gap-1 text-xs font-medium text-fg-subtle">
@@ -23,6 +27,7 @@
             @switch (f.kind) {
               @case ('select') {
                 <select [formControlName]="f.key"
+                        (change)="onSelectChange(f.key, $any($event.target).value)"
                         class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
                   @for (o of f.options; track o.value) {<option [ngValue]="o.value">{{ o.label }}</option>}
                 </select>
@@ -41,7 +46,7 @@
       </div>
     }
 
-    @if (metaBooleans().length) {
+    @if (!usesStatBlock() && metaBooleans().length) {
       <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-fg-muted">
         @for (f of metaBooleans(); track f.key) {
           <label class="inline-flex items-center gap-1.5">
@@ -49,6 +54,14 @@
           </label>
         }
       </div>
+    }
+
+    @if (usesItemDetail()) {
+      <ooze-item-editor [item]="item()" [category]="editedCategory()" />
+    }
+
+    @if (usesClassDetail()) {
+      <ooze-class-editor [item]="item()" />
     }
 
     @for (f of proseFields(); track f.key) {
@@ -79,6 +92,11 @@
       <div>
         <h3 class="text-lg font-semibold tracking-tight text-fg">{{ it.name }}</h3>
         @if (subtitle(it); as sub) {<p class="text-xs text-fg-muted">{{ sub }}</p>}
+        @if (it.srdVersion === 'SRD_5_1') {
+          <p class="mt-1 text-[0.7rem] text-fg-subtle">
+            From SRD 5.1 (2014 rules). SRD 5.2 has no equivalent of this entry.
+          </p>
+        }
       </div>
       @if (it.base) {
         <span class="shrink-0 rounded border border-rule bg-bg-muted px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wide text-fg-subtle">Base</span>
@@ -89,9 +107,9 @@
       }
     </div>
 
-    @if (metaInputs().length) {
+    @if (metaFields().length) {
       <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-        @for (f of metaInputs(); track f.key) {
+        @for (f of metaFields(); track f.key) {
           @if (hasValue(it, f)) {
             <div><dt class="text-fg-subtle">{{ f.label }}</dt><dd class="text-fg">{{ display(it, f) }}</dd></div>
           }
@@ -114,6 +132,50 @@
           <p class="whitespace-pre-line text-sm/6 text-fg-muted">{{ display(it, f) }}</p>
         </div>
       }
+    }
+
+    @if (spellBands().length) {
+      <div class="grid gap-1 border-t border-rule pt-3">
+        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Spells</p>
+        @for (band of spellBands(); track band.label) {
+          <p class="text-sm/6 text-fg-muted">
+            <span class="font-semibold text-fg">{{ band.label }}:</span> {{ band.spells }}
+          </p>
+        }
+      </div>
+    }
+
+    @if (usesClassDetail()) {
+      <div class="border-t border-rule pt-3">
+        <ooze-class-detail [item]="it" />
+      </div>
+    }
+
+    @if (!usesClassDetail() && features().length) {
+      <div class="grid gap-2 border-t border-rule pt-3">
+        @for (ft of features(); track ft.id) {
+          <div>
+            <p class="text-sm font-semibold text-fg">
+              {{ ft.name }}
+              @if (ft.activation !== 'ACTION') {
+                <span class="ml-1 rounded border border-rule px-1 py-px align-middle text-[0.6rem] font-medium uppercase tracking-wide text-fg-subtle">{{ activationLabel(ft) }}</span>
+              }
+              @if (ft.rechargeMin) {
+                <span class="ml-1 rounded border border-rule px-1 py-px align-middle text-[0.6rem] font-medium text-fg-subtle">Recharge {{ ft.rechargeMin }}–{{ ft.rechargeMax }}</span>
+              }
+            </p>
+            @if (attackLine(ft); as line) {
+              <p class="font-mono text-[0.7rem] text-accent">{{ line }}</p>
+            }
+            @if (planLine(ft); as plan) {
+              <p class="font-mono text-[0.7rem] text-accent">{{ plan }}</p>
+            }
+            @if (ft.description) {
+              <p class="whitespace-pre-line text-sm/6 text-fg-muted">{{ ft.description }}</p>
+            }
+          </div>
+        }
+      </div>
     }
 
     @if (canEdit()) {

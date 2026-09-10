@@ -1,0 +1,171 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 025 — bring feats and backgrounds in line with the SRD.
+  #
+  # 012, 013 and 009 seeded the full 2024 Player's Handbook lists. Only part of
+  # that is licensed to us: SRD 5.2 contains exactly 17 feats and 4 backgrounds,
+  # and the rest carry no CC-BY grant, while the dashboard's SRD policy claims
+  # we stock only what the SRD covers. This changeset makes that true.
+  #
+  # First deletes and updates in this changelog. Earlier changesets are
+  # immutable once applied, so correcting seeded rows has to happen forward,
+  # here, rather than by editing 009/012/013.
+  #
+  # Deleting a base row does not touch user content: fk_feats_overrides and
+  # fk_backgrounds_overrides are ON DELETE SET NULL, so a DM who had overridden
+  # one of these keeps their copy as standalone owned content. The matching
+  # hidden_content suppressions are cleaned up first — they point at base ids
+  # that are about to stop existing.
+  # ==========================================================================
+
+  - changeSet:
+      id: 025-drop-non-srd-feat-suppressions
+      author: oozengine
+      changes:
+        - delete:
+            tableName: hidden_content
+            where: >-
+              content_type = 'FEAT' AND base_id IN (
+                SELECT id FROM feats WHERE owner_id IS NULL AND name IN (
+                  'Actor', 'Athlete', 'Blind Fighting', 'Boon of Energy Resistance',
+                  'Boon of Fortitude', 'Boon of Skill', 'Boon of Speed', 'Charger',
+                  'Crafter', 'Crossbow Expert', 'Defensive Duelist', 'Dual Wielder',
+                  'Dueling', 'Durable', 'Great Weapon Master', 'Healer',
+                  'Heavy Armor Master', 'Inspiring Leader', 'Interception', 'Lucky',
+                  'Musician', 'Polearm Master', 'Protection', 'Resilient', 'Sentinel',
+                  'Sharpshooter', 'Shield Master', 'Skill Expert', 'Speedy',
+                  'Tavern Brawler', 'Thrown Weapon Fighting', 'Tough',
+                  'Unarmed Fighting', 'War Caster'))
+
+  - changeSet:
+      id: 025-drop-non-srd-feats
+      author: oozengine
+      changes:
+        - delete:
+            tableName: feats
+            where: >-
+              owner_id IS NULL AND name IN (
+                'Actor', 'Athlete', 'Blind Fighting', 'Boon of Energy Resistance',
+                'Boon of Fortitude', 'Boon of Skill', 'Boon of Speed', 'Charger',
+                'Crafter', 'Crossbow Expert', 'Defensive Duelist', 'Dual Wielder',
+                'Dueling', 'Durable', 'Great Weapon Master', 'Healer',
+                'Heavy Armor Master', 'Inspiring Leader', 'Interception', 'Lucky',
+                'Musician', 'Polearm Master', 'Protection', 'Resilient', 'Sentinel',
+                'Sharpshooter', 'Shield Master', 'Skill Expert', 'Speedy',
+                'Tavern Brawler', 'Thrown Weapon Fighting', 'Tough',
+                'Unarmed Fighting', 'War Caster')
+
+  - changeSet:
+      id: 025-seed-missing-srd-feats
+      author: oozengine
+      # The three SRD feats 012/013 never seeded. Ids continue the fea70000
+      # walk (013 ended at ...0030). Stats are facts; descriptions are ours.
+      changes:
+        - insert: {tableName: feats, columns: [{column: {name: id, value: "fea70000-0000-4000-a000-000000000031"}}, {column: {name: created_at, valueComputed: "now()"}}, {column: {name: updated_at, valueComputed: "now()"}}, {column: {name: version, valueNumeric: 0}}, {column: {name: name, value: "Grappler"}}, {column: {name: feat_category, value: "General"}}, {column: {name: prerequisite, value: "Level 4+, Strength or Dexterity 13+"}}, {column: {name: description, value: "+1 to Strength or Dexterity (max 20). Once per turn, hitting with an Unarmed Strike as part of the Attack action lets you use both the Damage and the Grapple options. You have Advantage on attack rolls against creatures you have Grappled, and dragging one your size or smaller along costs no extra movement."}}]}
+        - insert: {tableName: feats, columns: [{column: {name: id, value: "fea70000-0000-4000-a000-000000000032"}}, {column: {name: created_at, valueComputed: "now()"}}, {column: {name: updated_at, valueComputed: "now()"}}, {column: {name: version, valueNumeric: 0}}, {column: {name: name, value: "Boon of Spell Recall"}}, {column: {name: feat_category, value: "Epic Boon"}}, {column: {name: prerequisite, value: "Level 19+, Spellcasting feature"}}, {column: {name: description, value: "+1 to Intelligence, Wisdom, or Charisma (max 30). Whenever you cast a spell with a level 1-4 spell slot, roll 1d4; if the number matches the slot's level, the slot isn't expended."}}]}
+        - insert: {tableName: feats, columns: [{column: {name: id, value: "fea70000-0000-4000-a000-000000000033"}}, {column: {name: created_at, valueComputed: "now()"}}, {column: {name: updated_at, valueComputed: "now()"}}, {column: {name: version, valueNumeric: 0}}, {column: {name: name, value: "Boon of the Night Spirit"}}, {column: {name: feat_category, value: "Epic Boon"}}, {column: {name: prerequisite, value: "Level 19+"}}, {column: {name: description, value: "+1 to an ability score (max 30). While in Dim Light or Darkness you can give yourself the Invisible condition as a Bonus Action — it ends as soon as you take an action, Bonus Action, or Reaction — and you have Resistance to all damage except Psychic and Radiant."}}]}
+
+  - changeSet:
+      id: 025-correct-srd-feats
+      author: oozengine
+      # Six of the fourteen retained feats were summarised from pre-2024 text.
+      # Boon of Fate was the worst of them (d10 and a per-rest budget, where
+      # SRD 5.2 says 2d4 and a recharge on Initiative or a rest), and Boon of
+      # Combat Prowess carried a "not a Critical Hit" clause the 2024 feat
+      # doesn't have. The rest are wording precision.
+      changes:
+        - update:
+            tableName: feats
+            where: owner_id IS NULL AND name = 'Magic Initiate'
+            columns:
+              - column: {name: description, value: "Learn two cantrips and one level 1 spell from the Cleric, Druid, or Wizard spell list, using Intelligence, Wisdom, or Charisma as your spellcasting ability. The level 1 spell is always prepared and can be cast once without a slot per Long Rest, or with slots you have. Repeatable, with a different list each time."}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: feats
+            where: owner_id IS NULL AND name = 'Skilled'
+            columns:
+              - column: {name: description, value: "Gain proficiency in any combination of three skills or tools of your choice. You can take this feat more than once."}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: feats
+            where: owner_id IS NULL AND name = 'Defense'
+            columns:
+              - column: {name: description, value: "While you are wearing Light, Medium, or Heavy armor, you gain a +1 bonus to Armor Class."}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: feats
+            where: owner_id IS NULL AND name = 'Two-Weapon Fighting'
+            columns:
+              - column: {name: description, value: "When you make an extra attack as a result of using a weapon that has the Light property, you can add your ability modifier to that attack's damage if you aren't already adding it."}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: feats
+            where: owner_id IS NULL AND name = 'Boon of Combat Prowess'
+            columns:
+              - column: {name: description, value: "+1 to an ability score (max 30). When you miss with an attack roll, you can hit instead; you can't do it again until the start of your next turn."}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: feats
+            where: owner_id IS NULL AND name = 'Boon of Fate'
+            columns:
+              - column: {name: description, value: "+1 to an ability score (max 30). When you or a creature within 60 feet succeeds on or fails a D20 Test, you can roll 2d4 and apply the total as a bonus or penalty to that d20 roll. You can't do it again until you roll Initiative or finish a Short or Long Rest."}
+              - column: {name: updated_at, valueComputed: "now()"}
+
+  - changeSet:
+      id: 025-drop-non-srd-background-suppressions
+      author: oozengine
+      changes:
+        - delete:
+            tableName: hidden_content
+            where: >-
+              content_type = 'BACKGROUND' AND base_id IN (
+                SELECT id FROM backgrounds WHERE owner_id IS NULL AND name IN (
+                  'Artisan', 'Charlatan', 'Entertainer', 'Farmer', 'Guard', 'Guide',
+                  'Hermit', 'Merchant', 'Noble', 'Sailor', 'Scribe', 'Wayfarer'))
+
+  - changeSet:
+      id: 025-drop-non-srd-backgrounds
+      author: oozengine
+      # Every one of these named a feat that 025 just deleted, so they would
+      # otherwise be left pointing at nothing. SRD 5.2 keeps four backgrounds;
+      # Acolyte, Criminal, Sage and Soldier all name feats we still have.
+      changes:
+        - delete:
+            tableName: backgrounds
+            where: >-
+              owner_id IS NULL AND name IN (
+                'Artisan', 'Charlatan', 'Entertainer', 'Farmer', 'Guard', 'Guide',
+                'Hermit', 'Merchant', 'Noble', 'Sailor', 'Scribe', 'Wayfarer')
+
+  - changeSet:
+      id: 025-complete-srd-backgrounds
+      author: oozengine
+      # 009 seeded the four SRD backgrounds with a NULL equipment column, so
+      # the finder's "Equipment" block rendered empty on all of them. These are
+      # the SRD's own packages, verbatim in substance.
+      changes:
+        - update:
+            tableName: backgrounds
+            where: owner_id IS NULL AND name = 'Acolyte'
+            columns:
+              - column: {name: equipment, value: "Choose A or B: (A) Calligrapher's Supplies, Book (prayers), Holy Symbol, Parchment (10 sheets), Robe, 8 GP; or (B) 50 GP"}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: backgrounds
+            where: owner_id IS NULL AND name = 'Criminal'
+            columns:
+              - column: {name: equipment, value: "Choose A or B: (A) 2 Daggers, Thieves' Tools, Crowbar, 2 Pouches, Traveler's Clothes, 16 GP; or (B) 50 GP"}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: backgrounds
+            where: owner_id IS NULL AND name = 'Sage'
+            columns:
+              - column: {name: equipment, value: "Choose A or B: (A) Quarterstaff, Calligrapher's Supplies, Book (history), Parchment (8 sheets), Robe, 8 GP; or (B) 50 GP"}
+              - column: {name: updated_at, valueComputed: "now()"}
+        - update:
+            tableName: backgrounds
+            where: owner_id IS NULL AND name = 'Soldier'
+            columns:
+              - column: {name: equipment, value: "Choose A or B: (A) Spear, Shortbow, 20 Arrows, Gaming Set (the one you chose), Healer's Kit, Quiver, Traveler's Clothes, 14 GP; or (B) 50 GP"}
+              - column: {name: tool_proficiencies, value: "One kind of Gaming Set of your choice"}
+              - column: {name: updated_at, valueComputed: "now()"}

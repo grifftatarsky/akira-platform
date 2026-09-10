@@ -7,19 +7,15 @@ import com.gpt.oozengine.model.dto.response.FeatResponse;
 import com.gpt.oozengine.repository.CatalogRepository;
 import com.gpt.oozengine.repository.FeatRepository;
 import com.gpt.oozengine.repository.HiddenContentRepository;
-import java.util.Comparator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class FeatService extends AbstractCatalogService<Feat, FeatRequest, FeatResponse> {
 
   private final FeatRepository feats;
   private final HiddenContentRepository hidden;
-
-  public FeatService(FeatRepository feats, HiddenContentRepository hidden) {
-    this.feats = feats;
-    this.hidden = hidden;
-  }
 
   @Override
   protected CatalogRepository<Feat> repo() {
@@ -42,15 +38,11 @@ public class FeatService extends AbstractCatalogService<Feat, FeatRequest, FeatR
   }
 
   @Override
-  protected Comparator<Feat> listOrder() {
-    return Comparator.comparing(Feat::getName, String.CASE_INSENSITIVE_ORDER);
-  }
-
-  @Override
   protected void apply(FeatRequest r, Feat f) {
     f.setName(r.name());
-    f.setFeatCategory(r.featCategory());
+    f.setCategory(r.category());
     f.setPrerequisite(r.prerequisite());
+    f.setRepeatable(r.repeatable());
     f.setDescription(r.description());
   }
 

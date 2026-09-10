@@ -1,0 +1,182 @@
+<form [formGroup]="form" class="flex flex-col gap-4">
+
+  <!-- WEAPON — the Weapons table's row -->
+  @if (showWeapon()) {
+    <fieldset class="grid gap-2">
+      <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Weapon</legend>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">
+        Category
+        <select formControlName="weaponCategory"
+                class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+          <option [ngValue]="null">Not a weapon</option>
+          @for (c of weaponCategories; track c) {<option [ngValue]="c">{{ label(c) }}</option>}
+        </select>
+      </label>
+
+      <div class="grid grid-cols-4 gap-2">
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Dice
+          <input type="number" min="0" formControlName="diceCount"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Faces
+          <input type="number" min="0" formControlName="diceFaces"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Bonus
+          <input type="number" formControlName="diceBonus"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Type
+          <select formControlName="damageType"
+                  class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+            <option [ngValue]="null">—</option>
+            @for (d of damageTypes; track d) {<option [ngValue]="d">{{ label(d) }}</option>}
+          </select></label>
+      </div>
+      <p class="text-[0.65rem] text-fg-subtle">
+        A Blowgun deals a flat 1 — a bonus with no die is a legal weapon.
+      </p>
+
+      <div class="grid grid-cols-2 gap-2">
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Versatile dice
+          <input type="number" min="0" formControlName="versatileDiceCount"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Versatile faces
+          <input type="number" min="0" formControlName="versatileDiceFaces"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      </div>
+
+      <div class="grid gap-1">
+        <span class="text-xs font-medium text-fg-subtle">Properties</span>
+        <div class="flex flex-wrap gap-1.5">
+          @for (p of weaponProperties; track p) {
+            <button type="button" (click)="toggleProperty(p)"
+                    [attr.aria-pressed]="hasProperty(p)"
+                    [attr.data-on]="hasProperty(p) ? 'true' : null"
+                    class="rounded-md border border-rule px-2 py-1 text-[0.7rem] text-fg-muted transition hover:bg-bg-subtle data-[on=true]:border-accent data-[on=true]:bg-accent-subtle data-[on=true]:text-fg">
+              {{ label(p) }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Mastery
+          <select formControlName="masteryId"
+                  class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+            <option [ngValue]="null">—</option>
+            @for (m of masteries(); track m.id) {<option [ngValue]="m.id">{{ m.name }}</option>}
+          </select></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Ammunition
+          <select formControlName="ammunitionId"
+                  class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+            <option [ngValue]="null">—</option>
+            @for (a of ammunition(); track a.id) {<option [ngValue]="a.id">{{ a.name }}</option>}
+          </select></label>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2">
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Range (ft)
+          <input type="number" min="0" formControlName="rangeNormalFeet"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Long range
+          <input type="number" min="0" formControlName="rangeLongFeet"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Reach (ft)
+          <input type="number" min="0" formControlName="reachFeet"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      </div>
+    </fieldset>
+  }
+
+  <!-- ARMOR — stored as the AC formula, not as a total -->
+  @if (showArmor()) {
+    <fieldset class="grid gap-2">
+      <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Armor</legend>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Training
+          <select formControlName="armorCategory"
+                  class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+            <option [ngValue]="null">Not armor</option>
+            @for (c of armorCategories; track c) {<option [ngValue]="c">{{ label(c) }}</option>}
+          </select></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Base AC
+          <input type="number" min="0" formControlName="baseArmorClass"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      </div>
+      <div class="grid grid-cols-3 gap-2">
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Dex cap
+          <input type="number" min="0" formControlName="dexterityCap"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">Min Strength
+          <input type="number" min="0" formControlName="strengthRequirement"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">AC bonus
+          <input type="number" formControlName="armorClassBonus"
+                 class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      </div>
+      <div class="flex flex-wrap gap-4">
+        <label class="flex cursor-pointer items-center gap-2 text-xs text-fg-muted">
+          <input type="checkbox" formControlName="addsDexterity" class="size-3.5 accent-accent" />
+          Adds Dexterity modifier
+        </label>
+        <label class="flex cursor-pointer items-center gap-2 text-xs text-fg-muted">
+          <input type="checkbox" formControlName="stealthDisadvantage" class="size-3.5 accent-accent" />
+          Disadvantage on Stealth
+        </label>
+      </div>
+      <p class="text-[0.65rem] text-fg-subtle">
+        AC is stored as its parts, so a wearer's total follows their Dexterity.
+        A Shield sets an AC bonus instead of a base.
+      </p>
+    </fieldset>
+  }
+
+  <!-- CROSS-REFERENCES — a tool's Craft list, a magic item's base items -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Linked items</legend>
+
+    @for (group of [{ key: 'crafts', label: 'Crafts', list: crafts() },
+                    { key: 'baseOptions', label: 'Applies to', list: baseOptions() }]; track group.key) {
+      <div class="grid gap-1">
+        <span class="text-xs font-medium text-fg-subtle">{{ group.label }}</span>
+        @if (group.list.length) {
+          <div class="flex flex-wrap gap-1.5">
+            @for (ref of group.list; track ref.id) {
+              <span class="inline-flex items-center gap-1 rounded-md border border-rule bg-bg-subtle px-2 py-0.5 text-[0.7rem] text-fg-muted">
+                {{ ref.name }}
+                <button type="button" (click)="removeLink($any(group.key), ref.id)"
+                        [attr.aria-label]="'Remove ' + ref.name"
+                        class="text-fg-subtle transition hover:text-danger">×</button>
+              </span>
+            }
+          </div>
+        } @else {
+          <p class="text-[0.7rem] text-fg-subtle">None.</p>
+        }
+      </div>
+    }
+
+    <div class="grid gap-1">
+      <div class="flex gap-2">
+        <select [value]="linkTarget()" (change)="linkTarget.set($any($event.target).value)"
+                class="shrink-0 rounded-md border border-rule bg-bg px-2 py-1.5 text-xs text-fg">
+          <option value="crafts">Crafts</option>
+          <option value="baseOptions">Applies to</option>
+        </select>
+        <input type="search" [value]="linkSearch()" (input)="linkSearch.set($any($event.target).value)"
+               placeholder="Search items to link…"
+               class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" />
+      </div>
+      @if (linkResults().length) {
+        <ul class="grid max-h-40 gap-0.5 overflow-y-auto rounded-md border border-rule p-1">
+          @for (r of linkResults(); track r.id) {
+            <li>
+              <button type="button" (click)="addLink(r)"
+                      class="w-full rounded px-2 py-1 text-left text-xs text-fg-muted transition hover:bg-bg-subtle hover:text-fg">
+                {{ r.name }}
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </fieldset>
+</form>

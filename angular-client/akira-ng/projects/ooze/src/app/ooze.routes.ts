@@ -14,6 +14,37 @@ export const OOZE_ROUTES: Routes = [
     component: OozeLayout,
     children: [
       { path: '', component: OozeDashboard, data: { title: 'Oozengine' } },
+      {
+        // A board with nothing behind it, so the renderer can be looked at
+        // without a database, a Keycloak or a signed-in DM.
+        path: 'board',
+        loadComponent: () => import('./board/board-demo').then(m => m.BoardDemo),
+        data: { title: 'Board preview' },
+      },
+      {
+        // The way in to a real board. Not lazy — it is a list and a form, and
+        // making it lazy would put a chunk load between a DM and the screen
+        // they reach for most.
+        path: 'encounters',
+        loadComponent: () =>
+          import('./encounters/encounter-list').then(m => m.EncounterList),
+        data: { title: 'Encounters' },
+      },
+      {
+        // Before the `:encounterId` route below, or that one swallows it —
+        // Angular matches routes in the order they are declared.
+        path: 'board/road',
+        loadComponent: () => import('./board/road-demo').then(m => m.RoadDemo),
+        data: { title: 'The road' },
+      },
+      {
+        // Lazy, and deliberately so: three is ~130 KB gzipped and the finder
+        // has no use for it, so the compendium should not pay for a renderer
+        // nobody has opened.
+        path: 'board/:encounterId',
+        loadComponent: () => import('./board/board-page').then(m => m.BoardPage),
+        data: { title: 'Board' },
+      },
     ],
   },
 ];

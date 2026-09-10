@@ -1,0 +1,424 @@
+<form [formGroup]="form" class="flex flex-col gap-4">
+
+  <!-- HEADER LINE -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Creature</legend>
+    <div class="grid grid-cols-2 gap-2">
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">
+        Size
+        <select formControlName="size" class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+          <option [ngValue]="null">—</option>
+          @for (s of sizes; track s) {<option [ngValue]="s">{{ label(s) }}</option>}
+        </select>
+      </label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">
+        Type
+        <select formControlName="creatureType" class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+          <option [ngValue]="null">—</option>
+          @for (t of creatureTypes; track t) {<option [ngValue]="t">{{ label(t) }}</option>}
+        </select>
+      </label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">
+        Subtype
+        <input type="text" formControlName="creatureSubtype" placeholder="Goblinoid"
+               class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" />
+      </label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">
+        Alignment
+        <select formControlName="alignment" class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg">
+          <option [ngValue]="null">—</option>
+          @for (a of alignments; track a) {<option [ngValue]="a">{{ label(a) }}</option>}
+        </select>
+      </label>
+    </div>
+  </fieldset>
+
+  <!-- DEFENCES -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Defences</legend>
+    <div class="grid grid-cols-3 gap-2">
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">AC
+        <input type="number" formControlName="armorClass" class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Initiative
+        <input type="number" formControlName="initiativeBonus" class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">HP
+        <input type="number" formControlName="hitPointsAverage" class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Hit dice
+        <input type="number" formControlName="hitPointsDiceCount" placeholder="20"
+               class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">d
+        <input type="number" formControlName="hitPointsDiceFaces" placeholder="10"
+               class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Bonus
+        <input type="number" formControlName="hitPointsDiceBonus" placeholder="40"
+               class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+    </div>
+    <label class="grid gap-1 text-xs font-medium text-fg-subtle">AC note
+      <input type="text" formControlName="armorClassNote" placeholder="14 + the spell's level"
+             class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+  </fieldset>
+
+  <!-- SPEEDS -->
+  <fieldset class="grid gap-2" formGroupName="speeds">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Speed (ft.)</legend>
+    <div class="grid grid-cols-5 gap-2">
+      @for (m of movementTypes; track m) {
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">{{ label(m) }}
+          <input type="number" [formControlName]="m" min="0"
+                 class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+      }
+    </div>
+    <label class="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+      <input type="checkbox" [formControl]="$any(form.get('canHover'))" /> Can hover
+    </label>
+  </fieldset>
+
+  <!-- ABILITIES -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Ability scores</legend>
+    <div class="grid grid-cols-6 gap-1.5">
+      @for (a of abilities; track a) {
+        <label class="grid gap-1 text-center text-[0.65rem] font-medium text-fg-subtle">{{ a.slice(0, 3) }}
+          <input type="number" [formControl]="$any(form.get(a.toLowerCase()))" min="1" max="30"
+                 class="w-full rounded-md border border-rule bg-bg px-1 py-1.5 text-center text-sm text-fg" /></label>
+      }
+    </div>
+    <p class="text-[0.65rem] text-fg-subtle">Saving throws — leave blank to use the ability modifier.</p>
+    <div class="grid grid-cols-6 gap-1.5" formGroupName="saveBonuses">
+      @for (a of abilities; track a) {
+        <input type="number" [formControlName]="a" [attr.aria-label]="a + ' save'"
+               class="w-full rounded-md border border-rule bg-bg px-1 py-1.5 text-center text-sm text-fg" />
+      }
+    </div>
+  </fieldset>
+
+  <!-- SKILLS -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Skills</legend>
+    <div class="grid gap-1.5" formArrayName="skills">
+      @for (row of skills.controls; track $index; let i = $index) {
+        <div class="flex items-center gap-2" [formGroupName]="i">
+          <select formControlName="skill" class="min-w-0 flex-1 rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg">
+            @for (s of skillNames; track s) {<option [ngValue]="s">{{ label(s) }}</option>}
+          </select>
+          <input type="number" formControlName="bonus" aria-label="Bonus"
+                 class="w-20 rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" />
+          <button type="button" (click)="removeAt(skills, i)" aria-label="Remove skill"
+                  class="shrink-0 rounded-md border border-rule px-2 py-1.5 text-xs text-fg-muted transition hover:bg-bg-subtle">Remove</button>
+        </div>
+      }
+    </div>
+    <button type="button" (click)="addSkill()"
+            class="justify-self-start rounded-md border border-rule px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-bg-subtle">Add skill</button>
+  </fieldset>
+
+  <!-- SENSES -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Senses (ft.)</legend>
+    <div class="grid grid-cols-4 gap-2" formGroupName="senses">
+      @for (s of senseTypes; track s) {
+        <label class="grid gap-1 text-xs font-medium text-fg-subtle">{{ label(s) }}
+          <input type="number" [formControlName]="s" min="0"
+                 class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+      }
+    </div>
+    <div class="grid grid-cols-3 gap-2">
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Passive Perception
+        <input type="number" formControlName="passivePerception"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+      <label class="col-span-2 grid gap-1 text-xs font-medium text-fg-subtle">Telepathy (ft.)
+        <input type="number" formControlName="telepathyFeet"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+    </div>
+    <label class="grid gap-1 text-xs font-medium text-fg-subtle">Languages
+      <input type="text" formControlName="languages" placeholder="Deep Speech"
+             class="w-full rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm text-fg" /></label>
+  </fieldset>
+
+  <!-- DAMAGE RESPONSES -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Resistances &amp; immunities</legend>
+    <div class="grid gap-1.5" formArrayName="damageResponses">
+      @for (row of damageResponseRows.controls; track $index; let i = $index) {
+        <div class="flex items-center gap-2" [formGroupName]="i">
+          <select formControlName="response" class="w-32 shrink-0 rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg">
+            @for (r of damageResponses; track r) {<option [ngValue]="r">{{ label(r) }}</option>}
+          </select>
+          <select formControlName="damageType" class="w-32 shrink-0 rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg">
+            @for (d of damageTypes; track d) {<option [ngValue]="d">{{ label(d) }}</option>}
+          </select>
+          <input type="text" formControlName="qualifier" placeholder="from nonmagical attacks"
+                 class="min-w-0 flex-1 rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" />
+          <button type="button" (click)="removeAt(damageResponseRows, i)" aria-label="Remove"
+                  class="shrink-0 rounded-md border border-rule px-2 py-1.5 text-xs text-fg-muted transition hover:bg-bg-subtle">Remove</button>
+        </div>
+      }
+    </div>
+    <button type="button" (click)="addDamageResponse()"
+            class="justify-self-start rounded-md border border-rule px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-bg-subtle">Add response</button>
+
+    @if (conditions().length) {
+      <p class="mt-1 text-[0.65rem] font-medium text-fg-subtle">Condition immunities</p>
+      <div class="flex flex-wrap gap-x-3 gap-y-1">
+        @for (c of conditions(); track c.id) {
+          <label class="inline-flex items-center gap-1.5 text-xs text-fg-muted">
+            <input type="checkbox" [checked]="immunityIds().includes(c.id)" (change)="toggleImmunity(c.id)" />
+            {{ c.name }}
+          </label>
+        }
+      </div>
+    }
+  </fieldset>
+
+  <!-- CHALLENGE -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Challenge</legend>
+    <div class="grid grid-cols-3 gap-2">
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">CR
+        <input type="number" step="0.125" formControlName="challengeRating"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">XP
+        <input type="number" formControlName="experiencePoints"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Prof. bonus
+        <input type="number" formControlName="proficiencyBonus"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+    </div>
+    <div class="grid grid-cols-4 gap-2">
+      <label class="col-span-2 grid gap-1 text-xs font-medium text-fg-subtle">Casting ability
+        <select formControlName="spellcastingAbility" class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg">
+          <option [ngValue]="null">—</option>
+          @for (a of abilities; track a) {<option [ngValue]="a">{{ label(a) }}</option>}
+        </select></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Spell DC
+        <input type="number" formControlName="spellSaveDc"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+      <label class="grid gap-1 text-xs font-medium text-fg-subtle">Legendary
+        <input type="number" formControlName="legendaryActionUses" min="0"
+               class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-sm text-fg" /></label>
+    </div>
+  </fieldset>
+
+  <!-- FEATURES -->
+  <fieldset class="grid gap-2">
+    <legend class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+      Traits &amp; actions
+    </legend>
+    <div class="grid gap-3" formArrayName="features">
+      @for (f of features.controls; track $index; let i = $index) {
+        <div class="grid gap-2 rounded-lg border border-rule p-3" [formGroupName]="i">
+          <div class="flex items-center gap-2">
+            <input type="text" formControlName="name" placeholder="Tentacle" aria-label="Feature name"
+                   class="min-w-0 flex-1 rounded-md border border-rule bg-bg px-2.5 py-1.5 text-sm font-semibold text-fg" />
+            <select formControlName="activation" aria-label="Activation"
+                    class="w-36 shrink-0 rounded-md border border-rule bg-bg px-2 py-1.5 text-xs text-fg">
+              @for (a of activations; track a) {<option [ngValue]="a">{{ label(a) }}</option>}
+            </select>
+            <button type="button" (click)="removeAt(features, i)" aria-label="Remove feature"
+                    class="shrink-0 rounded-md border border-danger/40 px-2 py-1.5 text-xs text-danger transition hover:bg-danger-subtle">Remove</button>
+          </div>
+
+          <div class="grid grid-cols-4 gap-2">
+            <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Recharge
+              <select formControlName="usesReset" class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                @for (u of usesResets; track u) {<option [ngValue]="u">{{ label(u) }}</option>}
+              </select></label>
+            <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Uses
+              <input type="number" formControlName="usesMax" min="1"
+                     class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+            <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Recharge min
+              <input type="number" formControlName="rechargeMin" min="1" max="6"
+                     class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+            <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">max
+              <input type="number" formControlName="rechargeMax" min="1" max="6"
+                     class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+          </div>
+
+          <div class="grid grid-cols-4 gap-2">
+            <label class="col-span-2 grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Area
+              <select formControlName="areaShape" class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                <option [ngValue]="null">—</option>
+                @for (a of areaShapes; track a) {<option [ngValue]="a">{{ label(a) }}</option>}
+              </select></label>
+            <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Size (ft.)
+              <input type="number" formControlName="areaSizeFeet" min="0"
+                     class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+            <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Legendary cost
+              <input type="number" formControlName="legendaryCost" min="1"
+                     class="w-full rounded-md border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+          </div>
+
+          <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Trigger (for a Reaction)
+            <input type="text" formControlName="triggerText"
+                   class="w-full rounded-md border border-rule bg-bg px-2 py-1 text-xs text-fg" /></label>
+
+          <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Description
+            <textarea formControlName="description" rows="3"
+                      class="w-full rounded-md border border-rule bg-bg px-2 py-1.5 text-xs text-fg"></textarea></label>
+
+          <!-- MULTIATTACK LINES -->
+          <div class="grid gap-2 border-t border-rule pt-2" formArrayName="components">
+            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-fg-subtle">
+              Multiattack — which of this creature's actions it makes
+            </p>
+            @for (c of componentsOf($any(f)).controls; track $index; let j = $index) {
+              <div class="flex flex-wrap items-center gap-1.5 rounded-md border border-rule/70 p-2"
+                   [formGroupName]="j">
+                <input type="number" min="1" formControlName="count" aria-label="How many"
+                       class="w-14 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                <span class="text-[0.7rem] text-fg-subtle">×</span>
+                <select formControlName="referencedFeatureId" aria-label="Which action"
+                        class="min-w-40 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                  @for (t of targetsFor($any(f)); track t.id) {
+                    <option [ngValue]="t.id">{{ t.name }}</option>
+                  }
+                </select>
+                <select formControlName="mode" aria-label="How this line combines"
+                        class="w-36 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                  @for (m of componentModes; track m) {<option [ngValue]="m">{{ modeLabel[m] }}</option>}
+                </select>
+                <input type="number" min="0" formControlName="choiceGroup" placeholder="group"
+                       aria-label="Choice group — lines sharing one are alternatives"
+                       class="w-20 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                <label class="flex items-center gap-1 text-[0.65rem] text-fg-muted">
+                  <input type="checkbox" formControlName="optional" class="size-3 accent-accent" />
+                  optional
+                </label>
+                <button type="button" (click)="removeAt(componentsOf($any(f)), j)"
+                        aria-label="Remove line"
+                        class="ml-auto rounded border border-rule px-1.5 py-0.5 text-[0.65rem] text-fg-subtle transition hover:text-danger">×</button>
+              </div>
+            }
+            <div class="flex items-center gap-2">
+              <button type="button" (click)="addComponent($any(f))"
+                      [disabled]="!targetsFor($any(f)).length"
+                      class="justify-self-start rounded-md border border-rule px-2 py-1 text-[0.65rem] font-medium text-fg-muted transition hover:bg-bg-subtle disabled:opacity-50">Add line</button>
+              @if (!targetsFor($any(f)).length) {
+                <span class="text-[0.65rem] text-fg-subtle">
+                  A line points at another saved action — save the creature once first.
+                </span>
+              }
+            </div>
+            <p class="text-[0.65rem] leading-snug text-fg-subtle">
+              Lines sharing a group are alternatives: three attacks across two
+              weapons is two <em>choice</em> lines of 3 in group 0, not three of each.
+            </p>
+          </div>
+
+          <!-- RESOLUTION STEPS -->
+          <div class="grid gap-2 border-t border-rule pt-2" formArrayName="steps">
+            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-fg-subtle">
+              Resolution — one per roll the book asks for
+            </p>
+            @for (st of stepsOf($any(f)).controls; track $index; let k = $index) {
+              <div class="grid gap-1.5 rounded-md border border-rule/70 p-2" [formGroupName]="k">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="rounded bg-bg-muted px-1.5 py-0.5 text-[0.6rem] font-semibold text-fg-subtle">Step {{ k + 1 }}</span>
+                  @if (k > 0) {
+                    <select formControlName="trigger" aria-label="When this step happens"
+                            class="w-44 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                      @for (t of stepTriggers; track t) {<option [ngValue]="t">{{ label(t) }}</option>}
+                    </select>
+                  }
+                  <select formControlName="delivery" aria-label="Resolves by"
+                          class="w-36 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                    @for (d of deliveries; track d) {<option [ngValue]="d">{{ label(d) }}</option>}
+                  </select>
+                  <button type="button" (click)="removeAt(stepsOf($any(f)), k)" aria-label="Remove step"
+                          class="ml-auto rounded border border-rule px-2 py-1 text-[0.65rem] text-fg-muted transition hover:bg-bg-subtle">Remove step</button>
+                </div>
+
+                <div class="grid grid-cols-4 gap-1.5">
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Attack
+                    <select formControlName="attackKind" class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                      <option [ngValue]="null">—</option>
+                      @for (a of attackKinds; track a) {<option [ngValue]="a">{{ label(a) }}</option>}
+                    </select></label>
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">To hit
+                    <input type="number" formControlName="attackBonus"
+                           class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Save
+                    <select formControlName="saveAbility" class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                      <option [ngValue]="null">—</option>
+                      @for (a of abilities; track a) {<option [ngValue]="a">{{ label(a) }}</option>}
+                    </select></label>
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">DC
+                    <input type="number" formControlName="saveDc"
+                           class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+                </div>
+
+                <div class="grid grid-cols-4 gap-1.5">
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Reach (ft.)
+                    <input type="number" formControlName="reachFeet" min="0"
+                           class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Range
+                    <input type="number" formControlName="rangeFeet" min="0"
+                           class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Long
+                    <input type="number" formControlName="rangeLongFeet" min="0"
+                           class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+                  <label class="grid gap-1 text-[0.65rem] font-medium text-fg-subtle">Applies to
+                    <input type="text" formControlName="targetFilter" placeholder="If the target is a Humanoid"
+                           class="w-full rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" /></label>
+                </div>
+
+                <div class="grid gap-1.5" formArrayName="effects">
+                  @for (e of effectsOf($any(st)).controls; track $index; let j = $index) {
+                    <div class="grid gap-1.5 rounded bg-bg-subtle p-2" [formGroupName]="j">
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <select formControlName="outcome" aria-label="Outcome"
+                                class="w-44 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                          @for (o of effectOutcomes; track o) {<option [ngValue]="o">{{ label(o) }}</option>}
+                        </select>
+                        <select formControlName="kind" aria-label="Effect kind"
+                                class="w-36 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                          @for (kk of effectKinds; track kk) {<option [ngValue]="kk">{{ label(kk) }}</option>}
+                        </select>
+                        <input type="number" formControlName="diceCount" placeholder="2" aria-label="Dice count"
+                               class="w-14 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                        <span class="text-xs text-fg-subtle">d</span>
+                        <input type="number" formControlName="diceFaces" placeholder="6" aria-label="Dice faces"
+                               class="w-14 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                        <input type="number" formControlName="diceBonus" placeholder="+5" aria-label="Dice bonus"
+                               class="w-16 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                        <select formControlName="damageType" aria-label="Damage type"
+                                class="w-32 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                          <option [ngValue]="null">—</option>
+                          @for (d of damageTypes; track d) {<option [ngValue]="d">{{ label(d) }}</option>}
+                        </select>
+                        <button type="button" (click)="removeAt(effectsOf($any(st)), j)" aria-label="Remove effect"
+                                class="ml-auto rounded border border-rule px-2 py-1 text-[0.65rem] text-fg-muted transition hover:bg-bg">Remove</button>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-1.5">
+                        <label class="inline-flex items-center gap-1 text-[0.65rem] text-fg-muted">
+                          <input type="checkbox" formControlName="halfDamage" /> Half on success
+                        </label>
+                        <select formControlName="conditionId" aria-label="Condition applied"
+                                class="w-40 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg">
+                          <option [ngValue]="null">No condition</option>
+                          @for (c of conditions(); track c.id) {<option [ngValue]="c.id">{{ c.name }}</option>}
+                        </select>
+                        <input type="number" formControlName="escapeDc" placeholder="Escape DC" aria-label="Escape DC"
+                               class="w-28 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                        <input type="text" formControlName="notes" placeholder="Anything the fields can't carry"
+                               class="min-w-0 flex-1 rounded border border-rule bg-bg px-1.5 py-1 text-xs text-fg" />
+                      </div>
+                    </div>
+                  }
+                  <button type="button" (click)="addEffect($any(st))"
+                          class="justify-self-start rounded-md border border-rule px-2 py-1 text-[0.65rem] font-medium text-fg-muted transition hover:bg-bg-subtle">Add effect</button>
+                </div>
+              </div>
+            }
+            <button type="button" (click)="addStep($any(f))"
+                    class="justify-self-start rounded-md border border-rule px-2 py-1 text-[0.65rem] font-medium text-fg-muted transition hover:bg-bg-subtle">Add step</button>
+          </div>
+        </div>
+      }
+    </div>
+    <button type="button" (click)="addFeature()"
+            class="justify-self-start rounded-md border border-rule px-2.5 py-1 text-xs font-medium text-fg-muted transition hover:bg-bg-subtle">Add trait or action</button>
+  </fieldset>
+</form>

@@ -27,6 +27,14 @@ spring:
   threads:
     virtual:
       enabled: true
+  data:
+    web:
+      pageable:
+        # The finder asks for a page at a time. Capped because ?size= is a
+        # client-supplied number and the bestiary detail is not small — the
+        # default cap of 2000 would let one request pull the whole catalog.
+        default-page-size: 50
+        max-page-size: 200
   datasource:
     # Defaults match init-db.sh / .env so the module boots against the shared
     # Postgres without exported env vars. Tests override this via the
@@ -81,6 +89,7 @@ com:
             - /condition/**
             - /weapon-mastery/**
             - /glossary/**
+            - /trap/**
 # Log Levels #######################################################################################
 logging:
   level:

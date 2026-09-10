@@ -5,13 +5,23 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { EMPTY, catchError, distinctUntilChanged, map, of, switchMap, timer } from 'rxjs';
 import { RouterLink } from '@angular/router';
 import { ShellAuthService } from '../shell/shell-auth.service';
 import { CONTENT_TYPES, CatalogItem, ContentTypeDef } from './ooze-content.models';
-import { ContentService } from './content.service';
+import { CatalogPage, ContentService } from './content.service';
 import { ContentPanel } from './content-panel';
 import { FinderMenuBar } from './finder-menu-bar';
+
+/** What a list request is made of: the folder, and the two filters over it. */
+interface ListRequest {
+  readonly def: ContentTypeDef | null;
+  readonly query: string;
+  readonly includeLegacy: boolean;
+  /** Bumped to re-run the same request after a save. */
+  readonly tick: number;
+}
 
 interface ItemGroup {
   readonly key: string | number;
@@ -40,12 +50,31 @@ export class Finder {
   protected readonly folders = CONTENT_TYPES;
   protected readonly openDef = signal<ContentTypeDef | null>(null);
 
+  /**
+   * The rows loaded so far — page 0 plus whatever "Load more" has appended.
+   * Not the whole folder: searching and the edition toggle are the server's
+   * job now, so this only ever holds what has actually been shown.
+   */
   protected readonly all = signal<readonly CatalogItem[]>([]);
+  protected readonly total = signal(0);
+  private readonly pageNumber = signal(0);
   protected readonly loading = signal(false);
+  protected readonly loadingMore = signal(false);
   protected readonly loadError = signal(false);
   protected readonly search = signal('');
   protected readonly selectedId = signal<string | null>(null);
   protected readonly creating = signal(false);
+
+  /** Editions this folder draws on; the toggle only appears if 5.1 is one. */
+  private readonly editions = signal<readonly string[]>([]);
+
+  /** Bumped by a save, to re-run the current request. */
+  private readonly reloadTick = signal(0);
+
+  /** Reselected once the reload that a save triggered comes back. */
+  private pendingSelect: string | null = null;
+
+  protected readonly hasMore = computed(() => this.all().length < this.total());
 
   private readonly user = toSignal(this.shellAuth.user$);
   /** Editing is gated on the DUNGEON_MASTER role; everyone else is read-only. */
@@ -62,15 +91,21 @@ export class Finder {
     '&body=' +
     encodeURIComponent("Hey! I'm requesting access for Dungeon Master tools on Oozengine. Thanks!");
 
-  protected readonly filtered = computed(() => {
-    const q = this.search().trim().toLowerCase();
-    const list = this.all();
-    return q ? list.filter(i => i.name.toLowerCase().includes(q)) : list;
-  });
+  /**
+   * Whether to include SRD 5.1 rows. On by default — the 5.1 content we carry
+   * is only what 5.2 has no equivalent of, so hiding it by default would hide
+   * the reason it was imported. Remembered per browser; a blocked or empty
+   * localStorage just means the default.
+   */
+  protected readonly showLegacy = signal(Finder.readShowLegacy());
+
+  /** True once the open folder actually holds 5.1 rows — the toggle is hidden
+   * otherwise rather than offering to filter a distinction that isn't there. */
+  protected readonly hasLegacy = computed(() => this.editions().includes('SRD_5_1'));
 
   protected readonly groups = computed<ItemGroup[]>(() => {
     const def = this.openDef();
-    const list = this.filtered();
+    const list = this.all();
     if (!def?.group) {
       return list.length ? [{ key: '_', label: '', order: 0, items: [...list] }] : [];
     }
@@ -84,9 +119,18 @@ export class Finder {
     return [...map.values()].sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
   });
 
-  protected readonly selected = computed(
-    () => this.all().find(i => i.id === this.selectedId()) ?? null,
-  );
+  /**
+   * The open entry, in full. List rows can be summaries, so the detail is
+   * fetched on selection and cached per id — reopening one is free, and the
+   * list payload stays small however big the catalog gets.
+   */
+  private readonly detailCache = signal<Record<string, CatalogItem>>({});
+
+  protected readonly selected = computed(() => {
+    const id = this.selectedId();
+    if (!id) return null;
+    return this.detailCache()[id] ?? this.all().find(i => i.id === id) ?? null;
+  });
 
   /** On mobile the detail is a bottom sheet shown only when something's open. */
   protected readonly detailOpen = computed(() => this.selected() !== null || this.creating());
@@ -97,23 +141,130 @@ export class Finder {
   protected readonly sheetTransform = computed(() => `translateY(${this.dragY()}px)`);
   private dragStartY = 0;
 
+  /**
+   * Opening a folder, typing in the search box and flipping the edition toggle
+   * are all the same thing — a request for page 0 — so they are one stream
+   * rather than three call sites that have to remember to reset the page.
+   */
+  private readonly request = computed<ListRequest>(() => ({
+    def: this.openDef(),
+    query: this.search().trim(),
+    includeLegacy: this.showLegacy(),
+    tick: this.reloadTick(),
+  }));
+
+  constructor() {
+    toObservable(this.request)
+      .pipe(
+        distinctUntilChanged(
+          (a, b) =>
+            a.def === b.def &&
+            a.query === b.query &&
+            a.includeLegacy === b.includeLegacy &&
+            a.tick === b.tick,
+        ),
+        // Typing debounces. Opening a folder or flipping the toggle doesn't:
+        // switchMap cancels the pending timer, which is the debounce, and an
+        // empty query skips it so the folder opens the moment it's clicked.
+        switchMap(r => (r.query ? timer(220).pipe(map(() => r)) : of(r))),
+        switchMap(r => {
+          if (!r.def) return EMPTY;
+          this.loading.set(true);
+          this.loadError.set(false);
+          return this.content
+            .list(r.def.apiPath, { page: 0, query: r.query, includeLegacy: r.includeLegacy })
+            .pipe(catchError(() => this.failed()));
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe(page => this.replace(page));
+  }
+
   protected open(def: ContentTypeDef): void {
     if (!def.implemented) return;
     this.openDef.set(def);
     this.search.set('');
     this.creating.set(false);
-    this.loadItems(null);
+    this.all.set([]);
+    this.editions.set([]);
+    // The stream that fills it runs on the next tick; without this the list
+    // flashes "Nothing here yet." on the way to the first page.
+    this.loading.set(true);
+    this.content.editions(def.apiPath).subscribe({
+      next: e => this.editions.set(e),
+      // Only decides whether an optional toggle is offered; not worth an error.
+      error: () => this.editions.set([]),
+    });
+  }
+
+  /** Appends the next page. The list keeps what it has — this is "more", not
+   * "instead", and the selected row must survive it. */
+  protected loadMore(): void {
+    const def = this.openDef();
+    if (!def || this.loadingMore() || !this.hasMore()) return;
+    this.loadingMore.set(true);
+    this.content
+      .list(def.apiPath, {
+        page: this.pageNumber() + 1,
+        query: this.search().trim(),
+        includeLegacy: this.showLegacy(),
+      })
+      .subscribe({
+        next: page => {
+          this.all.update(rows => [...rows, ...page.content]);
+          this.total.set(page.page.totalElements);
+          this.pageNumber.set(page.page.number);
+          this.loadingMore.set(false);
+        },
+        error: () => this.loadingMore.set(false),
+      });
+  }
+
+  private replace(page: CatalogPage): void {
+    this.all.set(page.content);
+    this.total.set(page.page.totalElements);
+    this.pageNumber.set(page.page.number);
+    this.detailCache.set({});
+    this.loading.set(false);
+
+    const reselect =
+      this.pendingSelect && page.content.some(i => i.id === this.pendingSelect)
+        ? this.pendingSelect
+        : null;
+    this.pendingSelect = null;
+    this.selectedId.set(reselect);
+    if (reselect) this.loadDetail(reselect);
+  }
+
+  private failed() {
+    this.loading.set(false);
+    this.loadError.set(true);
+    return EMPTY;
   }
 
   protected back(): void {
     this.openDef.set(null);
     this.selectedId.set(null);
     this.creating.set(false);
+    this.all.set([]);
+    this.total.set(0);
   }
 
   protected select(i: CatalogItem): void {
     this.creating.set(false);
     this.selectedId.set(i.id);
+    this.loadDetail(i.id);
+  }
+
+  private loadDetail(id: string): void {
+    const def = this.openDef();
+    if (!def || this.detailCache()[id]) return;
+    this.content.get(def.apiPath, id).subscribe({
+      next: full => this.detailCache.update(c => ({ ...c, [id]: full })),
+      // The summary from the list is already showing; a failed detail fetch
+      // leaves it in place rather than blanking the pane.
+      error: () => undefined,
+    });
   }
 
   protected startCreate(): void {
@@ -123,7 +274,8 @@ export class Finder {
 
   protected onChanged(id: string | null): void {
     this.creating.set(false);
-    this.loadItems(id);
+    this.pendingSelect = id;
+    this.reloadTick.update(t => t + 1);
   }
 
   protected onCloseCreate(): void {
@@ -166,23 +318,27 @@ export class Finder {
     return i.overridesId ? 'bg-warn' : 'bg-success';
   }
 
-  private loadItems(selectAfter: string | null): void {
-    const def = this.openDef();
-    if (!def) return;
-    this.loading.set(true);
-    this.loadError.set(false);
-    this.content.list(def.apiPath).subscribe({
-      next: list => {
-        this.all.set(list);
-        this.loading.set(false);
-        this.selectedId.set(
-          selectAfter && list.some(i => i.id === selectAfter) ? selectAfter : null,
-        );
-      },
-      error: () => {
-        this.loading.set(false);
-        this.loadError.set(true);
-      },
-    });
+  protected toggleLegacy(): void {
+    const next = !this.showLegacy();
+    this.showLegacy.set(next);
+    // Deselecting matters: hiding 5.1 while a 5.1 row is open would otherwise
+    // leave the detail pane showing something the list no longer offers.
+    if (!next && this.selected()?.srdVersion === 'SRD_5_1') this.selectedId.set(null);
+    try {
+      localStorage.setItem(Finder.LEGACY_KEY, next ? 'on' : 'off');
+    } catch {
+      // Private windows and blocked site data throw on write; the toggle still
+      // works for this session, it just won't be remembered.
+    }
+  }
+
+  private static readonly LEGACY_KEY = 'ooze.showLegacySrd';
+
+  private static readShowLegacy(): boolean {
+    try {
+      return localStorage.getItem(Finder.LEGACY_KEY) !== 'off';
+    } catch {
+      return true;
+    }
   }
 }

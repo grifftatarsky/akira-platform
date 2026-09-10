@@ -185,7 +185,7 @@
               }
             ],
             "styles": [
-              "projects/ooze/src/styles.css"
+              "src/styles.css"
             ],
             "polyfills": [
               "es-module-shims"
@@ -228,6 +228,13 @@
           "defaultConfiguration": "development",
           "options": {
             "port": 4201
+          }
+        },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "projects/ooze/tsconfig.spec.json",
+            "runner": "vitest"
           }
         }
       }

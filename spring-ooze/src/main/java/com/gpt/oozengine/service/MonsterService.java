@@ -2,24 +2,24 @@ package com.gpt.oozengine.service;
 
 import com.gpt.oozengine.constant.ContentType;
 import com.gpt.oozengine.model.Monster;
+import com.gpt.oozengine.model.creature.StatBlock;
 import com.gpt.oozengine.model.dto.request.MonsterRequest;
 import com.gpt.oozengine.model.dto.response.MonsterResponse;
 import com.gpt.oozengine.repository.CatalogRepository;
+import com.gpt.oozengine.repository.FeatureComponentRepository;
 import com.gpt.oozengine.repository.HiddenContentRepository;
 import com.gpt.oozengine.repository.MonsterRepository;
-import java.util.Comparator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class MonsterService extends AbstractCatalogService<Monster, MonsterRequest, MonsterResponse> {
 
   private final MonsterRepository monsters;
+  private final StatBlockMapper statBlocks;
   private final HiddenContentRepository hidden;
-
-  public MonsterService(MonsterRepository monsters, HiddenContentRepository hidden) {
-    this.monsters = monsters;
-    this.hidden = hidden;
-  }
+  private final FeatureComponentRepository components;
 
   @Override
   protected CatalogRepository<Monster> repo() {
@@ -42,33 +42,49 @@ public class MonsterService extends AbstractCatalogService<Monster, MonsterReque
   }
 
   @Override
-  protected Comparator<Monster> listOrder() {
-    return Comparator.comparing(Monster::getName, String.CASE_INSENSITIVE_ORDER);
-  }
-
-  @Override
   protected void apply(MonsterRequest r, Monster m) {
     m.setName(r.name());
-    m.setSize(r.size());
-    m.setCreatureType(r.creatureType());
-    m.setAlignment(r.alignment());
-    m.setArmorClass(r.armorClass());
-    m.setHitPoints(r.hitPoints());
-    m.setSpeed(r.speed());
-    m.setChallengeRating(r.challengeRating());
-    m.setStrength(r.strength());
-    m.setDexterity(r.dexterity());
-    m.setConstitution(r.constitution());
-    m.setIntelligence(r.intelligence());
-    m.setWisdom(r.wisdom());
-    m.setCharisma(r.charisma());
-    m.setTraits(r.traits());
-    m.setActions(r.actions());
     m.setDescription(r.description());
+    if (r.statBlock() == null) {
+      return; // a rename or flavour edit: leave the mechanics alone
+    }
+    StatBlock s = m.getStatBlock();
+    if (s == null) {
+      s = new StatBlock();
+      m.setStatBlock(s);
+    }
+    statBlocks.apply(r.statBlock(), s);
+  }
+
+  /**
+   * Take a creature's Multiattack apart before deleting it — see
+   * {@link FeatureComponentRepository#deleteForStatBlock}, which explains why
+   * this cannot be left to the cascade.
+   */
+  @Override
+  protected void beforeDelete(Monster m) {
+    StatBlock block = m.getStatBlock();
+    if (block == null) {
+      return;
+    }
+    components.deleteForStatBlock(block.getId());
+    // The rows are gone; drop them from the session too, or the delete that
+    // follows tries to update rows that no longer exist.
+    block.getFeatures().forEach(f -> f.getComponents().clear());
   }
 
   @Override
   protected MonsterResponse toResponse(Monster m) {
     return MonsterResponse.from(m);
+  }
+
+  /**
+   * The bestiary is 330 creatures; with every stat block's features and effects
+   * attached the list is over a megabyte, and the finder's list renders none of
+   * it. Send the summary, and let opening a creature fetch the block.
+   */
+  @Override
+  protected MonsterResponse toListResponse(Monster m) {
+    return MonsterResponse.summary(m);
   }
 }

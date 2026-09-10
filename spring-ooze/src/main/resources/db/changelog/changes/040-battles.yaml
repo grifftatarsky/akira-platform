@@ -1,0 +1,126 @@
+databaseChangeLog:
+  # Phase 3: the tracker. Deliberately free of the map — an initiative tracker is
+  # useful at a table on its own, and the simulator supplies a board to something
+  # that would work just as well without one. encounter_id and combatant_id are
+  # the only threads back, and both are nullable and unconstrained.
+
+  - changeSet:
+      id: 040-battles
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: battles
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: owner_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: name, type: VARCHAR(200), constraints: {nullable: false}}
+              - column: {name: encounter_id, type: UUID}
+              - column: {name: phase, type: VARCHAR(24), constraints: {nullable: false}, defaultValue: SETUP}
+              - column: {name: round, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: turn_index, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              # The seed is what makes a battle replayable: with it and the log,
+              # the same fight rolls the same numbers. Without it, undo rewinds
+              # into a different fight.
+              - column: {name: seed, type: BIGINT, constraints: {nullable: false}}
+              - column: {name: roll_count, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: next_sequence, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 1}
+        - createIndex:
+            indexName: ix_battles_owner
+            tableName: battles
+            columns: [{column: {name: owner_id}}, {column: {name: name}}]
+
+  - changeSet:
+      id: 040-participants
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: participants
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: battle_id, type: UUID, constraints: {nullable: false}}
+              # All nullable: a participant can come off a board, out of the
+              # compendium, or from a DM typing "Bandit" and a hit point total.
+              - column: {name: combatant_id, type: UUID}
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: game_character_id, type: UUID}
+              - column: {name: name, type: VARCHAR(200), constraints: {nullable: false}}
+              - column: {name: initiative, type: INT}
+              - column: {name: initiative_tiebreak, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: initiative_bonus, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: surprised, type: BOOLEAN, constraints: {nullable: false}, defaultValueBoolean: false}
+              - column: {name: max_hit_points, type: INT, constraints: {nullable: false}, defaultValueNumeric: 1}
+              - column: {name: current_hit_points, type: INT, constraints: {nullable: false}, defaultValueNumeric: 1}
+              - column: {name: temporary_hit_points, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: disposition, type: VARCHAR(16), constraints: {nullable: false}, defaultValue: ACTIVE}
+              - column: {name: reaction_available, type: BOOLEAN, constraints: {nullable: false}, defaultValueBoolean: true}
+              - column: {name: notes, type: TEXT}
+        - addForeignKeyConstraint:
+            constraintName: fk_participants_battle
+            baseTableName: participants
+            baseColumnNames: battle_id
+            referencedTableName: battles
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createTable:
+            tableName: participant_conditions
+            columns:
+              - column: {name: participant_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: condition_name, type: VARCHAR(64), constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: participant_conditions
+            columnNames: participant_id, condition_name
+            constraintName: pk_participant_conditions
+        - addForeignKeyConstraint:
+            constraintName: fk_participant_conditions_participant
+            baseTableName: participant_conditions
+            baseColumnNames: participant_id
+            referencedTableName: participants
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: ix_participants_battle
+            tableName: participants
+            columns: [{column: {name: battle_id}}]
+
+  - changeSet:
+      id: 040-battle-events
+      author: oozengine
+      # Append-only. Undo truncates rather than inverting, so the unique
+      # sequence is not bookkeeping — it is the thing undo cuts on.
+      changes:
+        - createTable:
+            tableName: battle_events
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: battle_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: sequence, type: BIGINT, constraints: {nullable: false}}
+              - column: {name: type, type: VARCHAR(40), constraints: {nullable: false}}
+              - column: {name: round, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: participant_id, type: UUID}
+              - column: {name: caused_by_sequence, type: BIGINT}
+              - column: {name: payload, type: JSONB}
+              - column: {name: summary, type: TEXT, constraints: {nullable: false}}
+        - addForeignKeyConstraint:
+            constraintName: fk_battle_events_battle
+            baseTableName: battle_events
+            baseColumnNames: battle_id
+            referencedTableName: battles
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addUniqueConstraint:
+            constraintName: uq_battle_events_sequence
+            tableName: battle_events
+            columnNames: battle_id, sequence
+        - createIndex:
+            indexName: ix_battle_events_battle_sequence
+            tableName: battle_events
+            columns: [{column: {name: battle_id}}, {column: {name: sequence}}]

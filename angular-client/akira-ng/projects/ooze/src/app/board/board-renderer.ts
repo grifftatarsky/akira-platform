@@ -1,0 +1,1860 @@
+import {
+  AdditiveBlending, AmbientLight, BoxGeometry, BufferGeometry,
+  ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DirectionalLight,
+  Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, LinearFilter,
+  Material, Matrix4, Mesh,
+  MeshBasicMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D,
+  PCFShadowMap, PerspectiveCamera, Plane, PlaneGeometry, RGBAFormat, Raycaster, RingGeometry,
+  Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderer,
+} from 'three';
+import { BoardScene, PropKind, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
+import { BoardLook, BoardPiece, BoardTheme, INDOOR_LOOK, PLAIN_THEME, pieceFor } from './board-assets';
+import { WALL_HEIGHT } from './board-scene';
+import { ModelLibrary } from './model-library';
+import { EnvironmentLibrary } from './environment';
+import { FLAME_COLOR, LIGHT_RANGE, lightField, lightSource } from './light-field';
+import { PostChain } from './board-post';
+import { Motes } from './board-motes';
+import {
+  bearingName, eyeExposure, shadowStretch, sunPosition, sunlight,
+} from './sun-position';
+import { SplatSurface, splatGround } from './ground-splat';
+import { ScatterLayer, scatterGround } from './ground-scatter';
+import { Meadow, meadow } from './meadow';
+import { groundField } from './ground-field';
+
+/**
+ * The eight compass bearings the camera snaps to.
+ *
+ * <p>Snapping rather than free rotation, because a battle map is read against
+ * its own grid: a board at eleven degrees off north has every square a
+ * different shape and every distance a guess. Eight positions keep the grid
+ * legible from any of them and make "turn the board" a click rather than a
+ * drag somebody has to undo.
+ */
+export const BEARINGS = 8;
+
+/**
+ * How far the structural boxes sit inside the art laid over them, in half-feet.
+ *
+ * <p>Two surfaces at exactly the same depth are a coin toss per pixel, and the
+ * toss is re-thrown every time the camera moves — which is what a board that
+ * shimmers while you pan actually is. A wall's box top and its facing panel's
+ * top were both at 8 feet, and a raised floor's plinth top and the tile sitting
+ * on it were both at the ledge height, so most of the board was doing it.
+ *
+ * <p>An inch and a bit. Enough to separate them at every zoom the camera
+ * clamps to, small enough that the step it leaves is invisible.
+ */
+const ART_CLEARANCE = 0.2;
+
+/**
+ * How much of the board's light a token's face takes, from none to all.
+ *
+ * <p>About half. Enough that a creature in the crypt is visibly in the crypt,
+ * and never enough to make it hard to find — a marker that can become
+ * unreadable is not a marker.
+ */
+const TOKEN_LIGHT_BLEND = 0.55;
+
+/**
+ * How far the grid floats over the ground it marks, in half-feet.
+ *
+ * <p>A quarter of a foot: clear of a plain floor tile, and deliberately *not*
+ * clear of the rubble, so a grid line disappears into a pile of loose stone
+ * rather than floating over it. Well under a token, which stands on top of it.
+ */
+const GRID_LIFT = 0.5;
+
+/**
+ * Draws a {@link BoardScene} with three.
+ *
+ * <p><b>The scene is three-dimensional from the first frame, and only the camera
+ * is locked.</b> Floors are boxes of zero height, walls are boxes eight feet
+ * tall, and a token sits at its ground level plus whatever it is flying. Under
+ * an orthographic camera looking straight down that reads as a flat tactical
+ * board; swap in a perspective camera and the walls are already walls and the
+ * balcony is already above the floor. Nothing about the data changes, which is
+ * the whole of building for 3D rather than promising it.
+ *
+ * <p>World units are half-feet, matching the engine, so no conversion happens
+ * here and no rounding decision lives in the renderer.
+ *
+ * <p>Deliberately not an Angular component. It owns a canvas, a render loop and
+ * a pile of GPU resources, none of which belong in change detection — the
+ * component drives it and disposes it, and everything here is testable only
+ * against a real WebGL context, which is why the rules live in
+ * {@code board-scene.ts} instead.
+ */
+/**
+ * The layer everything growing is on.
+ *
+ * <p>So that one pass can be told to ignore a quarter of a million plants.
+ * Ambient occlusion is computed from a depth and normal render of the whole
+ * scene — a second full submission of the geometry — and at a two-foot search
+ * radius it cannot resolve a blade of grass anyway: what it recovers from the
+ * meadow is noise at the cost of thirteen million triangles a frame. It still
+ * darkens the ground *under* the grass, which is the part that reads, because
+ * the ground is on layer zero where the pass can see it.
+ *
+ * <p>Everything that must still see the meadow has to opt in by hand — both
+ * cameras and, easy to miss, the sun's shadow camera, which has a layer mask of
+ * its own.
+ */
+const MEADOW_LAYER = 1;
+
+export class BoardRenderer {
+
+  private readonly renderer: WebGLRenderer;
+  private readonly scene = new Scene();
+  private readonly terrain = new Group();
+  /**
+   * Art laid over the terrain.
+   *
+   * <p>Kept apart from the boxes rather than replacing them. The boxes are the
+   * structure — they carry the plinth under a raised ledge, and their index is
+   * the tile's index — while models are decoration that may or may not arrive.
+   * Swapping them in place meant an elevated floor lost the plinth with the box
+   * and hung in the air, and it made a tile's position in the group depend on
+   * what had finished loading.
+   */
+  private readonly terrainArt = new Group();
+  /**
+   * Furniture.
+   *
+   * <p>Its own group rather than part of the terrain art, because it is
+   * addressed differently: terrain art is one piece per square and indexed by
+   * the tile it dresses, props are a list somebody wrote. And it must never be
+   * pickable — a DM dragging the rogue past a table is dragging the rogue.
+   */
+  private readonly props = new Group();
+  /**
+   * The squares, drawn.
+   *
+   * <p>Lit, which took two tries to get right. An unlit line is a constant
+   * color against a floor whose brightness varies five-fold across the board,
+   * so it cannot hold its contrast: a warm line was invisible in the torchlit
+   * hall and glaring in the crypt, and a mid-grey one was merely faint in both.
+   * Taking the same light as the floor makes the line a fixed *fraction*
+   * brighter than whatever it is drawn on, which is what constant contrast
+   * actually means.
+   */
+  private readonly grid = new Group();
+
+  /**
+   * Dust in the air, rebuilt with the board it hangs over.
+   *
+   * <p>Part of the effects layer rather than of the scene: it is atmosphere,
+   * and a machine that cannot afford ambient occlusion should not be paying for
+   * dust either.
+   */
+  private motes: Motes | null = null;
+
+  /**
+   * The outdoor ground, when the theme has one.
+   *
+   * <p>Mutually exclusive with the tiles: a splat ground *is* the ground, so
+   * there are no boxes under it and no per-square pieces on it. A dungeon and a
+   * meadow are built differently and pretending otherwise would mean one code
+   * path that is wrong for both.
+   */
+  private surface: SplatSurface | null = null;
+
+  /** The board last drawn, so the sun can be re-aimed when the clock moves. */
+  private framed: BoardScene | null = null;
+
+  /** Whatever is lying on that ground: tufts, stones, fallen branches. */
+  private litter: ScatterLayer | null = null;
+
+  /** Everything growing out of the painted turf, where the theme grows any. */
+  private plants: Meadow | null = null;
+
+  /**
+   * Whether the meadow grows more than grass.
+   *
+   * <p>A toggle rather than a setting, because the two are worth looking at
+   * side by side: a mixture reads as country and one species reads as turf, and
+   * which of those a given board wants is a judgement about the board.
+   */
+  private mixedPlants = true;
+
+  /**
+   * How many plants per square foot, against the theme's own spacing.
+   *
+   * <p>Exposed as a knob because how dense a meadow *should* be is not a thing
+   * anyone can work out from a number — it has to be looked at, and looked at
+   * against what it costs, which is what the stats readout is for.
+   */
+  private plantSpread = 3;
+
+  /**
+   * The most pixels tall the picture will be rendered at.
+   *
+   * <p><b>A ceiling, not a target.</b> It was a fixed 720 and the element was
+   * usually wider than that, so every frame was upscaled by CSS — and a
+   * fractional upscale is not a free saving: it is a resample, and a resample
+   * of a field of one-pixel grass blades shimmers on its own account. The
+   * board renders at its own size now and this only bites on a display large
+   * enough for the per-pixel cost to matter, which is what it was for.
+   *
+   * <p>Everything expensive here — occlusion, bloom, the splat ground's twelve
+   * texture reads — costs per pixel, and a 5K panel asks for eleven times the
+   * pixels of a 720p buffer to show the same board at the same apparent size.
+   */
+  private maxRenderHeight = 1440;
+  private readonly tokens = new Group();
+  private camera: PerspectiveCamera;
+  /** The pending requestAnimationFrame handle, so the loop can be stopped. */
+  private animation = 0;
+  private fps = 0;
+  private frames = 0;
+  private measuredAt = 0;
+  private disposed = false;
+
+  /** Bumped on every render, so a model that loads late knows it is stale. */
+  private generation = 0;
+
+  /** Half-feet of board visible across the viewport's shorter side. */
+  private zoom = 200;
+
+  /**
+   * A board waiting to be framed, once the viewport has a size.
+   *
+   * <p>Deferred rather than done on the spot: the canvas is measured by a
+   * ResizeObserver, which has not fired when the first board arrives, so
+   * framing then divides by a viewport of one pixel by one. Held until there is
+   * a real size and then dropped, so it never fights a zoom the DM chose.
+   */
+  private framing: { width: number; height: number } | null = null;
+  private centre = new Vector3(0, 0, 0);
+  private width = 1;
+  private height = 1;
+
+  /** Where the camera is looking, as an offset from the board's middle. */
+  private pan = new Vector3(0, 0, 0);
+
+  /** Orbit angles, used only by the perspective camera. */
+  private azimuth = 0;
+  private elevation = 0.9;
+
+  /**
+   * The one shadow-casting light, aimed at whatever board is loaded.
+   *
+   * <p>Held rather than made and forgotten, because a directional light's
+   * shadow frustum does not follow the scene. Its default is ten units square
+   * around the world origin: on a 130-foot level that covers one square, aimed
+   * at a corner nothing stands in, so nothing cast a shadow and what did fell
+   * outside the map and shimmered.
+   *
+   * <p>Warm, and dimmer than it was. It is no longer carrying the whole scene —
+   * the environment map does the ambient now — so its job is shape and shadow,
+   * and a neutral white key over a warm cellar reads as two rooms disagreeing.
+   */
+  private readonly sun = new DirectionalLight(0xffe9cc, 0.95);
+  private readonly ambient = new AmbientLight(0xffffff, INDOOR_LOOK.ambient);
+  private sunElevation = 68;
+  private sunAzimuth = 145;
+  private look: BoardLook = INDOOR_LOOK;
+
+  /** Where in the year the board is, and how far north. Both start at the theme's. */
+  private dayOfYear = 196;
+  private latitude = 37.5;
+
+  /**
+   * Whether the exposure follows the light the way an eye would.
+   *
+   * <p>On by default, because off is a fixed-exposure photograph of a field
+   * rather than the field. See {@link ./sun-position#eyeExposure}.
+   */
+  private adaptive = true;
+  private hour = INDOOR_LOOK.hour;
+
+  /**
+   * The board's light, shared by every material that answers to it.
+   *
+   * <p>One object handed to every patched shader, so replacing the texture on a
+   * new board updates all of them at once rather than four hundred times.
+   */
+  private readonly light: { value: DataTexture | null } = { value: null };
+  private readonly extent = { value: new Vector2(1, 1) };
+
+  /** Seconds since the board opened, for anything that moves in a shader. */
+  private readonly time = { value: 0 };
+
+  /**
+   * The buffer's size in pixels, for anything that has to reason in them.
+   *
+   * <p>The meadow does: it widens a blade until it covers a pixel, and "a
+   * pixel" is not a thing a vertex shader can work out on its own.
+   */
+  private readonly viewport = { value: new Vector2(1, 1) };
+
+  /** How hard it is blowing, from still to a stiff summer breeze. */
+  private readonly wind = { value: 1 };
+
+  /**
+   * Materials already patched.
+   *
+   * <p>Weak, and needed: a cloned model shares its source's material, so a room
+   * with thirty barrels hands the same material back thirty times, and patching
+   * a shader twice injects the sample twice — which squares the light and turns
+   * a torch into a floodlight.
+   */
+  private readonly patched = new WeakSet<Material>();
+
+  /** Where each tile's box ended up, so its art can switch it off later. */
+  private tileSlots: ({ mesh: InstancedMesh; slot: number } | undefined)[] = [];
+
+  /**
+   * Everything burning, and how big it was drawn.
+   *
+   * <p>Held so the render loop can make them move. A flame that is perfectly
+   * still is the one thing on a lit board that reads as a light *source* and
+   * looks like a decal — and a torch is the first thing an eye goes to, so it
+   * is the worst place on the board to be still.
+   */
+  private readonly flames: Flame[] = [];
+
+  private readonly raycaster = new Raycaster();
+  private readonly pointer = new Vector2();
+
+  private library: ModelLibrary;
+  private readonly environments: EnvironmentLibrary;
+  /**
+   * Ambient occlusion and bloom, if this machine is having them.
+   *
+   * <p>Built on the first resize rather than in the constructor, because both
+   * passes allocate render targets the size of the viewport and the viewport is
+   * one pixel by one until the ResizeObserver has spoken.
+   */
+  private post: PostChain | null = null;
+  private effects = true;
+  private showGrid = true;
+  private theme: BoardTheme;
+
+  constructor(private readonly canvas: HTMLCanvasElement, theme: BoardTheme = PLAIN_THEME) {
+    this.theme = theme;
+    this.library = new ModelLibrary(theme);
+    this.renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true });
+    this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
+    this.renderer.shadowMap.enabled = true;
+    // PCFSoftShadowMap was removed in three 0.186 and silently downgraded to
+    // this with a console warning; naming it directly keeps the warning out and
+    // the behaviour identical.
+    this.renderer.shadowMap.type = PCFShadowMap;
+
+    // Khronos PBR Neutral rather than ACES.
+    //
+    // Both roll highlights off instead of clipping them, which is the point of
+    // tone mapping at all. ACES also desaturates hard as it does it — it is a
+    // film emulation, and film does that — and this board is painted rather
+    // than photographed: torchlight that goes cream at the centre of the pool
+    // is exactly the look we are aiming away from. Neutral keeps the hue and
+    // only compresses the level.
+    // Counted by hand, because the effect chain renders the scene several
+    // times a frame and three resets these on every one of them — left alone,
+    // the readout reports the last full-screen blit and nothing else, which is
+    // one draw call and no triangles.
+    this.renderer.info.autoReset = false;
+
+    this.renderer.toneMapping = NeutralToneMapping;
+    // Slightly under one, so a torch has headroom to be the brightest thing on
+    // the board rather than one more surface at full white.
+    this.renderer.toneMappingExposure = 0.95;
+
+    this.environments = new EnvironmentLibrary(this.renderer);
+    this.applyLook(theme);
+    void this.lightScene(theme);
+
+    this.scene.add(this.terrain);
+    this.scene.add(this.terrainArt);
+    this.scene.add(this.props);
+    this.scene.add(this.grid);
+    this.scene.add(this.tokens);
+
+    // A trace of flat fill, and no more. The ambient term used to be 0.75 and
+    // was doing the job an environment map does properly — flatly, from every
+    // direction at once, which is why nothing on the board had a lit side and a
+    // shaded side. Now the environment carries the ambient and this only keeps
+    // the deepest corners off pure black.
+    this.scene.add(this.ambient);
+    this.sun.castShadow = true;
+    // Four thousand, not two. A board is two hundred feet across and the
+    // shadow camera has to cover all of it, so at 2048 a texel is most of a
+    // foot — enough for a wall or a barrel, and not enough for the one thing
+    // in a meadow worth casting, which is a seed head standing over the
+    // grass. Doubling it puts about six texels across that shadow.
+    this.sun.shadow.mapSize.set(4096, 4096);
+    // Offset along the surface normal rather than in depth. Plain `bias` on a
+    // frustum this wide has to be large enough to detach a shadow from the
+    // thing casting it; normalBias solves the same acne without the gap.
+    this.sun.shadow.normalBias = 0.4;
+    // The shadow camera has its own layer mask, and a seed head that the main
+    // camera can see but the shadow camera cannot is a seed head that stops
+    // casting. This is the whole cost of moving the meadow off layer zero.
+    this.sun.shadow.camera.layers.enable(MEADOW_LAYER);
+    // Drawn on demand rather than every frame. See restageShadows().
+    this.sun.shadow.autoUpdate = false;
+    this.sun.shadow.needsUpdate = true;
+    // A wider percentage-closer kernel, now that a texel is a fraction of what
+    // it was: at radius 1 on the fitted frustum the edges came out razor sharp,
+    // which is not what a shadow in open air looks like.
+    this.sun.shadow.radius = 2.5;
+    // The target has to be in the scene or the light ignores where it points —
+    // three reads the target's *world* matrix, and an orphan never gets one.
+    this.scene.add(this.sun, this.sun.target);
+
+    this.camera = this.makeCamera();
+  }
+
+  /**
+   * Replaces everything drawn.
+   *
+   * <p>Boxes go down first and models replace them as they arrive, rather than
+   * waiting for the pack. A board that is legible immediately and prettier a
+   * moment later beats a blank rectangle that resolves all at once — and it is
+   * the same code path whether the art exists or not, which is what stops the
+   * no-art case from rotting.
+   */
+  render(board: BoardScene): void {
+    this.centre = new Vector3(board.widthHalfFeet / 2, board.heightHalfFeet / 2, 0);
+    this.clear(this.terrain);
+    this.clear(this.terrainArt);
+    this.clear(this.props);
+    this.clear(this.grid);
+    this.clear(this.tokens);
+    this.flames.length = 0;
+    this.relight(board);
+    this.surface?.dispose();
+    this.surface = null;
+    this.litter?.dispose();
+    this.litter = null;
+    this.plants?.dispose();
+    this.plants = null;
+    if (this.theme.ground) {
+      const ground = this.theme.ground;
+      this.surface = splatGround(ground, board, this.light, this.extent);
+      this.terrain.add(this.surface.mesh);
+      // The scatter and the grass share the ground's own wear field rather
+      // than building a second one, so nothing can land somewhere the road is
+      // not — and the tufts stop growing at exactly the line where the painted
+      // grass gives way to dirt.
+      const field = groundField(board);
+      if (ground.blades) {
+        this.plants = meadow(
+          board, field, m => this.lit(m), this.time,
+          ground.blades, this.mixedPlants, this.plantSpread, this.viewport, this.wind);
+        this.plants?.meshes.forEach(mesh => {
+          // Its own layer, so the occlusion pass can be told not to look at it.
+          // See MEADOW_LAYER.
+          mesh.layers.set(MEADOW_LAYER);
+          this.terrainArt.add(mesh);
+        });
+        if (this.plants) {
+          // Said out loud once per board. What the meadow costs is not
+          // recoverable from anything on screen — five instanced meshes are
+          // one number in the renderer's counters, and the shadow pass adds
+          // some of them again — so the breakdown is printed where it can be
+          // read rather than guessed at.
+          console.debug('[board] meadow %s',
+            this.plants.census
+              .map(c => `${c.name} ${c.plants} plants / ${Math.round(c.triangles / 1000)}k tris`)
+              .join(' · '));
+        }
+      }
+      const generation = this.generation + 1;
+      void scatterGround(ground, board, field, m => this.lit(m)).then(layer => {
+        if (this.disposed || generation !== this.generation) {
+          layer.dispose();
+          return;
+        }
+        this.litter = layer;
+        layer.meshes.forEach(mesh => this.terrainArt.add(mesh));
+        this.restageShadows();
+      });
+    } else {
+      this.layGround(board);
+    }
+    this.raiseDust(board);
+    this.grid.add(this.squares(board));
+    this.grid.visible = this.showGrid;
+    board.tokens.forEach(t => this.tokens.add(this.token(t)));
+    this.framed = board;
+    this.aimSun(board);
+    this.place();
+    const generation = ++this.generation;
+    // A splat ground carries its own materials, so there is nothing to dress it
+    // with; the props on top of it are still pieces like any others.
+    if (!this.theme.ground) {
+      void this.dressTerrain(board, generation);
+    }
+    void this.dressProps(board, generation);
+  }
+
+  /**
+   * Points the sun at the board and sizes its shadow to fit.
+   *
+   * <p>Both are per-board: the frustum has to contain everything that casts,
+   * and a frustum much bigger than that spends its texels on empty space and
+   * gives blocky shadows. Sized to the board, a 2048 map is about an inch per
+   * texel on a level this size.
+   */
+  private aimSun(board: BoardScene): void {
+    const span = Math.max(board.widthHalfFeet, board.heightHalfFeet, 20);
+    // <b>Aimed at what is on screen, not at the board.</b> A shadow map has a
+    // fixed number of texels and they go wherever its camera looks, so one
+    // sized to a two-hundred-foot board spends every texel it has on ground
+    // that is mostly off screen. Zoomed in on a fight, that was a fortieth of
+    // the map doing all the work and shadows a hand's breadth wide made of
+    // three texels. Following the view instead costs nothing and is worth more
+    // than any amount of extra resolution.
+    const focus = new Vector3().addVectors(this.centre, this.pan);
+    focus.x = Math.max(0, Math.min(board.widthHalfFeet, focus.x));
+    focus.y = Math.max(0, Math.min(board.heightHalfFeet, focus.y));
+    this.sun.target.position.set(focus.x, focus.y, 0);
+
+    // Placed from a real elevation and bearing rather than from a nudge that
+    // looked right once. High light keeps a wall's shadow under half its
+    // height, which reads as depth without reading as ground a DM has to
+    // discount; and outdoors the angle is simply what time it is.
+    const elevation = (this.sunElevation * Math.PI) / 180;
+    const azimuth = (this.sunAzimuth * Math.PI) / 180;
+    const reach = span * 1.4;
+    this.sun.position.set(
+      focus.x + reach * Math.cos(elevation) * Math.sin(azimuth),
+      focus.y + reach * Math.cos(elevation) * Math.cos(azimuth),
+      reach * Math.sin(elevation),
+    );
+
+    // What the camera can see, plus however far a shadow reaches into it from
+    // outside. The second part is not optional: a wall just off the left edge
+    // still throws a shadow across the ground that is on screen, and a frustum
+    // fitted to the view alone would cut it off at the edge of the picture.
+    const aspect = this.width / Math.max(1, this.height);
+    const seen = this.zoom * 0.5 * Math.max(1, aspect);
+    const reachIn = Math.min(shadowStretch(this.sunElevation), 8) * WALL_HEIGHT;
+    const half = Math.min(span * 0.8, seen + reachIn);
+
+    const shadow = this.sun.shadow.camera;
+    shadow.left = -half;
+    shadow.right = half;
+    shadow.top = half;
+    shadow.bottom = -half;
+    shadow.near = 1;
+    shadow.far = span * 3;
+    shadow.updateProjectionMatrix();
+
+    // Both offsets are texel-sized, so both have to follow the frustum. Left
+    // at the number tuned for a board-wide map, the normal bias would be two
+    // feet of offset on a map whose texels are now half an inch — every
+    // shadow sliding away from the thing casting it.
+    const texel = (2 * half) / this.sun.shadow.mapSize.x;
+    this.sun.shadow.normalBias = texel * 2.5;
+    this.sun.shadow.bias = -texel * 0.05;
+    this.restageShadows();
+  }
+
+  /**
+   * Says the shadow map is out of date, so it will be drawn again next frame.
+   *
+   * <p>The map is not redrawn every frame any more. It only changes when the
+   * sun moves, the view moves or the board's contents do — and between those,
+   * re-rendering it is the whole scene submitted a second time for a picture
+   * that would come out identical. On a still board, which is what a board
+   * spends most of its life being, that is several million triangles a frame
+   * for nothing.
+   *
+   * <p>The one thing it costs: the meadow sways and its shadows do not. A seed
+   * head's shadow is an inch across, and nobody has ever noticed one holding
+   * still.
+   */
+  private restageShadows(): void {
+    this.sun.shadow.needsUpdate = true;
+  }
+
+  /** Points the sun, and re-aims it over whatever board is loaded. */
+  private pointSun(elevation: number, azimuth: number): void {
+    this.sunElevation = elevation;
+    this.sunAzimuth = azimuth;
+    if (this.framed) {
+      this.aimSun(this.framed);
+    }
+  }
+
+  /** Swaps the art without touching anything else about the board. */
+  setTheme(theme: BoardTheme): void {
+    if (theme.id === this.theme.id) {
+      return;
+    }
+    this.theme = theme;
+    // The old library owns shared buffers on the device that nothing else is in
+    // a position to free — a theme swap makes a whole one garbage at once.
+    this.library.dispose();
+    this.library = new ModelLibrary(theme);
+    this.applyLook(theme);
+    void this.lightScene(theme);
+  }
+
+  /**
+   * Sets the scene to the theme's own light and grade.
+   *
+   * <p>Everything here was a constant tuned against a torchlit cellar, which is
+   * a perfectly good look for a cellar and turns a July afternoon into dusk. A
+   * theme brings its assets *and* the light they were meant to be seen in.
+   */
+  private applyLook(theme: BoardTheme): void {
+    const look = theme.look ?? INDOOR_LOOK;
+    this.look = look;
+    this.hour = look.hour;
+    this.dayOfYear = look.dayOfYear;
+    this.latitude = look.latitude;
+    this.renderer.toneMappingExposure = look.exposure;
+    this.ambient.intensity = look.ambient;
+    this.post?.setGrade(look.saturation, look.contrast, look.vignette);
+    this.applyClock();
+  }
+
+  /**
+   * Moves the clock.
+   *
+   * <p>Everything about the sun follows: how high it is, which way it throws a
+   * shadow, how strong it is and what color. Which is the point of making it
+   * a clock rather than four sliders — a low sun that is still white and full
+   * strength is not a time of day, it is a mistake.
+   */
+  setHour(hour: number): void {
+    this.hour = Math.max(0, Math.min(24, hour));
+    this.applyClock();
+    this.place();
+  }
+
+  /**
+   * Moves the board through the year.
+   *
+   * <p>Which changes how high the sun ever gets: at this latitude it climbs to
+   * seventy-four degrees in July and thirty in December, so the same hour is a
+   * different light and a different length of shadow. Cheaper than it sounds —
+   * nothing is rebuilt, the sun is simply somewhere else.
+   */
+  setDayOfYear(day: number): void {
+    this.dayOfYear = Math.max(1, Math.min(365, day));
+    this.applyClock();
+    this.place();
+  }
+
+  /** Moves the board north or south, which is the other half of where the sun goes. */
+  setLatitude(degrees: number): void {
+    this.latitude = Math.max(-66, Math.min(66, degrees));
+    this.applyClock();
+    this.place();
+  }
+
+  /** Whether the exposure opens up as the light falls, the way an eye does. */
+  setAdaptive(on: boolean): void {
+    this.adaptive = on;
+    this.applyClock();
+  }
+
+  hourOfDay(): number {
+    return this.hour;
+  }
+
+  /**
+   * Grows the other four species, or grass alone.
+   *
+   * <p>Rebuilds the board, because the meadow is baked geometry — a quarter of
+   * a million matrices are decided on the way in and there is nothing to
+   * toggle at draw time.
+   */
+  setMixedPlants(on: boolean): void {
+    this.mixedPlants = on;
+    if (this.framed) {
+      this.render(this.framed);
+    }
+  }
+
+  mixedPlantsOn(): boolean {
+    return this.mixedPlants;
+  }
+
+  /**
+   * How thick the meadow stands, as a multiple of the theme's own spacing.
+   *
+   * <p>Rebuilds the board for the same reason {@link #setMixedPlants} does, and
+   * more expensively: at four times the density this is two million matrices to
+   * compose on the way in. Worth driving from a control that fires when the
+   * slider is let go rather than while it is moving.
+   */
+  setPlantSpread(spread: number): void {
+    this.plantSpread = Math.max(0.05, Math.min(6, spread));
+    if (this.framed) {
+      this.render(this.framed);
+    }
+  }
+
+  plantSpreadValue(): number {
+    return this.plantSpread;
+  }
+
+  /**
+   * How hard the wind blows, from nothing to the most the meadow was built for.
+   *
+   * <p>A uniform rather than a rebuild: the wind is entirely in the vertex
+   * shader, so this is the one plant control that costs nothing to change and
+   * can be dragged.
+   */
+  setWind(strength: number): void {
+    this.wind.value = Math.max(0, Math.min(1, strength));
+  }
+
+  windStrength(): number {
+    return this.wind.value;
+  }
+
+  /**
+   * Where the sun is and what it is doing, in terms somebody can act on.
+   *
+   * <p>Degrees and bearings are the inputs; what a person reads off a board is
+   * how long the shadows are and which way they fall. Both are here, because a
+   * control panel that only reported its own settings back would be telling the
+   * user what they already typed.
+   */
+  sunReadout(): {
+    hour: number; dayOfYear: number; latitude: number; adaptive: boolean;
+    elevation: number; bearing: string; shadow: number;
+  } {
+    const at = sunPosition(this.hour, this.latitude, this.dayOfYear);
+    return {
+      hour: this.hour,
+      dayOfYear: this.dayOfYear,
+      latitude: this.latitude,
+      adaptive: this.adaptive,
+      elevation: at.elevation,
+      // Where the shadows point, which is opposite the sun.
+      bearing: bearingName(at.azimuth + 180),
+      shadow: shadowStretch(at.elevation),
+    };
+  }
+
+  /** Whether this board has a sky to have a time of day in. */
+  hasClock(): boolean {
+    return !this.look.fixedSun;
+  }
+
+  private applyClock(): void {
+    if (this.look.fixedSun) {
+      this.sun.intensity = this.look.fixedSun.intensity;
+      this.sun.color.set(this.look.fixedSun.color);
+      this.pointSun(this.look.fixedSun.elevation, this.look.fixedSun.azimuth);
+      return;
+    }
+    const at = sunPosition(this.hour, this.latitude, this.dayOfYear);
+    const light = sunlight(at.elevation);
+    this.sun.intensity = light.intensity;
+    this.sun.color.set(light.color);
+    // The eye opens as the light falls. Without this the sun model is right and
+    // the picture is wrong: six in the evening really is a twentieth of noon on
+    // flat ground, and rendering that ratio faithfully at a fixed exposure
+    // produced a black field at what should be the best light of the day.
+    this.renderer.toneMappingExposure = this.look.exposure
+      * (this.adaptive ? eyeExposure(at.elevation) : 1);
+    // Below the horizon the sun contributes nothing, but its shadow camera
+    // still has to point somewhere sane, so it is parked just above it.
+    this.pointSun(Math.max(1, at.elevation), at.azimuth);
+    // The sky map is a noon capture and cannot change with the clock, so the
+    // ambient it provides is dimmed to follow the sun instead. An evening lit
+    // by a midday sky is the one thing that would give this away.
+    const dusk = Math.max(0.12, Math.min(1, Math.sin(Math.max(0, at.elevation) * Math.PI / 180)
+      * 1.25));
+    this.scene.environmentIntensity = (this.theme.environment?.intensity ?? 1) * dusk;
+  }
+
+  /**
+   * Hands the scene the theme's environment.
+   *
+   * <p>Asynchronous and unawaited: the board draws immediately under the sun
+   * alone and gains its ambient a moment later, the same way it draws boxes
+   * before the models arrive. A blank rectangle that resolves all at once is
+   * worse than a plain one that improves.
+   */
+  private async lightScene(theme: BoardTheme): Promise<void> {
+    const map = await this.environments.forTheme(theme);
+    if (this.disposed || this.theme.id !== theme.id) {
+      return;
+    }
+    this.scene.environment = map;
+    this.applyClock();
+    // Outdoors the sky is most of what says where you are; indoors a horizon
+    // behind the walls would put the dungeon on a hilltop.
+    this.scene.background = theme.sky ? map : null;
+  }
+
+  /**
+   * Replaces each tile's box with the theme's model, where it has one.
+   *
+   * <p>The box stays when the model is missing, which is the whole of making a
+   * pack removable: delete the files and the board reverts to what it always
+   * drew, with nothing to switch off.
+   */
+  private async dressTerrain(board: BoardScene, generation: number): Promise<void> {
+    const byPiece = new Map<BoardPiece, number[]>();
+    board.tiles.forEach((tile, index) => {
+      const piece = pieceFor(tile.kind);
+      if (!piece) {
+        return;
+      }
+      const bucket = byPiece.get(piece);
+      if (bucket) {
+        bucket.push(index);
+      } else {
+        byPiece.set(piece, [index]);
+      }
+    });
+
+    const matrix = new Matrix4();
+    for (const [piece, indices] of byPiece) {
+      const first = board.tiles[indices[0]];
+      // Every tile of a kind is the same size, and a wall is the same height as
+      // every other wall — so one shape serves the whole bucket.
+      this.restageShadows();
+      const model = await this.library.instanced(
+        piece, first.size, first.height > 0 ? first.height : undefined);
+      // The board may have been replaced or disposed while a model loaded; a
+      // late arrival must not decorate a scene nobody is looking at.
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+      if (!model) {
+        continue;
+      }
+      const mesh = new InstancedMesh(model.geometry, this.litAll(model.material), indices.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      indices.forEach((tileIndex, slot) => {
+        const tile = board.tiles[tileIndex];
+        matrix.makeRotationZ(tile.rotation);
+        matrix.setPosition(tile.x, tile.y, tile.base);
+        mesh.setMatrixAt(slot, matrix);
+        // The box goes quiet only under a floor tile at ground level, where the
+        // model covers the square exactly and the box is nothing but color
+        // underneath. It stays under a raised floor, where it is the plinth —
+        // and it stays behind a wall, where it is the wall's mass: KayKit's
+        // wall is a 1 1/4-foot facing panel, so hiding the box left every
+        // corner and junction with a hole through it and rooms you could walk
+        // out of.
+        if (tile.base <= 0 && tile.height === 0) {
+          this.hideBox(tileIndex);
+        }
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.terrainArt.add(mesh);
+    }
+  }
+
+  /**
+   * Stands the furniture up.
+   *
+   * <p>Nothing is drawn for a prop the theme has no model for, unlike terrain:
+   * a square with no art still has to be walked on and is drawn as a box, but a
+   * barrel with no art is simply a room without a barrel in it. Which is why
+   * the plain theme is an empty dungeon rather than one full of grey cubes.
+   */
+  private async dressProps(board: BoardScene, generation: number): Promise<void> {
+    const square = board.tiles[0]?.size ?? 10;
+    const byPiece = new Map<PropKind, PropPlacement[]>();
+    for (const prop of board.props) {
+      const bucket = byPiece.get(prop.piece);
+      if (bucket) {
+        bucket.push(prop);
+      } else {
+        byPiece.set(prop.piece, [prop]);
+      }
+      const flame = this.flame(prop);
+      if (flame) {
+        this.props.add(flame.quad);
+        this.flames.push(flame);
+      }
+    }
+
+    const matrix = new Matrix4();
+    for (const [piece, placements] of byPiece) {
+      const model = await this.library.instanced(piece, square);
+      if (this.disposed || generation !== this.generation) {
+        return;
+      }
+      if (!model) {
+        continue;
+      }
+      const mesh = new InstancedMesh(model.geometry, this.litAll(model.material), placements.length);
+      mesh.castShadow = true;
+      // The map was drawn before this arrived, so without this the prop stands
+      // in the light with nothing under it.
+      this.restageShadows();
+      mesh.receiveShadow = true;
+      placements.forEach((prop, slot) => {
+        matrix.makeRotationZ(prop.rotation);
+        matrix.setPosition(prop.x, prop.y, prop.z);
+        mesh.setMatrixAt(slot, matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.props.add(mesh);
+    }
+  }
+
+  /**
+   * The five-foot squares, as one set of lines.
+   *
+   * <p>Every square is a cost: five feet of movement, and the unit reach and
+   * cover are counted in. A board that does not show them makes a DM estimate
+   * something the engine is being exact about, which is the one job a tactical
+   * board has.
+   *
+   * <p>Drawn per tile at that tile's own height, so a raised terrace carries
+   * its own grid rather than one floating across it — and only two edges per
+   * square, so every interior line is drawn exactly once. Four would double
+   * every shared edge, and a translucent line drawn twice is twice as bright as
+   * one drawn once: the grid would come out with a brighter mesh inside a
+   * fainter border.
+   */
+  private squares(board: BoardScene): LineSegments {
+    const points: number[] = [];
+    for (const tile of board.tiles) {
+      // Not over walls. Nothing stands on one, and a grid across the tops of
+      // the room walls reads as a floor you could walk on.
+      if (tile.height > 0) {
+        continue;
+      }
+      const half = tile.size / 2;
+      const z = tile.base + GRID_LIFT;
+      points.push(tile.x - half, tile.y - half, z, tile.x + half, tile.y - half, z);
+      points.push(tile.x - half, tile.y - half, z, tile.x - half, tile.y + half, z);
+    }
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute(points, 3));
+    return new LineSegments(geometry, this.lit(new LineBasicMaterial({
+      // Roughly twice the stone it is drawn on, so once both are multiplied by
+      // the same light the line is consistently the brighter of the two.
+      color: 0xcec2a6,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+    })));
+  }
+
+  /**
+   * Rings the token under the pointer.
+   *
+   * <p>Feedback before commitment: without it a board gives no sign that a
+   * press would pick anything up, so a drag that starts a few pixels off a
+   * token pans the whole board instead — and the two gestures are told apart by
+   * exactly this, whether something was under the pointer when it went down.
+   */
+  setHovered(id: string | null): void {
+    for (const token of this.tokens.children) {
+      const wanted = token.userData?.['id'] === id;
+      for (const child of token.children) {
+        if (child.userData?.['hoverRing']) {
+          child.visible = wanted;
+        }
+      }
+    }
+  }
+
+  /**
+   * Fills the air over a board with dust.
+   *
+   * <p>Rebuilt per board rather than moved, because the count comes from the
+   * board's area — a corridor and a courtyard want different amounts of nothing
+   * in the air.
+   */
+  private raiseDust(board: BoardScene): void {
+    if (this.motes) {
+      this.scene.remove(this.motes.points);
+      this.motes.dispose();
+    }
+    this.motes = new Motes(board.widthHalfFeet, board.heightHalfFeet, this.look.motes);
+    this.lit(this.motes.material(), 1, false, true);
+    this.motes.points.visible = this.effects;
+    this.scene.add(this.motes.points);
+  }
+
+  /** Shows or hides the squares. */
+  setGrid(on: boolean): void {
+    this.showGrid = on;
+    this.grid.visible = on;
+  }
+
+  gridOn(): boolean {
+    return this.showGrid;
+  }
+
+  /**
+   * The visible glow on something that is burning.
+   *
+   * <p>The light field already lights the room a torch is in; this is the
+   * flame itself, which is a different thing and the one you look at. An
+   * additive sprite rather than an emissive material, because the flame is a
+   * few pixels of a shared texture atlas and there is no way to make part of an
+   * atlas glow — and because a sprite always faces the camera, which is exactly
+   * right for something that has no shape of its own.
+   *
+   * <p>Brighter than full white on purpose. That is what the bloom pass looks
+   * for, and it is the whole reason the chain carries half-float buffers.
+   */
+  private flame(prop: PropPlacement): Flame | null {
+    const source = lightSource(prop.piece);
+    if (!source) {
+      return null;
+    }
+    const scale = source.bright * 0.22;
+    const material = new ShaderMaterial({
+      uniforms: {
+        uSize: { value: scale },
+        uColor: { value: new Color(FLAME_COLOR[0], FLAME_COLOR[1], FLAME_COLOR[2]) },
+        uIntensity: { value: 1 },
+      },
+      vertexShader: FLAME_VERTEX,
+      fragmentShader: FLAME_FRAGMENT,
+      transparent: true,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+    const quad = new Mesh(new PlaneGeometry(1, 1), material);
+    // The geometry is a unit quad and the size is applied in the shader, so
+    // three's bounding sphere is far smaller than what gets drawn and it would
+    // cull a flame that is only half off the edge of the screen.
+    quad.frustumCulled = false;
+    quad.position.set(prop.x, prop.y, prop.z + source.bright * 0.14);
+    // Seeded from where it stands, so two torches in a room never flicker in
+    // step — which is the thing that gives a fake flame away instantly — and so
+    // the same board always flickers the same way.
+    return { quad, material, scale, seed: (prop.x * 7 + prop.y * 13) % 100 };
+  }
+
+  /**
+   * Makes the flames move.
+   *
+   * <p>Two sine waves at unrelated speeds rather than a random number per
+   * frame: noise reads as television static, and a flame is not random — it
+   * surges and settles. The pair beat against each other and never repeat
+   * inside a session, which is all "never repeats" has to mean here.
+   *
+   * <p>The pool of light on the floor deliberately does not flicker with it.
+   * That would mean rebuilding and re-uploading the light field every frame for
+   * an effect nobody would consciously notice, and the sprite is the part an
+   * eye is actually watching.
+   */
+  private flicker(seconds: number): void {
+    for (const flame of this.flames) {
+      const wobble = 1
+        + 0.10 * Math.sin(seconds * 6.1 + flame.seed)
+        + 0.05 * Math.sin(seconds * 13.7 + flame.seed * 2.3);
+      flame.material.uniforms['uSize'].value = flame.scale * wobble;
+      flame.material.uniforms['uIntensity'].value = 0.8 + 0.3 * wobble;
+    }
+  }
+
+  /**
+   * Rebuilds the board's light and hands it to every shader.
+   *
+   * <p>Cheap enough to do on every render — a whole level is 104 by 80 texels
+   * and a millisecond of arithmetic — so there is no cache to invalidate and no
+   * way for the light to disagree with the board it is lighting.
+   */
+  private relight(board: BoardScene): void {
+    const field = lightField(board);
+    this.light.value?.dispose();
+    const texture = new DataTexture(field.data, field.width, field.height, RGBAFormat);
+    // Linear, which is what turns 104 by 80 texels into a smooth gradient
+    // across a 130-foot room: the hardware interpolates between them for free
+    // and the field never has to be stored at the resolution it is seen at.
+    texture.minFilter = LinearFilter;
+    texture.magFilter = LinearFilter;
+    // Clamped, so a surface a hair past the edge of the board samples the edge
+    // rather than wrapping round to the far corner of the map.
+    texture.wrapS = ClampToEdgeWrapping;
+    texture.wrapT = ClampToEdgeWrapping;
+    texture.needsUpdate = true;
+    this.light.value = texture;
+    this.extent.value.set(field.extentXHalfFeet, field.extentYHalfFeet);
+  }
+
+  /**
+   * Makes a material answer to the board's light.
+   *
+   * <p>An injection into three's own shader rather than a material of our own,
+   * because the alternative is reimplementing physically-based shading to add
+   * one multiply — and losing the environment map, the shadows and every future
+   * three release along with it.
+   *
+   * <p><b>The multiply lands before tone mapping, not after.</b> Three's last
+   * chunk is the obvious hook and the wrong one: by then the color has been
+   * through the tone curve and encoded to sRGB, so scaling it there darkens a
+   * display value rather than reducing an amount of light, and a torch could
+   * never be brighter than white. Injected ahead of `tonemapping_fragment` the
+   * light is still linear radiance, so a pool over 1.0 rolls off into a warm
+   * highlight the way a flame should.
+   */
+  private lit<T extends Material>(material: T, blend = 1, ripple = false, round = false): T {
+    if (this.patched.has(material)) {
+      return material;
+    }
+    this.patched.add(material);
+    material.onBeforeCompile = shader => {
+      shader.uniforms['uBoardLight'] = this.light;
+      shader.uniforms['uBoardExtent'] = this.extent;
+      shader.uniforms['uBoardTime'] = this.time;
+      shader.vertexShader = 'varying vec3 vBoardPos;\n' + shader.vertexShader.replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+         #ifdef USE_INSTANCING
+           // Three applies the instance matrix in <project_vertex>, which runs
+           // after this. Without it every barrel in a room would sample the
+           // light at the position of the first one — one lit crate and
+           // twenty-nine in the dark, or worse, all thirty lit by a torch that
+           // is only over one of them.
+           vBoardPos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+         #else
+           vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+         #endif`);
+      shader.fragmentShader =
+        'varying vec3 vBoardPos;\nuniform sampler2D uBoardLight;\nuniform vec2 uBoardExtent;\n'
+        + 'uniform float uBoardTime;\n'
+        + (ripple ? RIPPLE : '') + '\n'
+        + shader.fragmentShader.replace(
+          '#include <tonemapping_fragment>',
+          `gl_FragColor.rgb *= mix(
+             vec3(1.0),
+             texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb * ${LIGHT_RANGE.toFixed(1)},
+             ${blend.toFixed(2)});
+           #include <tonemapping_fragment>`);
+      if (round) {
+        // Points are squares unless something says otherwise, and the
+        // something is normally a texture. This is the same lesson the flames
+        // taught: a shape computed in the shader cannot arrive as a square.
+        // `gl_PointCoord` runs 0..1 across the point, so the distance from its
+        // middle is the whole of it.
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <tonemapping_fragment>',
+          `float boardDot = length(gl_PointCoord - 0.5) * 2.0;
+           if (boardDot > 1.0) { discard; }
+           gl_FragColor.a *= 1.0 - smoothstep(0.25, 1.0, boardDot);
+           #include <tonemapping_fragment>`);
+      }
+      if (ripple) {
+        // After three has finished deciding what the surface normal is —
+        // including any normal map — and before it lights anything with it.
+        // Perturbing the normal rather than the geometry is the whole trick: it
+        // costs four sines, it is what the reflection actually reads, and a
+        // flat quad ripples without a single extra vertex.
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <normal_fragment_maps>',
+          '#include <normal_fragment_maps>\n normal = rippled(normal, vBoardPos, uBoardTime);');
+      }
+    };
+    // Without this three reuses a cached program compiled from an identical
+    // material that was never patched, and the injection silently does nothing
+    // for every material after the first. The blend is in the key because it is
+    // compiled into the shader, so two blends are two programs.
+    material.customProgramCacheKey = () =>
+      `board-light-${blend}-${ripple ? 'wet' : 'dry'}-${round ? 'round' : 'square'}`;
+    return material;
+  }
+
+  /**
+   * The same, for a piece that turned out to have more than one material.
+   *
+   * <p>Rare — every piece in the pack is one mesh off one atlas — but a pack
+   * that is not must not silently lose its lighting.
+   */
+  private litAll<T extends Material | Material[]>(material: T): T {
+    if (Array.isArray(material)) {
+      material.forEach(m => this.lit(m));
+      return material;
+    }
+    this.lit(material);
+    return material;
+  }
+
+  /** Makes every material under a node answer to the board's light. */
+  private litTree(node: Object3D): Object3D {
+    node.traverse(child => {
+      if (child instanceof Mesh) {
+        const material = child.material;
+        if (Array.isArray(material)) {
+          material.forEach(m => this.lit(m));
+        } else {
+          this.lit(material);
+        }
+      }
+    });
+    return node;
+  }
+
+  /**
+   * The ground, as instanced boxes.
+   *
+   * <p>Zero-height boxes rather than planes, so a floor and a wall are the same
+   * kind of object and raising one is a number rather than a different mesh.
+   *
+   * <p>Grouped by material and not by terrain, because that is what actually
+   * has to differ: color rides on the instance, and only roughness, metalness
+   * and whether the surface ripples need their own draw. A 520-square level is
+   * three calls.
+   */
+  private layGround(board: BoardScene): void {
+    const buckets = new Map<GroundSurface, number[]>();
+    board.tiles.forEach((tile, index) => {
+      const surface = surfaceOf(tile);
+      const bucket = buckets.get(surface);
+      if (bucket) {
+        bucket.push(index);
+      } else {
+        buckets.set(surface, [index]);
+      }
+    });
+
+    this.tileSlots = new Array(board.tiles.length);
+    const matrix = new Matrix4();
+    const color = new Color();
+
+    for (const [surface, indices] of buckets) {
+      const size = board.tiles[indices[0]].size;
+      const mesh = new InstancedMesh(
+        new BoxGeometry(size, size, 1), this.lit(groundMaterial(surface), 1, surface === 'WET'),
+        indices.length);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      indices.forEach((tileIndex, slot) => {
+        const tile = board.tiles[tileIndex];
+        mesh.setMatrixAt(slot, boxMatrix(tile, matrix));
+        mesh.setColorAt(slot, color.set(tile.baseColor));
+        this.tileSlots[tileIndex] = { mesh, slot };
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+      this.terrain.add(mesh);
+    }
+  }
+
+  /**
+   * Takes a square's box out of the scene without disturbing anything else.
+   *
+   * <p>An instance cannot be removed, so it is scaled to nothing. Which is
+   * exactly as good — it contributes no pixels — and leaves every other slot in
+   * the buffer where it was.
+   */
+  private hideBox(tileIndex: number): void {
+    const slot = this.tileSlots[tileIndex];
+    if (!slot) {
+      return;
+    }
+    slot.mesh.setMatrixAt(slot.slot, NOWHERE);
+    slot.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * A creature, as a miniature's base.
+   *
+   * <p>Round, and as wide as the creature's space — so a Gargantuan one covers
+   * the twenty feet it actually occupies rather than an icon's worth.
+   *
+   * <p><b>The side takes the light and the face takes about half of it.</b>
+   * Both extremes are wrong and it took building them to see it. Fully lit, a
+   * token vanishes the moment a creature walks into the dark — which is exactly
+   * when a DM needs to find it. Fully unlit, it escapes the atmosphere
+   * entirely: once the room around it had an environment map, a tone curve and
+   * a color grade, a flat disc of constant color read as a plastic counter
+   * dropped onto a painting, and got worse every time the lighting got better.
+   *
+   * <p>Half-lit is neither. The face still darkens as a creature walks into the
+   * crypt, so it belongs to the room, and it never darkens past legible, so it
+   * is still a marker. The base's side is fully lit and casts a shadow like
+   * anything else standing on the floor.
+   */
+  private token(t: TokenPlacement): Group {
+    const group = new Group();
+    const radius = t.size / 2;
+    // Proportional but capped: a base scaled straight off a Gargantuan
+    // creature's twenty-foot space would be a two-foot plinth.
+    const height = Math.min(2.2, Math.max(0.9, t.size * 0.11))
+      // A creature on the floor is flat on the floor. Prone is a condition a DM
+      // has to see from across the table, and a low base says it without a
+      // legend.
+      * (t.down ? 0.35 : 1);
+
+    const geometry = new CylinderGeometry(radius * 0.92, radius * 0.92, height, 40);
+    // Three's cylinder stands up its own Y; this world's up is Z.
+    geometry.rotateX(Math.PI / 2);
+
+    const face = this.lit(new MeshBasicMaterial({
+      color: new Color(t.color),
+      transparent: t.onDeck,
+      opacity: t.onDeck ? 0.5 : 1,
+    }), TOKEN_LIGHT_BLEND);
+    const side = this.lit(new MeshStandardMaterial({
+      // Pewter, so it belongs to the room rather than to the token's state —
+      // the color above is the information and this must not compete with it.
+      color: 0x26262c,
+      roughness: 0.5,
+      metalness: 0.15,
+      transparent: t.onDeck,
+      opacity: t.onDeck ? 0.5 : 1,
+    }));
+    // Cylinder groups are side, top, bottom in that order.
+    const body = new Mesh(geometry, [side, face, face]);
+    body.position.z = height / 2;
+    body.castShadow = !t.down;
+    body.receiveShadow = true;
+    group.add(body);
+
+    if (t.acting) {
+      // The turn marker, unlit for the same reason the face is.
+      const ring = new Mesh(
+        new RingGeometry(radius * 0.97, radius * 1.14, 40),
+        new MeshBasicMaterial({ color: 0xf0c674 }),
+      );
+      ring.position.z = height + 0.05;
+      group.add(ring);
+    }
+
+    // Built now and hidden, rather than made on hover. A pointer moving across
+    // a board would otherwise allocate a geometry, a material and a shader
+    // compile per token it crossed — for a highlight that lasts as long as the
+    // pointer keeps moving.
+    const hover = new Mesh(
+      new RingGeometry(radius * 1.16, radius * 1.3, 40),
+      new MeshBasicMaterial({ color: 0xdce6f0, transparent: true, opacity: 0.75 }),
+    );
+    hover.position.z = height + 0.05;
+    hover.visible = false;
+    hover.userData = { hoverRing: true };
+    group.add(hover);
+
+    group.position.set(t.x, t.y, t.z);
+    group.userData = { id: t.id, name: t.name, down: t.down, bloodied: t.bloodied };
+    return group;
+  }
+
+  private makeCamera(): PerspectiveCamera {
+    // A long lens, not a wide one. Fifty degrees puts the near corner of a
+    // room a great deal closer than the far one and the board reads as a
+    // fishbowl; thirty-four flattens the perspective toward the isometric look
+    // this is aimed at, while keeping enough of it that a wall still has a
+    // visible face.
+    const camera = new PerspectiveCamera(34, 1, 1, 6000);
+    // Z is up, because the engine's elevation is Z and re-basing the world to
+    // three's Y-up default would put a conversion between the data and the
+    // picture — the one place it must not be.
+    camera.up.set(0, 0, 1);
+    camera.layers.enable(MEADOW_LAYER);
+    return camera;
+  }
+
+  /** Points the camera at the board, whichever camera it is. */
+  private place(): void {
+    // The shadow frustum follows the view, so moving the view moves it.
+    if (this.framed) {
+      this.aimSun(this.framed);
+    }
+    // The element's shape, which the buffer matches — so this is the buffer's
+    // aspect too, and neither camera has to know the picture is being scaled.
+    const aspect = this.width / Math.max(1, this.height);
+    this.camera.aspect = aspect;
+    // Spherical around the look-at point, so orbiting keeps the board centred
+    // rather than swinging it out of frame.
+    const target = new Vector3().addVectors(this.centre, this.pan);
+    const radius = this.zoom * 1.2;
+    this.camera.position.set(
+      target.x + radius * Math.cos(this.elevation) * Math.sin(this.azimuth),
+      target.y - radius * Math.cos(this.elevation) * Math.cos(this.azimuth),
+      target.z + radius * Math.sin(this.elevation),
+    );
+    this.camera.lookAt(target);
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** Half-feet visible across the viewport. Clamped so the board cannot be lost. */
+  setZoom(halfFeet: number): void {
+    this.zoom = Math.max(20, Math.min(2000, halfFeet));
+    this.place();
+  }
+
+  /**
+   * Fits a whole board in view.
+   *
+   * <p>Both axes, against the viewport's own shape. Zooming to the longer side
+   * alone opens a wide board with half the canvas empty above and below it,
+   * which is what happened — a 130-foot level in a letterbox, framed as if it
+   * were square.
+   */
+  frame(widthHalfFeet: number, heightHalfFeet: number): void {
+    this.framing = { width: widthHalfFeet, height: heightHalfFeet };
+    this.applyFrame();
+  }
+
+  private applyFrame(): void {
+    const wanted = this.framing;
+    if (!wanted || this.width <= 1 || this.height <= 1) {
+      return;
+    }
+    const aspect = this.width / this.height;
+    // `zoom` is the vertical extent, so a board wider than the viewport has to
+    // be converted through the aspect before the two can be compared.
+    this.setZoom(Math.max(wanted.height, wanted.width / aspect) * 1.06);
+    this.framing = null;
+  }
+
+  zoomLevel(): number {
+    return this.zoom;
+  }
+
+  /**
+   * Fits the buffer to the element, up to {@link maxRenderHeight}.
+   *
+   * <p>One buffer pixel per CSS pixel, which on any ordinary display is one
+   * device pixel too. A buffer smaller than the element is not free: CSS
+   * scales it back up, and a fractional upscale of a field of one-pixel grass
+   * blades resamples them into a shimmer of its own — the saving bought a
+   * cheaper frame and a worse-looking one.
+   *
+   * <p>The ceiling is still there for the case it was written for, which is a
+   * 5K panel asking for eleven times the pixels to show the same board at the
+   * same apparent size. Everything expensive here costs per pixel: occlusion,
+   * bloom, and a splat ground that reads twelve textures a fragment.
+   */
+  resize(width: number, height: number): void {
+    this.width = Math.max(1, width);
+    this.height = Math.max(1, height);
+    const shape = this.width / this.height;
+    const bufferHeight = Math.max(1, Math.round(Math.min(this.height, this.maxRenderHeight)));
+    const bufferWidth = Math.max(1, Math.round(bufferHeight * shape));
+    // One buffer pixel per CSS pixel. Device pixel ratio is deliberately not
+    // applied: a 2x panel would quadruple the cost for a board whose finest
+    // detail is a blade of grass already being widened to hold a pixel.
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(bufferWidth, bufferHeight, false);
+    this.viewport.value.set(bufferWidth, bufferHeight);
+    if (this.effects && !this.post) {
+      this.post = new PostChain(this.renderer, this.scene, this.camera, bufferWidth, bufferHeight);
+      this.post.setGrade(this.look.saturation, this.look.contrast, this.look.vignette);
+    }
+    this.post?.setSize(bufferWidth, bufferHeight, 1);
+    this.applyFrame();
+    this.place();
+  }
+
+  /** The most pixels tall the picture may be rendered at. */
+  setRenderHeight(pixels: number): void {
+    this.maxRenderHeight = Math.max(120, Math.min(2160, Math.round(pixels)));
+    this.resize(this.width, this.height);
+  }
+
+  /**
+   * Turns the expensive passes off, and on.
+   *
+   * <p>A real setting rather than a debug flag: ambient occlusion and bloom are
+   * several full-screen passes, and a board that will not hold a frame rate is
+   * worse than a board that is merely lit. Off, everything else still applies —
+   * the environment, the tone curve and the light field are all in the scene
+   * itself and cost nothing extra.
+   */
+  setEffects(on: boolean): void {
+    this.effects = on;
+    if (this.motes) {
+      this.motes.points.visible = on;
+    }
+    if (!on) {
+      this.post?.dispose();
+      this.post = null;
+      return;
+    }
+    if (!this.post && this.width > 1) {
+      this.resize(this.width, this.height);
+    }
+  }
+
+  effectsOn(): boolean {
+    return this.effects;
+  }
+
+  start(): void {
+    const loop = () => {
+      if (this.disposed) {
+        return;
+      }
+      this.renderer.info.reset();
+      const now = performance.now();
+      // Counted over a second rather than from the last frame's delta, which
+      // swings far too much to read off a screen.
+      this.frames++;
+      if (now - this.measuredAt >= 1000) {
+        this.fps = Math.round((this.frames * 1000) / (now - this.measuredAt));
+        this.frames = 0;
+        this.measuredAt = now;
+      }
+      this.time.value = now / 1000;
+      // How much of the meadow is worth drawing, for where the camera is now.
+      // A division and a clamp per chunk; see PLANTS_PER_PIXEL in the meadow.
+      this.plants?.detail(this.camera, this.renderer.domElement.height);
+      this.flicker(this.time.value);
+      if (this.effects) {
+        this.motes?.step(this.time.value);
+      }
+      // Through the effect chain when there is one, straight to the canvas
+      // when there is not. Both are real paths: the chain is several
+      // full-screen passes and a machine that cannot afford them should still
+      // get a lit board.
+      if (this.post) {
+        this.post.draw();
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
+      this.animation = requestAnimationFrame(loop);
+    };
+    loop();
+  }
+
+  /**
+   * Gives back every GPU resource.
+   *
+   * <p>Geometries and materials are not garbage collected — they hold buffers
+   * and programs on the device, and a board rebuilt on every state change would
+   * leak them steadily until the context is lost. Which is a bug that looks like
+   * "the tab got slow", hours later.
+   */
+  dispose(): void {
+    this.disposed = true;
+    cancelAnimationFrame(this.animation);
+    this.clear(this.terrain);
+    this.clear(this.terrainArt);
+    this.clear(this.props);
+    this.clear(this.grid);
+    this.clear(this.tokens);
+    this.surface?.dispose();
+    this.litter?.dispose();
+    this.plants?.dispose();
+    this.light.value?.dispose();
+    this.motes?.dispose();
+    this.post?.dispose();
+    this.library.dispose();
+    this.environments.dispose();
+    this.renderer.dispose();
+  }
+
+  private clear(group: Group): void {
+    for (const child of [...group.children]) {
+      group.remove(child);
+      this.disposeNode(child);
+    }
+  }
+
+  private disposeNode(node: import('three').Object3D): void {
+    node.traverse(child => {
+      if (child instanceof Mesh) {
+        // Anything the model library handed out is shared by every board that
+        // will ever draw this piece, and is its to free. Disposing it here
+        // would leave the next render pointing at a released buffer.
+        if (child.geometry.userData['shared']) {
+          return;
+        }
+        child.geometry.dispose();
+        const material = child.material;
+        if (Array.isArray(material)) {
+          material.forEach(m => m.dispose());
+        } else {
+          material.dispose();
+        }
+      }
+    });
+  }
+
+  // region Picking and camera control
+
+  /**
+   * The token under a screen pixel, or null.
+   *
+   * <p>Raycasting rather than projecting token centres and comparing distances,
+   * because a token is a disc of its creature's footprint and a Gargantuan one
+   * is four times the width of a Medium: "nearest centre" would let a click on
+   * the tarrasque's flank select the knight standing behind it.
+   */
+  pickToken(screenX: number, screenY: number): string | null {
+    this.aim(screenX, screenY);
+    const hits = this.raycaster.intersectObjects(this.tokens.children, true);
+    for (const hit of hits) {
+      // The disc is a child of the token group, so walk up to whatever carries
+      // the id.
+      let node: import('three').Object3D | null = hit.object;
+      while (node && !node.userData?.['id']) {
+        node = node.parent;
+      }
+      if (node) {
+        return node.userData['id'] as string;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Where a screen pixel lands on the ground, in half-feet.
+   *
+   * <p>Against the z = 0 plane rather than against the terrain, deliberately.
+   * Dropping a token onto the *visible* top of a wall would put it eight feet up
+   * on a surface nothing can stand on; the board's coordinates are ground
+   * coordinates, and elevation comes from the cell underneath.
+   */
+  groundAt(screenX: number, screenY: number): { x: number; y: number } | null {
+    this.aim(screenX, screenY);
+    const target = new Vector3();
+    const hit = this.raycaster.ray.intersectPlane(GROUND, target);
+    return hit ? { x: target.x, y: target.y } : null;
+  }
+
+  private aim(screenX: number, screenY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.set(
+      ((screenX - rect.left) / rect.width) * 2 - 1,
+      -((screenY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+  }
+
+  /**
+   * Pans by a drag, in screen pixels.
+   *
+   * <p>Converted through the current zoom so a drag moves the board under the
+   * pointer by the same amount however far out the camera is — anything else
+   * feels like the board is on ice.
+   */
+  panBy(dxPixels: number, dyPixels: number): void {
+    const perPixel = this.zoom / Math.max(1, this.height);
+    this.pan.x -= dxPixels * perPixel;
+    this.pan.y += dyPixels * perPixel;
+    this.place();
+  }
+
+  /**
+   * Orbits freely, for a shift-drag.
+   *
+   * <p>Still here alongside the snapped bearings: a DM lining up a screenshot
+   * wants the angle they want, and a rule that only ever allowed eight would be
+   * a rule about the tool rather than about the board.
+   */
+  orbitBy(dxPixels: number, dyPixels: number): void {
+    this.azimuth -= dxPixels * 0.005;
+    // Clamped short of straight down and short of the horizon: past either the
+    // board becomes unreadable and the camera feels broken rather than free.
+    this.elevation = Math.max(0.15, Math.min(1.45, this.elevation - dyPixels * 0.005));
+    this.place();
+  }
+
+  /**
+   * Turns the board a quarter-turn's eighth, and lands on it exactly.
+   *
+   * <p>Rounded onto the eight-point grid rather than added to wherever the
+   * camera happened to be, so a run of clicks always ends somewhere square and
+   * a free orbit is corrected by the next one rather than compounded.
+   */
+  turnBy(steps: number): void {
+    const step = (Math.PI * 2) / BEARINGS;
+    this.azimuth = (Math.round(this.azimuth / step) + steps) * step;
+    this.place();
+  }
+
+  /**
+   * How steeply the camera looks down, from nearly level to nearly overhead.
+   *
+   * <p>Replaces the orthographic view this board used to carry. Straight down
+   * was its own camera, its own projection and its own set of bugs — a grid
+   * that shimmered, tokens that read as flat discs, and no way to turn the
+   * board — for a picture this one produces by tilting.
+   */
+  setPitch(radians: number): void {
+    this.elevation = Math.max(0.15, Math.min(1.45, radians));
+    this.place();
+  }
+
+  pitch(): number {
+    return this.elevation;
+  }
+
+  /** Which of the eight bearings the camera is nearest, from 0 (north) round. */
+  bearing(): number {
+    const step = (Math.PI * 2) / BEARINGS;
+    return ((Math.round(this.azimuth / step) % BEARINGS) + BEARINGS) % BEARINGS;
+  }
+
+  /** Puts the camera back over the middle of the board. */
+  recentre(): void {
+    this.pan.set(0, 0, 0);
+    this.place();
+  }
+
+  // endregion
+
+  /**
+   * What the last frame actually cost.
+   *
+   * <p>Read off the renderer rather than estimated. Every budget on this board
+   * before this existed was a guess — triangles counted by hand, multiplied by
+   * the number of passes, and compared against a number that felt safe. That is
+   * not engineering, and it cost real quality: the scatter was capped at a few
+   * hundred objects on an estimate, when the right move was to throw ten
+   * thousand at it and watch what happened.
+   */
+  statistics(): {
+    fps: number; calls: number; triangles: number; plants: number; buffer: string;
+  } {
+    return {
+      fps: this.fps,
+      calls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+      // Not derivable from the triangle count: the meadow is instanced, so
+      // what the GPU reports is one species' geometry times a number nobody
+      // outside this class can see.
+      plants: this.plants?.plants ?? 0,
+      buffer: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
+    };
+  }
+
+  /** Exposed so a test can assert what was built without a WebGL context. */
+  meshCounts(): { tiles: number; art: number; props: number; tokens: number } {
+    return {
+      tiles: this.terrain.children.length,
+      art: this.terrainArt.children.length,
+      props: this.props.children.length,
+      tokens: this.tokens.children.length,
+    };
+  }
+}
+
+/** Which of the three ground materials a square wants. */
+type GroundSurface = 'DRY' | 'WET' | 'ICE';
+
+function surfaceOf(tile: TerrainTile): GroundSurface {
+  if (tile.kind === 'WATER' || tile.kind === 'DEEP_WATER') {
+    return 'WET';
+  }
+  return tile.kind === 'ICE' ? 'ICE' : 'DRY';
+}
+
+function groundMaterial(surface: GroundSurface): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    // White, because the color rides on the instance: three multiplies the
+    // per-instance color into this one, so anything but white would tint the
+    // whole board.
+    color: 0xffffff,
+    // Smooth for water, so the environment shows up in it as a highlight that
+    // moves when the surface does. Metalness stays at zero even there: it tints
+    // the reflection by the base color and drops the diffuse, so a blue
+    // surface reflected a warm cellar as bright cyan and stopped looking like
+    // water at all. Water is a dielectric — a dark body with a clean highlight.
+    roughness: surface === 'WET' ? 0.12 : surface === 'ICE' ? 0.25 : 0.9,
+    metalness: 0,
+  });
+}
+
+/**
+ * A square's box, as a matrix.
+ *
+ * <p>A wall grows up from its base and a floor's plinth hangs down from the
+ * ledge, so the clearance comes off the top in both cases. The unit box is one
+ * high, so the depth is a scale.
+ */
+function boxMatrix(tile: TerrainTile, into: Matrix4): Matrix4 {
+  const wall = tile.height > 0;
+  const depth = Math.max(0.2, (wall ? tile.height : Math.max(0.5, tile.base)) - ART_CLEARANCE);
+  const z = wall ? tile.base + depth / 2 : tile.base - ART_CLEARANCE - depth / 2;
+  return into.makeScale(1, 1, depth).setPosition(tile.x, tile.y, z);
+}
+
+/** An instance scaled to nothing, which is how one is taken out of a buffer. */
+const NOWHERE = new Matrix4().makeScale(0, 0, 0);
+
+/**
+ * Two crossed wave trains, as a normal perturbation.
+ *
+ * <p>Enough to make water look like water from above and nothing like a
+ * simulation. Four sines at unrelated frequencies never visibly repeat, which
+ * is the only property a surface seen for ten seconds at a time needs — and it
+ * costs no vertices, no texture and no second pass.
+ */
+const RIPPLE = `
+  vec3 rippled(vec3 n, vec3 world, float t) {
+    vec2 p = world.xy * 0.22;
+    float x = 0.16 * sin(p.x + t * 0.9) + 0.10 * sin(p.y * 1.7 - t * 1.35);
+    float y = 0.16 * sin(p.y * 1.1 + t * 1.1) + 0.10 * sin(p.x * 1.4 + t * 0.75);
+    return normalize(n + vec3(x, y, 0.0));
+  }
+`;
+
+/** One flame: the quad, its material, and how it was told to move. */
+interface Flame {
+  readonly quad: Mesh;
+  readonly material: ShaderMaterial;
+  readonly scale: number;
+  readonly seed: number;
+}
+
+/**
+ * A quad that always faces the camera, sized in the shader.
+ *
+ * <p>Billboarded here rather than by using three's `Sprite`, because a Sprite
+ * needs a `SpriteMaterial` and a `SpriteMaterial` needs a *texture* to have a
+ * shape. That texture was the bug: the glow was drawn on a canvas, and whatever
+ * went wrong between the canvas and the GPU, what got drawn was the material's
+ * flat color across the whole quad — a hard-edged additive square at every
+ * torch on the board, pulsing, because the flicker was animating its size.
+ *
+ * <p>Computing the falloff in the fragment shader instead removes the entire
+ * class of problem. There is no image to upload, no color space to get wrong
+ * and no canvas to come back blank; a round flame is four lines of arithmetic
+ * that cannot arrive as a square.
+ */
+const FLAME_VERTEX = `
+  uniform float uSize;
+  varying vec2 vQuad;
+  void main() {
+    vQuad = position.xy;
+    // The object's own origin, in view space, with the quad's corners pushed
+    // out on the screen plane — which is what "faces the camera" means.
+    vec4 middle = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    middle.xy += position.xy * uSize;
+    gl_Position = projectionMatrix * middle;
+  }
+`;
+
+const FLAME_FRAGMENT = `
+  uniform vec3 uColor;
+  uniform float uIntensity;
+  varying vec2 vQuad;
+  void main() {
+    // 0 at the middle, 1 at the edge of the quad.
+    float d = length(vQuad) * 2.0;
+    // A hot core and a long tail, added: the core is what reads as a flame and
+    // the tail is what makes it sit in the air rather than on a card.
+    float core = 1.0 - smoothstep(0.0, 0.30, d);
+    float tail = 1.0 - smoothstep(0.0, 1.0, d);
+    float alpha = core * 0.85 + tail * tail * 0.55;
+    if (alpha <= 0.002) {
+      discard;
+    }
+    // Not premultiplied: additive blending is SRC_ALPHA, ONE, so the alpha
+    // does the falloff and the color stays at full strength.
+    gl_FragColor = vec4(uColor * uIntensity, alpha);
+  }
+`;
+
+/**
+ * The ground.
+ *
+ * <p>Constructed once: a Plane is immutable here and allocating one per pointer
+ * move would churn the heap on the hottest path the board has.
+ */
+const GROUND = new Plane(new Vector3(0, 0, 1), 0);
+
+/** Wall height, re-exported so a caller can size a legend without importing the scene. */
+export { WALL_HEIGHT };

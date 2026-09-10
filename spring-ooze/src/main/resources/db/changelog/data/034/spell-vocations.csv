@@ -1,0 +1,876 @@
+spell_name,vocation_id
+Dancing Lights,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Light,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mage Hand,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mending,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Message,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Minor Illusion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Prestidigitation,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Starry Wisp,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+True Strike,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Vicious Mockery,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Animal Friendship,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Bane,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Charm Person,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Color Spray,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Command,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Comprehend Languages,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Cure Wounds,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Detect Magic,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Disguise Self,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Dissonant Whispers,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Faerie Fire,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Feather Fall,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Healing Word,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Heroism,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Hideous Laughter,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Identify,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Illusory Script,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Longstrider,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Silent Image,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Sleep,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Speak with Animals,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Thunderwave,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Unseen Servant,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Aid,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Animal Messenger,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Blindness/Deafness,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Calm Emotions,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Detect Thoughts,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Enhance Ability,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Enlarge/Reduce,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Enthrall,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Heat Metal,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Hold Person,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Invisibility,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Knock,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Lesser Restoration,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Locate Animals or Plants,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Locate Object,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Magic Mouth,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mirror Image,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+See Invisibility,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Shatter,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Silence,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Suggestion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Zone of Truth,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Bestow Curse,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Clairvoyance,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Dispel Magic,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Fear,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Glyph of Warding,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Hypnotic Pattern,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Major Image,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mass Healing Word,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Nondetection,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Plant Growth,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Sending,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Slow,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Speak with Dead,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Speak with Plants,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Stinking Cloud,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Tiny Hut,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Tongues,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Charm Monster,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Compulsion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Confusion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Dimension Door,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Freedom of Movement,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Greater Invisibility,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Hallucinatory Terrain,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Locate Creature,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Phantasmal Killer,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Polymorph,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Animate Objects,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Awaken,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Dominate Person,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Dream,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Geas,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Greater Restoration,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Hold Monster,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Legend Lore,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mass Cure Wounds,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mislead,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Modify Memory,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Planar Binding,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Raise Dead,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Scrying,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Seeming,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Telepathic Bond,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Teleportation Circle,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Eyebite,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Find the Path,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Guards and Wards,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Heroes' Feast,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Irresistible Dance,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mass Suggestion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Programmed Illusion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+True Seeing,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Arcane Sword,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Etherealness,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Forcecage,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Magnificent Mansion,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mirage Arcane,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Prismatic Spray,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Project Image,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Regenerate,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Resurrection,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Symbol,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Teleport,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Antipathy/Sympathy,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Befuddlement,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Dominate Monster,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Glibness,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Mind Blank,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Power Word Stun,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Foresight,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Power Word Heal,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Power Word Kill,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Prismatic Wall,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+True Polymorph,3dbe561c-5bcb-5d63-9d45-b138153ed9d7
+Guidance,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Light,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Mending,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Resistance,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Sacred Flame,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Spare the Dying,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Thaumaturgy,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Bane,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Bless,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Command,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Create or Destroy Water,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Cure Wounds,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Detect Evil and Good,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Detect Magic,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Detect Poison and Disease,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Guiding Bolt,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Healing Word,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Inflict Wounds,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Protection from Evil and Good,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Purify Food and Drink,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Sanctuary,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Shield of Faith,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Aid,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Augury,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Blindness/Deafness,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Calm Emotions,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Continual Flame,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Enhance Ability,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Find Traps,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Gentle Repose,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Hold Person,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Lesser Restoration,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Locate Object,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Prayer of Healing,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Protection from Poison,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Silence,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Spiritual Weapon,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Warding Bond,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Zone of Truth,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Animate Dead,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Beacon of Hope,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Bestow Curse,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Clairvoyance,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Create Food and Water,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Daylight,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Dispel Magic,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Glyph of Warding,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Magic Circle,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Mass Healing Word,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Meld into Stone,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Protection from Energy,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Remove Curse,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Revivify,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Sending,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Speak with Dead,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Spirit Guardians,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Tongues,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Water Walk,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Aura of Life,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Banishment,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Control Water,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Death Ward,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Divination,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Freedom of Movement,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Guardian of Faith,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Locate Creature,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Stone Shape,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Commune,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Contagion,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Dispel Evil and Good,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Flame Strike,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Geas,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Greater Restoration,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Hallow,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Insect Plague,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Legend Lore,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Mass Cure Wounds,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Planar Binding,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Raise Dead,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Scrying,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Blade Barrier,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Create Undead,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Find the Path,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Forbiddance,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Harm,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Heal,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Heroes' Feast,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Planar Ally,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Sunbeam,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+True Seeing,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Word of Recall,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Conjure Celestial,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Divine Word,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Etherealness,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Fire Storm,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Plane Shift,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Regenerate,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Resurrection,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Symbol,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Antimagic Field,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Control Weather,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Earthquake,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Holy Aura,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Sunburst,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Astral Projection,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Gate,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Mass Heal,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Power Word Heal,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+True Resurrection,5a766548-3c4f-5273-89ee-11a90d1e7ce1
+Druidcraft,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Elementalism,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Guidance,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Mending,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Message,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Poison Spray,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Produce Flame,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Resistance,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Shillelagh,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Spare the Dying,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Starry Wisp,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Animal Friendship,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Charm Person,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Create or Destroy Water,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Cure Wounds,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Detect Magic,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Detect Poison and Disease,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Entangle,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Faerie Fire,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Fog Cloud,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Goodberry,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Healing Word,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Ice Knife,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Jump,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Longstrider,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Protection from Evil and Good,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Purify Food and Drink,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Speak with Animals,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Thunderwave,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Aid,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Animal Messenger,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Augury,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Barkskin,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Continual Flame,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Darkvision,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Enhance Ability,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Enlarge/Reduce,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Find Traps,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Flame Blade,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Flaming Sphere,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Gust of Wind,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Heat Metal,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Hold Person,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Lesser Restoration,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Locate Animals or Plants,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Locate Object,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Moonbeam,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Pass without Trace,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Protection from Poison,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Spike Growth,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Call Lightning,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Conjure Animals,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Daylight,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Dispel Magic,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Meld into Stone,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Plant Growth,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Protection from Energy,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Revivify,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Sleet Storm,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Speak with Plants,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Water Breathing,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Water Walk,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Wind Wall,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Blight,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Charm Monster,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Confusion,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Conjure Minor Elementals,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Conjure Woodland Beings,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Control Water,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Divination,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Dominate Beast,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Fire Shield,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Freedom of Movement,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Giant Insect,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Hallucinatory Terrain,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Ice Storm,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Locate Creature,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Polymorph,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Stone Shape,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Stoneskin,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Wall of Fire,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Antilife Shell,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Awaken,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Commune with Nature,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Cone of Cold,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Conjure Elemental,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Contagion,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Geas,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Greater Restoration,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Insect Plague,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Mass Cure Wounds,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Planar Binding,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Reincarnate,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Scrying,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Tree Stride,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Wall of Stone,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Conjure Fey,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Find the Path,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Flesh to Stone,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Heal,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Heroes' Feast,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Move Earth,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Sunbeam,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Transport via Plants,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Wall of Thorns,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Wind Walk,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Fire Storm,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Mirage Arcane,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Plane Shift,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Regenerate,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Reverse Gravity,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Symbol,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Animal Shapes,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Antipathy/Sympathy,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Befuddlement,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Control Weather,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Earthquake,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Incendiary Cloud,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Sunburst,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Tsunami,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Foresight,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Shapechange,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Storm of Vengeance,d328bebd-d404-53ab-a8e1-30020cfac6e6
+True Resurrection,d328bebd-d404-53ab-a8e1-30020cfac6e6
+Bless,eeb719a0-134e-5484-837c-c2ca360facaf
+Command,eeb719a0-134e-5484-837c-c2ca360facaf
+Cure Wounds,eeb719a0-134e-5484-837c-c2ca360facaf
+Detect Evil and Good,eeb719a0-134e-5484-837c-c2ca360facaf
+Detect Magic,eeb719a0-134e-5484-837c-c2ca360facaf
+Detect Poison and Disease,eeb719a0-134e-5484-837c-c2ca360facaf
+Divine Favor,eeb719a0-134e-5484-837c-c2ca360facaf
+Divine Smite,eeb719a0-134e-5484-837c-c2ca360facaf
+Heroism,eeb719a0-134e-5484-837c-c2ca360facaf
+Protection from Evil and Good,eeb719a0-134e-5484-837c-c2ca360facaf
+Purify Food and Drink,eeb719a0-134e-5484-837c-c2ca360facaf
+Searing Smite,eeb719a0-134e-5484-837c-c2ca360facaf
+Shield of Faith,eeb719a0-134e-5484-837c-c2ca360facaf
+Aid,eeb719a0-134e-5484-837c-c2ca360facaf
+Find Steed,eeb719a0-134e-5484-837c-c2ca360facaf
+Gentle Repose,eeb719a0-134e-5484-837c-c2ca360facaf
+Lesser Restoration,eeb719a0-134e-5484-837c-c2ca360facaf
+Locate Object,eeb719a0-134e-5484-837c-c2ca360facaf
+Magic Weapon,eeb719a0-134e-5484-837c-c2ca360facaf
+Prayer of Healing,eeb719a0-134e-5484-837c-c2ca360facaf
+Protection from Poison,eeb719a0-134e-5484-837c-c2ca360facaf
+Shining Smite,eeb719a0-134e-5484-837c-c2ca360facaf
+Warding Bond,eeb719a0-134e-5484-837c-c2ca360facaf
+Zone of Truth,eeb719a0-134e-5484-837c-c2ca360facaf
+Create Food and Water,eeb719a0-134e-5484-837c-c2ca360facaf
+Daylight,eeb719a0-134e-5484-837c-c2ca360facaf
+Dispel Magic,eeb719a0-134e-5484-837c-c2ca360facaf
+Magic Circle,eeb719a0-134e-5484-837c-c2ca360facaf
+Remove Curse,eeb719a0-134e-5484-837c-c2ca360facaf
+Revivify,eeb719a0-134e-5484-837c-c2ca360facaf
+Aura of Life,eeb719a0-134e-5484-837c-c2ca360facaf
+Banishment,eeb719a0-134e-5484-837c-c2ca360facaf
+Death Ward,eeb719a0-134e-5484-837c-c2ca360facaf
+Locate Creature,eeb719a0-134e-5484-837c-c2ca360facaf
+Dispel Evil and Good,eeb719a0-134e-5484-837c-c2ca360facaf
+Geas,eeb719a0-134e-5484-837c-c2ca360facaf
+Greater Restoration,eeb719a0-134e-5484-837c-c2ca360facaf
+Raise Dead,eeb719a0-134e-5484-837c-c2ca360facaf
+Alarm,bfb29762-cbb4-532e-a82f-54808c7e209d
+Animal Friendship,bfb29762-cbb4-532e-a82f-54808c7e209d
+Cure Wounds,bfb29762-cbb4-532e-a82f-54808c7e209d
+Detect Magic,bfb29762-cbb4-532e-a82f-54808c7e209d
+Detect Poison and Disease,bfb29762-cbb4-532e-a82f-54808c7e209d
+Ensnaring Strike,bfb29762-cbb4-532e-a82f-54808c7e209d
+Entangle,bfb29762-cbb4-532e-a82f-54808c7e209d
+Fog Cloud,bfb29762-cbb4-532e-a82f-54808c7e209d
+Goodberry,bfb29762-cbb4-532e-a82f-54808c7e209d
+Hunter's Mark,bfb29762-cbb4-532e-a82f-54808c7e209d
+Jump,bfb29762-cbb4-532e-a82f-54808c7e209d
+Longstrider,bfb29762-cbb4-532e-a82f-54808c7e209d
+Speak with Animals,bfb29762-cbb4-532e-a82f-54808c7e209d
+Aid,bfb29762-cbb4-532e-a82f-54808c7e209d
+Animal Messenger,bfb29762-cbb4-532e-a82f-54808c7e209d
+Barkskin,bfb29762-cbb4-532e-a82f-54808c7e209d
+Darkvision,bfb29762-cbb4-532e-a82f-54808c7e209d
+Enhance Ability,bfb29762-cbb4-532e-a82f-54808c7e209d
+Find Traps,bfb29762-cbb4-532e-a82f-54808c7e209d
+Gust of Wind,bfb29762-cbb4-532e-a82f-54808c7e209d
+Lesser Restoration,bfb29762-cbb4-532e-a82f-54808c7e209d
+Locate Animals or Plants,bfb29762-cbb4-532e-a82f-54808c7e209d
+Locate Object,bfb29762-cbb4-532e-a82f-54808c7e209d
+Magic Weapon,bfb29762-cbb4-532e-a82f-54808c7e209d
+Pass without Trace,bfb29762-cbb4-532e-a82f-54808c7e209d
+Protection from Poison,bfb29762-cbb4-532e-a82f-54808c7e209d
+Silence,bfb29762-cbb4-532e-a82f-54808c7e209d
+Spike Growth,bfb29762-cbb4-532e-a82f-54808c7e209d
+Conjure Animals,bfb29762-cbb4-532e-a82f-54808c7e209d
+Daylight,bfb29762-cbb4-532e-a82f-54808c7e209d
+Dispel Magic,bfb29762-cbb4-532e-a82f-54808c7e209d
+Meld into Stone,bfb29762-cbb4-532e-a82f-54808c7e209d
+Nondetection,bfb29762-cbb4-532e-a82f-54808c7e209d
+Plant Growth,bfb29762-cbb4-532e-a82f-54808c7e209d
+Protection from Energy,bfb29762-cbb4-532e-a82f-54808c7e209d
+Revivify,bfb29762-cbb4-532e-a82f-54808c7e209d
+Speak with Plants,bfb29762-cbb4-532e-a82f-54808c7e209d
+Water Breathing,bfb29762-cbb4-532e-a82f-54808c7e209d
+Water Walk,bfb29762-cbb4-532e-a82f-54808c7e209d
+Wind Wall,bfb29762-cbb4-532e-a82f-54808c7e209d
+Conjure Woodland Beings,bfb29762-cbb4-532e-a82f-54808c7e209d
+Dominate Beast,bfb29762-cbb4-532e-a82f-54808c7e209d
+Freedom of Movement,bfb29762-cbb4-532e-a82f-54808c7e209d
+Locate Creature,bfb29762-cbb4-532e-a82f-54808c7e209d
+Stoneskin,bfb29762-cbb4-532e-a82f-54808c7e209d
+Commune with Nature,bfb29762-cbb4-532e-a82f-54808c7e209d
+Greater Restoration,bfb29762-cbb4-532e-a82f-54808c7e209d
+Tree Stride,bfb29762-cbb4-532e-a82f-54808c7e209d
+Acid Splash,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Chill Touch,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dancing Lights,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Elementalism,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fire Bolt,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Light,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Mage Hand,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Mending,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Message,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Minor Illusion,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Poison Spray,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Prestidigitation,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Ray of Frost,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Shocking Grasp,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Sorcerous Burst,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+True Strike,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Burning Hands,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Charm Person,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Chromatic Orb,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Color Spray,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Comprehend Languages,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Detect Magic,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Disguise Self,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Expeditious Retreat,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+False Life,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Feather Fall,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fog Cloud,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Grease,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Ice Knife,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Jump,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Mage Armor,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Magic Missile,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Ray of Sickness,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Shield,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Silent Image,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Sleep,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Thunderwave,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Alter Self,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Blindness/Deafness,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Blur,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Darkness,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Darkvision,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Detect Thoughts,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dragon's Breath,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Enhance Ability,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Enlarge/Reduce,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Flame Blade,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Flaming Sphere,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Gust of Wind,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Hold Person,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Invisibility,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Knock,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Levitate,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Magic Weapon,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Mirror Image,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Misty Step,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Scorching Ray,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+See Invisibility,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Shatter,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Spider Climb,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Suggestion,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Web,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Blink,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Clairvoyance,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Counterspell,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Daylight,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dispel Magic,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fear,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fireball,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fly,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Gaseous Form,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Haste,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Hypnotic Pattern,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Lightning Bolt,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Major Image,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Protection from Energy,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Sleet Storm,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Slow,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Stinking Cloud,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Tongues,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Vampiric Touch,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Water Breathing,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Water Walk,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Banishment,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Blight,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Charm Monster,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Confusion,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dimension Door,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dominate Beast,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fire Shield,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Greater Invisibility,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Ice Storm,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Polymorph,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Stoneskin,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Vitriolic Sphere,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Wall of Fire,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Animate Objects,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Arcane Hand,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Cloudkill,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Cone of Cold,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Creation,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dominate Person,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Hold Monster,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Insect Plague,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Seeming,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Telekinesis,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Teleportation Circle,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Wall of Stone,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Chain Lightning,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Circle of Death,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Disintegrate,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Eyebite,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Flesh to Stone,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Freezing Sphere,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Globe of Invulnerability,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Mass Suggestion,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Move Earth,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Sunbeam,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+True Seeing,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Delayed Blast Fireball,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Etherealness,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Finger of Death,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Fire Storm,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Plane Shift,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Prismatic Spray,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Reverse Gravity,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Teleport,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Demiplane,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Dominate Monster,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Earthquake,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Incendiary Cloud,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Power Word Stun,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Sunburst,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Gate,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Meteor Swarm,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Power Word Kill,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Time Stop,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Wish,d8f1aa54-e1c7-55f0-9436-1da48a0ba8be
+Chill Touch,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Eldritch Blast,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Mage Hand,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Minor Illusion,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Poison Spray,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Prestidigitation,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+True Strike,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Bane,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Charm Person,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Comprehend Languages,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Detect Magic,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Expeditious Retreat,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hellish Rebuke,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hex,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hideous Laughter,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Illusory Script,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Protection from Evil and Good,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Speak with Animals,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Unseen Servant,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Darkness,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Enthrall,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hold Person,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Invisibility,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Mind Spike,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Mirror Image,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Misty Step,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Ray of Enfeeblement,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Spider Climb,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Suggestion,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Counterspell,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Dispel Magic,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Fear,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Fly,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Gaseous Form,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hypnotic Pattern,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Magic Circle,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Major Image,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Remove Curse,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Tongues,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Vampiric Touch,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Banishment,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Blight,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Charm Monster,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Dimension Door,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hallucinatory Terrain,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Contact Other Plane,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Dream,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Hold Monster,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Mislead,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Planar Binding,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Scrying,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Teleportation Circle,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Circle of Death,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Create Undead,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Eyebite,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+True Seeing,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Etherealness,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Finger of Death,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Forcecage,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Plane Shift,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Befuddlement,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Demiplane,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Dominate Monster,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Glibness,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Power Word Stun,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Astral Projection,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Foresight,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Gate,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Imprisonment,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Power Word Kill,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+True Polymorph,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Weird,d5dabf61-a3cb-5dde-a75e-9667de1e6294
+Acid Splash,809eb721-f97d-511f-8874-9bfe81c64628
+Chill Touch,809eb721-f97d-511f-8874-9bfe81c64628
+Dancing Lights,809eb721-f97d-511f-8874-9bfe81c64628
+Elementalism,809eb721-f97d-511f-8874-9bfe81c64628
+Fire Bolt,809eb721-f97d-511f-8874-9bfe81c64628
+Light,809eb721-f97d-511f-8874-9bfe81c64628
+Mage Hand,809eb721-f97d-511f-8874-9bfe81c64628
+Mending,809eb721-f97d-511f-8874-9bfe81c64628
+Message,809eb721-f97d-511f-8874-9bfe81c64628
+Minor Illusion,809eb721-f97d-511f-8874-9bfe81c64628
+Poison Spray,809eb721-f97d-511f-8874-9bfe81c64628
+Prestidigitation,809eb721-f97d-511f-8874-9bfe81c64628
+Ray of Frost,809eb721-f97d-511f-8874-9bfe81c64628
+Shocking Grasp,809eb721-f97d-511f-8874-9bfe81c64628
+True Strike,809eb721-f97d-511f-8874-9bfe81c64628
+Alarm,809eb721-f97d-511f-8874-9bfe81c64628
+Burning Hands,809eb721-f97d-511f-8874-9bfe81c64628
+Charm Person,809eb721-f97d-511f-8874-9bfe81c64628
+Chromatic Orb,809eb721-f97d-511f-8874-9bfe81c64628
+Color Spray,809eb721-f97d-511f-8874-9bfe81c64628
+Comprehend Languages,809eb721-f97d-511f-8874-9bfe81c64628
+Detect Magic,809eb721-f97d-511f-8874-9bfe81c64628
+Disguise Self,809eb721-f97d-511f-8874-9bfe81c64628
+Expeditious Retreat,809eb721-f97d-511f-8874-9bfe81c64628
+False Life,809eb721-f97d-511f-8874-9bfe81c64628
+Feather Fall,809eb721-f97d-511f-8874-9bfe81c64628
+Find Familiar,809eb721-f97d-511f-8874-9bfe81c64628
+Floating Disk,809eb721-f97d-511f-8874-9bfe81c64628
+Fog Cloud,809eb721-f97d-511f-8874-9bfe81c64628
+Grease,809eb721-f97d-511f-8874-9bfe81c64628
+Hideous Laughter,809eb721-f97d-511f-8874-9bfe81c64628
+Ice Knife,809eb721-f97d-511f-8874-9bfe81c64628
+Identify,809eb721-f97d-511f-8874-9bfe81c64628
+Illusory Script,809eb721-f97d-511f-8874-9bfe81c64628
+Jump,809eb721-f97d-511f-8874-9bfe81c64628
+Longstrider,809eb721-f97d-511f-8874-9bfe81c64628
+Mage Armor,809eb721-f97d-511f-8874-9bfe81c64628
+Magic Missile,809eb721-f97d-511f-8874-9bfe81c64628
+Protection from Evil and Good,809eb721-f97d-511f-8874-9bfe81c64628
+Ray of Sickness,809eb721-f97d-511f-8874-9bfe81c64628
+Shield,809eb721-f97d-511f-8874-9bfe81c64628
+Silent Image,809eb721-f97d-511f-8874-9bfe81c64628
+Sleep,809eb721-f97d-511f-8874-9bfe81c64628
+Thunderwave,809eb721-f97d-511f-8874-9bfe81c64628
+Unseen Servant,809eb721-f97d-511f-8874-9bfe81c64628
+Acid Arrow,809eb721-f97d-511f-8874-9bfe81c64628
+Alter Self,809eb721-f97d-511f-8874-9bfe81c64628
+Arcane Lock,809eb721-f97d-511f-8874-9bfe81c64628
+Arcanist's Magic Aura,809eb721-f97d-511f-8874-9bfe81c64628
+Augury,809eb721-f97d-511f-8874-9bfe81c64628
+Blindness/Deafness,809eb721-f97d-511f-8874-9bfe81c64628
+Blur,809eb721-f97d-511f-8874-9bfe81c64628
+Continual Flame,809eb721-f97d-511f-8874-9bfe81c64628
+Darkness,809eb721-f97d-511f-8874-9bfe81c64628
+Darkvision,809eb721-f97d-511f-8874-9bfe81c64628
+Detect Thoughts,809eb721-f97d-511f-8874-9bfe81c64628
+Dragon's Breath,809eb721-f97d-511f-8874-9bfe81c64628
+Enhance Ability,809eb721-f97d-511f-8874-9bfe81c64628
+Enlarge/Reduce,809eb721-f97d-511f-8874-9bfe81c64628
+Flaming Sphere,809eb721-f97d-511f-8874-9bfe81c64628
+Gentle Repose,809eb721-f97d-511f-8874-9bfe81c64628
+Gust of Wind,809eb721-f97d-511f-8874-9bfe81c64628
+Hold Person,809eb721-f97d-511f-8874-9bfe81c64628
+Invisibility,809eb721-f97d-511f-8874-9bfe81c64628
+Knock,809eb721-f97d-511f-8874-9bfe81c64628
+Levitate,809eb721-f97d-511f-8874-9bfe81c64628
+Locate Object,809eb721-f97d-511f-8874-9bfe81c64628
+Magic Mouth,809eb721-f97d-511f-8874-9bfe81c64628
+Magic Weapon,809eb721-f97d-511f-8874-9bfe81c64628
+Mind Spike,809eb721-f97d-511f-8874-9bfe81c64628
+Mirror Image,809eb721-f97d-511f-8874-9bfe81c64628
+Misty Step,809eb721-f97d-511f-8874-9bfe81c64628
+Ray of Enfeeblement,809eb721-f97d-511f-8874-9bfe81c64628
+Rope Trick,809eb721-f97d-511f-8874-9bfe81c64628
+Scorching Ray,809eb721-f97d-511f-8874-9bfe81c64628
+See Invisibility,809eb721-f97d-511f-8874-9bfe81c64628
+Shatter,809eb721-f97d-511f-8874-9bfe81c64628
+Spider Climb,809eb721-f97d-511f-8874-9bfe81c64628
+Suggestion,809eb721-f97d-511f-8874-9bfe81c64628
+Web,809eb721-f97d-511f-8874-9bfe81c64628
+Animate Dead,809eb721-f97d-511f-8874-9bfe81c64628
+Bestow Curse,809eb721-f97d-511f-8874-9bfe81c64628
+Blink,809eb721-f97d-511f-8874-9bfe81c64628
+Clairvoyance,809eb721-f97d-511f-8874-9bfe81c64628
+Counterspell,809eb721-f97d-511f-8874-9bfe81c64628
+Dispel Magic,809eb721-f97d-511f-8874-9bfe81c64628
+Fear,809eb721-f97d-511f-8874-9bfe81c64628
+Fireball,809eb721-f97d-511f-8874-9bfe81c64628
+Fly,809eb721-f97d-511f-8874-9bfe81c64628
+Gaseous Form,809eb721-f97d-511f-8874-9bfe81c64628
+Glyph of Warding,809eb721-f97d-511f-8874-9bfe81c64628
+Haste,809eb721-f97d-511f-8874-9bfe81c64628
+Hypnotic Pattern,809eb721-f97d-511f-8874-9bfe81c64628
+Lightning Bolt,809eb721-f97d-511f-8874-9bfe81c64628
+Magic Circle,809eb721-f97d-511f-8874-9bfe81c64628
+Major Image,809eb721-f97d-511f-8874-9bfe81c64628
+Nondetection,809eb721-f97d-511f-8874-9bfe81c64628
+Phantom Steed,809eb721-f97d-511f-8874-9bfe81c64628
+Protection from Energy,809eb721-f97d-511f-8874-9bfe81c64628
+Remove Curse,809eb721-f97d-511f-8874-9bfe81c64628
+Sending,809eb721-f97d-511f-8874-9bfe81c64628
+Sleet Storm,809eb721-f97d-511f-8874-9bfe81c64628
+Slow,809eb721-f97d-511f-8874-9bfe81c64628
+Speak with Dead,809eb721-f97d-511f-8874-9bfe81c64628
+Stinking Cloud,809eb721-f97d-511f-8874-9bfe81c64628
+Tiny Hut,809eb721-f97d-511f-8874-9bfe81c64628
+Tongues,809eb721-f97d-511f-8874-9bfe81c64628
+Vampiric Touch,809eb721-f97d-511f-8874-9bfe81c64628
+Water Breathing,809eb721-f97d-511f-8874-9bfe81c64628
+Arcane Eye,809eb721-f97d-511f-8874-9bfe81c64628
+Banishment,809eb721-f97d-511f-8874-9bfe81c64628
+Black Tentacles,809eb721-f97d-511f-8874-9bfe81c64628
+Blight,809eb721-f97d-511f-8874-9bfe81c64628
+Charm Monster,809eb721-f97d-511f-8874-9bfe81c64628
+Confusion,809eb721-f97d-511f-8874-9bfe81c64628
+Conjure Minor Elementals,809eb721-f97d-511f-8874-9bfe81c64628
+Control Water,809eb721-f97d-511f-8874-9bfe81c64628
+Dimension Door,809eb721-f97d-511f-8874-9bfe81c64628
+Divination,809eb721-f97d-511f-8874-9bfe81c64628
+Fabricate,809eb721-f97d-511f-8874-9bfe81c64628
+Faithful Hound,809eb721-f97d-511f-8874-9bfe81c64628
+Fire Shield,809eb721-f97d-511f-8874-9bfe81c64628
+Greater Invisibility,809eb721-f97d-511f-8874-9bfe81c64628
+Hallucinatory Terrain,809eb721-f97d-511f-8874-9bfe81c64628
+Ice Storm,809eb721-f97d-511f-8874-9bfe81c64628
+Locate Creature,809eb721-f97d-511f-8874-9bfe81c64628
+Phantasmal Killer,809eb721-f97d-511f-8874-9bfe81c64628
+Polymorph,809eb721-f97d-511f-8874-9bfe81c64628
+Private Sanctum,809eb721-f97d-511f-8874-9bfe81c64628
+Resilient Sphere,809eb721-f97d-511f-8874-9bfe81c64628
+Secret Chest,809eb721-f97d-511f-8874-9bfe81c64628
+Stone Shape,809eb721-f97d-511f-8874-9bfe81c64628
+Stoneskin,809eb721-f97d-511f-8874-9bfe81c64628
+Vitriolic Sphere,809eb721-f97d-511f-8874-9bfe81c64628
+Wall of Fire,809eb721-f97d-511f-8874-9bfe81c64628
+Animate Objects,809eb721-f97d-511f-8874-9bfe81c64628
+Arcane Hand,809eb721-f97d-511f-8874-9bfe81c64628
+Cloudkill,809eb721-f97d-511f-8874-9bfe81c64628
+Cone of Cold,809eb721-f97d-511f-8874-9bfe81c64628
+Conjure Elemental,809eb721-f97d-511f-8874-9bfe81c64628
+Contact Other Plane,809eb721-f97d-511f-8874-9bfe81c64628
+Creation,809eb721-f97d-511f-8874-9bfe81c64628
+Dominate Person,809eb721-f97d-511f-8874-9bfe81c64628
+Dream,809eb721-f97d-511f-8874-9bfe81c64628
+Geas,809eb721-f97d-511f-8874-9bfe81c64628
+Hold Monster,809eb721-f97d-511f-8874-9bfe81c64628
+Legend Lore,809eb721-f97d-511f-8874-9bfe81c64628
+Mislead,809eb721-f97d-511f-8874-9bfe81c64628
+Modify Memory,809eb721-f97d-511f-8874-9bfe81c64628
+Passwall,809eb721-f97d-511f-8874-9bfe81c64628
+Planar Binding,809eb721-f97d-511f-8874-9bfe81c64628
+Scrying,809eb721-f97d-511f-8874-9bfe81c64628
+Seeming,809eb721-f97d-511f-8874-9bfe81c64628
+Summon Dragon,809eb721-f97d-511f-8874-9bfe81c64628
+Telekinesis,809eb721-f97d-511f-8874-9bfe81c64628
+Telepathic Bond,809eb721-f97d-511f-8874-9bfe81c64628
+Teleportation Circle,809eb721-f97d-511f-8874-9bfe81c64628
+Wall of Force,809eb721-f97d-511f-8874-9bfe81c64628
+Wall of Stone,809eb721-f97d-511f-8874-9bfe81c64628
+Chain Lightning,809eb721-f97d-511f-8874-9bfe81c64628
+Circle of Death,809eb721-f97d-511f-8874-9bfe81c64628
+Contingency,809eb721-f97d-511f-8874-9bfe81c64628
+Create Undead,809eb721-f97d-511f-8874-9bfe81c64628
+Disintegrate,809eb721-f97d-511f-8874-9bfe81c64628
+Eyebite,809eb721-f97d-511f-8874-9bfe81c64628
+Flesh to Stone,809eb721-f97d-511f-8874-9bfe81c64628
+Freezing Sphere,809eb721-f97d-511f-8874-9bfe81c64628
+Globe of Invulnerability,809eb721-f97d-511f-8874-9bfe81c64628
+Guards and Wards,809eb721-f97d-511f-8874-9bfe81c64628
+Instant Summons,809eb721-f97d-511f-8874-9bfe81c64628
+Irresistible Dance,809eb721-f97d-511f-8874-9bfe81c64628
+Magic Jar,809eb721-f97d-511f-8874-9bfe81c64628
+Mass Suggestion,809eb721-f97d-511f-8874-9bfe81c64628
+Move Earth,809eb721-f97d-511f-8874-9bfe81c64628
+Programmed Illusion,809eb721-f97d-511f-8874-9bfe81c64628
+Sunbeam,809eb721-f97d-511f-8874-9bfe81c64628
+True Seeing,809eb721-f97d-511f-8874-9bfe81c64628
+Wall of Ice,809eb721-f97d-511f-8874-9bfe81c64628
+Arcane Sword,809eb721-f97d-511f-8874-9bfe81c64628
+Delayed Blast Fireball,809eb721-f97d-511f-8874-9bfe81c64628
+Etherealness,809eb721-f97d-511f-8874-9bfe81c64628
+Finger of Death,809eb721-f97d-511f-8874-9bfe81c64628
+Forcecage,809eb721-f97d-511f-8874-9bfe81c64628
+Magnificent Mansion,809eb721-f97d-511f-8874-9bfe81c64628
+Mirage Arcane,809eb721-f97d-511f-8874-9bfe81c64628
+Plane Shift,809eb721-f97d-511f-8874-9bfe81c64628
+Prismatic Spray,809eb721-f97d-511f-8874-9bfe81c64628
+Project Image,809eb721-f97d-511f-8874-9bfe81c64628
+Reverse Gravity,809eb721-f97d-511f-8874-9bfe81c64628
+Sequester,809eb721-f97d-511f-8874-9bfe81c64628
+Simulacrum,809eb721-f97d-511f-8874-9bfe81c64628
+Symbol,809eb721-f97d-511f-8874-9bfe81c64628
+Teleport,809eb721-f97d-511f-8874-9bfe81c64628
+Antimagic Field,809eb721-f97d-511f-8874-9bfe81c64628
+Antipathy/Sympathy,809eb721-f97d-511f-8874-9bfe81c64628
+Befuddlement,809eb721-f97d-511f-8874-9bfe81c64628
+Clone,809eb721-f97d-511f-8874-9bfe81c64628
+Control Weather,809eb721-f97d-511f-8874-9bfe81c64628
+Demiplane,809eb721-f97d-511f-8874-9bfe81c64628
+Dominate Monster,809eb721-f97d-511f-8874-9bfe81c64628
+Incendiary Cloud,809eb721-f97d-511f-8874-9bfe81c64628
+Maze,809eb721-f97d-511f-8874-9bfe81c64628
+Mind Blank,809eb721-f97d-511f-8874-9bfe81c64628
+Power Word Stun,809eb721-f97d-511f-8874-9bfe81c64628
+Sunburst,809eb721-f97d-511f-8874-9bfe81c64628
+Astral Projection,809eb721-f97d-511f-8874-9bfe81c64628
+Foresight,809eb721-f97d-511f-8874-9bfe81c64628
+Gate,809eb721-f97d-511f-8874-9bfe81c64628
+Imprisonment,809eb721-f97d-511f-8874-9bfe81c64628
+Meteor Swarm,809eb721-f97d-511f-8874-9bfe81c64628
+Power Word Kill,809eb721-f97d-511f-8874-9bfe81c64628
+Prismatic Wall,809eb721-f97d-511f-8874-9bfe81c64628
+Shapechange,809eb721-f97d-511f-8874-9bfe81c64628
+Time Stop,809eb721-f97d-511f-8874-9bfe81c64628
+True Polymorph,809eb721-f97d-511f-8874-9bfe81c64628
+Weird,809eb721-f97d-511f-8874-9bfe81c64628
+Wish,809eb721-f97d-511f-8874-9bfe81c64628

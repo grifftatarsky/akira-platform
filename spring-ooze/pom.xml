@@ -121,6 +121,13 @@
       <artifactId>spring-security-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- MockMvc. Boot 4 split the web test slices out of spring-boot-starter-test
+         into per-stack modules, so @AutoConfigureMockMvc needs this explicitly. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-webmvc-test</artifactId>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>com.c4-soft.springaddons</groupId>
       <artifactId>spring-addons-starter-oidc-test</artifactId>

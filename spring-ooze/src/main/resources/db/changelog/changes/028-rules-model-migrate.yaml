@@ -1,0 +1,408 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 028 — move the existing catalog onto the rules model, then drop what it
+  # replaced.
+  #
+  # Order is add-columns, migrate, drop-columns, so that no statement reads a
+  # column that a previous one removed and a half-applied changelog never loses
+  # data. Prose with no structured home is carried across as a passive feature
+  # rather than deleted — the four seeded monsters are about to be replaced by
+  # the real bestiary import, and until then their text still has to display.
+  # ==========================================================================
+
+  # ---------- add the new columns ----------
+  - changeSet:
+      id: 028-add-columns
+      author: oozengine
+      changes:
+        - addColumn: {tableName: monsters, columns: [{column: {name: stat_block_id, type: UUID}}]}
+        - addColumn:
+            tableName: items
+            columns:
+              - column: {name: item_category, type: VARCHAR(24)}
+              - column: {name: rarity_tier, type: VARCHAR(16)}
+              - column: {name: attunement_note, type: VARCHAR(255)}
+              - column: {name: cost_gp, type: "NUMERIC(12,2)"}
+              - column: {name: weight_lb, type: "NUMERIC(8,2)"}
+              - column: {name: weapon_category, type: VARCHAR(24)}
+              - column: {name: weapon_dice_count, type: INT}
+              - column: {name: weapon_dice_faces, type: INT}
+              - column: {name: weapon_dice_bonus, type: INT}
+              - column: {name: weapon_dice_average, type: INT}
+              - column: {name: weapon_damage_type, type: VARCHAR(16)}
+              - column: {name: versatile_dice_count, type: INT}
+              - column: {name: versatile_dice_faces, type: INT}
+              - column: {name: versatile_dice_bonus, type: INT}
+              - column: {name: versatile_dice_average, type: INT}
+              - column: {name: mastery_id, type: UUID}
+              - column: {name: range_normal_feet, type: INT}
+              - column: {name: range_long_feet, type: INT}
+              - column: {name: weapon_reach_feet, type: INT}
+              - column: {name: armor_category, type: VARCHAR(16)}
+              - column: {name: base_armor_class, type: INT}
+              - column: {name: adds_dexterity, type: BOOLEAN}
+              - column: {name: dexterity_cap, type: INT}
+              - column: {name: strength_requirement, type: INT}
+              - column: {name: stealth_disadvantage, type: BOOLEAN}
+              - column: {name: armor_class_bonus, type: INT}
+        - addForeignKeyConstraint: {constraintName: fk_items_mastery, baseTableName: items, baseColumnNames: mastery_id, referencedTableName: weapon_masteries, referencedColumnNames: id, onDelete: SET NULL}
+        - addColumn:
+            tableName: spells
+            columns:
+              - column: {name: cast_activation, type: VARCHAR(24)}
+              - column: {name: cast_time_amount, type: INT}
+              - column: {name: cast_time_unit, type: VARCHAR(16)}
+              - column: {name: range_type, type: VARCHAR(16)}
+              - column: {name: range_feet, type: INT}
+              - column: {name: duration_amount, type: INT}
+              - column: {name: duration_unit, type: VARCHAR(16)}
+              - column: {name: material_cost_gp, type: INT}
+              - column: {name: material_consumed, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+        - addColumn:
+            tableName: species
+            columns:
+              - column: {name: size_category, type: VARCHAR(16)}
+              - column: {name: alternate_size, type: VARCHAR(16)}
+              - column: {name: creature_type_enum, type: VARCHAR(24)}
+        - addColumn:
+            tableName: vocations
+            columns:
+              - column: {name: hit_die_faces, type: INT}
+              - column: {name: caster_progression, type: VARCHAR(16)}
+              - column: {name: spellcasting_ability, type: VARCHAR(16)}
+              - column: {name: skill_choices, type: INT}
+        - addColumn:
+            tableName: backgrounds
+            columns:
+              - column: {name: feat_id, type: UUID}
+              - column: {name: feat_note, type: VARCHAR(255)}
+        - addForeignKeyConstraint: {constraintName: fk_backgrounds_feat, baseTableName: backgrounds, baseColumnNames: feat_id, referencedTableName: feats, referencedColumnNames: id, onDelete: SET NULL}
+        - addColumn:
+            tableName: feats
+            columns:
+              - column: {name: category, type: VARCHAR(24)}
+              - column: {name: repeatable, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+        - addColumn: {tableName: conditions, columns: [{column: {name: code, type: VARCHAR(24)}}]}
+        - addColumn: {tableName: weapon_masteries, columns: [{column: {name: code, type: VARCHAR(16)}}]}
+        - addColumn:
+            tableName: characters
+            columns:
+              - column: {name: species_id, type: UUID}
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: subclass_id, type: UUID}
+              - column: {name: background_id, type: UUID}
+              - column: {name: stat_block_id, type: UUID}
+        - addForeignKeyConstraint: {constraintName: fk_characters_species, baseTableName: characters, baseColumnNames: species_id, referencedTableName: species, referencedColumnNames: id, onDelete: SET NULL}
+        - addForeignKeyConstraint: {constraintName: fk_characters_vocation, baseTableName: characters, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: SET NULL}
+        - addForeignKeyConstraint: {constraintName: fk_characters_subclass, baseTableName: characters, baseColumnNames: subclass_id, referencedTableName: subclasses, referencedColumnNames: id, onDelete: SET NULL}
+        - addForeignKeyConstraint: {constraintName: fk_characters_background, baseTableName: characters, baseColumnNames: background_id, referencedTableName: backgrounds, referencedColumnNames: id, onDelete: SET NULL}
+
+  # ---------- migrate the vocabularies ----------
+  - changeSet:
+      id: 028-migrate-codes
+      author: oozengine
+      # Names match the enum constants exactly for all 15 conditions and 8
+      # masteries, so the mapping is mechanical rather than a lookup table.
+      changes:
+        - sql:
+            sql: |
+              UPDATE conditions SET code = upper(name) WHERE owner_id IS NULL;
+              UPDATE weapon_masteries SET code = upper(name) WHERE owner_id IS NULL;
+              UPDATE feats SET category = upper(replace(feat_category, ' ', '_'));
+              UPDATE feats SET repeatable = true
+                WHERE name IN ('Ability Score Improvement', 'Magic Initiate', 'Skilled');
+
+  - changeSet:
+      id: 028-migrate-items
+      author: oozengine
+      changes:
+        - sql:
+            sql: |
+              UPDATE items SET
+                item_category = CASE category
+                    WHEN 'Weapon'           THEN 'WEAPON'
+                    WHEN 'Armor'            THEN 'ARMOR'
+                    WHEN 'Shield'           THEN 'SHIELD'
+                    WHEN 'Adventuring Gear' THEN 'ADVENTURING_GEAR'
+                    WHEN 'Tool'             THEN 'TOOL'
+                    WHEN 'Consumable'       THEN 'POTION'
+                    WHEN 'Wondrous Item'    THEN 'WONDROUS_ITEM'
+                    ELSE 'OTHER' END,
+                rarity_tier = CASE WHEN rarity IS NULL OR rarity = '' THEN NULL
+                                   ELSE upper(replace(rarity, ' ', '_')) END,
+                -- "15 gp" / "5 sp" / "2 cp" all normalise to gold
+                cost_gp = CASE
+                    WHEN cost IS NULL THEN NULL
+                    WHEN cost ILIKE '%cp%' THEN (substring(cost from '([0-9.]+)')::numeric) / 100
+                    WHEN cost ILIKE '%sp%' THEN (substring(cost from '([0-9.]+)')::numeric) / 10
+                    ELSE substring(cost from '([0-9.]+)')::numeric END,
+                weight_lb = CASE WHEN weight IS NULL THEN NULL
+                                 ELSE substring(weight from '([0-9.]+)')::numeric END;
+
+  - changeSet:
+      id: 028-migrate-item-properties-to-features
+      author: oozengine
+      # The prose in items.properties described mechanics the columns now hold,
+      # but nobody has filled those columns in yet. Keeping the sentence as a
+      # passive feature means the finder still shows what it always showed.
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO features (id, created_at, updated_at, version, name, description,
+                                    ordinal, item_id, activation, uses_reset, ritual)
+              SELECT gen_random_uuid(), now(), now(), 0, 'Properties', properties,
+                     0, id, 'PASSIVE', 'AT_WILL', false
+              FROM items
+              WHERE properties IS NOT NULL AND properties <> '';
+
+  - changeSet:
+      id: 028-migrate-species
+      author: oozengine
+      changes:
+        - sql:
+            sql: |
+              UPDATE species SET
+                size_category = upper(size),
+                creature_type_enum = upper(creature_type)
+              WHERE size IS NOT NULL OR creature_type IS NOT NULL;
+
+              INSERT INTO species_speeds (species_id, movement_type, speed_feet)
+              SELECT id, 'WALK', substring(speed from '([0-9]+)')::int
+              FROM species
+              WHERE speed ~ '[0-9]';
+
+              INSERT INTO features (id, created_at, updated_at, version, name, description,
+                                    ordinal, species_id, activation, uses_reset, ritual)
+              SELECT gen_random_uuid(), now(), now(), 0, name || ' Traits', traits,
+                     0, id, 'PASSIVE', 'AT_WILL', false
+              FROM species
+              WHERE traits IS NOT NULL AND traits <> '';
+
+  - changeSet:
+      id: 028-migrate-vocations
+      author: oozengine
+      changes:
+        - sql:
+            sql: |
+              UPDATE vocations SET hit_die_faces = substring(hit_die from '([0-9]+)')::int
+              WHERE hit_die ~ '[0-9]';
+
+              -- "Strength or Dexterity" and "Dexterity and Wisdom" both list two.
+              INSERT INTO vocation_primary_abilities (vocation_id, ability)
+              SELECT v.id, a.ability
+              FROM vocations v
+              CROSS JOIN (VALUES ('STRENGTH','Strength'), ('DEXTERITY','Dexterity'),
+                                 ('CONSTITUTION','Constitution'), ('INTELLIGENCE','Intelligence'),
+                                 ('WISDOM','Wisdom'), ('CHARISMA','Charisma')) AS a(ability, label)
+              WHERE v.primary_ability ILIKE '%' || a.label || '%';
+
+              INSERT INTO vocation_saving_throws (vocation_id, ability)
+              SELECT v.id, a.ability
+              FROM vocations v
+              CROSS JOIN (VALUES ('STRENGTH','Strength'), ('DEXTERITY','Dexterity'),
+                                 ('CONSTITUTION','Constitution'), ('INTELLIGENCE','Intelligence'),
+                                 ('WISDOM','Wisdom'), ('CHARISMA','Charisma')) AS a(ability, label)
+              WHERE v.saving_throws ILIKE '%' || a.label || '%';
+
+              -- Caster progression is a rule about the class, not something the
+              -- old free-text columns recorded; set from the SRD directly.
+              UPDATE vocations SET caster_progression = CASE name
+                  WHEN 'Bard' THEN 'FULL'    WHEN 'Cleric' THEN 'FULL'
+                  WHEN 'Druid' THEN 'FULL'   WHEN 'Sorcerer' THEN 'FULL'
+                  WHEN 'Wizard' THEN 'FULL'  WHEN 'Paladin' THEN 'HALF'
+                  WHEN 'Ranger' THEN 'HALF'  WHEN 'Warlock' THEN 'PACT'
+                  ELSE 'NONE' END
+              WHERE owner_id IS NULL;
+
+              UPDATE vocations SET spellcasting_ability = CASE name
+                  WHEN 'Bard' THEN 'CHARISMA'      WHEN 'Cleric' THEN 'WISDOM'
+                  WHEN 'Druid' THEN 'WISDOM'       WHEN 'Sorcerer' THEN 'CHARISMA'
+                  WHEN 'Wizard' THEN 'INTELLIGENCE' WHEN 'Paladin' THEN 'CHARISMA'
+                  WHEN 'Ranger' THEN 'WISDOM'      WHEN 'Warlock' THEN 'CHARISMA'
+                  ELSE NULL END
+              WHERE owner_id IS NULL;
+
+  - changeSet:
+      id: 028-migrate-backgrounds
+      author: oozengine
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO background_abilities (background_id, ability)
+              SELECT b.id, a.ability
+              FROM backgrounds b
+              CROSS JOIN (VALUES ('STRENGTH','Strength'), ('DEXTERITY','Dexterity'),
+                                 ('CONSTITUTION','Constitution'), ('INTELLIGENCE','Intelligence'),
+                                 ('WISDOM','Wisdom'), ('CHARISMA','Charisma')) AS a(ability, label)
+              WHERE b.ability_scores ILIKE '%' || a.label || '%';
+
+              INSERT INTO background_skills (background_id, skill)
+              SELECT b.id, s.skill
+              FROM backgrounds b
+              CROSS JOIN (VALUES ('ACROBATICS','Acrobatics'), ('ANIMAL_HANDLING','Animal Handling'),
+                                 ('ARCANA','Arcana'), ('ATHLETICS','Athletics'),
+                                 ('DECEPTION','Deception'), ('HISTORY','History'),
+                                 ('INSIGHT','Insight'), ('INTIMIDATION','Intimidation'),
+                                 ('INVESTIGATION','Investigation'), ('MEDICINE','Medicine'),
+                                 ('NATURE','Nature'), ('PERCEPTION','Perception'),
+                                 ('PERFORMANCE','Performance'), ('PERSUASION','Persuasion'),
+                                 ('RELIGION','Religion'), ('SLEIGHT_OF_HAND','Sleight of Hand'),
+                                 ('STEALTH','Stealth'), ('SURVIVAL','Survival')) AS s(skill, label)
+              WHERE b.skill_proficiencies ILIKE '%' || s.label || '%';
+
+              -- "Magic Initiate (Cleric)" splits into the feat row and its note.
+              UPDATE backgrounds b SET
+                feat_id = f.id,
+                feat_note = nullif(rtrim(split_part(b.feat, ' (', 2), ')'), '')
+              FROM feats f
+              WHERE f.owner_id IS NULL
+                AND f.name = split_part(b.feat, ' (', 1)
+                AND b.feat IS NOT NULL;
+
+  - changeSet:
+      id: 028-migrate-monsters
+      author: oozengine
+      # One stat block per monster, then the flat columns copied into it.
+      # "Humanoid (Goblinoid)" splits into type and subtype; "1/4" becomes 0.25;
+      # "256 (19d12 + 133)" becomes an average and a dice expression; and
+      # "40 ft., climb 40 ft., fly 80 ft." becomes one row per movement mode.
+      changes:
+        - sql:
+            sql: |
+              UPDATE monsters SET stat_block_id = gen_random_uuid() WHERE stat_block_id IS NULL;
+
+              INSERT INTO stat_blocks (
+                  id, created_at, updated_at, version,
+                  size, creature_type, creature_subtype, alignment, armor_class,
+                  hp_average, hp_dice_count, hp_dice_faces, hp_dice_bonus, can_hover,
+                  score_strength, score_dexterity, score_constitution,
+                  score_intelligence, score_wisdom, score_charisma, challenge_rating)
+              SELECT
+                  m.stat_block_id, now(), now(), 0,
+                  upper(m.size),
+                  upper(split_part(m.creature_type, ' (', 1)),
+                  nullif(rtrim(split_part(m.creature_type, ' (', 2), ')'), ''),
+                  upper(replace(m.alignment, ' ', '_')),
+                  m.armor_class,
+                  substring(m.hit_points from '^([0-9]+)')::int,
+                  substring(m.hit_points from '\(([0-9]+)d')::int,
+                  substring(m.hit_points from '\([0-9]+d([0-9]+)')::int,
+                  nullif(replace(coalesce(substring(m.hit_points from '\([0-9]+d[0-9]+ ([+-] ?[0-9]+)\)'), ''), ' ', ''), '')::int,
+                  false,
+                  m.strength, m.dexterity, m.constitution,
+                  m.intelligence, m.wisdom, m.charisma,
+                  CASE WHEN m.challenge_rating LIKE '%/%'
+                       THEN split_part(m.challenge_rating, '/', 1)::numeric
+                            / split_part(m.challenge_rating, '/', 2)::numeric
+                       WHEN m.challenge_rating ~ '^[0-9.]+$' THEN m.challenge_rating::numeric
+                       ELSE NULL END
+              FROM monsters m;
+
+              INSERT INTO stat_block_speeds (stat_block_id, movement_type, speed_feet)
+              SELECT m.stat_block_id, s.mode, s.feet FROM monsters m
+              CROSS JOIN LATERAL (VALUES
+                  ('WALK',   substring(m.speed from '^([0-9]+)')::int),
+                  ('CLIMB',  substring(m.speed from '[Cc]limb ([0-9]+)')::int),
+                  ('FLY',    substring(m.speed from '[Ff]ly ([0-9]+)')::int),
+                  ('SWIM',   substring(m.speed from '[Ss]wim ([0-9]+)')::int),
+                  ('BURROW', substring(m.speed from '[Bb]urrow ([0-9]+)')::int)
+              ) AS s(mode, feet)
+              WHERE s.feet IS NOT NULL;
+
+              INSERT INTO features (id, created_at, updated_at, version, name, description,
+                                    ordinal, stat_block_id, activation, uses_reset, ritual)
+              SELECT gen_random_uuid(), now(), now(), 0, 'Traits', m.traits,
+                     0, m.stat_block_id, 'PASSIVE', 'AT_WILL', false
+              FROM monsters m WHERE m.traits IS NOT NULL AND m.traits <> '';
+
+              INSERT INTO features (id, created_at, updated_at, version, name, description,
+                                    ordinal, stat_block_id, activation, uses_reset, ritual)
+              SELECT gen_random_uuid(), now(), now(), 0, 'Actions', m.actions,
+                     1, m.stat_block_id, 'ACTION', 'AT_WILL', false
+              FROM monsters m WHERE m.actions IS NOT NULL AND m.actions <> '';
+
+  - changeSet:
+      id: 028-migrate-characters
+      author: oozengine
+      # No rows today, but the same shape has to exist before the columns go —
+      # a deployment that did have characters must not lose them.
+      changes:
+        - sql:
+            sql: |
+              UPDATE characters SET stat_block_id = gen_random_uuid() WHERE stat_block_id IS NULL;
+
+              INSERT INTO stat_blocks (
+                  id, created_at, updated_at, version, alignment, armor_class,
+                  hp_average, can_hover,
+                  score_strength, score_dexterity, score_constitution,
+                  score_intelligence, score_wisdom, score_charisma)
+              SELECT c.stat_block_id, now(), now(), 0,
+                     upper(replace(c.alignment, ' ', '_')), c.armor_class,
+                     substring(c.hit_points from '^([0-9]+)')::int, false,
+                     c.strength, c.dexterity, c.constitution,
+                     c.intelligence, c.wisdom, c.charisma
+              FROM characters c;
+
+              UPDATE characters c SET species_id = s.id
+              FROM species s WHERE s.owner_id IS NULL AND s.name = c.species;
+
+              UPDATE characters c SET vocation_id = v.id
+              FROM vocations v WHERE v.owner_id IS NULL AND v.name = c.character_class;
+
+              UPDATE characters c SET background_id = b.id
+              FROM backgrounds b WHERE b.owner_id IS NULL AND b.name = c.background;
+
+  - changeSet:
+      id: 028-link-stat-blocks
+      author: oozengine
+      # Declared here rather than with the columns: 028-migrate-monsters assigns
+      # each monster a stat block id and only then inserts the block, so the
+      # constraint has to arrive after the rows it points at.
+      changes:
+        - addForeignKeyConstraint: {constraintName: fk_monsters_stat_block, baseTableName: monsters, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: SET NULL}
+        - addForeignKeyConstraint: {constraintName: fk_characters_stat_block, baseTableName: characters, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: SET NULL}
+
+  # ---------- drop what was replaced ----------
+  - changeSet:
+      id: 028-drop-legacy-columns
+      author: oozengine
+      changes:
+        - dropColumn:
+            tableName: monsters
+            columns: [{column: {name: size}}, {column: {name: creature_type}}, {column: {name: alignment}},
+                      {column: {name: armor_class}}, {column: {name: hit_points}}, {column: {name: speed}},
+                      {column: {name: challenge_rating}}, {column: {name: strength}}, {column: {name: dexterity}},
+                      {column: {name: constitution}}, {column: {name: intelligence}}, {column: {name: wisdom}},
+                      {column: {name: charisma}}, {column: {name: traits}}, {column: {name: actions}}]
+        - dropColumn:
+            tableName: items
+            columns: [{column: {name: category}}, {column: {name: rarity}}, {column: {name: cost}},
+                      {column: {name: weight}}, {column: {name: properties}}]
+        - dropColumn:
+            tableName: species
+            columns: [{column: {name: size}}, {column: {name: speed}}, {column: {name: creature_type}},
+                      {column: {name: traits}}]
+        - renameColumn: {tableName: species, oldColumnName: size_category, newColumnName: size, columnDataType: VARCHAR(16)}
+        - renameColumn: {tableName: species, oldColumnName: creature_type_enum, newColumnName: creature_type, columnDataType: VARCHAR(24)}
+        - dropColumn:
+            tableName: vocations
+            columns: [{column: {name: hit_die}}, {column: {name: primary_ability}}, {column: {name: saving_throws}}]
+        - renameColumn: {tableName: vocations, oldColumnName: hit_die_faces, newColumnName: hit_die, columnDataType: INT}
+        - dropColumn:
+            tableName: backgrounds
+            columns: [{column: {name: ability_scores}}, {column: {name: feat}}, {column: {name: skill_proficiencies}}]
+        - dropColumn: {tableName: feats, columns: [{column: {name: feat_category}}]}
+        - dropColumn:
+            tableName: characters
+            columns: [{column: {name: species}}, {column: {name: character_class}}, {column: {name: background}},
+                      {column: {name: alignment}}, {column: {name: armor_class}}, {column: {name: hit_points}},
+                      {column: {name: strength}}, {column: {name: dexterity}}, {column: {name: constitution}},
+                      {column: {name: intelligence}}, {column: {name: wisdom}}, {column: {name: charisma}}]
+
+  - changeSet:
+      id: 028-tighten-not-null
+      author: oozengine
+      # Deferred until after the migration filled them: a NOT NULL added in
+      # 028-add-columns would have rejected every existing row.
+      changes:
+        - addNotNullConstraint: {tableName: feats, columnName: category, columnDataType: VARCHAR(24)}
