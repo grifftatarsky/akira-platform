@@ -32,7 +32,7 @@ import { ContentService } from '../finder/content.service';
   template: `
     <div class="flex h-[calc(100vh-8rem)] w-full flex-col gap-2 p-2">
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <a routerLink="/encounters"
+        <a [routerLink]="['encounters']" [relativeTo]="root"
            class="rounded-md border border-rule px-2 py-1 text-fg-subtle transition
                   hover:border-accent hover:text-fg">← Encounters</a>
         <span class="font-semibold text-fg">{{ encounter()?.name ?? 'Loading…' }}</span>
@@ -50,9 +50,15 @@ import { ContentService } from '../finder/content.service';
         }
 
         <span class="ml-auto flex items-center gap-1">
-          <input [(ngModel)]="hunt" name="hunt" type="search" placeholder="Add a creature…"
+          <input [(ngModel)]="hunt" name="hunt" type="search"
+                 [placeholder]="live() ? 'Not during a fight' : 'Add a creature…'"
+                 [disabled]="!!live()"
+                 [title]="live()
+                   ? 'A creature added now would join the saved board, not the fight running on it'
+                   : 'Search the bestiary'"
                  (input)="search()"
-                 class="w-44 rounded-md border border-rule bg-bg px-2 py-1 text-fg" />
+                 class="w-44 rounded-md border border-rule bg-bg px-2 py-1 text-fg
+                        disabled:opacity-40" />
           @if (selectedId(); as id) {
             <button type="button" (click)="remove(id)" [disabled]="busy() || !!live()"
                     class="rounded-md border border-rule px-2 py-1 text-fg-subtle transition
@@ -96,6 +102,9 @@ import { ContentService } from '../finder/content.service';
 export class BoardPage {
 
   private readonly route = inject(ActivatedRoute);
+
+  /** The remote's own root — see the note in the encounters list. */
+  protected readonly root = inject(ActivatedRoute).parent;
   private readonly router = inject(Router);
   private readonly api = inject(BoardService);
   private readonly catalog = inject(ContentService);
@@ -149,7 +158,12 @@ export class BoardPage {
    */
   protected search(): void {
     const query = this.hunt.trim();
-    if (query.length < 2) {
+    // Nothing to add to. A battle is a *copy* of the encounter, so a creature
+    // placed on the board now would not be in the fight the board is drawing —
+    // it would appear to do nothing, which is worse than not offering it.
+    // Reinforcements mid-fight are the engine's on-deck flow and a different
+    // call; this is not that, and should not pretend to be.
+    if (this.live() || query.length < 2) {
       this.matches.set([]);
       return;
     }

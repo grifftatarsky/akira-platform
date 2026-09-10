@@ -2,7 +2,7 @@ import {
   ChangeDetectionStrategy, Component, computed, effect, inject, signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { BoardService, EncounterSummary } from '../board/board.service';
 import { SAMPLE_NAME, sampleMap } from '../board/sample-level';
@@ -41,7 +41,8 @@ import { ShellAuthService } from '../shell/shell-auth.service';
         <p class="rounded-lg border border-rule bg-bg-subtle p-4 text-sm text-fg-muted">
           Building encounters needs the Dungeon Master role. Sign in as a DM to
           make one — or look at
-          <a routerLink="/board" class="text-accent underline">the sample board</a>,
+          <a [routerLink]="['board']" [relativeTo]="root"
+             class="text-accent underline">the sample board</a>,
           which needs nothing at all.
         </p>
       } @else {
@@ -83,7 +84,7 @@ import { ShellAuthService } from '../shell/shell-auth.service';
             <ul class="divide-y divide-rule rounded-lg border border-rule">
               @for (e of list; track e.id) {
                 <li class="flex items-center gap-3 px-4 py-3">
-                  <a [routerLink]="['/board', e.id]" class="min-w-0 flex-1">
+                  <a [routerLink]="['board', e.id]" [relativeTo]="root" class="min-w-0 flex-1">
                     <span class="block truncate text-sm font-medium text-fg">{{ e.name }}</span>
                     <span class="block text-xs text-fg-subtle">
                       {{ e.width }}×{{ e.height }} squares of {{ e.cellFeet }} ft ·
@@ -91,7 +92,7 @@ import { ShellAuthService } from '../shell/shell-auth.service';
                       {{ e.combatantCount === 1 ? 'creature' : 'creatures' }}
                     </span>
                   </a>
-                  <a [routerLink]="['/board', e.id]"
+                  <a [routerLink]="['board', e.id]" [relativeTo]="root"
                      class="rounded-md border border-rule px-2 py-1 text-xs text-fg-muted
                             transition hover:border-accent hover:text-fg">Open</a>
                   <button type="button" (click)="remove(e)" [disabled]="busy()"
@@ -113,6 +114,21 @@ export class EncounterList {
 
   private readonly api = inject(BoardService);
   private readonly router = inject(Router);
+
+  /**
+   * The route this remote is mounted on, whatever that turns out to be.
+   *
+   * <p>Every link here is relative to it and none of them is absolute, because
+   * ooze runs in two shells: served on its own it is at `/`, and inside akira
+   * it is at `/ooze`. An absolute `/board` is right in one and, in the other,
+   * navigates out of the remote entirely — which is what it did, landing on the
+   * host's front page after creating an encounter perfectly successfully.
+   *
+   * <p>The parent is the layout every ooze view is a child of, so this is the
+   * remote's own root in both shells without anything having to know which one
+   * it is in.
+   */
+  protected readonly root = inject(ActivatedRoute).parent;
   private readonly shellAuth = inject(ShellAuthService);
 
   private readonly user = toSignal(this.shellAuth.user$);
@@ -166,7 +182,7 @@ export class EncounterList {
     this.api.createEncounter(name, fromSample ? sampleMap() : undefined).subscribe({
       next: created => {
         this.busy.set(false);
-        void this.router.navigate(['/board', created.id]);
+        void this.router.navigate(['board', created.id], { relativeTo: this.root });
       },
       error: err => {
         this.busy.set(false);

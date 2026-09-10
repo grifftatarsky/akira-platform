@@ -98,6 +98,14 @@ Read these before touching the relevant area.
   failure below: that one had two copies live in the *same* page with singletons
   diverging. Check which entry reaches a chunk before spending an afternoon on
   it.
+- **A link inside a remote must be relative, never absolute.** Ooze is mounted
+  at `''` standalone and at `'ooze'` by the host, so `routerLink="/board"` is
+  correct in exactly one of the two shells and navigates *out of the remote* in
+  the other. It fails silently and late: creating an encounter worked perfectly
+  and then landed on the host's front page. Inject `ActivatedRoute` and use its
+  `.parent` — the layout every view hangs off, which is the remote's own root in
+  both shells — as `relativeTo` on `routerLink` and on `router.navigate`. A link
+  to something the *host* owns (`/login`) is the one case that stays absolute.
 - **A remote must not rely on `withComponentInputBinding()`.** Its routes load
   into whichever router the *host* provides, and route-parameter inputs only
   bind if that host opted in. `akira-ng` has not, so a remote reading a route

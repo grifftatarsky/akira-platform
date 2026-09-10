@@ -29,21 +29,21 @@
     effectively private to whoever knew a UUID.
   -->
   <div class="flex flex-wrap gap-2 px-2 max-sm:px-4">
-    <a routerLink="/encounters"
+    <a [routerLink]="['encounters']" [relativeTo]="root"
        class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
       <span class="block text-sm font-medium text-fg">Encounters</span>
       <span class="block text-xs text-fg-subtle">
         Build a board, place the monsters, roll initiative
       </span>
     </a>
-    <a routerLink="/board"
+    <a [routerLink]="['board']" [relativeTo]="root"
        class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
       <span class="block text-sm font-medium text-fg">Sample board</span>
       <span class="block text-xs text-fg-subtle">
         A furnished dungeon level — no sign-in needed
       </span>
     </a>
-    <a routerLink="/board/road"
+    <a [routerLink]="['board', 'road']" [relativeTo]="root"
        class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
       <span class="block text-sm font-medium text-fg">The road</span>
       <span class="block text-xs text-fg-subtle">
