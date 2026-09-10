@@ -160,6 +160,24 @@ export class BoardRenderer {
   private plants: Meadow | null = null;
 
   /**
+   * Whether the meadow grows more than grass.
+   *
+   * <p>A toggle rather than a setting, because the two are worth looking at
+   * side by side: a mixture reads as country and one species reads as turf, and
+   * which of those a given board wants is a judgement about the board.
+   */
+  private mixedPlants = false;
+
+  /**
+   * How many plants per square foot, against the theme's own spacing.
+   *
+   * <p>Exposed as a knob because how dense a meadow *should* be is not a thing
+   * anyone can work out from a number — it has to be looked at, and looked at
+   * against what it costs, which is what the stats readout is for.
+   */
+  private plantSpread = 1;
+
+  /**
    * The height the picture is actually rendered at, in device pixels.
    *
    * <p>Fixed, and the width follows from the viewport's shape so nothing is
@@ -390,7 +408,9 @@ export class BoardRenderer {
       // grass gives way to dirt.
       const field = groundField(board);
       if (ground.blades) {
-        this.plants = meadow(board, field, m => this.lit(m), this.time, ground.blades);
+        this.plants = meadow(
+          board, field, m => this.lit(m), this.time,
+          ground.blades, this.mixedPlants, this.plantSpread);
         this.plants?.meshes.forEach(mesh => {
           // Its own layer, so the occlusion pass can be told not to look at it.
           // See MEADOW_LAYER.
@@ -558,6 +578,43 @@ export class BoardRenderer {
 
   hourOfDay(): number {
     return this.hour;
+  }
+
+  /**
+   * Grows the other four species, or grass alone.
+   *
+   * <p>Rebuilds the board, because the meadow is baked geometry — a quarter of
+   * a million matrices are decided on the way in and there is nothing to
+   * toggle at draw time.
+   */
+  setMixedPlants(on: boolean): void {
+    this.mixedPlants = on;
+    if (this.framed) {
+      this.render(this.framed);
+    }
+  }
+
+  mixedPlantsOn(): boolean {
+    return this.mixedPlants;
+  }
+
+  /**
+   * How thick the meadow stands, as a multiple of the theme's own spacing.
+   *
+   * <p>Rebuilds the board for the same reason {@link #setMixedPlants} does, and
+   * more expensively: at four times the density this is two million matrices to
+   * compose on the way in. Worth driving from a control that fires when the
+   * slider is let go rather than while it is moving.
+   */
+  setPlantSpread(spread: number): void {
+    this.plantSpread = Math.max(0.05, Math.min(6, spread));
+    if (this.framed) {
+      this.render(this.framed);
+    }
+  }
+
+  plantSpreadValue(): number {
+    return this.plantSpread;
   }
 
   /**

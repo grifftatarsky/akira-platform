@@ -49,8 +49,17 @@ import { MESH_DETAIL } from './ground-splat';
  * screen-space effect, it is a fact about grass.
  */
 
-/** Half-feet between candidate plants, before jitter. */
-const STRIDE = 0.6;
+/**
+ * Half-feet between candidate plants, before jitter.
+ *
+ * <p>Two spacings, because the two modes cost very different amounts per plant.
+ * A clump of grass is thirty triangles and a clover head sixty; with the
+ * mixture off, the same triangle budget buys about twice as many plants, and a
+ * meadow of nothing but grass needs them — the other species were part of what
+ * filled the gaps, and grass alone at the mixed spacing reads as a thin lawn.
+ */
+const MIXED_STRIDE = 0.6;
+const GRASS_STRIDE = 0.42;
 
 /**
  * How far a root is pushed under the ground, in half-feet.
@@ -416,14 +425,23 @@ export function meadow(
   light: (material: Material) => Material,
   time: { value: number },
   density: number,
+  mixed: boolean,
+  spread: number,
 ): Meadow | null {
-  const plots: Plant[][] = SPECIES.map(() => []);
-  const weights = new Float64Array(SPECIES.length);
+  // Grass alone, or grass with the four others competing for the ground.
+  const growing = mixed ? SPECIES : SPECIES.slice(0, 1);
+  // Plants go up with the *square* of how close together they stand, so the
+  // knob is plants-per-area and the spacing is its root. A slider that moved
+  // the spacing directly would go from bare to unusable across two notches at
+  // one end and do nothing at the other.
+  const stride = (mixed ? MIXED_STRIDE : GRASS_STRIDE) / Math.sqrt(Math.max(0.05, spread));
+  const plots: Plant[][] = growing.map(() => []);
+  const weights = new Float64Array(growing.length);
 
-  for (let y = STRIDE / 2; y < board.heightHalfFeet; y += STRIDE) {
-    for (let x = STRIDE / 2; x < board.widthHalfFeet; x += STRIDE) {
-      const jx = x + (hash(x, y, 3) - 0.5) * STRIDE;
-      const jy = y + (hash(x, y, 5) - 0.5) * STRIDE;
+  for (let y = stride / 2; y < board.heightHalfFeet; y += stride) {
+    for (let x = stride / 2; x < board.widthHalfFeet; x += stride) {
+      const jx = x + (hash(x, y, 3) - 0.5) * stride;
+      const jy = y + (hash(x, y, 5) - 0.5) * stride;
       const { wear, wet } = groundAt(field, jx, jy);
       if (wet > 0.3) {
         continue;
@@ -440,8 +458,8 @@ export function meadow(
       // both are there throughout. So the fields set weights and the plant is
       // drawn from them.
       let total = 0;
-      for (let s = 0; s < SPECIES.length; s++) {
-        const species = SPECIES[s];
+      for (let s = 0; s < growing.length; s++) {
+        const species = growing[s];
         if (wear > species.tolerates) {
           weights[s] = 0;
           continue;
@@ -454,8 +472,8 @@ export function meadow(
         continue;
       }
       let pick = hash(jx, jy, 29) * total;
-      let best = SPECIES.length - 1;
-      for (let s = 0; s < SPECIES.length; s++) {
+      let best = growing.length - 1;
+      for (let s = 0; s < growing.length; s++) {
         pick -= weights[s];
         if (pick <= 0) {
           best = s;
@@ -463,7 +481,7 @@ export function meadow(
         }
       }
 
-      const species = SPECIES[best];
+      const species = growing[best];
       // How well this species is doing here, from whole turf down to the last
       // thing hanging on at the edge of the track.
       const vigour = 1 - wear / species.tolerates;
@@ -514,7 +532,7 @@ export function meadow(
   const dry = new Color();
   const tone = new Color();
 
-  SPECIES.forEach((species, s) => {
+  growing.forEach((species, s) => {
     const plot = plots[s];
     if (plot.length === 0) {
       return;

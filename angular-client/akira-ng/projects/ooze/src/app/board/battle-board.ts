@@ -87,9 +87,18 @@ import { clockLabel, dateLabel, latitudeName } from './sun-position';
           </div>
 
           @if (hasClock()) {
-            <button type="button" (click)="sunPanel.set(!sunPanel())"
-                    [attr.aria-expanded]="sunPanel()"
-                    [class]="sunPanel() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
+            <button type="button" (click)="openPanel('plants')"
+                    [attr.aria-expanded]="panel() === 'plants'"
+                    [class]="panel() === 'plants'
+                      ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
+                    class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
+                           font-medium backdrop-blur transition"
+                    title="What grows on the ground">Plants</button>
+
+            <button type="button" (click)="openPanel('sun')"
+                    [attr.aria-expanded]="panel() === 'sun'"
+                    [class]="panel() === 'sun'
+                      ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
                     class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
                            font-medium tabular-nums backdrop-blur transition"
                     title="Where the sun is">Sun · {{ clock() }}</button>
@@ -154,7 +163,7 @@ import { clockLabel, dateLabel, latitudeName } from './sun-position';
         fall — because a panel that only reads its own settings back is telling
         somebody what they just typed.
       -->
-      @if (sunPanel() && hasClock()) {
+      @if (panel() === 'sun' && hasClock()) {
         <div class="pointer-events-auto absolute right-2 top-11 w-64 rounded-md border
                     border-rule bg-bg/95 p-3 text-[0.7rem] text-fg-muted shadow-lg
                     backdrop-blur">
@@ -207,6 +216,43 @@ import { clockLabel, dateLabel, latitudeName } from './sun-position';
           </label>
 
           <p class="border-t border-rule pt-2 text-fg">{{ sunSummary() }}</p>
+        </div>
+      }
+
+      @if (panel() === 'plants' && hasClock()) {
+        <div class="pointer-events-auto absolute right-2 top-11 w-64 rounded-md border
+                    border-rule bg-bg/95 p-3 text-[0.7rem] text-fg-muted shadow-lg
+                    backdrop-blur">
+          <p class="mb-2 font-semibold text-fg">What grows here</p>
+
+          <!--
+            Fires on release, not while dragging. At six times the theme's
+            spacing this rebuilds three million plants, and a slider that did
+            that per pixel of travel would lock the tab.
+          -->
+          <label class="mb-3 block">
+            <span class="flex items-baseline justify-between">
+              <span class="font-medium text-fg">How thick</span>
+              <span class="tabular-nums">{{ spread().toFixed(1) }}×</span>
+            </span>
+            <input type="range" min="0.2" max="6" step="0.2"
+                   [value]="spread()" (input)="spread.set(+$any($event.target).value)"
+                   (change)="setSpread($event)"
+                   aria-label="How thickly plants grow"
+                   class="mt-1 h-1 w-full cursor-pointer accent-accent" />
+            <span class="text-fg-subtle">Plants per square foot. The board is rebuilt when
+              you let go — turn the readout on to see what it costs.</span>
+          </label>
+
+          <label class="flex items-start gap-2">
+            <input type="checkbox" [checked]="mixed()" (change)="toggleMixed()"
+                   class="mt-0.5 accent-accent" />
+            <span>
+              <span class="font-medium text-fg">Mixed</span><br />
+              <span class="text-fg-subtle">Clover, plantain, seed heads and flowers as well
+                as grass. Off is turf; on is country.</span>
+            </span>
+          </label>
         </div>
       }
 
@@ -295,7 +341,19 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   protected readonly dayOfYear = signal(196);
   protected readonly latitude = signal(37.5);
   protected readonly adaptive = signal(true);
-  protected readonly sunPanel = signal(false);
+  /**
+   * Which side panel is open, if any.
+   *
+   * <p>One at a time: both hang off the same corner, and two of them stacked
+   * would cover the board they exist to change.
+   */
+  protected readonly panel = signal<'sun' | 'plants' | null>(null);
+
+  /** Whether the meadow grows the other four species or grass alone. */
+  protected readonly mixed = signal(false);
+
+  /** How thickly it stands, against the theme's own spacing. */
+  protected readonly spread = signal(1);
   protected readonly date = computed(() => dateLabel(this.dayOfYear()));
   protected readonly place = computed(() => latitudeName(this.latitude()));
 
@@ -406,6 +464,8 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     this.observer.observe(canvas.parentElement ?? canvas);
 
     this.hasClock.set(this.renderer.hasClock());
+    this.mixed.set(this.renderer.mixedPlantsOn());
+    this.spread.set(this.renderer.plantSpreadValue());
     this.readSun();
     const board = this.scene();
     if (board) {
@@ -465,6 +525,22 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     this.latitude.set(sun.latitude);
     this.adaptive.set(sun.adaptive);
     this.sunTick.update(n => n + 1);
+  }
+
+  protected openPanel(which: 'sun' | 'plants'): void {
+    this.panel.set(this.panel() === which ? null : which);
+  }
+
+  protected toggleMixed(): void {
+    const on = !this.mixed();
+    this.mixed.set(on);
+    this.renderer?.setMixedPlants(on);
+  }
+
+  protected setSpread(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.spread.set(value);
+    this.renderer?.setPlantSpread(value);
   }
 
   protected setDay(event: Event): void {
