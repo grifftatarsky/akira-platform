@@ -23,6 +23,28 @@
     </div>
   </div>
 
+  <!--
+    THE TOOLS. Two doors: the compendium below is the book, and this is the
+    table. The board had a route and no way in for a while, which made it
+    effectively private to whoever knew a UUID.
+  -->
+  <div class="flex flex-wrap gap-2 px-2 max-sm:px-4">
+    <a routerLink="/encounters"
+       class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
+      <span class="block text-sm font-medium text-fg">Encounters</span>
+      <span class="block text-xs text-fg-subtle">
+        Build a board, place the monsters, roll initiative
+      </span>
+    </a>
+    <a routerLink="/board"
+       class="rounded-lg border border-rule bg-bg-subtle px-4 py-3 transition hover:border-accent">
+      <span class="block text-sm font-medium text-fg">Sample board</span>
+      <span class="block text-xs text-fg-subtle">
+        A furnished dungeon level — no sign-in needed
+      </span>
+    </a>
+  </div>
+
   <!-- FEDERATION STATUS (dev only; stripped from production builds) -->
   @if (showFederationBadge) {
     @if (user$ | async; as user) {

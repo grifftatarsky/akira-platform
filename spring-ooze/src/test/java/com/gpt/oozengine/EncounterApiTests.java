@@ -332,6 +332,78 @@ class EncounterApiTests {
   }
 
   @Test
+  @DisplayName("A whole furnished level is one request, not a hundred")
+  void aWholeLevelCreatesAtOnce() throws Exception {
+    // The size the board's own sample level actually is: 26 by 20 squares, a
+    // few hundred painted, and enough furniture to fill six rooms. Worth
+    // asserting at that scale rather than at three cells, because "From the
+    // sample dungeon" is a single POST of exactly this shape and the caps it
+    // has to clear — 60 squares a side, 400 props — are only interesting near
+    // them.
+    StringBuilder cells = new StringBuilder();
+    for (int y = 0; y < 20; y++) {
+      for (int x = 0; x < 26; x++) {
+        boolean edge = x == 0 || y == 0 || x == 25 || y == 19;
+        if (!edge && (x + y) % 7 != 0) {
+          continue;
+        }
+        if (!cells.isEmpty()) {
+          cells.append(',');
+        }
+        cells.append("{\"x\":").append(x).append(",\"y\":").append(y)
+            .append(edge ? ",\"terrain\":\"WALL\"}" : ",\"light\":\"DARKNESS\"}");
+      }
+    }
+    StringBuilder props = new StringBuilder();
+    String[] pieces = {"BARREL", "TABLE", "CHAIR", "TORCH", "BED", "SHELVES", "CRATE"};
+    for (int i = 0; i < 120; i++) {
+      if (!props.isEmpty()) {
+        props.append(',');
+      }
+      props.append("{\"piece\":\"").append(pieces[i % pieces.length])
+          .append("\",\"xHalfFeet\":").append((i * 17) % 260)
+          .append(",\"yHalfFeet\":").append((i * 23) % 200)
+          .append(",\"facingDegrees\":").append((i % 4) * 90).append('}');
+    }
+
+    var e = createEncounter(dm, """
+        {"name": "The undercroft", "map": {"width": 26, "height": 20, "cellFeet": 5,
+         "defaultTerrain": "FLOOR", "defaultLight": "DIM",
+         "cells": [%s], "props": [%s]}}
+        """.formatted(cells, props));
+
+    String id = e.get("id").asText();
+    assertThat(e.get("map").get("props")).hasSize(120);
+    assertThat(e.get("map").get("cells").size()).isGreaterThan(100);
+
+    // And it comes back the same, which is the claim that matters: the level a
+    // DM sees is the one the server stored, not the one the client sent.
+    var reloaded = postJson(dm, get("/encounter/{id}", id), null);
+    assertThat(reloaded.get("map").get("props")).hasSize(120);
+    assertThat(reloaded.get("map").get("cells").size())
+        .isEqualTo(e.get("map").get("cells").size());
+  }
+
+  @Test
+  @DisplayName("Furniture past the cap is refused rather than truncated")
+  void tooMuchFurnitureIsRefused() throws Exception {
+    StringBuilder props = new StringBuilder();
+    for (int i = 0; i <= 400; i++) {
+      if (!props.isEmpty()) {
+        props.append(',');
+      }
+      props.append("{\"piece\":\"BARREL\",\"xHalfFeet\":10,\"yHalfFeet\":10}");
+    }
+    var e = createEncounter(dm, "{\"name\": \"Warehouse\"}");
+    String id = e.get("id").asText();
+
+    // Unbounded, a client bug becomes a megabyte of barrels loaded on every
+    // board read, and there is no row count to notice it by.
+    mvc.perform(as(dm, put("/encounter/{id}/map/props", id)).content("[" + props + "]"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   @DisplayName("A token can be moved, and removed")
   void moveAndRemove() throws Exception {
     var e = createEncounter(dm, "{\"name\": \"Field\"}");

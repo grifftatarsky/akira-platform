@@ -1,7 +1,29 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
-import { Battle, Combatant, Encounter, MapProp } from './board.models';
+import { Observable, map, switchMap } from 'rxjs';
+import { Battle, BattleMap, Combatant, Encounter, MapProp } from './board.models';
+
+/**
+ * An encounter in a list, without its board.
+ *
+ * <p>The server sends summaries for a list on purpose: a page of forty full
+ * boards to render forty names is a lot of board nobody is looking at.
+ */
+export interface EncounterSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly width: number;
+  readonly height: number;
+  readonly cellFeet: number;
+  readonly combatantCount: number;
+}
+
+/** Spring Data's `PagedModel` envelope. */
+interface Paged<T> {
+  readonly content: T[];
+  readonly page: { readonly totalElements: number };
+}
 
 /**
  * The board's half of the ooze API.
@@ -16,6 +38,72 @@ export class BoardService {
 
   encounter(id: string): Observable<Encounter> {
     return this.http.get<Encounter>(`/bff/ooz/encounter/${id}`);
+  }
+
+  /** The caller's own encounters. Somebody else's are a 404, not a 403. */
+  encounters(): Observable<EncounterSummary[]> {
+    return this.http
+      .get<Paged<EncounterSummary>>('/bff/ooz/encounter', {
+        params: new HttpParams().set('size', 50),
+      })
+      .pipe(map(page => page.content));
+  }
+
+  /**
+   * Makes an encounter.
+   *
+   * <p>The board is optional, and the server defaults it to a plain twenty-by-
+   * twenty at five feet a square — a DM who wants to drop monsters somewhere
+   * and think about terrain later should not have to describe a board first.
+   * Passing one creates the whole level, painted and furnished, in a single
+   * request.
+   */
+  createEncounter(name: string, board?: Omit<BattleMap, 'id'>): Observable<Encounter> {
+    return this.http.post<Encounter>('/bff/ooz/encounter', { name, map: board });
+  }
+
+  deleteEncounter(id: string): Observable<void> {
+    return this.http.delete<void>(`/bff/ooz/encounter/${id}`);
+  }
+
+  /**
+   * Puts a creature from the bestiary on the board.
+   *
+   * <p>Two calls, because a bestiary *list* row is a summary and does not carry
+   * a stat block — and a combatant is anchored to the block, not to the monster
+   * entry, since that is what a fight actually reads. Fetching the one monster
+   * the DM picked is the cheapest place to resolve it; the alternative is
+   * sending three hundred stat blocks to a search box.
+   */
+  placeMonster(
+    encounterId: string,
+    monsterId: string,
+    at: { xHalfFeet: number; yHalfFeet: number },
+  ): Observable<unknown> {
+    return this.http.get<{ statBlock: { id: string } | null }>(`/bff/ooz/monster/${monsterId}`)
+      .pipe(switchMap(monster => this.http.post(
+        `/bff/ooz/encounter/${encounterId}/combatant`,
+        { statBlockId: monster.statBlock?.id, ...at, zHalfFeet: 0 })));
+  }
+
+  removeCombatant(encounterId: string, combatantId: string): Observable<void> {
+    return this.http.delete<void>(
+      `/bff/ooz/encounter/${encounterId}/combatant/${combatantId}`);
+  }
+
+  /**
+   * Lifts a saved encounter into a running fight.
+   *
+   * <p>The lift copies rather than links, so playing the fight leaves the board
+   * it came from untouched — which is why a battle is a separate thing with its
+   * own id rather than a flag on the encounter.
+   *
+   * <p>No seed is sent. The server chooses one and records it, so a fight is
+   * reproducible either way and an undo rewinds into the same battle rather
+   * than into a new one.
+   */
+  launchBattle(encounterId: string, name: string): Observable<Battle> {
+    return this.http.post<Battle>(`/bff/ooz/encounter/${encounterId}/battle`, { name });
   }
 
   battle(id: string): Observable<Battle> {

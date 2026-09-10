@@ -5,12 +5,13 @@ import {
   isDevMode,
 } from '@angular/core';
 import { AsyncPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ShellAuthService } from '../shell/shell-auth.service';
 import { Finder } from '../finder/finder';
 
 @Component({
   selector: 'ooze-dashboard',
-  imports: [AsyncPipe, Finder],
+  imports: [AsyncPipe, Finder, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ooze-dashboard.html',
 })

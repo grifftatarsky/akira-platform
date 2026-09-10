@@ -22,6 +22,15 @@ export const OOZE_ROUTES: Routes = [
         data: { title: 'Board preview' },
       },
       {
+        // The way in to a real board. Not lazy — it is a list and a form, and
+        // making it lazy would put a chunk load between a DM and the screen
+        // they reach for most.
+        path: 'encounters',
+        loadComponent: () =>
+          import('./encounters/encounter-list').then(m => m.EncounterList),
+        data: { title: 'Encounters' },
+      },
+      {
         // Lazy, and deliberately so: three is ~130 KB gzipped and the finder
         // has no use for it, so the compendium should not pay for a renderer
         // nobody has opened.
