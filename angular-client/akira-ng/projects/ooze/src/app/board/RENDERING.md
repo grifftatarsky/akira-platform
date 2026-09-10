@@ -128,13 +128,43 @@ light, on a base whose side is fully lit and casts a shadow.
 - **A missing environment map** falls back to three's generated `RoomEnvironment`
   — a worse dungeon and a perfectly good light.
 
+### Instancing
+
+Every kind of thing is drawn once, not every thing: a 520-square furnished level
+is roughly sixty objects rather than thirteen hundred. Two traps in it.
+
+- **Three applies the instance matrix in `<project_vertex>`, which runs *after*
+  `<begin_vertex>`.** Any world position computed for a shader patch has to
+  multiply by `instanceMatrix` itself under `USE_INSTANCING`, or every instance
+  samples at the position of the first one. For the light field that would have
+  been one lit crate and twenty-nine in the dark — or all thirty lit by a torch
+  standing over only one of them.
+- **Instanced geometry and materials are shared and outlive the board.** They
+  carry a `shared` flag so `disposeNode` steps over them, and `ModelLibrary`
+  owns their disposal — on teardown, and on a theme swap, which makes a whole
+  library garbage at once.
+
+Shapes are built by *flattening what `piece()` already produces* rather than
+re-deriving the fit — baking the group's own world matrices into the geometry
+cannot disagree with a fit that took three goes to get right.
+
+An instance is hidden by scaling it to nothing. Same result, and every other
+slot in the buffer stays where it was.
+
+### Dust
+
+`board-motes.ts` is the half of a light shaft that reads: specks visible only
+where there is light to catch them, which falls out of taking the light field
+like every other material. Moved in script rather than in the vertex shader —
+that would be cheaper and would fight the light lookup, which reads the world
+position from `transformed` right after `begin_vertex`, so a mote moved in the
+shader would be lit at the position it was standing still at.
+
 ## Not done yet
 
-- **Instancing.** Every tile and prop is its own mesh, so a furnished level is
-  roughly 650 objects before the shadow and AO passes multiply it. One geometry
-  and one material per piece type makes `InstancedMesh` straightforward; the
-  obstacle is that `dressTerrain` relies on a tile's index in the terrain group.
-- **Dust and atmosphere.** The reference has motes in its light shafts.
 - **Emissive flames.** The pack's flame is a few pixels of a shared texture
   atlas, so there is no way to make part of it glow; the current glow is an
   additive sprite over the top.
+- **Real light shafts.** Volumetrics would need a depth-aware scattering pass.
+- **Tokens are still discs.** Miniatures would be a different problem: a mesh
+  per creature kind, which the instancing above now makes cheap.
