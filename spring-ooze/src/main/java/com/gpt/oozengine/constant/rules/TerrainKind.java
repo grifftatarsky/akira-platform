@@ -9,6 +9,15 @@ package com.gpt.oozengine.constant.rules;
  */
 public enum TerrainKind {
   FLOOR,
+  /**
+   * Open ground, outdoors. Costs nothing extra and grants nothing — the same
+   * rules as a floor, and a different thing to look at, which is the whole
+   * reason it is its own value: a board has to be able to say what a square is
+   * made of even where that makes no difference to a die roll.
+   */
+  GRASS,
+  /** A made track. Also rules-identical to a floor, and not made of grass. */
+  ROAD,
   RUBBLE,
   WATER,
   DEEP_WATER,

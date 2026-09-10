@@ -60,6 +60,80 @@ export interface BoardEnvironment {
   readonly intensity: number;
 }
 
+/** One physically-based material set, and how big a tile of it is. */
+export interface GroundLayer {
+  readonly colour: string;
+  readonly normal: string;
+  /** Ambient occlusion, roughness and metalness packed into R, G and B. */
+  readonly arm: string;
+  /** Feet across one repeat. Too small and it visibly tiles; too big and it blurs. */
+  readonly feet: number;
+  /**
+   * Multiplied onto the scan's own colour, as r,g,b.
+   *
+   * <p>Because a scan is of one particular place. Poly Haven's dirt was
+   * photographed somewhere with pale sandy soil; the Virginia piedmont is red
+   * clay, and the difference between the two is most of what makes a road look
+   * like it is *somewhere*. Tinting is honest here in a way that repainting
+   * would not be — the relief and the roughness are still measured, and only
+   * the colour is being placed.
+   */
+  readonly tint?: readonly [number, number, number];
+}
+
+/**
+ * Ground painted from real materials rather than built out of tiles.
+ *
+ * <p>Three layers, blended per pixel by how worn the ground is: lush, thin, and
+ * bare. A road has no edges — the verge beside a cart track is grass that gets
+ * thinner for a few feet and then gives up — and no arrangement of square tiles
+ * can say that.
+ */
+export interface SplatGround {
+  readonly kind: 'splat';
+  readonly layers: readonly [GroundLayer, GroundLayer, GroundLayer];
+}
+
+/**
+ * How a board is lit and graded — the art direction, not the assets.
+ *
+ * <p>On the theme because it belongs to the theme. A torchlit cellar and a
+ * summer afternoon are not the same scene with different textures in it: the
+ * cellar wants a dim ambient, a warm key and a heavy vignette, and applying any
+ * of that to a field at one o'clock gives you a field at dusk. Which is exactly
+ * what happened the first time the outdoor ground was drawn with the dungeon's
+ * numbers.
+ *
+ * @param elevation the sun's angle above the horizon, in degrees
+ * @param azimuth its compass bearing — 180 is due south
+ */
+export interface BoardLook {
+  readonly exposure: number;
+  readonly ambient: number;
+  readonly sun: {
+    readonly intensity: number;
+    readonly colour: number;
+    readonly elevation: number;
+    readonly azimuth: number;
+  };
+  readonly saturation: number;
+  readonly contrast: number;
+  readonly vignette: number;
+  /** How much dust hangs in the air, as a multiple of the usual amount. */
+  readonly motes: number;
+}
+
+/** A torchlit interior: the values the dungeon was tuned to. */
+export const INDOOR_LOOK: BoardLook = {
+  exposure: 0.95,
+  ambient: 0.08,
+  sun: { intensity: 0.95, colour: 0xffe9cc, elevation: 68, azimuth: 145 },
+  saturation: 1.16,
+  contrast: 1.06,
+  vignette: 0.34,
+  motes: 1,
+};
+
 export interface BoardTheme {
   readonly id: string;
   readonly name: string;
@@ -81,6 +155,20 @@ export interface BoardTheme {
    * board is never unlit.
    */
   readonly environment?: BoardEnvironment;
+  /**
+   * Whether the sky is drawn behind the board.
+   *
+   * <p>Indoors it must not be: a dungeon with a horizon is a dungeon on a
+   * hilltop. Outdoors it is most of what tells you which one you are looking at.
+   */
+  readonly sky?: boolean;
+  /** Absent means {@link INDOOR_LOOK}, which is what a dungeon wants. */
+  readonly look?: BoardLook;
+  /**
+   * How the ground is made. Absent means the old way — one piece per square,
+   * chosen by its terrain — which is right for a dungeon and wrong for a field.
+   */
+  readonly ground?: SplatGround;
   readonly pieces: Partial<Record<BoardPiece, PieceModel>>;
 }
 
@@ -185,7 +273,78 @@ export const PLAIN_THEME: BoardTheme = {
   pieces: {},
 };
 
-export const THEMES: readonly BoardTheme[] = [KAYKIT_THEME, PLAIN_THEME];
+const PH_ROOT = 'assets/board/polyhaven';
+
+function layer(
+  name: string, feet: number, tint?: readonly [number, number, number],
+): GroundLayer {
+  return {
+    colour: `${PH_ROOT}/${name}_diff_1k.jpg`,
+    normal: `${PH_ROOT}/${name}_nor_gl_1k.jpg`,
+    arm: `${PH_ROOT}/${name}_arm_1k.jpg`,
+    feet,
+    tint,
+  };
+}
+
+/**
+ * Open country, from Poly Haven scans.
+ *
+ * <p>The other half of the argument the dungeon pack makes. KayKit is drawn:
+ * flat colour off one hand-painted atlas, stylised on purpose, and no amount of
+ * lighting will make its stone look like stone because there is no surface
+ * detail in it to light. These are measured: colour, relief and roughness from
+ * a real surface, which is what lets a low sun rake across a rut or a high one
+ * pick out the grain of dry dirt.
+ *
+ * <p>Three layers on purpose, not two. Grass and dirt alone meet at a line
+ * wherever they meet; the thin, half-dead stuff in between is what a verge
+ * actually is, and it is the layer that makes a road look used rather than
+ * drawn.
+ *
+ * <p>1k rather than 2k, and it is not a compromise: each repeat covers a few
+ * feet, so a whole board is a dozen repeats across, and at the resolution this
+ * renders at nothing on screen is asking for more texels than that.
+ */
+export const FIELD_THEME: BoardTheme = {
+  id: 'polyhaven-field',
+  name: 'Open country',
+  attribution: 'Ground and sky from Poly Haven (polyhaven.com), CC0',
+  unitsPerModelUnit: 2.5,
+  environment: { url: `${PH_ROOT}/qwantani_noon_puresky_2k.hdr`, intensity: 1.05 },
+  sky: true,
+  // One o'clock, mid-July, about the latitude of Richmond: the sun is around
+  // seventy degrees up and just west of south, so shadows are short and fall
+  // north-north-east. Bright, barely graded, and almost no vignette — a summer
+  // afternoon is not a mood, it is an absence of one.
+  look: {
+    exposure: 1.15,
+    ambient: 0.22,
+    sun: { intensity: 2.7, colour: 0xfff4e2, elevation: 70, azimuth: 197 },
+    saturation: 1.08,
+    contrast: 1.02,
+    vignette: 0.1,
+    // A little pollen in the air and no more. At the dungeon's density, white
+    // specks over a lit meadow read as dirt on the lens.
+    motes: 0.22,
+  },
+  ground: {
+    kind: 'splat',
+    layers: [
+      // Feet per repeat, picked by eye against a five-foot square: grass reads
+      // as blades at this size, and dirt as ruts rather than as gravel.
+      // Midsummer, so the grass is pushed green and away from the scan's
+      // late-season yellow; the bare ground is pushed toward red clay, which is
+      // what the road between Richmond and Fredericksburg is cut through.
+      layer('leafy_grass', 7, [0.88, 1.06, 0.72]),
+      layer('sparse_grass', 8, [1.0, 1.0, 0.82]),
+      layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
+    ],
+  },
+  pieces: {},
+};
+
+export const THEMES: readonly BoardTheme[] = [KAYKIT_THEME, FIELD_THEME, PLAIN_THEME];
 
 export function themeById(id: string): BoardTheme {
   return THEMES.find(t => t.id === id) ?? PLAIN_THEME;

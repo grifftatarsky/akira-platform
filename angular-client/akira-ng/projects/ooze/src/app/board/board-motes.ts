@@ -41,9 +41,13 @@ export class Motes {
   private readonly seeds: Float32Array;
   private readonly live: Float32BufferAttribute;
 
-  constructor(widthHalfFeet: number, heightHalfFeet: number) {
-    const count = Math.max(40, Math.min(900,
-      Math.round((widthHalfFeet * heightHalfFeet) / 100 * DENSITY)));
+  constructor(widthHalfFeet: number, heightHalfFeet: number, density = 1) {
+    // Scaled by the theme, because how much dust hangs in the air is a fact
+    // about the place. A cellar is full of it; a meadow at noon has a little
+    // pollen, and at the cellar's density white specks over lit grass read as
+    // dirt on the lens.
+    const count = Math.max(0, Math.min(900,
+      Math.round((widthHalfFeet * heightHalfFeet) / 100 * DENSITY * density)));
 
     this.home = new Float32Array(count * 3);
     this.seeds = new Float32Array(count);

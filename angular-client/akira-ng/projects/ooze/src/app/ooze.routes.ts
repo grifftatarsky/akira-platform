@@ -31,6 +31,13 @@ export const OOZE_ROUTES: Routes = [
         data: { title: 'Encounters' },
       },
       {
+        // Before the `:encounterId` route below, or that one swallows it —
+        // Angular matches routes in the order they are declared.
+        path: 'board/road',
+        loadComponent: () => import('./board/road-demo').then(m => m.RoadDemo),
+        data: { title: 'The road' },
+      },
+      {
         // Lazy, and deliberately so: three is ~130 KB gzipped and the finder
         // has no use for it, so the compendium should not pay for a renderer
         // nobody has opened.

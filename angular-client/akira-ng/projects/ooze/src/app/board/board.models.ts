@@ -9,8 +9,8 @@
  */
 
 export type TerrainKind =
-  | 'FLOOR' | 'RUBBLE' | 'WATER' | 'DEEP_WATER' | 'ICE' | 'WEB' | 'MUD' | 'LAVA'
-  | 'CHASM' | 'WALL';
+  | 'FLOOR' | 'GRASS' | 'ROAD' | 'RUBBLE' | 'WATER' | 'DEEP_WATER' | 'ICE' | 'WEB'
+  | 'MUD' | 'LAVA' | 'CHASM' | 'WALL';
 
 export type LightLevel = 'BRIGHT' | 'DIM' | 'DARKNESS';
 

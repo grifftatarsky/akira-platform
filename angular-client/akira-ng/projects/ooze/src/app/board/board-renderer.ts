@@ -8,13 +8,14 @@ import {
   Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, PropKind, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
-import { BoardPiece, BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
+import { BoardLook, BoardPiece, BoardTheme, INDOOR_LOOK, PLAIN_THEME, pieceFor } from './board-assets';
 import { WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
 import { EnvironmentLibrary } from './environment';
 import { FLAME_COLOUR, LIGHT_RANGE, lightField, lightSource } from './light-field';
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
+import { SplatSurface, splatGround } from './ground-splat';
 
 /** Top-down and locked, or a camera you can orbit. */
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
@@ -117,6 +118,26 @@ export class BoardRenderer {
    * dust either.
    */
   private motes: Motes | null = null;
+
+  /**
+   * The outdoor ground, when the theme has one.
+   *
+   * <p>Mutually exclusive with the tiles: a splat ground *is* the ground, so
+   * there are no boxes under it and no per-square pieces on it. A dungeon and a
+   * meadow are built differently and pretending otherwise would mean one code
+   * path that is wrong for both.
+   */
+  private surface: SplatSurface | null = null;
+
+  /**
+   * The height the picture is actually rendered at, in device pixels.
+   *
+   * <p>Fixed, and the width follows from the viewport's shape so nothing is
+   * stretched. Everything expensive on this board — occlusion, bloom, the
+   * splat ground's twelve texture reads — costs per pixel, and a 5K display
+   * asks for eleven times the pixels of this while showing the same board.
+   */
+  private renderHeight = 720;
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
@@ -164,6 +185,8 @@ export class BoardRenderer {
    * and a neutral white key over a warm cellar reads as two rooms disagreeing.
    */
   private readonly sun = new DirectionalLight(0xffe9cc, 0.95);
+  private readonly ambient = new AmbientLight(0xffffff, INDOOR_LOOK.ambient);
+  private look: BoardLook = INDOOR_LOOK;
 
   /**
    * The board's light, shared by every material that answers to it.
@@ -242,6 +265,7 @@ export class BoardRenderer {
     this.renderer.toneMappingExposure = 0.95;
 
     this.environments = new EnvironmentLibrary(this.renderer);
+    this.applyLook(theme);
     void this.lightScene(theme);
 
     this.scene.add(this.terrain);
@@ -255,7 +279,7 @@ export class BoardRenderer {
     // direction at once, which is why nothing on the board had a lit side and a
     // shaded side. Now the environment carries the ambient and this only keeps
     // the deepest corners off pure black.
-    this.scene.add(new AmbientLight(0xffffff, 0.08));
+    this.scene.add(this.ambient);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     // Offset along the surface normal rather than in depth. Plain `bias` on a
@@ -287,7 +311,14 @@ export class BoardRenderer {
     this.clear(this.tokens);
     this.flames.length = 0;
     this.relight(board);
-    this.layGround(board);
+    this.surface?.dispose();
+    this.surface = null;
+    if (this.theme.ground) {
+      this.surface = splatGround(this.theme.ground, board, this.light, this.extent);
+      this.terrain.add(this.surface.mesh);
+    } else {
+      this.layGround(board);
+    }
     this.raiseDust(board);
     this.grid.add(this.squares(board));
     this.grid.visible = this.showGrid;
@@ -295,7 +326,11 @@ export class BoardRenderer {
     this.aimSun(board);
     this.place();
     const generation = ++this.generation;
-    void this.dressTerrain(board, generation);
+    // A splat ground carries its own materials, so there is nothing to dress it
+    // with; the props on top of it are still pieces like any others.
+    if (!this.theme.ground) {
+      void this.dressTerrain(board, generation);
+    }
     void this.dressProps(board, generation);
   }
 
@@ -312,12 +347,18 @@ export class BoardRenderer {
     const cy = board.heightHalfFeet / 2;
     const span = Math.max(board.widthHalfFeet, board.heightHalfFeet, 20);
     this.sun.target.position.set(cx, cy, 0);
-    // High — about 70° — and from the north-west. Low light gives a prettier
-    // perspective view and ruins the top-down one: an 8-foot wall lit from 45°
-    // throws 8 feet of shadow, which is a whole square a DM has to work out is
-    // not difficult terrain. At this angle a wall's shadow is under half its
-    // height, enough to read as depth and not enough to read as ground.
-    this.sun.position.set(cx - span * 0.28, cy - span * 0.4, span * 1.2);
+    // Placed from a real elevation and bearing rather than from a nudge that
+    // looked right once. High light keeps a wall's shadow under half its
+    // height, which reads as depth without reading as ground a DM has to
+    // discount; and outdoors the angle is simply what time it is.
+    const elevation = (this.look.sun.elevation * Math.PI) / 180;
+    const azimuth = (this.look.sun.azimuth * Math.PI) / 180;
+    const reach = span * 1.4;
+    this.sun.position.set(
+      cx + reach * Math.cos(elevation) * Math.sin(azimuth),
+      cy + reach * Math.cos(elevation) * Math.cos(azimuth),
+      cy * 0 + reach * Math.sin(elevation),
+    );
     const shadow = this.sun.shadow.camera;
     const half = span * 0.8;
     shadow.left = -half;
@@ -339,7 +380,25 @@ export class BoardRenderer {
     // a position to free — a theme swap makes a whole one garbage at once.
     this.library.dispose();
     this.library = new ModelLibrary(theme);
+    this.applyLook(theme);
     void this.lightScene(theme);
+  }
+
+  /**
+   * Sets the scene to the theme's own light and grade.
+   *
+   * <p>Everything here was a constant tuned against a torchlit cellar, which is
+   * a perfectly good look for a cellar and turns a July afternoon into dusk. A
+   * theme brings its assets *and* the light they were meant to be seen in.
+   */
+  private applyLook(theme: BoardTheme): void {
+    const look = theme.look ?? INDOOR_LOOK;
+    this.look = look;
+    this.renderer.toneMappingExposure = look.exposure;
+    this.ambient.intensity = look.ambient;
+    this.sun.intensity = look.sun.intensity;
+    this.sun.color.set(look.sun.colour);
+    this.post?.setGrade(look.saturation, look.contrast, look.vignette);
   }
 
   /**
@@ -357,6 +416,9 @@ export class BoardRenderer {
     }
     this.scene.environment = map;
     this.scene.environmentIntensity = theme.environment?.intensity ?? 1;
+    // Outdoors the sky is most of what says where you are; indoors a horizon
+    // behind the walls would put the dungeon on a hilltop.
+    this.scene.background = theme.sky ? map : null;
   }
 
   /**
@@ -538,7 +600,7 @@ export class BoardRenderer {
       this.scene.remove(this.motes.points);
       this.motes.dispose();
     }
-    this.motes = new Motes(board.widthHalfFeet, board.heightHalfFeet);
+    this.motes = new Motes(board.widthHalfFeet, board.heightHalfFeet, this.look.motes);
     this.lit(this.motes.material(), 1, false, true);
     this.motes.points.visible = this.effects;
     this.scene.add(this.motes.points);
@@ -940,6 +1002,8 @@ export class BoardRenderer {
 
   /** Points the camera at the board, whichever camera it is. */
   private place(): void {
+    // The element's shape, which the buffer matches — so this is the buffer's
+    // aspect too, and neither camera has to know the picture is being scaled.
     const aspect = this.width / Math.max(1, this.height);
     if (this.camera instanceof OrthographicCamera) {
       const halfY = this.zoom / 2;
@@ -1003,17 +1067,42 @@ export class BoardRenderer {
     return this.zoom;
   }
 
+  /**
+   * Fits the picture to the element, at a fixed rendering height.
+   *
+   * <p><b>The canvas and the buffer are two different sizes and that is the
+   * point.</b> The element is whatever the layout gives it and CSS stretches
+   * the result to fill it; the buffer is {@link renderHeight} tall, with its
+   * width taken from the element's shape so the image is never distorted.
+   *
+   * <p>Locked because everything expensive here costs per pixel — ambient
+   * occlusion, bloom, and a splat ground that reads twelve textures for every
+   * fragment — and a 5K display would otherwise ask for eleven times the work
+   * to show the same board at the same apparent size.
+   */
   resize(width: number, height: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
-    this.renderer.setSize(this.width, this.height, false);
-    const ratio = Math.min(globalThis.devicePixelRatio ?? 1, 2);
+    const shape = this.width / this.height;
+    const bufferHeight = Math.max(1, Math.round(this.renderHeight));
+    const bufferWidth = Math.max(1, Math.round(bufferHeight * shape));
+    // One device pixel per buffer pixel: the ratio is already expressed by
+    // rendering smaller than the element and letting CSS scale it up.
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(bufferWidth, bufferHeight, false);
     if (this.effects && !this.post) {
-      this.post = new PostChain(this.renderer, this.scene, this.camera, this.width, this.height);
+      this.post = new PostChain(this.renderer, this.scene, this.camera, bufferWidth, bufferHeight);
+      this.post.setGrade(this.look.saturation, this.look.contrast, this.look.vignette);
     }
-    this.post?.setSize(this.width, this.height, ratio);
+    this.post?.setSize(bufferWidth, bufferHeight, 1);
     this.applyFrame();
     this.place();
+  }
+
+  /** The height the picture is rendered at, whatever size the element is. */
+  setRenderHeight(pixels: number): void {
+    this.renderHeight = Math.max(120, Math.min(2160, Math.round(pixels)));
+    this.resize(this.width, this.height);
   }
 
   /**
@@ -1036,8 +1125,7 @@ export class BoardRenderer {
       return;
     }
     if (!this.post && this.width > 1) {
-      this.post = new PostChain(this.renderer, this.scene, this.camera, this.width, this.height);
-      this.post.setSize(this.width, this.height, Math.min(globalThis.devicePixelRatio ?? 1, 2));
+      this.resize(this.width, this.height);
     }
   }
 
@@ -1085,6 +1173,7 @@ export class BoardRenderer {
     this.clear(this.props);
     this.clear(this.grid);
     this.clear(this.tokens);
+    this.surface?.dispose();
     this.light.value?.dispose();
     this.motes?.dispose();
     this.post?.dispose();

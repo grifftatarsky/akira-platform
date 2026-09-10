@@ -4,6 +4,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { gradePass } from './board-grade';
 
 /**
@@ -33,6 +34,7 @@ export class PostChain {
   private readonly ao: GTAOPass;
   private readonly bloom: UnrealBloomPass;
   private readonly render: RenderPass;
+  private readonly grade: ShaderPass;
 
   constructor(
     renderer: WebGLRenderer,
@@ -86,7 +88,17 @@ export class PostChain {
     // After the output pass, so it works on a picture rather than on an amount
     // of light. Tone mapping's job is to be faithful; this one's is to have an
     // opinion, and they are easier to tune apart than together.
-    this.composer.addPass(gradePass());
+    this.grade = gradePass();
+    this.composer.addPass(this.grade);
+  }
+
+  /** Retunes the grade for a different kind of place. */
+  setGrade(saturation: number, contrast: number, vignette: number): void {
+    const uniforms = (this.grade.material as { uniforms: Record<string, { value: unknown }> })
+      .uniforms;
+    uniforms['saturation'].value = saturation;
+    uniforms['contrast'].value = contrast;
+    uniforms['vignette'].value = vignette;
   }
 
   /** Swaps the camera on every pass that holds one. */

@@ -32,6 +32,8 @@ export const TOKEN_LIFT = 1;
 
 const TERRAIN_COLOURS: Record<TerrainKind, number> = {
   FLOOR: 0x6b6558,
+  GRASS: 0x4f6134,
+  ROAD: 0x7d6647,
   RUBBLE: 0x7a7268,
   WATER: 0x2f6f8f,
   DEEP_WATER: 0x1d4a63,
