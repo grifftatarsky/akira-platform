@@ -497,29 +497,73 @@ function roughen(wear: Float32Array, width: number, height: number): void {
 }
 
 /** A three-tap box blur in both directions, in place. */
+/**
+ * Blurs a field in place, separably.
+ *
+ * <p><b>The scratch buffer is kept.</b> `smear` runs twenty-one times building
+ * one board — four passes over three fields, six more over the elevation, three
+ * inside the puddle test — and it used to allocate a fresh copy of the whole
+ * field each time. On the road board that is a hundred megabytes of garbage to
+ * blur a picture that is five.
+ */
+let scratchpad: Float32Array = new Float32Array(0);
+
 function smear(field: Float32Array, width: number, height: number): void {
-  const scratch = new Float32Array(field.length);
-  pass(field, scratch, width, height, 1, 0);
-  pass(scratch, field, width, height, 0, 1);
+  if (scratchpad.length < field.length) {
+    scratchpad = new Float32Array(field.length);
+  }
+  pass(field, scratchpad, width, height, false);
+  pass(scratchpad, field, width, height, true);
 }
 
+/**
+ * One axis of a box blur, in a single pass over the data.
+ *
+ * <p><b>A running sum, not a kernel.</b> The obvious way reads every texel in
+ * the window for every texel of output — thirteen reads and thirteen clamps
+ * each, so the cost carries the radius with it. A box blur does not need that:
+ * moving the window one step adds one value and drops one, whatever its width,
+ * which makes the pass O(n) instead of O(n·radius) and leaves the radius free.
+ *
+ * <p>Together with the buffer above this took building the road board's ground
+ * field from 1323 ms to a fraction of it — a number nobody had looked at,
+ * because the board only ever reported how long the *mesh* took, and the mesh
+ * was 19 ms of it.
+ *
+ * <p>The sum is a JavaScript number rather than a float, deliberately: a
+ * running total over a thousand texels in single precision drifts, and drift
+ * in an elevation field is a slope that should not be there.
+ */
 function pass(
   from: Float32Array,
   into: Float32Array,
   width: number,
   height: number,
-  stepX: number,
-  stepY: number,
+  down: boolean,
 ): void {
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let total = 0;
-      for (let step = -BLUR_RADIUS; step <= BLUR_RADIUS; step++) {
-        const sx = Math.max(0, Math.min(width - 1, x + step * stepX));
-        const sy = Math.max(0, Math.min(height - 1, y + step * stepY));
-        total += from[sy * width + sx];
-      }
-      into[y * width + x] = total / (BLUR_RADIUS * 2 + 1);
+  const lines = down ? width : height;
+  const count = down ? height : width;
+  const stride = down ? width : 1;
+  const jump = down ? 1 : width;
+  const span = BLUR_RADIUS * 2 + 1;
+  const last = count - 1;
+
+  for (let line = 0; line < lines; line++) {
+    const base = line * jump;
+
+    // The window at the first texel, with everything off the near end clamped
+    // to the first value — which is what the per-tap clamp used to do.
+    let total = from[base] * (BLUR_RADIUS + 1);
+    for (let i = 1; i <= BLUR_RADIUS; i++) {
+      total += from[base + Math.min(i, last) * stride];
+    }
+    into[base] = total / span;
+
+    for (let at = 1; at < count; at++) {
+      const arriving = from[base + Math.min(at + BLUR_RADIUS, last) * stride];
+      const leaving = from[base + Math.max(at - BLUR_RADIUS - 1, 0) * stride];
+      total += arriving - leaving;
+      into[base + at * stride] = total / span;
     }
   }
 }
@@ -543,9 +587,31 @@ export function noise(x: number, y: number): number {
   return lerp(top, bottom, ay);
 }
 
+/**
+ * A hash of two integers, as a fraction.
+ *
+ * <p><b>Integer arithmetic, not a sine.</b> The usual one-liner is
+ * `fract(sin(dot(p, k)) * 43758.5)`, and it is wrong twice over here.
+ *
+ * <p>It is slow: `shapeGround` samples {@link noise} seven times per texel and
+ * each sample reads four corners, so a 1320 by 900 field is thirty-three
+ * million calls to `Math.sin`. That was most of the second this board spent
+ * building its ground.
+ *
+ * <p>And it is a poor hash. A sine is a smooth function being asked to look
+ * random, and at large coordinates — which is where every one of these lands —
+ * it bands, because neighbouring inputs land on the same part of the curve.
+ * The meadow's own placement hash was moved off sines earlier for exactly that
+ * reason; this is the same lesson in the file next door.
+ */
 function hash(x: number, y: number): number {
-  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return n - Math.floor(n);
+  let h = (Math.imul(x | 0, 0x27d4eb2d) ^ Math.imul(y | 0, 0x165667b1)) >>> 0;
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d) >>> 0;
+  h ^= h >>> 12;
+  h = Math.imul(h, 0x297a2d39) >>> 0;
+  h ^= h >>> 15;
+  return (h >>> 8) / 16777216;
 }
 
 function lerp(a: number, b: number, t: number): number {

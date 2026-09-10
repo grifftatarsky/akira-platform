@@ -137,7 +137,9 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         map: { id: 'road-map', ...roadMap() },
         combatants: [],
       });
+      const fieldAt = performance.now();
       const field = groundField(scene);
+      const fieldMs = Math.round(performance.now() - fieldAt);
       const started = performance.now();
       this.terrain = buildTerrain(ground, field, stage.scene);
       // The ground casts its own shadows — a rise has to darken the hollow
@@ -181,7 +183,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       // and drags change detection along for nothing.
       this.ticker = window.setInterval(() => this.cost.set(this.stats?.read() ?? null), 1000);
       this.status.set(
-        `${this.terrain.chunks.length} chunks · built in ${built} ms`,
+        `${this.terrain.chunks.length} chunks · field ${fieldMs} ms · mesh ${built} ms`,
       );
 
       this.observer = new ResizeObserver(() => stage.resize());
