@@ -114,6 +114,75 @@ single number.
 
 ---
 
+## Tier 2, measured — and the report's central premise is wrong
+
+Tier 2 was attempted and **most of it does not apply to this renderer**. The
+evidence is three numbers, taken at 100% density on the road board at radius 150.
+
+| Change | GPU |
+|---|---|
+| Baseline | 19.6 ms |
+| Render at **half** the pixels | 17.4 ms |
+| Render at **a quarter** of the pixels | 16.5 ms |
+| **Half** the plants, full resolution | **10.6 ms** |
+| **A quarter** of the plants, full resolution | **6.6 ms** |
+
+Quartering the pixels saves 16%. Halving the plants saves 46%. **The meadow is
+not fragment-bound.** It scales with instance count and barely with resolution,
+which means the cost is per-instance and per-triangle work — vertex shading,
+instance fetch and primitive setup on a million sub-pixel triangles — not
+shading.
+
+That contradicts the loudest conclusion in this whole report. Dives 2, 3 and 7
+agreed, from four independent sources, that thin blades are expensive because a
+GPU shades in 2×2 quads and throws three fragments away. That is true in
+general and it is not what is happening here. **Two hundred searches of other
+people's engines lost to one afternoon of measuring this one.**
+
+Three things follow, and they invalidate the Tier 2 plan as written:
+
+1. **Culling in the vertex shader cannot work.** I built it — collapse a culled
+   plant's vertices onto a point so its triangles have no area. It compiled, it
+   ran, it culled correctly, and it saved **nothing at all** (25.2 ms against
+   25.6). Of course it did: a degenerate triangle still costs a vertex shader
+   invocation and a primitive setup, and that is the whole bill. It has been
+   reverted rather than shipped.
+2. **Thinning while widening to keep coverage is neutral by construction.** If
+   the same ground is covered, the same pixels are shaded. The saving in the
+   literature comes from reduced overdraw, and overdraw is not the cost here.
+3. **The only lever is drawing fewer instances**, which means real compaction:
+   the compute pass writes survivors to the front of the buffer with an atomic
+   counter and the draw takes its instance count from the GPU. Babylon supports
+   `draw_indirect` on WebGPU. That is the actual Tier 2, and it is a bigger
+   piece of work than a batch of settings.
+
+### What the harness learned, which cost more than the finding
+
+Four hours went into instruments rather than the renderer, and all four
+failures were silent:
+
+- **A WGSL shader that fails validation does not throw.** Mixing `*` and `^`
+  without parentheses is a parse error; Babylon reports nothing, the material
+  still answers `isReady()`, the pipeline is quietly invalid and the meadow
+  draws nothing. The GPU timer then reads 3 ms instead of 26, which looks
+  exactly like a triumph. `tools/chrome-probe.mjs` now collects the browser
+  console, which would have said so in the first minute.
+- **`camera.getForwardRay()` needs a side-effect import.** With deep imports it
+  throws every frame inside the render loop, so the board renders zero frames
+  while `requestAnimationFrame` keeps firing at 120 Hz. Use `getDirection`.
+- **Chrome stops `requestAnimationFrame` for an occluded window**, and Babylon's
+  render loop is `requestAnimationFrame`. A Chrome behind a terminal reports a
+  healthy fps from its last live second and a stale camera. The probe now sets
+  `Emulation.setFocusEmulationEnabled`.
+- **`Page.captureScreenshot` cannot see a WebGPU canvas** from an occluded
+  window, with or without `fromSurface`. `tools/board-shot.mjs` renders the
+  scene into a `RenderTargetTexture` and reads the pixels back instead, which
+  never touches the compositor.
+- And, for the fourth time in this project, **a backtick inside a WGSL comment
+  closes the template literal.**
+
+---
+
 ## Dive log
 
 **Dive 1 — shadows and the Tsushima baseline.** Established that no shipping

@@ -18,8 +18,23 @@ const ws = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise(r => ws.addEventListener('open', r));
 let next = 1;
 const waiting = new Map();
+// <b>Collect the console.</b> A WGSL shader that fails validation is reported
+// by the browser as a warning and by Babylon as nothing at all: no exception,
+// a material that still answers isReady, and a field with no grass in it. Not
+// collecting this cost hours of bisecting a shader that was never running.
+const logs = [];
 ws.addEventListener('message', e => {
   const msg = JSON.parse(e.data);
+  if (msg.method === 'Runtime.consoleAPICalled') {
+    const text = (msg.params.args || []).map(a => a.value ?? a.description ?? '').join(' ');
+    logs.push(`[${msg.params.type}] ${text}`.slice(0, 4000));
+  }
+  if (msg.method === 'Log.entryAdded') {
+    logs.push(`[${msg.params.entry.level}] ${msg.params.entry.text}`.slice(0, 4000));
+  }
+  if (msg.method === 'Runtime.exceptionThrown') {
+    logs.push('[exception] ' + (msg.params.exceptionDetails.exception?.description ?? '').slice(0, 2000));
+  }
   if (msg.id && waiting.has(msg.id)) { waiting.get(msg.id)(msg); waiting.delete(msg.id); }
 });
 const send = (method, params = {}) => new Promise(resolve => {
@@ -31,6 +46,14 @@ const send = (method, params = {}) => new Promise(resolve => {
 await send('Page.enable');
 await send('Runtime.enable');
 await send('Log.enable');
+// <b>Make the page think it is looked at.</b> Chrome stops firing
+// requestAnimationFrame for an occluded window, and Babylon's render loop is
+// requestAnimationFrame - so a Chrome sitting behind a terminal reports a
+// healthy fps from its last live second, a stale camera, and a GPU timer of
+// zero. That reads exactly like a renderer that has broken. These make the
+// throttling go away.
+await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+await send('Page.setWebLifecycleState', { state: 'active' });
 if (url) {
   await send('Page.navigate', { url });
   await new Promise(r => setTimeout(r, settle));
@@ -44,8 +67,20 @@ if (script && script !== 'null') {
   console.log(JSON.stringify(res.result?.result?.value ?? res.result, null, 2));
 }
 
+if (process.env.SHOW_LOGS) {
+  const want = logs.filter(l => /error|warn|invalid|shader|wgsl|exception/i.test(l));
+  console.error('--- console (' + logs.length + ' lines, ' + want.length + ' interesting) ---');
+  want.slice(0, Number(process.env.SHOW_LOGS) || 12).forEach(l => console.error(l));
+}
+
 if (shot) {
-  const res = await send('Page.captureScreenshot', { format: 'png' });
+  // `fromSurface: false` captures from the renderer rather than the window's
+  // own surface, which is the only path that works when the Chrome window is
+  // behind something else. With the default the canvas comes back blank and
+  // the page looks broken when it is fine.
+  const res = await send('Page.captureScreenshot', {
+    format: 'png', fromSurface: false, captureBeyondViewport: false,
+  });
   const { writeFileSync } = await import('node:fs');
   writeFileSync(shot, Buffer.from(res.result.data, 'base64'));
   console.log('shot:', shot);
