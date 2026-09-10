@@ -375,6 +375,22 @@ function puddle(
 }
 
 /**
+ * How steep the ground is at a point, as rise over run.
+ *
+ * <p>Sampled a half-foot either way, which is the scale a plant cares about:
+ * a hillside is climbable and the face of a boulder on it is not, and the
+ * difference between them does not show up over a five-foot square.
+ */
+export function slopeAt(field: GroundField, xHalfFeet: number, yHalfFeet: number): number {
+  const step = 1;
+  const dx = heightAt(field, xHalfFeet + step, yHalfFeet)
+    - heightAt(field, xHalfFeet - step, yHalfFeet);
+  const dy = heightAt(field, xHalfFeet, yHalfFeet + step)
+    - heightAt(field, xHalfFeet, yHalfFeet - step);
+  return Math.hypot(dx, dy) / (2 * step);
+}
+
+/**
  * Breaks the boundary up so it does not read as a shape somebody drew.
  *
  * <p>Two octaves of value noise pushed into the wear, weighted by how close a

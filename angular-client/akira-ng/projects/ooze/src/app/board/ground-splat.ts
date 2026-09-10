@@ -148,6 +148,14 @@ const STOCHASTIC = `
  */
 export const MESH_DETAIL = 2;
 
+/**
+ * How far the board's own edge falls away, in half-feet.
+ *
+ * <p>Deep enough that the bottom is never in shot at any angle the camera
+ * allows, so the board never shows how thin it is.
+ */
+const SKIRT = 260;
+
 export interface SplatSurface {
   readonly mesh: Mesh;
   dispose(): void;
@@ -250,6 +258,38 @@ export function splatGround(
       varying vec2 vGround;
       varying vec3 vBoardPos;
       varying vec3 vGroundNormal;
+
+      /**
+       * Where to read a texture from, for ground that is not flat.
+       *
+       * <p>The UVs here are world X and Y, which is exactly right for ground
+       * and exactly wrong for a cliff: a vertical face has no extent in X and Y
+       * to speak of, so every texel across a hundred feet of rock comes from
+       * one line of the photograph and the whole face reads as stretched
+       * brickwork. It is the single thing that made the first cliff on this
+       * board unusable.
+       *
+       * <p>The usual answer is triplanar mapping — three projections blended by
+       * the normal — but this ground is a height field and can never overhang,
+       * so one alternative projection is enough: across the slope and up it.
+       * Half the cost of triplanar and, on a surface that is a function of X
+       * and Y, the same picture.
+       */
+      vec2 groundPlane(vec2 flat, float scale) {
+        vec3 gN = normalize(vGroundNormal);
+        float steep = 1.0 - abs(gN.z);
+        if (steep < 0.12) {
+          return flat;
+        }
+        // Along the contour, and up. The contour direction is the horizontal
+        // part of the normal turned a quarter, which is the one direction on a
+        // slope that does not change height.
+        vec2 across = normalize(vec2(-gN.y, gN.x) + vec2(0.0001));
+        vec2 wall = vec2(dot(vBoardPos.xy, across), vBoardPos.z) / scale;
+        // A wide crossover, or the seam between the two projections is a line
+        // drawn round the hill at a fixed angle.
+        return mix(flat, wall, smoothstep(0.12, 0.55, steep));
+      }
 
       ${GROUND_SAMPLING}
       ${GROUND_VARIANTS}
@@ -366,9 +406,9 @@ export function splatGround(
         float density = max(length(dFdx(fine)), length(dFdy(fine)));
         float far = smoothstep(FINE_PIXELS, COARSE_PIXELS, density);
 
-        if (lush > 0.002) { sampleLayer0(vGround / uRepeat0, far, c0, n0, a0); }
-        if (worn > 0.002) { sampleLayer1(vGround / uRepeat1, far, c1, n1, a1); }
-        if (bare > 0.002) { sampleLayer2(vGround / uRepeat2, far, c2, n2, a2); }
+        if (lush > 0.002) { sampleLayer0(groundPlane(vGround / uRepeat0, uRepeat0), far, c0, n0, a0); }
+        if (worn > 0.002) { sampleLayer1(groundPlane(vGround / uRepeat1, uRepeat1), far, c1, n1, a1); }
+        if (bare > 0.002) { sampleLayer2(groundPlane(vGround / uRepeat2, uRepeat2), far, c2, n2, a2); }
 
         // Blended by relief rather than cross-faded, so grass stands proud into
         // the bare ground at the verge instead of dissolving into it. The red
@@ -487,13 +527,25 @@ function displace(
   const position = geometry.getAttribute('position');
   const halfWidth = board.widthHalfFeet / 2;
   const halfHeight = board.heightHalfFeet / 2;
+  const edge = 0.01;
   for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const y = position.getY(i);
     // The geometry is centred on the origin and the field is not, so the
     // sample point is the vertex shifted by half the board.
-    position.setZ(i, heightAt(
-      field,
-      position.getX(i) + halfWidth,
-      position.getY(i) + halfHeight));
+    let z = heightAt(field, x + halfWidth, y + halfHeight);
+    // <b>The skirt.</b> A board is a plane, and seen from anywhere but
+    // overhead a plane is a slab floating in the sky with nothing underneath —
+    // which was fine while every board was flat and looked at from above, and
+    // stopped being fine the moment there was a cliff to look across. Dropping
+    // the outermost ring of vertices turns the last row of quads into a steep
+    // face, so the board reads as a piece cut out of a landscape rather than as
+    // a tabletop. It costs the outer half-foot of accuracy, which is outside
+    // the playable area anyway.
+    if (Math.abs(Math.abs(x) - halfWidth) < edge || Math.abs(Math.abs(y) - halfHeight) < edge) {
+      z -= SKIRT;
+    }
+    position.setZ(i, z);
   }
   position.needsUpdate = true;
   geometry.computeVertexNormals();

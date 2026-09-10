@@ -3,7 +3,7 @@ import {
   MeshStandardMaterial, PerspectiveCamera, Quaternion, Vector2, Vector3,
 } from 'three';
 import { BoardScene } from './board.models';
-import { GroundField, groundAt, heightAt, noise } from './ground-field';
+import { GroundField, groundAt, heightAt, noise, slopeAt } from './ground-field';
 import { MESH_DETAIL } from './ground-splat';
 
 /**
@@ -105,6 +105,15 @@ export interface Strip {
   tall: number;
   /** How far it leans out by the tip, as a fraction of its height. */
   bend: number;
+  /**
+   * How far it reaches out, absolutely, instead of as a fraction of its height.
+   *
+   * <p>For anything whose length is mostly horizontal. A drooping conifer
+   * branch rises an inch and reaches three feet, and expressing that as a
+   * multiple of its rise means a bend of thirty-six — a number that says
+   * nothing and breaks the moment the rise is tuned.
+   */
+  reach?: number;
   /** Half-width at the root. */
   width: number;
   /** How much of the width survives to the tip. */
@@ -186,6 +195,18 @@ export interface Species {
    * verge with plantain on it and nothing else is a verge somebody uses.
    */
   readonly tolerates: number;
+  /**
+   * The steepest ground it will grow on, as rise over run.
+   *
+   * <p>Nothing much grows on a cliff, and a headland whose hundred-foot face is
+   * carpeted in turf reads as a hill with a texture problem rather than as a
+   * cliff. One is forty-five degrees, two is sixty-three; a tree wants well
+   * under one and lichen would want anything.
+   *
+   * <p>Absent means it does not care, which is right for a board with no
+   * elevation on it and wrong for every board that has any.
+   */
+  readonly slope?: number;
   readonly scale: readonly [number, number];
   /** How far the wind moves its tips. */
   readonly sway: number;
@@ -449,7 +470,11 @@ function speciesGeometry(species: Species): BufferGeometry {
       // The notch: the last step stops short along the strip while its two
       // edges do not, which leaves a dent between them instead of a point.
       const notched = strip.notch && i === strip.segments ? 1 - strip.notch : 1;
-      const out = t * t * strip.bend * strip.tall * notched;
+      // Absolute where the strip is mostly horizontal, and a fraction of the
+      // rise otherwise. The absolute value matters: a branch with a negative
+      // rise droops, and it must still reach *outward* while it does.
+      const span = strip.reach ?? strip.bend * Math.abs(strip.tall);
+      const out = t * t * span * notched;
       if (strip.band) {
         const at = strip.band.at;
         shade.copy(root).lerp(band, Math.min(1, t / at));
@@ -710,33 +735,54 @@ class Drift {
   }
 }
 
-/**
- * Everything growing on a board.
- *
- * @param light patches a material to answer to the board's light field
- * @param time the shared clock uniform, so the wind moves
- * @param density what fraction of candidate spots grow, where the turf is whole
- */
-export function meadow(
-  board: BoardScene,
-  field: GroundField,
-  light: (material: Material) => Material,
-  time: { value: number },
-  density: number,
-  mixed: boolean,
-  spread: number,
-  viewport: { value: Vector2 },
-  wind: { value: number },
-  sun: SunUniforms,
-  planting: readonly Species[],
-): Meadow | null {
-  // Grass alone, or grass with the four others competing for the ground.
-  const growing = mixed ? planting : planting.slice(0, 1);
+/** Everything one call to {@link meadow} needs. */
+export interface Sowing {
+  readonly board: BoardScene;
+  readonly field: GroundField;
+  /** Patches a material to answer to the board's light field. */
+  readonly light: (material: Material) => Material;
+  /** The shared clock uniform, so the wind moves. */
+  readonly time: { value: number };
+  /** What fraction of candidate spots grow, where the turf is whole. */
+  readonly density: number;
+  /** The density knob, as a multiple of the planting's own spacing. */
+  readonly spread: number;
+  readonly viewport: { value: Vector2 };
+  readonly wind: { value: number };
+  readonly sun: SunUniforms;
+  readonly planting: readonly Species[];
+  /**
+   * Half-feet between candidates, where the planting is not ground cover.
+   *
+   * <p>Given for a canopy and left out for a meadow. Trees are the same
+   * machinery as grass — instanced, chunked, culled, thinned by pixel budget,
+   * moved by the same wind and lit through by the same sun — at forty times the
+   * scale and a hundredth of the density, and the only thing that has to differ
+   * is how far apart the candidates stand.
+   */
+  readonly spacing?: number;
+  /** Whether a meadow grows its whole planting or only the first of it. */
+  readonly mixed?: boolean;
+}
+
+/** Everything growing on a board. */
+export function meadow(sowing: Sowing): Meadow | null {
+  const {
+    board, field, light, time, density, spread, viewport, wind, sun, planting,
+  } = sowing;
+  const growing = planting;
   // Plants go up with the *square* of how close together they stand, so the
   // knob is plants-per-area and the spacing is its root. A slider that moved
   // the spacing directly would go from bare to unusable across two notches at
   // one end and do nothing at the other.
-  const stride = (mixed ? MIXED_STRIDE : GRASS_STRIDE) / Math.sqrt(Math.max(0.05, spread));
+  //
+  // <p>A canopy passes its own spacing and opts out of the density knob: how
+  // many trees stand in a wood is a fact about the wood, and thickening the
+  // undergrowth should not plant more of them.
+  const stride = sowing.spacing ?? (sowing.mixed ? MIXED_STRIDE : GRASS_STRIDE);
+  const spacing = sowing.spacing
+    ? stride
+    : stride / Math.sqrt(Math.max(0.05, spread));
 
   const wide = Math.max(1, Math.ceil(board.widthHalfFeet / CHUNK));
   const high = Math.max(1, Math.ceil(board.heightHalfFeet / CHUNK));
@@ -754,15 +800,16 @@ export function meadow(
     new Drift(board.widthHalfFeet, board.heightHalfFeet,
       Math.max(1, 0.25 / species.patch), species.patch, s));
 
-  for (let y = stride / 2; y < board.heightHalfFeet; y += stride) {
-    for (let x = stride / 2; x < board.widthHalfFeet; x += stride) {
+  for (let y = spacing / 2; y < board.heightHalfFeet; y += spacing) {
+    for (let x = spacing / 2; x < board.widthHalfFeet; x += spacing) {
       seedAt(x, y);
-      const jx = x + (nextRandom() - 0.5) * stride;
-      const jy = y + (nextRandom() - 0.5) * stride;
+      const jx = x + (nextRandom() - 0.5) * spacing;
+      const jy = y + (nextRandom() - 0.5) * spacing;
       const { wear, wet } = groundAt(field, jx, jy);
       if (wet > 0.3) {
         continue;
       }
+      const steep = slopeAt(field, jx, jy);
 
       // Which species grows here — drawn from the local mixture, not won by
       // whichever field happens to be highest.
@@ -777,12 +824,14 @@ export function meadow(
       let total = 0;
       for (let s = 0; s < growing.length; s++) {
         const species = growing[s];
-        if (wear > species.tolerates) {
+        if (wear > species.tolerates || (species.slope !== undefined && steep > species.slope)) {
           weights[s] = 0;
           continue;
         }
         const drift = drifts[s].at(jx, jy);
-        const share = species.punctuates ? species.share / spread : species.share;
+        const share = species.punctuates && !sowing.spacing
+          ? species.share / spread
+          : species.share;
         weights[s] = share * Math.pow(drift, species.clumping);
         total += weights[s];
       }

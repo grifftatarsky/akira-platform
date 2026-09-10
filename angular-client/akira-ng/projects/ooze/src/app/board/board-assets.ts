@@ -1,5 +1,8 @@
-import { BoardPiece, PropPlacement, TerrainKind } from './board.models';
-import { Species } from './meadow';
+import { Group, Object3D } from 'three';
+import { BoardPiece, BoardScene, PropPlacement, TerrainKind } from './board.models';
+import { MEADOW, Species } from './meadow';
+import { CONIFERS, SEA_SCRUB, TUSSOCK, WOOD_FLOOR } from './trees';
+import { logCabin, ruinedLight, rubbleHeap } from './structures';
 import { ScatterKind } from './scatter';
 import { WALL_HEIGHT } from './board-scene';
 
@@ -131,6 +134,23 @@ export interface SplatGround {
    */
   readonly plants?: readonly Species[];
   /**
+   * What stands *over* the ground cover, and how far apart.
+   *
+   * <p>Trees, mostly, but the machinery does not care — it is the same sowing
+   * as the meadow with a coarser spacing, so a canopy can be a wood, a stand of
+   * gorse or three boulders' worth of scrub. Absent means open ground.
+   */
+  readonly canopy?: { readonly plants: readonly Species[]; readonly spacing: number };
+  /**
+   * The water line, in half-feet, where this ground has open water on it.
+   *
+   * <p>One plane across the whole board rather than a surface fitted to the wet
+   * squares — which is what a sea is. Ground below the line is under water and
+   * ground above it is not, and the shoreline is wherever those two meet, so it
+   * moves correctly when the terrain is edited and needs nothing said about it.
+   */
+  readonly sea?: number;
+  /**
    * Models for the things lying on it.
    *
    * <p>Absent leaves the ground bare, which is a supported state and looks
@@ -233,6 +253,23 @@ export interface BoardTheme {
    * chosen by its terrain — which is right for a dungeon and wrong for a field.
    */
   readonly ground?: SplatGround;
+  /**
+   * Anything built rather than placed: a tower, a cabin, a bridge.
+   *
+   * <p>Handed the board and a way to ask how high the ground is, because a
+   * structure has to *stand on* the ground and the ground is a field the
+   * renderer computes — a building given a fixed height either floats or is
+   * buried the moment the terrain under it is edited.
+   *
+   * <p>Separate from props, which are furniture a DM placed and which live in
+   * the map's own data. These are part of the place, and a DM cannot pick the
+   * lighthouse up.
+   */
+  readonly structures?: (
+    board: BoardScene,
+    groundAt: (x: number, y: number) => number,
+  ) => Object3D | null;
+
   readonly pieces: Partial<Record<BoardPiece, PieceModel>>;
 }
 
@@ -492,7 +529,190 @@ export const FIELD_THEME: BoardTheme = {
   pieces: {},
 };
 
-export const THEMES: readonly BoardTheme[] = [KAYKIT_THEME, FIELD_THEME, PLAIN_THEME];
+
+/**
+ * A wood in late afternoon, somewhere northern and coniferous.
+ *
+ * <p>Overcast and low-contrast on purpose: a forest floor is lit by what gets
+ * through the canopy, which is a lot of soft green light and very little direct
+ * sun. The one o'clock sun of the road board would put hard shadows on ground
+ * that in life never sees them.
+ */
+export const WOOD_THEME: BoardTheme = {
+  id: 'polyhaven-wood',
+  name: 'The wood',
+  attribution: 'Ground and sky from Poly Haven (polyhaven.com), CC0',
+  unitsPerModelUnit: 2.5,
+  environment: { url: `${PH_ROOT}/autumn_forest_04_2k.hdr`, intensity: 1.35 },
+  sky: true,
+  look: {
+    exposure: 1.2,
+    // High, because most of the light here is bounced. A wood lit only by its
+    // sun is a wood with black holes in it.
+    ambient: 0.4,
+    latitude: 47,
+    dayOfYear: 260,
+    hour: 16,
+    saturation: 1.02,
+    contrast: 1.04,
+    vignette: 0.16,
+    motes: 0.3,
+  },
+  ground: {
+    kind: 'splat',
+    layers: [
+      // Needle litter, then leaf litter where it thins, then the bare earth of
+      // a path. The order is the same as the meadow's — lush, worn, bare — and
+      // that is the point: the field does not know what the layers are of.
+      layer('forest_ground_04', 6, [0.78, 0.84, 0.66]),
+      // Pulled well down. The scan is a bright autumn leaf-fall and at full
+      // value the clearing came out as a sheet of pale sand in the middle of a
+      // dark wood — a hole rather than a floor.
+      layer('forest_leaves_03', 7, [0.62, 0.55, 0.42]),
+      layer('rocks_ground_08', 8, [0.62, 0.56, 0.48]),
+    ],
+    blades: 0.8,
+    plants: WOOD_FLOOR,
+    // Twenty-two half-feet — eleven feet — between candidate trees, which after
+    // the thinning is a wood you can walk through rather than a hedge.
+    canopy: { plants: CONIFERS, spacing: 22 },
+  },
+  structures: (board, groundAt) => {
+    const group = new Group();
+    // Twenty-eight by fifteen cells, which the level also knows. Two numbers
+    // that must agree and no way yet to make them one — the cabin has to stand
+    // in the clearing that the terrain was cut for it.
+    const x = 28 * 10 + 5;
+    const y = 15 * 10 + 5;
+    const cabin = logCabin(19, 15, 7);
+    cabin.position.set(x, y, groundAt(x, y) - 0.4);
+    cabin.rotation.z = -0.34;
+    group.add(cabin);
+    return group;
+  },
+  pieces: {},
+};
+
+/**
+ * A headland above the sea, late in the day.
+ *
+ * <p>Evening because a lighthouse at noon is a tower, and a lighthouse with the
+ * sun going down behind it is a lighthouse. The sky is a pure one — no
+ * landscape baked into the capture — because this board has its own horizon and
+ * a photographed one behind it would be two coasts at once.
+ */
+export const COAST_THEME: BoardTheme = {
+  id: 'polyhaven-coast',
+  name: 'The headland',
+  attribution: 'Ground and sky from Poly Haven (polyhaven.com), CC0',
+  unitsPerModelUnit: 2.5,
+  environment: { url: `${PH_ROOT}/evening_road_01_puresky_2k.hdr`, intensity: 1.1 },
+  sky: true,
+  look: {
+    exposure: 1.3,
+    // High for outdoors, because on a coast most of the light on the land is
+    // sky and sea rather than sun — and at this hour the sun is doing very
+    // little of the work.
+    ambient: 0.42,
+    latitude: 50,
+    dayOfYear: 250,
+    // Not half past six. Seven degrees of sun is a beautiful number and an
+    // unplayable board: everything not facing west went black, and a battle map
+    // that cannot be read is not a battle map. Twenty degrees is still plainly
+    // evening and you can see the squares.
+    hour: 17.2,
+    saturation: 1.1,
+    contrast: 1.06,
+    vignette: 0.2,
+    motes: 0.12,
+  },
+  ground: {
+    kind: 'splat',
+    layers: [
+      layer('coast_sand_rocks_02', 7, [0.92, 0.96, 0.84]),
+      layer('coast_sand_01', 8, [1.0, 0.96, 0.86]),
+      layer('rocks_ground_08', 9, [0.9, 0.9, 0.92]),
+    ],
+    // Thinner than a meadow. A headland is grazed, salted and blown, and turf
+    // on one is short — a lush sward up to the cliff edge reads as a lawn
+    // somebody mowed to the drop.
+    blades: 0.6,
+    plants: SEA_SCRUB,
+    canopy: { plants: SEA_SCRUB.slice(1), spacing: 26 },
+    sea: 0,
+  },
+  structures: (board, groundAt) => {
+    const group = new Group();
+    const x = 39 * 10 + 5;
+    const y = 17 * 10 + 5;
+    // A hundred and twenty half-feet to the break: sixty feet, which is a real
+    // light for a headland this size and tall enough that the stair is worth
+    // climbing to reach it.
+    const tower = ruinedLight(120);
+    tower.position.set(x, y, groundAt(x, y) - 1);
+    group.add(tower);
+    // What came off the top. Scattered on the seaward side, because that is
+    // the side the arc was cut from.
+    for (let heap = 0; heap < 5; heap++) {
+      const angle = 1.6 + heap * 0.55;
+      const away = 14 + heap * 5;
+      const hx = x + Math.cos(angle) * away;
+      const hy = y + Math.sin(angle) * away;
+      const fallen = rubbleHeap(heap * 7919 + 13, 5 + heap);
+      fallen.position.set(hx, hy, groundAt(hx, hy));
+      group.add(fallen);
+    }
+    return group;
+  },
+  pieces: {},
+};
+
+/**
+ * A pass between two mountains, in snow.
+ *
+ * <p>The hardest of the three to light, because snow is nearly white and nearly
+ * flat: everything that makes it read as snow rather than as paper is the
+ * shading of its own shape, so the sun is deliberately low and the ground is
+ * given more relief than anywhere else on this board.
+ */
+export const PASS_THEME: BoardTheme = {
+  id: 'polyhaven-pass',
+  name: 'The pass',
+  attribution: 'Ground and sky from Poly Haven (polyhaven.com), CC0',
+  unitsPerModelUnit: 2.5,
+  environment: { url: `${PH_ROOT}/snow_field_2k.hdr`, intensity: 1.5 },
+  sky: true,
+  look: {
+    // Down, not up. Snow returns most of the light that hits it and an exposure
+    // set for grass turns it into a white sheet with nothing in it.
+    exposure: 0.82,
+    ambient: 0.5,
+    latitude: 61,
+    dayOfYear: 20,
+    hour: 13,
+    // Nearly untouched: snow is not a colourful place and pushing it is how you
+    // get blue shadows in a cartoon.
+    saturation: 0.94,
+    contrast: 1.1,
+    vignette: 0.22,
+    motes: 0.45,
+  },
+  ground: {
+    kind: 'splat',
+    layers: [
+      layer('snow_02', 6, [1.0, 1.0, 1.02]),
+      layer('snow_03', 7, [0.96, 0.97, 1.02]),
+      layer('rocks_ground_08', 8, [0.82, 0.82, 0.86]),
+    ],
+    blades: 0.5,
+    plants: TUSSOCK,
+  },
+  pieces: {},
+};
+
+export const THEMES: readonly BoardTheme[] = [
+  KAYKIT_THEME, FIELD_THEME, WOOD_THEME, COAST_THEME, PASS_THEME, PLAIN_THEME,
+];
 
 export function themeById(id: string): BoardTheme {
   return THEMES.find(t => t.id === id) ?? PLAIN_THEME;

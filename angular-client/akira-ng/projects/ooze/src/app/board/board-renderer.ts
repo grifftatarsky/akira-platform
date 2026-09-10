@@ -21,7 +21,7 @@ import {
 import { SplatSurface, splatGround } from './ground-splat';
 import { ScatterLayer, scatterGround } from './ground-scatter';
 import { MEADOW, Meadow, meadow } from './meadow';
-import { groundField } from './ground-field';
+import { GroundField, groundField, heightAt } from './ground-field';
 
 /**
  * The eight compass bearings the camera snaps to.
@@ -168,6 +168,9 @@ export class BoardRenderer {
 
   /** Everything growing out of the painted turf, where the theme grows any. */
   private plants: Meadow | null = null;
+
+  /** And whatever stands over it — a wood, a stand of scrub, nothing. */
+  private canopy: Meadow | null = null;
 
   /**
    * Whether the meadow grows more than grass.
@@ -429,7 +432,12 @@ export class BoardRenderer {
    * no-art case from rotting.
    */
   render(board: BoardScene): void {
-    this.centre = new Vector3(board.widthHalfFeet / 2, board.heightHalfFeet / 2, 0);
+    // Looked at from the height of its own ground, not from zero. A board with
+    // a hundred-foot cliff on it has most of its interest well above the plane
+    // the camera used to aim at, and framing it at zero puts the camera at the
+    // waterline staring along the sea.
+    this.centre = new Vector3(
+      board.widthHalfFeet / 2, board.heightHalfFeet / 2, standingHeight(board));
     this.clear(this.terrain);
     this.clear(this.terrainArt);
     this.clear(this.props);
@@ -443,6 +451,8 @@ export class BoardRenderer {
     this.litter = null;
     this.plants?.dispose();
     this.plants = null;
+    this.canopy?.dispose();
+    this.canopy = null;
     if (this.theme.ground) {
       const ground = this.theme.ground;
       this.surface = splatGround(ground, board, this.light, this.extent);
@@ -453,10 +463,39 @@ export class BoardRenderer {
       // grass gives way to dirt.
       const field = groundField(board);
       if (ground.blades) {
-        this.plants = meadow(
-          board, field, m => this.lit(m), this.time,
-          ground.blades, this.mixedPlants, this.plantSpread, this.viewport, this.wind,
-          this.sunlit, ground.plants ?? MEADOW);
+        const planting = ground.plants ?? MEADOW;
+        const sowing = {
+          board,
+          field,
+          light: (m: Material) => this.lit(m),
+          time: this.time,
+          density: ground.blades,
+          spread: this.plantSpread,
+          viewport: this.viewport,
+          wind: this.wind,
+          sun: this.sunlit,
+        };
+        this.plants = meadow({
+          ...sowing,
+          // Grass alone is a real setting, and it is the first species that
+          // stands for it — the list is written most-abundant first.
+          planting: this.mixedPlants ? planting : planting.slice(0, 1),
+          mixed: this.mixedPlants,
+        });
+        if (ground.canopy) {
+          this.canopy = meadow({
+            ...sowing,
+            planting: ground.canopy.plants,
+            spacing: ground.canopy.spacing,
+          });
+          this.canopy?.meshes.forEach(mesh => {
+            mesh.layers.set(MEADOW_LAYER);
+            this.terrainArt.add(mesh);
+          });
+          this.restageShadows();
+        }
+        this.flood(board, ground.sea);
+        this.raise(board, field);
         this.plants?.meshes.forEach(mesh => {
           // Its own layer, so the occlusion pass can be told not to look at it.
           // See MEADOW_LAYER.
@@ -470,7 +509,7 @@ export class BoardRenderer {
           // some of them again — so the breakdown is printed where it can be
           // read rather than guessed at.
           console.debug('[board] meadow %s',
-            this.plants.census
+            [...this.plants.census, ...(this.canopy?.census ?? [])]
               .map(c => `${c.name} ${c.plants} plants / ${Math.round(c.triangles / 1000)}k tris`)
               .join(' · '));
         }
@@ -569,6 +608,61 @@ export class BoardRenderer {
     const texel = (2 * half) / this.sun.shadow.mapSize.x;
     this.sun.shadow.normalBias = texel * 2.5;
     this.sun.shadow.bias = -texel * 0.05;
+    this.restageShadows();
+  }
+
+  /**
+   * Lays a sea over the board, where the theme has one.
+   *
+   * <p>One plane at the water line, across everything. That is not a shortcut,
+   * it is what a sea is: the surface is level and the coast is wherever the
+   * land comes up through it. Fitting a mesh to the wet squares instead would
+   * have to be redone every time the terrain was edited, and would still be
+   * wrong at the waterline, which is the only part anybody looks at.
+   *
+   * <p>The same rippling material the flooded undercroft uses, and the same
+   * reasoning: metalness stays at zero because water is a dielectric, and the
+   * ripple is a perturbed normal rather than moved geometry because it is the
+   * reflection that reads and a flat plane reflects perfectly well.
+   */
+  private flood(board: BoardScene, waterLine: number | undefined): void {
+    if (waterLine === undefined) {
+      return;
+    }
+    // Its own material, not the flooded cellar's. That one is a puddle in a
+    // dark room and is nearly a mirror; the same roughness under an evening sky
+    // makes the sea a sheet of white, because it is faithfully reflecting a
+    // very bright thing. Open water has depth under it and a colour of its own.
+    const sea = new MeshStandardMaterial({
+      color: 0x14313c,
+      roughness: 0.09,
+      metalness: 0,
+    });
+    const water = new Mesh(
+      new PlaneGeometry(board.widthHalfFeet * 1.5, board.heightHalfFeet * 1.5),
+      this.lit(sea, 1, true),
+    );
+    // Wider than the board, so the horizon is sea rather than an edge.
+    water.position.set(board.widthHalfFeet / 2, board.heightHalfFeet / 2, waterLine);
+    water.receiveShadow = true;
+    this.terrain.add(water);
+  }
+
+  /**
+   * Puts up whatever the theme builds rather than places.
+   *
+   * <p>Handed the ground field's own height function, so a tower stands on the
+   * rock the mesh is actually bent over rather than on the elevation the map
+   * declares — which after three passes of blur and a layer of noise is not the
+   * same number, and the difference is a lighthouse hovering.
+   */
+  private raise(board: BoardScene, field: GroundField): void {
+    const built = this.theme.structures?.(board, (x, y) => heightAt(field, x, y));
+    if (!built) {
+      return;
+    }
+    this.litTree(built);
+    this.terrainArt.add(built);
     this.restageShadows();
   }
 
@@ -1518,6 +1612,7 @@ export class BoardRenderer {
       // How much of the meadow is worth drawing, for where the camera is now.
       // A division and a clamp per chunk; see PLANTS_PER_PIXEL in the meadow.
       this.plants?.detail(this.camera, this.renderer.domElement.height);
+      this.canopy?.detail(this.camera, this.renderer.domElement.height);
       this.flicker(this.time.value);
       if (this.effects) {
         this.motes?.step(this.time.value);
@@ -1555,6 +1650,7 @@ export class BoardRenderer {
     this.surface?.dispose();
     this.litter?.dispose();
     this.plants?.dispose();
+    this.canopy?.dispose();
     this.light.value?.dispose();
     this.motes?.dispose();
     this.post?.dispose();
@@ -1734,7 +1830,7 @@ export class BoardRenderer {
       // Not derivable from the triangle count: the meadow is instanced, so
       // what the GPU reports is one species' geometry times a number nobody
       // outside this class can see.
-      plants: this.plants?.plants ?? 0,
+      plants: (this.plants?.plants ?? 0) + (this.canopy?.plants ?? 0),
       buffer: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
     };
   }
@@ -1748,6 +1844,20 @@ export class BoardRenderer {
       tokens: this.tokens.children.length,
     };
   }
+}
+
+/**
+ * How high the ground on a board typically stands, in half-feet.
+ *
+ * <p>The median rather than the mean, because a coast is a third sea and the
+ * mean of a cliff and a seabed is a height nothing on the map is at.
+ */
+function standingHeight(board: BoardScene): number {
+  if (board.tiles.length === 0) {
+    return 0;
+  }
+  const heights = board.tiles.map(t => t.base).sort((a, b) => a - b);
+  return heights[Math.floor(heights.length / 2)];
 }
 
 /** Which of the three ground materials a square wants. */

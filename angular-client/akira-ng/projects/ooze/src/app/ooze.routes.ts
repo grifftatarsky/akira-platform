@@ -33,6 +33,21 @@ export const OOZE_ROUTES: Routes = [
       {
         // Before the `:encounterId` route below, or that one swallows it —
         // Angular matches routes in the order they are declared.
+        path: 'board/coast',
+        loadComponent: () => import('./board/coast-demo').then(m => m.CoastDemo),
+        data: { title: 'The Broken Light' },
+      },
+      {
+        path: 'board/wood',
+        loadComponent: () => import('./board/wood-demo').then(m => m.WoodDemo),
+        data: { title: 'The cabin' },
+      },
+      {
+        path: 'board/pass',
+        loadComponent: () => import('./board/pass-demo').then(m => m.PassDemo),
+        data: { title: 'The pass' },
+      },
+      {
         path: 'board/road',
         loadComponent: () => import('./board/road-demo').then(m => m.RoadDemo),
         data: { title: 'The road' },
