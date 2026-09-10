@@ -43,8 +43,12 @@ import { fieldTexture } from './splat-bake';
 /** Blades in the buffer. Density scales how many of them are drawn. */
 const MAX_BLADES = 600_000;
 
-/** Segments up a blade. Four is enough to taper; the bend is not in geometry. */
-const SEGMENTS = 4;
+/**
+ * Segments up a blade. Six, because the blade is a Bezier curve evaluated in
+ * the vertex shader now and four could not hold the arc — a curve drawn with
+ * four segments is a bent stick.
+ */
+const SEGMENTS = 6;
 
 
 const SOW = `
@@ -331,10 +335,24 @@ function bladeGeometry(): VertexData {
   data.positions = positions;
   data.indices = indices;
   data.uvs = uvs;
-  // Facing straight out of the blade. Not computed from the geometry, which is
-  // flat and would give a normal that makes every blade read as a shard of
-  // glass under a low sun; this is the leaf's own facing.
-  data.normals = new Array(rows * 2 * 3).fill(0).map((_, i) => (i % 3 === 2 ? 1 : 0));
+  // <b>Rounded normals, baked into the geometry.</b> The blade is one flat
+  // strip and flat is exactly what it shades like: every blade in a clump
+  // catches the sun identically and the field reads as a printed texture
+  // standing up. Fanning the normal across the blade's width — pointing left
+  // at the left edge and right at the right — makes it shade as though it were
+  // a cylinder, for no geometry at all. It is the cheapest thing in the
+  // Tsushima talk and the most visible.
+  //
+  // <p>Static per vertex, so it costs a buffer rather than a shader.
+  const normals: number[] = [];
+  for (let row = 0; row < rows; row++) {
+    for (const across of [-1, 1]) {
+      const n = [across * 0.8, 0.3, 1];
+      const length = Math.hypot(n[0], n[1], n[2]);
+      normals.push(n[0] / length, n[1] / length, n[2] / length);
+    }
+  }
+  data.normals = normals;
   return data;
 }
 
@@ -360,11 +378,11 @@ function bladeMaterial(scene: Scene, detailUrl: string): PBRMaterial {
   material.subSurface.maximumThickness = 0.6;
   material.subSurface.tintColor = new Color3(0.42, 0.72, 0.24);
 
-  const detail = new Texture(detailUrl, scene, false, false);
-  detail.wrapU = Texture.CLAMP_ADDRESSMODE;
-  detail.wrapV = Texture.CLAMP_ADDRESSMODE;
-  material.albedoTexture = detail;
-  material.useAlphaFromAlbedoTexture = false;
+  // <p>No texture. It used to sample the ground's grass photograph, which put
+  // a picture of a lawn on every blade — at this size a blade covers a few
+  // pixels and all that arrives is that photograph's average, plus its noise.
+  // The colour comes from the instance's own tint instead, shaded from root to
+  // tip by the plugin, which is both cheaper and controllable.
   return material;
 }
 

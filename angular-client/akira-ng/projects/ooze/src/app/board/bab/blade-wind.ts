@@ -4,24 +4,26 @@ import { ShaderLanguage } from '@babylonjs/core/Materials/shaderLanguage';
 import type { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
 
 /**
- * Wind, in the vertex shader, bending the blade along its length.
+ * What turns a strip of green into a blade of grass.
  *
- * <p>It used to be in the compute pass: the whole meadow re-sown every frame
- * with a new lean baked into each instance matrix. That kept the material
- * completely stock, which was the point — but it meant six hundred thousand
- * threads writing thirty-eight megabytes a frame to move some grass, and a
- * matrix can only turn a blade rigidly about its root. Real grass bends.
+ * <p>Three things, all from the *Ghost of Tsushima* talk, all in the vertex
+ * stage where they cost a few instructions rather than any geometry:
  *
- * <p>So the placement is computed once and this moves it. The compute pass now
- * runs when the density changes and not otherwise.
+ * <ul>
+ * <li><b>A Bezier curve.</b> The blade arcs over instead of standing straight,
+ *     and the arc is most of what a field looks like at any distance because
+ *     it is the silhouette.
+ * <li><b>Wind that bends it.</b> Not a rigid turn about the root, which is all
+ *     an instance matrix can do — the tip travels and the base does not.
+ * <li><b>Root-to-tip shading.</b> Dark at the ground, pale and dry at the tip.
+ * </ul>
  *
- * <p><b>The bend has to be in a consistent world direction.</b> Each blade is
- * rotated to its own facing by its instance matrix, so pushing it along a
- * local axis would have every blade lean whichever way it happened to be
- * pointing — which is not wind, it is a field having a seizure. The matrix's
- * own columns say where the blade's local axes ended up in the world, so the
- * wind vector is projected onto them and the blade leans downwind whatever way
- * it faces.
+ * <p>The fourth, rounded normals, is baked into the blade's geometry instead:
+ * it is static per vertex, so it costs a buffer rather than a shader.
+ *
+ * <p>Before this the wind lived in the compute pass, re-sowing six hundred
+ * thousand blades every frame to change a lean. The compute pass now runs when
+ * the density changes and not otherwise.
  */
 export class BladeWind extends MaterialPluginBase {
 
@@ -33,7 +35,6 @@ export class BladeWind extends MaterialPluginBase {
   strength = 1.35;
 
   constructor(material: Material) {
-    // After 200, which puts it past the stock vertex work it depends on.
     super(material, 'BladeWind', 200, { BLADE_WIND: true });
     this._enable(true);
   }
@@ -75,30 +76,67 @@ export class BladeWind extends MaterialPluginBase {
       return null;
     }
     return {
+      // <p>The height up the blade is read from the vertex's own local Y,
+      // which the geometry lays out as nought to one. Reading it from the uv
+      // instead — the obvious way — does not work: `vertexInputs.uv` is only
+      // declared when something in the material wants it, and this material
+      // has no texture at all. Pushing the attribute does not help and neither
+      // does the define, because a plugin's defines do not reach the
+      // material's. The shader just fails to parse, as a validation warning,
+      // with no exception anywhere and a field with no grass in it.
+      //
+      // <p>`bladeAlong` is deliberately declared outside the braces: the hooks
+      // are separate injection sites in one function, so this is how the
+      // shading block below sees it.
       CUSTOM_VERTEX_UPDATE_POSITION: `
+        var bladeAlong = positionUpdated.y;
         {
-          // Height up the blade. The root does not move and the tip moves
-          // most, which is the difference between grass bending and grass
-          // sliding.
-          let along = vertexInputs.uv.y;
           let root = vertexInputs.world3.xyz;
 
-          // Three waves at unrelated angles and speeds. One travelling sine is
-          // a bar crossing the field with every blade in it leaning together.
+          // Gusts: three waves at unrelated angles and speeds, under a slower
+          // envelope that makes the wind come and go. One travelling sine is a
+          // bar crossing the field with every blade in it leaning together,
+          // which is what the wind used to look like here.
           let t = uniforms.bladeWind.w;
           let w1 = sin(dot(root.xz, vec2f(0.021, 0.013)) - t * 1.5);
           let w2 = sin(dot(root.xz, vec2f(-0.009, 0.026)) - t * 0.9 + 2.1);
           let w3 = sin(dot(root.xz, vec2f(0.041, -0.031)) - t * 2.7 + 4.3);
-          let gust = 0.5 + 0.5 * (w1 * 0.55 + w2 * 0.3 + w3 * 0.15);
+          let envelope = 0.55 + 0.45 * sin(dot(root.xz, vec2f(0.004, 0.003)) - t * 0.35);
+          let gust = (0.5 + 0.5 * (w1 * 0.55 + w2 * 0.3 + w3 * 0.15)) * envelope;
+          let over = uniforms.bladeWind.z * (0.35 + 0.65 * gust);
 
-          let bend = uniforms.bladeWind.z * gust * along * along;
-          let downwind = vec3f(uniforms.bladeWind.x, 0.0, uniforms.bladeWind.y);
-          // Where this blade's local axes point in the world, so the lean is
-          // downwind rather than whichever way the blade happens to face.
+          // A quadratic Bezier in the blade's own plane, forward against up.
+          // The tip loses height as it goes over, which is what stops a
+          // bending blade from stretching.
+          let c1 = vec2f(over * 0.10, 0.55);
+          let c2 = vec2f(over * 0.72, 1.0 - over * over * 0.22);
+          let m1 = mix(vec2f(0.0, 0.0), c1, bladeAlong);
+          let m2 = mix(c1, c2, bladeAlong);
+          let curve = mix(m1, m2, bladeAlong);
+
+          // Where this blade's local axes ended up in the world, so it leans
+          // downwind rather than whichever way it happens to be facing.
           let sideways = normalize(vertexInputs.world0.xyz);
           let facing = normalize(vertexInputs.world2.xyz);
-          positionUpdated.x += bend * dot(downwind, sideways);
-          positionUpdated.z += bend * dot(downwind, facing);
+          let downwind = vec3f(uniforms.bladeWind.x, 0.0, uniforms.bladeWind.y);
+
+          positionUpdated.y = curve.y;
+          positionUpdated.x += curve.x * dot(downwind, sideways);
+          positionUpdated.z += curve.x * dot(downwind, facing);
+        }
+      `,
+
+      // <b>Dark at the ground, pale at the tip.</b> Light does not reach the
+      // bottom of a sward — there is a foot of grass above it — and the tips
+      // are drier and thinner and let more through. Two lines, and it is the
+      // difference between a field and a green carpet.
+      CUSTOM_VERTEX_MAIN_END: `
+        {
+          let shade = mix(0.28, 1.0, bladeAlong * bladeAlong * 0.55 + bladeAlong * 0.45);
+          let dry = mix(1.0, 1.2, bladeAlong * bladeAlong);
+          vertexOutputs.vColor = vec4f(
+            vertexOutputs.vColor.rgb * shade * vec3f(dry, dry * 0.98, dry * 0.82),
+            vertexOutputs.vColor.a);
         }
       `,
     };
