@@ -94,6 +94,16 @@ export interface SplatGround {
   readonly kind: 'splat';
   readonly layers: readonly [GroundLayer, GroundLayer, GroundLayer];
   /**
+   * Several photographs of the base layer, chosen per stochastic cell.
+   *
+   * <p>The half of texture repetition that shuffling cannot fix. Sampling
+   * stochastically removes the grid; it leaves every pixel coming from one
+   * image, and the eye finds a distinctive clump recurring long before it finds
+   * a seam. Six sources, picked by the same hash that already picks the offset
+   * and the turn, so the variety is free.
+   */
+  readonly variants?: readonly string[];
+  /**
    * Models for the things lying on it.
    *
    * <p>Absent leaves the ground bare, which is a supported state and looks
@@ -302,6 +312,24 @@ export const PLAIN_THEME: BoardTheme = {
 
 const PH_ROOT = 'assets/board/polyhaven';
 
+/**
+ * Six grasses, from ambientCG.
+ *
+ * <p>Poly Haven has four usable ones and this wanted six, which is the sort of
+ * thing that decides where a library gets used rather than which library is
+ * better. Colour only: the relief and the roughness come from one shared set,
+ * because what repeats visibly is the *picture* — the same clump of clover
+ * recurring — and not the bumpiness under it.
+ */
+const GRASS_VARIANTS = [
+  'assets/board/grass/Grass001_Color.jpg',
+  'assets/board/grass/Grass003_Color.jpg',
+  'assets/board/grass/Grass004_Color.jpg',
+  'assets/board/grass/Grass005_Color.jpg',
+  'assets/board/grass/Grass007_Color.jpg',
+  'assets/board/grass/Grass008_Color.jpg',
+];
+
 function layer(
   name: string, feet: number, tint?: readonly [number, number, number],
 ): GroundLayer {
@@ -367,10 +395,11 @@ export const FIELD_THEME: BoardTheme = {
       // Midsummer, so the grass is pushed green and away from the scan's
       // late-season yellow; the bare ground is pushed toward red clay, which is
       // what the road between Richmond and Fredericksburg is cut through.
-      layer('leafy_grass', 7, [0.88, 1.06, 0.72]),
+      layer('leafy_grass', 7, [0.92, 1.04, 0.78]),
       layer('sparse_grass', 8, [1.0, 1.0, 0.82]),
       layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
     ],
+    variants: GRASS_VARIANTS,
     // No scatter. Photogrammetry props at this camera distance read as litter
     // rather than as landscape — a stone that is convincing at eye level is a
     // dark speck from sixty feet up, and a field of dark specks looks like

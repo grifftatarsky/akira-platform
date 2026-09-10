@@ -5,6 +5,10 @@ import {
 import { SplatGround } from './board-assets';
 import { BoardScene } from './board.models';
 import { GroundField, groundField, heightAt } from './ground-field';
+import {
+  GROUND_HEIGHT_BLEND, GROUND_SAMPLING, GROUND_TINT, GROUND_VARIANTS,
+} from './ground-shader';
+import { loadTextureArray } from './texture-array';
 
 /**
  * Ground made of real materials, blended by how worn it is.
@@ -147,6 +151,20 @@ export function splatGround(
   lightUniform: { value: DataTexture | null },
   extentUniform: { value: Vector2 },
 ): SplatSurface {
+  // Six photographs of grass, in one binding. Loaded after the material is
+  // built, because it has to be decoded through a canvas and there is no sense
+  // holding the whole board up for it — until it lands the base layer draws
+  // from the first variant alone, which is what it did before.
+  const variants: { value: import('three').DataArrayTexture | null } = { value: null };
+  const variantCount = { value: 1 };
+  if (ground.variants?.length) {
+    void loadTextureArray(ground.variants, true, true).then(array => {
+      if (array) {
+        variants.value = array;
+        variantCount.value = array.image.depth;
+      }
+    });
+  }
   const field = groundField(board);
   const mask = new DataTexture(field.data, field.width, field.height, RGBAFormat);
   mask.minFilter = LinearFilter;
@@ -170,6 +188,8 @@ export function splatGround(
     shader.uniforms['uExtent'] = { value: new Vector2(board.widthHalfFeet, board.heightHalfFeet) };
     shader.uniforms['uBoardLight'] = lightUniform;
     shader.uniforms['uBoardExtent'] = extentUniform;
+    shader.uniforms['uVariants'] = variants;
+    shader.uniforms['uVariantCount'] = variantCount;
     layers.forEach((layer, i) => {
       shader.uniforms[`uColor${i}`] = { value: layer.color };
       shader.uniforms[`uNormal${i}`] = { value: layer.normal };
@@ -198,9 +218,10 @@ export function splatGround(
     shader.fragmentShader = `
       uniform sampler2D uMask;
       uniform vec2 uExtent;
-      varying vec3 vGroundNormal;
       uniform sampler2D uBoardLight;
       uniform vec2 uBoardExtent;
+      uniform sampler2DArray uVariants;
+      uniform float uVariantCount;
       uniform sampler2D uColor0; uniform sampler2D uNormal0; uniform sampler2D uArm0;
       uniform sampler2D uColor1; uniform sampler2D uNormal1; uniform sampler2D uArm1;
       uniform sampler2D uColor2; uniform sampler2D uNormal2; uniform sampler2D uArm2;
@@ -208,59 +229,99 @@ export function splatGround(
       uniform vec3 uTint0; uniform vec3 uTint1; uniform vec3 uTint2;
       varying vec2 vGround;
       varying vec3 vBoardPos;
+      varying vec3 vGroundNormal;
 
-      ${STOCHASTIC}
+      ${GROUND_SAMPLING}
+      ${GROUND_VARIANTS}
+      ${GROUND_HEIGHT_BLEND}
+      ${GROUND_TINT}
 
-      // Three weights from one number: lush at zero, bare at one, and the worn
-      // stuff in the middle where the two would otherwise meet at a line.
-      vec3 splatWeights(float wear) {
-        float lush = 1.0 - smoothstep(0.10, 0.55, wear);
-        float bare = smoothstep(0.45, 0.90, wear);
-        float worn = max(0.0, 1.0 - lush - bare);
-        float total = lush + worn + bare;
-        return vec3(lush, worn, bare) / max(total, 0.0001);
+      // One layer, sampled stochastically: three cells, each with its own
+      // offset, turn and — for the grass — its own photograph.
+      void sampleLayer(
+        sampler2D colorMap, sampler2D normalMap, sampler2D armMap, vec2 uv, bool useVariants,
+        out vec4 outColor, out vec3 outNormal, out vec3 outArm
+      ) {
+        vec3 w; vec2 v1; vec2 v2; vec2 v3;
+        groundGrid(uv, w, v1, v2, v3);
+        vec3 s = groundSharpen(w);
+        vec2 dx = dFdx(uv);
+        vec2 dy = dFdy(uv);
+
+        if (useVariants) {
+          outColor =
+              grassVariant(uVariants, uv, v1, uVariantCount, dx, dy) * s.x
+            + grassVariant(uVariants, uv, v2, uVariantCount, dx, dy) * s.y
+            + grassVariant(uVariants, uv, v3, uVariantCount, dx, dy) * s.z;
+        } else {
+          outColor =
+              groundVariant(colorMap, uv, v1, dx, dy) * s.x
+            + groundVariant(colorMap, uv, v2, dx, dy) * s.y
+            + groundVariant(colorMap, uv, v3, dx, dy) * s.z;
+        }
+
+        outNormal =
+            (groundVariant(normalMap, uv, v1, dx, dy).xyz * 2.0 - 1.0) * s.x
+          + (groundVariant(normalMap, uv, v2, dx, dy).xyz * 2.0 - 1.0) * s.y
+          + (groundVariant(normalMap, uv, v3, dx, dy).xyz * 2.0 - 1.0) * s.z;
+
+        outArm =
+            groundVariant(armMap, uv, v1, dx, dy).xyz * s.x
+          + groundVariant(armMap, uv, v2, dx, dy).xyz * s.y
+          + groundVariant(armMap, uv, v3, dx, dy).xyz * s.z;
       }
     ` + shader.fragmentShader
       .replace('#include <map_fragment>', `
         vec4 groundMask = texture2D(uMask, vGround / uExtent);
-        vec3 lw = splatWeights(groundMask.r);
 
-        // Sampled once for the whole material and shared by every chunk below.
-        // Each layer is nine texture reads, so gathering them here rather than
-        // per chunk is the difference between nine and thirty-six.
-        vec4 layerColor = vec4(0.0);
-        vec3 layerNormal = vec3(0.0);
-        vec3 layerArm = vec3(0.0);
-        vec4 c; vec3 n; vec3 a;
+        vec4 c0 = vec4(0.0); vec3 n0 = vec3(0.0, 0.0, 1.0); vec3 a0 = vec3(1.0, 0.9, 0.0);
+        vec4 c1 = vec4(0.0); vec3 n1 = vec3(0.0, 0.0, 1.0); vec3 a1 = vec3(1.0, 0.9, 0.0);
+        vec4 c2 = vec4(0.0); vec3 n2 = vec3(0.0, 0.0, 1.0); vec3 a2 = vec3(1.0, 0.9, 0.0);
 
-        // Skipped where a layer contributes nothing, which is most fragments:
-        // the middle of the road is bare and the meadow is lush, and only the
-        // verge is a mixture. Branching here cuts the common case to a third.
-        if (lw.x > 0.002) {
-          splatLayer(uColor0, uNormal0, uArm0, vGround / uRepeat0, c, n, a);
-          layerColor += vec4(uTint0, 1.0) * c * lw.x;
-          layerNormal += n * lw.x;
-          layerArm += a * lw.x;
-        }
-        if (lw.y > 0.002) {
-          splatLayer(uColor1, uNormal1, uArm1, vGround / uRepeat1, c, n, a);
-          layerColor += vec4(uTint1, 1.0) * c * lw.y;
-          layerNormal += n * lw.y;
-          layerArm += a * lw.y;
-        }
-        if (lw.z > 0.002) {
-          splatLayer(uColor2, uNormal2, uArm2, vGround / uRepeat2, c, n, a);
-          layerColor += vec4(uTint2, 1.0) * c * lw.z;
-          layerNormal += n * lw.z;
-          layerArm += a * lw.z;
-        }
+        // Which layers are worth sampling at all. The middle of the road is
+        // bare and the meadow is lush; only the verge is a mixture, so most
+        // fragments pay for one layer rather than three.
+        float lush = 1.0 - smoothstep(0.10, 0.55, groundMask.r);
+        float bare = smoothstep(0.45, 0.90, groundMask.r);
+        float worn = max(0.0, 1.0 - lush - bare);
+
+        if (lush > 0.002) { sampleLayer(uColor0, uNormal0, uArm0, vGround / uRepeat0, true, c0, n0, a0); }
+        if (worn > 0.002) { sampleLayer(uColor1, uNormal1, uArm1, vGround / uRepeat1, false, c1, n1, a1); }
+        if (bare > 0.002) { sampleLayer(uColor2, uNormal2, uArm2, vGround / uRepeat2, false, c2, n2, a2); }
+
+        // Blended by relief rather than cross-faded, so grass stands proud into
+        // the bare ground at the verge instead of dissolving into it. The red
+        // channel of the packed map is ambient occlusion, which stands in for
+        // height: what is buried is what is dark.
+        vec3 lw = heightBlend(vec3(lush, worn, bare), vec3(a0.r, a1.r, a2.r));
+
+        vec4 layerColor =
+            vec4(uTint0, 1.0) * c0 * lw.x
+          + vec4(uTint1, 1.0) * c1 * lw.y
+          + vec4(uTint2, 1.0) * c2 * lw.z;
+        vec3 layerNormal = n0 * lw.x + n1 * lw.y + n2 * lw.z;
+        vec3 layerArm = a0 * lw.x + a1 * lw.y + a2 * lw.z;
+
+        // A second, much finer read of the same relief. Two frequencies beat
+        // against each other and never line up, and it is what holds up when
+        // the camera comes down close — where the base scale is a few pixels
+        // per blade and has nothing left to give.
+        vec3 detail = groundVariant(uNormal0, vGround / (uRepeat0 * 0.22),
+          floor(vGround / (uRepeat0 * 0.22)), dFdx(vGround / (uRepeat0 * 0.22)),
+          dFdy(vGround / (uRepeat0 * 0.22))).xyz * 2.0 - 1.0;
+        layerNormal = normalize(layerNormal + vec3(detail.xy * 0.55, 0.0));
 
         // Wet ground is darker and shinier. Both, and it has to be both: dark
         // alone reads as a stain and shiny alone reads as varnish.
         layerColor.rgb *= mix(1.0, 0.38, groundMask.g);
-        // And the slow variation across the whole board, which is what stops a
-        // perfectly good scan from reading as wallpaper.
-        layerColor.rgb *= mix(0.84, 1.16, groundMask.b);
+        // Slow variation across the whole board — hue as well as brightness,
+        // because ground is not one color and a texture that is reads as one.
+        float macro = groundMask.b;
+        layerColor.rgb = shiftColor(
+          layerColor.rgb,
+          (macro - 0.5) * 0.30,
+          mix(0.86, 1.14, macro),
+          mix(0.82, 1.18, macro));
         diffuseColor *= layerColor;
       `)
       .replace('#include <roughnessmap_fragment>', `
@@ -269,24 +330,15 @@ export function splatGround(
       `)
       .replace('#include <normal_fragment_maps>', `
         // A real tangent frame, built from the surface the ground actually has.
-        //
-        // This used to hand the tangent-space normal straight to three as if it
-        // were the shading normal, which is wrong twice over: three's is in
-        // *view* space, and the surface is no longer flat, so "up" is not up.
-        // On a flat plane under a top-down camera the error was invisible; on
-        // ground with shape in it, every slope would have been lit as if level.
-        //
-        // The UVs run along world X and Y, so the tangent is world X projected
-        // onto the surface and the bitangent follows.
+        // Three's shading normal is in *view* space and the map's is tangent
+        // space, and this surface is not flat, so "up" is not up. The UVs run
+        // along world X and Y, so the tangent is world X projected onto the
+        // surface and the bitangent follows.
         vec3 gN = normalize(vGroundNormal);
         vec3 gT = normalize(vec3(1.0, 0.0, 0.0) - gN * gN.x);
         vec3 gB = cross(gN, gT);
-        // Pushed harder than the scan measured. A surface lit from seventy
-        // degrees up returns almost the same amount of light whichever way it
-        // faces, so at noon the relief has to be exaggerated to be seen at all
-        // — the sun is the thing flattening this ground, not the maps.
-        vec3 detail = normalize(vec3(layerNormal.xy * 1.9, layerNormal.z));
-        vec3 worldNormal = normalize(gT * detail.x + gB * detail.y + gN * detail.z);
+        vec3 detailN = normalize(vec3(layerNormal.xy * 1.9, layerNormal.z));
+        vec3 worldNormal = normalize(gT * detailN.x + gB * detailN.y + gN * detailN.z);
         normal = normalize((viewMatrix * vec4(worldNormal, 0.0)).xyz);
       `)
       .replace('#include <aomap_fragment>', `
