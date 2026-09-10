@@ -346,6 +346,21 @@ const PH_ROOT = 'assets/board/polyhaven';
  * and two are dry, which the height-blend then sorts out — the wet ones sit in
  * the hollows because the hollows are where water sat.
  */
+/**
+ * Photographs of the verge — trodden ground with grass hanging on in it.
+ *
+ * <p>The middle layer had been `sparse_grass`, which is a chocolate-brown scan
+ * far darker than either the meadow or the red road. Weighted highest exactly
+ * at the transition, it drew a near-black line around the whole track: the one
+ * artifact on the board that read as *drawn* rather than grown, and the reason
+ * the road looked like a shape somebody had cut out of a lawn.
+ */
+const VERGE_VARIANTS = [
+  `${PH_ROOT}/grass_path_2_diff_2k.jpg`,
+  `${PH_ROOT}/grass_path_3_diff_2k.jpg`,
+  `${PH_ROOT}/withered_grass_diff_2k.jpg`,
+];
+
 const ROAD_VARIANTS = [
   `${PH_ROOT}/red_dirt_mud_01_diff_2k.jpg`,
   `${PH_ROOT}/red_mud_stones_diff_2k.jpg`,
@@ -433,7 +448,17 @@ export const FIELD_THEME: BoardTheme = {
       // as sand. Midsummer, so the grass is pushed green and away from the
       // scan's late-season yellow.
       layer('leafy_grass', 7, [0.92, 1.04, 0.78], { variants: GRASS_VARIANTS }),
-      layer('sparse_grass', 8, [1.0, 1.0, 0.82]),
+      // The verge: trodden stony ground with grass surviving in tufts, warmed
+      // toward the road's clay because the dust on a verge comes off the road
+      // beside it. It has to sit *between* the meadow and the track in value —
+      // a middle layer darker than both ends draws a line around the road, and
+      // a middle layer lighter than both draws a halo. The scan is a pale grey
+      // gravel path, so it is pulled down as well as warmed: at full value it
+      // swapped the black outline for a sandy one, which is the same mistake
+      // in the other direction.
+      layer('grass_path_2', 9, [0.74, 0.64, 0.5], {
+        res: '2k', variants: VERGE_VARIANTS,
+      }),
       // Red clay with gravel through it, at twice the resolution of everything
       // else, because the road is the subject of this map and is the one
       // surface a camera comes down to.

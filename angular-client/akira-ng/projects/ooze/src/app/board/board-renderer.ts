@@ -306,7 +306,12 @@ export class BoardRenderer {
     // the deepest corners off pure black.
     this.scene.add(this.ambient);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    // Four thousand, not two. A board is two hundred feet across and the
+    // shadow camera has to cover all of it, so at 2048 a texel is most of a
+    // foot — enough for a wall or a barrel, and not enough for the one thing
+    // in a meadow worth casting, which is a seed head standing over the
+    // grass. Doubling it puts about six texels across that shadow.
+    this.sun.shadow.mapSize.set(4096, 4096);
     // Offset along the surface normal rather than in depth. Plain `bias` on a
     // frustum this wide has to be large enough to detach a shadow from the
     // thing casting it; normalBias solves the same acne without the gap.

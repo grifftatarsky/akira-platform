@@ -95,6 +95,23 @@ interface Species {
   readonly scale: readonly [number, number];
   /** How far the wind moves its tips. */
   readonly sway: number;
+  /**
+   * Whether it casts.
+   *
+   * <p>Almost nothing does. Running a quarter of a million plants through the
+   * shadow pass draws the whole meadow a second time for shadows the size of a
+   * blade of grass — and at the resolution a board-wide shadow camera can
+   * afford, a blade's shadow is a texel of noise rather than a shape. The
+   * occlusion pass already darkens where growth gathers, which is the part
+   * that reads.
+   *
+   * <p>What *is* worth casting is whatever stands clear of the sward. A seed
+   * head two feet up throws a shadow a foot long across the grass below it,
+   * and that shadow is the only thing that says the head is above the field
+   * rather than painted on it. So the tall species cast and the mat does not,
+   * which is a small fraction of the plants and nearly all of the depth.
+   */
+  readonly casts: boolean;
   readonly lush: number;
   readonly dry: number;
   readonly strips: () => Strip[];
@@ -213,27 +230,27 @@ function spread<T>(
 const SPECIES: readonly Species[] = [
   {
     name: 'grass', share: 1, patch: 0.035, clumping: 1, tolerates: 0.42,
-    scale: [0.7, 1.5], sway: 0.16,
+    scale: [0.7, 1.5], sway: 0.16, casts: false,
     lush: 0x6f8a3a, dry: 0xb0ab5c, strips: grassStrips,
   },
   {
     name: 'seed', share: 0.9, patch: 0.05, clumping: 2, tolerates: 0.3,
-    scale: [0.9, 1.4], sway: 0.26,
+    scale: [0.9, 1.4], sway: 0.26, casts: true,
     lush: 0x8e9a52, dry: 0xc4b878, strips: seedStrips,
   },
   {
     name: 'clover', share: 0.95, patch: 0.07, clumping: 2, tolerates: 0.55,
-    scale: [0.9, 1.5], sway: 0.05,
+    scale: [0.9, 1.5], sway: 0.05, casts: false,
     lush: 0x6d9c3c, dry: 0x8fae52, strips: cloverStrips,
   },
   {
     name: 'broadleaf', share: 0.75, patch: 0.09, clumping: 2, tolerates: 0.72,
-    scale: [0.8, 1.6], sway: 0.04,
+    scale: [0.8, 1.6], sway: 0.04, casts: false,
     lush: 0x6f9440, dry: 0x93a054, strips: broadleafStrips,
   },
   {
     name: 'flower', share: 0.5, patch: 0.16, clumping: 4, tolerates: 0.26,
-    scale: [0.85, 1.25], sway: 0.3,
+    scale: [0.85, 1.25], sway: 0.3, casts: true,
     lush: 0xefe8d2, dry: 0xd8bf5e, strips: flowerStrips,
   },
 ];
@@ -392,10 +409,13 @@ export function meadow(
       }
 
       const species = SPECIES[best];
+      // How well this species is doing here, from whole turf down to the last
+      // thing hanging on at the edge of the track.
+      const vigour = 1 - wear / species.tolerates;
       // Thinning toward whatever this species cannot take, so the mixture
       // changes across the verge as well as the amount — which is what a real
       // path edge does.
-      if (hash(jx, jy, 7) > (1 - wear / species.tolerates) * density) {
+      if (hash(jx, jy, 7) > vigour * density) {
         continue;
       }
       const [low, high] = species.scale;
@@ -408,7 +428,16 @@ export function meadow(
         // at a right angle, and a meadow where everything does reads as
         // something placed rather than something grown.
         tilt: (hash(jx, jy, 17) - 0.5) * 0.34,
-        scale: low + hash(jx, jy, 13) * (high - low),
+        // <b>Cropped as well as thinned.</b> Thinning alone left the meadow
+        // full height right up to a line and then nothing, which is a lawn
+        // with a hole cut in it — the one shape a verge never has. Grass
+        // beside a track is grazed, trodden and starved: it gets shorter for
+        // several feet before it gives up, and that gradient is most of what
+        // makes the edge of a path look walked rather than drawn. Cubed
+        // toward the vigorous end, so the middle of the meadow is untouched
+        // and the last two feet do nearly all of the shortening.
+        scale: (low + hash(jx, jy, 13) * (high - low))
+          * (0.34 + 0.66 * (1 - (1 - vigour) * (1 - vigour) * (1 - vigour))),
         tone: hash(jx, jy, 19),
       });
     }
@@ -437,12 +466,7 @@ export function meadow(
     const material = plantMaterial(species, light, time);
     const mesh = new InstancedMesh(speciesGeometry(species), material, plot.length);
     mesh.receiveShadow = true;
-    // Not casting. A quarter of a million plants through the shadow pass is
-    // the whole meadow drawn twice over for shadows the size of a blade of
-    // grass, which at any shadow-map resolution this board can afford is
-    // noise rather than shape. The occlusion pass already darkens where they
-    // gather, which is the part that reads.
-    mesh.castShadow = false;
+    mesh.castShadow = species.casts;
     // An instanced mesh's bounding sphere is one *plant's*, so three would
     // cull the entire meadow the moment the camera left one square foot of it.
     mesh.frustumCulled = false;
