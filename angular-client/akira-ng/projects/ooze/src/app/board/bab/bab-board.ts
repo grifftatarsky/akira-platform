@@ -3,11 +3,13 @@ import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, signal,
   viewChild,
 } from '@angular/core';
-import { FIELD_THEME, INDOOR_LOOK } from '../board-assets';
+import { FIELD_THEME, INDOOR_LOOK, type SplatGround } from '../board-assets';
 import { sceneForEncounter } from '../board-scene';
 import { groundField } from '../ground-field';
 import { ROAD_NAME, roadMap } from '../road-level';
 import { clockLabel } from '../sun-position';
+import { assetUrl } from './assets';
+import { type Meadow, sowMeadow } from './meadow';
 import { Stage } from './stage';
 import { type FrameCost, Stats } from './stats';
 import { type Terrain, buildTerrain } from './terrain';
@@ -38,6 +40,14 @@ import { type Terrain, buildTerrain } from './terrain';
             [value]="hour()" (input)="setHour($any($event.target).valueAsNumber)"
             class="w-40" />
           <span class="tabular-nums">{{ clock() }}</span>
+        </label>
+        <label class="flex items-center gap-2">
+          Grass
+          <input
+            type="range" min="0" max="100" step="1"
+            [value]="density()" (input)="setDensity($any($event.target).valueAsNumber)"
+            class="w-32" />
+          <span class="tabular-nums">{{ density() }}%</span>
         </label>
         <span class="tabular-nums text-fg-subtle">{{ status() }}</span>
         <button type="button" (click)="inspect()"
@@ -82,11 +92,13 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly clock = signal(clockLabel(13));
   protected readonly status = signal('starting…');
   protected readonly cost = signal<FrameCost | null>(null);
+  protected readonly density = signal(50);
   protected readonly fault = signal<string | null>(null);
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private stage: Stage | null = null;
   private stats: Stats | null = null;
+  private meadow: Meadow | null = null;
   private ticker = 0;
   private gone = false;
   private terrain: Terrain | null = null;
@@ -106,6 +118,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     }
     try {
       const theme = FIELD_THEME;
+      const ground = theme.ground as SplatGround;
       const stage = await Stage.open(
         canvas, theme.look ?? INDOOR_LOOK, theme.environment?.url,
       );
@@ -125,10 +138,17 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       });
       const field = groundField(scene);
       const started = performance.now();
-      this.terrain = buildTerrain(
-        theme.ground as never, field, stage.scene,
-      );
+      this.terrain = buildTerrain(ground, field, stage.scene);
       const built = Math.round(performance.now() - started);
+
+      this.meadow = sowMeadow(field, stage.scene, assetUrl(ground.layers[0].color));
+      stage.shadows.addShadowCaster(this.meadow.mesh);
+      // The wind is a re-sow, so it happens once a frame before anything is
+      // drawn. Six hundred thousand threads that each write four vec4s; the
+      // GPU does not notice, and nothing touches the main thread.
+      stage.scene.onBeforeRenderObservable.add(() => {
+        this.meadow?.step(performance.now() / 1000);
+      });
 
       stage.frame(
         field.extentXHalfFeet / 2, field.extentYHalfFeet / 2, 0,
@@ -137,7 +157,8 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       // So the scene can be probed from the console. Deep imports mean there
       // is no global BABYLON to reach for, and a board that cannot be
       // inspected does not get measured.
-      (globalThis as unknown as Record<string, unknown>)['bab'] = { stage, terrain: this.terrain, field };
+      (globalThis as unknown as Record<string, unknown>)['bab'] =
+        { stage, terrain: this.terrain, meadow: this.meadow, field };
       stage.start();
       this.stats = new Stats(stage.scene);
       // Once a second: the counters are already rolling averages over exactly
@@ -177,6 +198,14 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     }
   }
 
+  protected setDensity(percent: number): void {
+    this.density.set(percent);
+    // Not a rebuild. The blades are already in the buffer and this is how many
+    // of them get drawn — which is the whole reason the placement moved to a
+    // compute pass.
+    this.meadow?.setDensity(percent / 100);
+  }
+
   protected setHour(hour: number): void {
     this.hour.set(hour);
     this.clock.set(clockLabel(hour));
@@ -188,6 +217,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     window.clearInterval(this.ticker);
     this.stats?.dispose();
     this.observer?.disconnect();
+    this.meadow?.dispose();
     this.terrain?.dispose();
     this.stage?.dispose();
   }

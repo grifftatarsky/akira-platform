@@ -62,11 +62,8 @@ export function buildTerrain(
   // as wet tarmac the moment the sun gets low.
   material.specularIntensity = 0.15;
   material.ambientColor = new Color3(1, 1, 1);
-  // Terrain is a heightfield seen from above, and the axis swap that turns our
-  // right-handed Z-up board into Babylon's left-handed Y-up reverses triangle
-  // winding. Rather than reason about which way that lands, draw both sides:
-  // there is no inside of a hillside to see, and it removes a whole class of
-  // "the ground is missing" bug.
+  // There is no underside of a hillside worth drawing, but the skirt is seen
+  // edge-on at the board's rim and a hole there reads as a bug.
   material.backFaceCulling = false;
 
   // The near-field grain the baked map cannot hold: at four texels to the
@@ -145,8 +142,14 @@ function chunkMesh(
       const b = a + 1;
       const c = a + cols;
       const d = c + 1;
-      indices[write++] = a; indices[write++] = c; indices[write++] = b;
-      indices[write++] = b; indices[write++] = c; indices[write++] = d;
+      // Wound for Babylon's left-handed frame. Our board is right-handed with
+      // Z up, and `toStage` swaps two axes to reach Y up — which reverses
+      // orientation. Wound the other way, `ComputeNormals` returns normals
+      // pointing straight *down*: the ground is then lit from underneath and
+      // renders black under a midday sun, while still looking green at
+      // distance because image-based light has no direction to get wrong.
+      indices[write++] = a; indices[write++] = b; indices[write++] = c;
+      indices[write++] = b; indices[write++] = d; indices[write++] = c;
     }
   }
 
