@@ -14,6 +14,7 @@ import { ModelLibrary } from './model-library';
 import { EnvironmentLibrary } from './environment';
 import { FLAME_COLOUR, LIGHT_RANGE, lightField, lightSource } from './light-field';
 import { PostChain } from './board-post';
+import { Motes } from './board-motes';
 
 /** Top-down and locked, or a camera you can orbit. */
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
@@ -107,6 +108,15 @@ export class BoardRenderer {
    * actually means.
    */
   private readonly grid = new Group();
+
+  /**
+   * Dust in the air, rebuilt with the board it hangs over.
+   *
+   * <p>Part of the effects layer rather than of the scene: it is atmosphere,
+   * and a machine that cannot afford ambient occlusion should not be paying for
+   * dust either.
+   */
+  private motes: Motes | null = null;
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
@@ -278,6 +288,7 @@ export class BoardRenderer {
     this.flames.length = 0;
     this.relight(board);
     this.layGround(board);
+    this.raiseDust(board);
     this.grid.add(this.squares(board));
     this.grid.visible = this.showGrid;
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
@@ -513,6 +524,24 @@ export class BoardRenderer {
         }
       }
     }
+  }
+
+  /**
+   * Fills the air over a board with dust.
+   *
+   * <p>Rebuilt per board rather than moved, because the count comes from the
+   * board's area — a corridor and a courtyard want different amounts of nothing
+   * in the air.
+   */
+  private raiseDust(board: BoardScene): void {
+    if (this.motes) {
+      this.scene.remove(this.motes.points);
+      this.motes.dispose();
+    }
+    this.motes = new Motes(board.widthHalfFeet, board.heightHalfFeet);
+    this.lit(this.motes.material());
+    this.motes.points.visible = this.effects;
+    this.scene.add(this.motes.points);
   }
 
   /** Shows or hides the squares. */
@@ -981,6 +1010,9 @@ export class BoardRenderer {
    */
   setEffects(on: boolean): void {
     this.effects = on;
+    if (this.motes) {
+      this.motes.points.visible = on;
+    }
     if (!on) {
       this.post?.dispose();
       this.post = null;
@@ -1003,6 +1035,9 @@ export class BoardRenderer {
       }
       this.time.value = performance.now() / 1000;
       this.flicker(this.time.value);
+      if (this.effects) {
+        this.motes?.step(this.time.value);
+      }
       // Through the effect chain when there is one, straight to the canvas
       // when there is not. Both are real paths: the chain is several
       // full-screen passes and a machine that cannot afford them should still
@@ -1034,6 +1069,7 @@ export class BoardRenderer {
     this.clear(this.grid);
     this.clear(this.tokens);
     this.light.value?.dispose();
+    this.motes?.dispose();
     this.post?.dispose();
     this.library.dispose();
     this.environments.dispose();
