@@ -152,3 +152,38 @@ like a scaling bug and is not one.
 it came from, its licence, and the date it was checked. "Where did this tile come
 from" is unanswerable six months later, and it is the question that gets asked
 precisely when it is most expensive to answer.
+
+## Why there are almost no downloaded models
+
+Everything on the outdoor boards that is not ground is *built*: the conifers,
+the scrub, the ruined lighthouse, the log cabin. That was not the plan — the
+plan was Poly Haven, which has beautiful trees.
+
+**Poly Haven's `pine_tree_01` is a 948-megabyte geometry buffer.** `fir_tree_01`
+is 465. They are film assets: every needle is real geometry, and there is no
+amount of decimation that turns one into something a browser should fetch. The
+rocks are fine — a boulder is 3 to 6 MB, a coastal rock set 20 to 25 — but the
+vegetation is not usable at any resolution the library offers.
+
+So the trees are `Species` in the meadow system, the same as the grass: tapered
+strips, no textures, no alpha. A tree is about 350 triangles, a wood of a
+hundred and fifty of them is a rounding error next to the ferns underneath, and
+it inherits the instancing, the chunking, the pixel budget, the wind and the
+light-through-a-leaf for nothing. It is also closer to what this board is aiming
+at — the target is a painted game, and a painted wood wants a confident
+silhouette rather than a photograph of bark.
+
+**If you do want a Poly Haven model**, the API gives a glTF plus its textures as
+separate files, so it takes a script rather than a download:
+
+```
+GET https://api.polyhaven.com/files/<name>
+  → .gltf[<res>].gltf.url          the document
+  → .gltf[<res>].gltf.include{}    every texture, keyed by its relative path
+```
+
+Fetch the document and each include into `public/assets/board/models/<name>/`,
+preserving those relative paths, and the loader will resolve them. Poly Haven
+refuses requests with no `User-Agent`. **Check the `.bin` size before committing
+anything** — that is the one number the asset page does not show you, and it is
+the one that matters.
