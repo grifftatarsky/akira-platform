@@ -26,6 +26,105 @@ import { GroundField, groundField } from './ground-field';
  * a plane reads as a stripe no matter how good the texture is.
  */
 
+/**
+ * Sampling a tiling texture so that it stops looking like one.
+ *
+ * <p><b>The problem is not the texture, it is the lattice.</b> A scan repeats
+ * every few feet by construction, and an eye finds a repeating arrangement long
+ * before it finds a repeating detail — so a perfectly good photograph of grass
+ * reads as wallpaper the moment you can see a dozen copies of it at once. No
+ * amount of resolution fixes that; more resolution just makes a bigger tile.
+ *
+ * <p>So the ground is not sampled on a square lattice at all. Every point falls
+ * inside a triangle of an equilateral grid, its three corners each carry a
+ * random offset derived from where they are, and the texture is read three
+ * times — once per corner, each somewhere else in the image — then blended by
+ * how close the point is to each. The offsets never repeat, so the *arrangement*
+ * never repeats, while every pixel is still real measured ground.
+ *
+ * <p><b>The blend is sharpened rather than variance-preserving.</b> Three
+ * samples averaged flatly regress toward the texture's mean and turn grass to
+ * porridge where cells meet, which is what the reference's variance term is
+ * for — but that term restores contrast by scaling each sample's deviation
+ * from an assumed *grey* mean, and grass is not grey. It amplified the wrong
+ * thing and drew the honeycomb it existed to hide. Cubing the weights instead
+ * lets one sample dominate almost everywhere and confines blending to a narrow
+ * band along each edge: no mush, and nothing regular enough to see.
+ *
+ * <p>After Heitz and Neyret's by-example noise, minus the histogram transform —
+ * the rigorous version needs a precomputed lookup per texture and buys less
+ * here than a fourth material layer would.
+ */
+const STOCHASTIC = `
+  vec2 splatHash(vec2 p) {
+    p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+    return fract(sin(p) * 43758.5453);
+  }
+
+  // The triangle a point lands in, as three corners and their weights.
+  void splatGrid(vec2 uv, out vec3 w, out vec2 v1, out vec2 v2, out vec2 v3) {
+    // One triangle to roughly one tile of the texture. The reference uses
+    // 2*sqrt(3), which puts three cells inside every tile — and at that size
+    // the *grid* becomes the pattern: a honeycomb across the whole meadow,
+    // trading one visible lattice for another. Cells about a tile across mean
+    // most of what you see is one continuous piece of the scan.
+    vec2 skewed = mat2(1.0, 0.0, -0.57735027, 1.15470054) * uv;
+    vec2 base = floor(skewed);
+    vec3 t = vec3(fract(skewed), 0.0);
+    t.z = 1.0 - t.x - t.y;
+    if (t.z > 0.0) {
+      w = vec3(t.z, t.y, t.x);
+      v1 = base;
+      v2 = base + vec2(0.0, 1.0);
+      v3 = base + vec2(1.0, 0.0);
+    } else {
+      w = vec3(-t.z, 1.0 - t.y, 1.0 - t.x);
+      v1 = base + vec2(1.0, 1.0);
+      v2 = base + vec2(1.0, 0.0);
+      v3 = base + vec2(0.0, 1.0);
+    }
+  }
+
+  void splatLayer(
+    sampler2D colourMap, sampler2D normalMap, sampler2D armMap, vec2 uv,
+    out vec4 outColour, out vec3 outNormal, out vec3 outArm
+  ) {
+    vec3 w; vec2 v1; vec2 v2; vec2 v3;
+    splatGrid(uv, w, v1, v2, v3);
+    // The offsets are constant within a triangle, so all three reads share the
+    // point's derivatives and land on the same mip. Only the quads straddling
+    // a triangle edge see a jump, and there it costs a pixel of extra blur —
+    // which is a far better trade than a visible grid.
+    vec2 o1 = splatHash(v1);
+    vec2 o2 = splatHash(v2);
+    vec2 o3 = splatHash(v3);
+
+    // Sharpened, so one sample dominates almost everywhere and the blend is
+    // confined to a narrow band along each edge. This replaced the reference's
+    // variance-preserving blend, which restores contrast by scaling each
+    // sample's deviation from the texture's *mean* — and assuming that mean is
+    // grey, which grass is emphatically not. On this ground it amplified the
+    // wrong thing and drew the grid it was supposed to hide.
+    vec3 sharp = w * w * w;
+    sharp /= max(sharp.x + sharp.y + sharp.z, 0.0001);
+
+    outColour =
+        texture2D(colourMap, uv + o1) * sharp.x
+      + texture2D(colourMap, uv + o2) * sharp.y
+      + texture2D(colourMap, uv + o3) * sharp.z;
+
+    outNormal =
+        (texture2D(normalMap, uv + o1).xyz * 2.0 - 1.0) * sharp.x
+      + (texture2D(normalMap, uv + o2).xyz * 2.0 - 1.0) * sharp.y
+      + (texture2D(normalMap, uv + o3).xyz * 2.0 - 1.0) * sharp.z;
+
+    outArm =
+        texture2D(armMap, uv + o1).xyz * sharp.x
+      + texture2D(armMap, uv + o2).xyz * sharp.y
+      + texture2D(armMap, uv + o3).xyz * sharp.z;
+  }
+`;
+
 /** How deep a fully worn rut sits below the verge, in half-feet. */
 const RUT_DEPTH = 0.9;
 
@@ -108,6 +207,8 @@ export function splatGround(
       varying vec2 vGround;
       varying vec3 vBoardPos;
 
+      ${STOCHASTIC}
+
       // Three weights from one number: lush at zero, bare at one, and the worn
       // stuff in the middle where the two would otherwise meet at a line.
       vec3 splatWeights(float wear) {
@@ -120,42 +221,58 @@ export function splatGround(
     ` + shader.fragmentShader
       .replace('#include <map_fragment>', `
         vec4 groundMask = texture2D(uMask, vGround / uExtent);
-        vec3 w = splatWeights(groundMask.r);
-        vec4 splatColour =
-            vec4(uTint0, 1.0) * texture2D(uColour0, vGround / uRepeat0) * w.x
-          + vec4(uTint1, 1.0) * texture2D(uColour1, vGround / uRepeat1) * w.y
-          + vec4(uTint2, 1.0) * texture2D(uColour2, vGround / uRepeat2) * w.z;
+        vec3 lw = splatWeights(groundMask.r);
+
+        // Sampled once for the whole material and shared by every chunk below.
+        // Each layer is nine texture reads, so gathering them here rather than
+        // per chunk is the difference between nine and thirty-six.
+        vec4 layerColour = vec4(0.0);
+        vec3 layerNormal = vec3(0.0);
+        vec3 layerArm = vec3(0.0);
+        vec4 c; vec3 n; vec3 a;
+
+        // Skipped where a layer contributes nothing, which is most fragments:
+        // the middle of the road is bare and the meadow is lush, and only the
+        // verge is a mixture. Branching here cuts the common case to a third.
+        if (lw.x > 0.002) {
+          splatLayer(uColour0, uNormal0, uArm0, vGround / uRepeat0, c, n, a);
+          layerColour += vec4(uTint0, 1.0) * c * lw.x;
+          layerNormal += n * lw.x;
+          layerArm += a * lw.x;
+        }
+        if (lw.y > 0.002) {
+          splatLayer(uColour1, uNormal1, uArm1, vGround / uRepeat1, c, n, a);
+          layerColour += vec4(uTint1, 1.0) * c * lw.y;
+          layerNormal += n * lw.y;
+          layerArm += a * lw.y;
+        }
+        if (lw.z > 0.002) {
+          splatLayer(uColour2, uNormal2, uArm2, vGround / uRepeat2, c, n, a);
+          layerColour += vec4(uTint2, 1.0) * c * lw.z;
+          layerNormal += n * lw.z;
+          layerArm += a * lw.z;
+        }
+
         // Wet ground is darker and shinier. Both, and it has to be both: dark
         // alone reads as a stain and shiny alone reads as varnish.
-        splatColour.rgb *= mix(1.0, 0.38, groundMask.g);
+        layerColour.rgb *= mix(1.0, 0.38, groundMask.g);
         // And the slow variation across the whole board, which is what stops a
         // perfectly good scan from reading as wallpaper.
-        splatColour.rgb *= mix(0.84, 1.16, groundMask.b);
-        diffuseColor *= splatColour;
+        layerColour.rgb *= mix(0.84, 1.16, groundMask.b);
+        diffuseColor *= layerColour;
       `)
       .replace('#include <roughnessmap_fragment>', `
-        float roughnessFactor = roughness * (
-            texture2D(uArm0, vGround / uRepeat0).g * w.x
-          + texture2D(uArm1, vGround / uRepeat1).g * w.y
-          + texture2D(uArm2, vGround / uRepeat2).g * w.z);
+        float roughnessFactor = roughness * layerArm.g;
         roughnessFactor = mix(roughnessFactor, 0.12, groundMask.g);
       `)
       .replace('#include <normal_fragment_maps>', `
-        vec3 splatNormal =
-            (texture2D(uNormal0, vGround / uRepeat0).xyz * 2.0 - 1.0) * w.x
-          + (texture2D(uNormal1, vGround / uRepeat1).xyz * 2.0 - 1.0) * w.y
-          + (texture2D(uNormal2, vGround / uRepeat2).xyz * 2.0 - 1.0) * w.z;
         // The plane's tangent frame is the world's, so the map's X and Y are
         // the board's X and Y and its Z is up. No TBN needed, and none of the
         // seams one would bring.
-        normal = normalize(vec3(splatNormal.xy, splatNormal.z * 1.4));
+        normal = normalize(vec3(layerNormal.xy, layerNormal.z * 1.4));
       `)
       .replace('#include <aomap_fragment>', `
-        float splatAo =
-            texture2D(uArm0, vGround / uRepeat0).r * w.x
-          + texture2D(uArm1, vGround / uRepeat1).r * w.y
-          + texture2D(uArm2, vGround / uRepeat2).r * w.z;
-        reflectedLight.indirectDiffuse *= splatAo;
+        reflectedLight.indirectDiffuse *= layerArm.r;
       `)
       .replace('#include <tonemapping_fragment>', `
         gl_FragColor.rgb *= texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb * 2.0;
