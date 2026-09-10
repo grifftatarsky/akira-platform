@@ -31,6 +31,12 @@ export const OOZE_ROUTES: Routes = [
         data: { title: 'Encounters' },
       },
       {
+        // The Babylon port. Same level data, same ground field, same sun.
+        path: 'board/bab',
+        loadComponent: () => import('./board/bab/bab-board').then(m => m.BabBoard),
+        data: { title: 'The road, on Babylon' },
+      },
+      {
         // Before the `:encounterId` route below, or that one swallows it —
         // Angular matches routes in the order they are declared.
         path: 'board/coast',
