@@ -9,52 +9,41 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
-import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import type { Scene } from '@babylonjs/core/scene';
-// Side-effect: teaches WebGPUEngine how to make a compute context. Babylon
-// splits every optional capability into a `.pure` half that is tree-shakable
-// and a half that patches the engine prototype, and importing only the class
-// gets you `e.createComputeContext is not a function` at the first dispatch.
 import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
+import { type Plant, MEADOW, plantGeometry } from './species';
 import { fieldTexture } from './splat-bake';
 
 /**
- * The meadow, placed on the GPU.
+ * The meadow, placed on the GPU, one dispatch per species.
  *
- * <p>The old one composed 830,000 instance matrices in JavaScript at load and
- * re-uploaded them whenever anything changed, which is why the density slider
- * stuttered and why editing the terrain would have meant rebuilding the world.
- * This dispatches a compute pass instead: every blade's position, facing, lean,
- * height and colour is derived from its own index, and nothing crosses back to
- * the CPU. Density becomes a number in a uniform buffer.
+ * <p>Every plant's position, facing, lean, height and colour is derived from
+ * its own index in a compute pass; nothing crosses back to the CPU and density
+ * is a number in a uniform buffer. The species each get their own instance
+ * buffers and their own dispatch, because they are different geometry — but
+ * they share the shader, so a sixth is a row in a table.
  *
- * <p><b>Sway happens in the compute pass, not in a vertex shader.</b> That is
- * the unusual choice here and it is deliberate: it keeps the material entirely
- * stock — Babylon's own `PBRMaterial`, with its shadows, its image-based
- * lighting, its clustered lights and its subsurface translucency — instead of
- * injecting a custom vertex path into all of it. The blade turns rigidly about
- * its root rather than bending along its length, which at tabletop distance is
- * a difference nobody has yet been able to point to. If it starts to read as
- * stiff, a `MaterialPluginBase` adds the bend without disturbing anything else.
+ * <p><b>Clumps decide more than height.</b> Real grass grows in patches that
+ * share a cast of colour, a height and — the part that reads most — a
+ * direction: plants in a clump splay outward from its middle rather than
+ * facing at random. That last one is straight out of the Tsushima talk and it
+ * is the difference between a field and a carpet of individually placed
+ * blades.
  */
 
-/** Blades in the buffer. Density scales how many of them are drawn. */
-const MAX_BLADES = 600_000;
+/** Plants in the buffers, across all species. Density scales how many draw. */
+const MAX_PLANTS = 600_000;
 
-/**
- * Segments up a blade. Six, because the blade is a Bezier curve evaluated in
- * the vertex shader now and four could not hold the arc — a curve drawn with
- * four segments is a bent stick.
- */
-const SEGMENTS = 6;
-
+/** Half-feet across a clump. About a stride. */
+const CLUMP = 11;
 
 const SOW = `
 struct Params {
-  a: vec4f,   // extentX, extentY, count, time
-  b: vec4f,   // width, height, wearCut, droop
+  a: vec4f,   // extentX, extentY, count, seed offset
+  b: vec4f,   // tall, wide, wearMax, droop
+  c: vec4f,   // damp preference, spare, spare, spare
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -84,72 +73,63 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (index >= u32(params.a.z)) { return; }
 
   let extent = params.a.xy;
-  let time = params.a.w;
 
-  // Position from the index alone. No lattice, so no lattice to see: two
-  // decorrelated hashes scatter blades over the board, and the count is the
-  // only thing density has to change.
-  let seed = index * 3u;
+  // Position from the index alone, offset per species so two species never
+  // stack on the same spot. No lattice, so no lattice to see.
+  let seed = (index + u32(params.a.w)) * 5u;
   let where2 = vec2f(rand(seed), rand(seed + 1u)) * extent;
 
-  // Clumps. Real grass is not evenly random — it grows in patches with a
-  // shared height and a shared cast of colour, and an even scatter reads as
-  // AstroTurf however good the blade is.
-  let clump = floor(where2 / 12.0);
-  let clumpSeed = u32(clump.x + 977.0) * 3557u + u32(clump.y + 977.0) * 6151u;
-  let clumpTall = 0.65 + 0.7 * rand(clumpSeed);
+  // The clump this plant belongs to, and where its middle is. Everything the
+  // clump decides is hashed from the cell, so neighbours agree without
+  // anything being stored.
+  let cell = floor(where2 / ${CLUMP.toFixed(1)});
+  let clumpSeed = u32(cell.x + 977.0) * 3557u + u32(cell.y + 977.0) * 6151u;
+  let middle = (cell + vec2f(rand(clumpSeed + 11u), rand(clumpSeed + 12u))) * ${CLUMP.toFixed(1)};
+  let clumpTall = 0.62 + 0.76 * rand(clumpSeed);
   let clumpTone = rand(clumpSeed + 7u);
 
   let size = vec2f(textureDimensions(groundField, 0));
   let texel = vec2i(clamp(where2 / extent, vec2f(0.0), vec2f(1.0)) * (size - 1.0));
   let ground = textureLoad(groundField, texel, 0);
   let wear = ground.r;
+  let wet = ground.g;
   let drift = ground.b;
 
   let hSize = vec2f(textureDimensions(heights, 0));
   let hTexel = vec2i(clamp(where2 / extent, vec2f(0.0), vec2f(1.0)) * (hSize - 1.0));
   let ground_z = textureLoad(heights, hTexel, 0).r;
 
-  // Worn ground has no grass on it. The blade is scaled to nothing rather than
-  // skipped, because skipping would mean compacting the buffer and an indirect
-  // draw — worth doing when the road is more than a sixth of the board.
-  var alive = 1.0 - smoothstep(params.b.z - 0.18, params.b.z, wear);
+  // Worn ground has less on it, and each species gives up at its own point —
+  // plantain lives on a trodden verge where meadow grass has already gone.
+  var alive = 1.0 - smoothstep(params.b.z - 0.2, params.b.z, wear);
+  // And some of them care whether it is damp.
+  let damp = params.c.x;
+  alive *= clamp(1.0 + damp * (wet - 0.35) * 1.6, 0.15, 1.0);
   alive *= step(0.02, alive);
 
-  // <p>There was a distance fade here, culling blades far from the camera. It
-  // is gone for two reasons, both measured. It bought nothing: a faded blade
-  // is still a degenerate triangle that the vertex stage pays for in full, and
-  // this meadow turned out to be bound by fill rather than by instances —
-  // halving the blade count saved 0.34 ms of 1.9. And it cannot work at all
-  // now that the sowing happens once instead of every frame, because the fade
-  // would freeze at wherever the camera stood when it ran. Culling for real
-  // means compacting the buffer and an indirect draw.
+  let tall = params.b.x * clumpTall * (0.72 + 0.56 * rand(seed + 2u)) * alive;
+  let wide = params.b.y * (0.82 + 0.36 * rand(seed + 3u));
 
-  let tall = params.b.y * clumpTall * (0.7 + 0.6 * rand(seed + 2u)) * alive;
-  let wide = params.b.x * (0.8 + 0.4 * rand(seed + 5u));
-
-  // A blade's own droop, and nothing to do with the wind — that bends the
-  // blade along its length in the vertex shader now, where it belongs, and
-  // where it does not need six hundred thousand threads a frame to happen.
-  let lean = params.b.w * (0.25 + 0.75 * rand(seed + 4u));
-
-  let facing = rand(seed + 3u) * 6.2831853;
+  // <b>Facing splays out from the clump.</b> Plants growing together lean away
+  // from each other for the light, so a clump is a rosette rather than a
+  // scatter — and a field of rosettes reads as growth where a field of random
+  // facings reads as a texture.
+  let outward = where2 - middle;
+  let splay = select(atan2(outward.y, outward.x), rand(seed + 4u) * 6.2831853,
+    dot(outward, outward) < 0.02);
+  let facing = splay + (rand(seed + 5u) - 0.5) * 1.5;
   let cf = cos(facing);
   let sf = sin(facing);
-  // Lean about the axis across the blade, so it tips the way it faces.
+
+  // Its own droop, and nothing to do with the wind — that bends the plant
+  // along its length in the vertex shader.
+  let lean = params.b.w * (0.25 + 0.75 * rand(seed + 6u));
   let cl = cos(lean);
   let sl = sin(lean);
 
-  // Columns of the world matrix: across, up, through, and the root.
-  //
-  // <p><b>The through column stays horizontal, and that is the fix.</b>
-  // It is the column the blade's normal rides on, and building it properly
-  // perpendicular to a leaning blade tips the normal toward the ground — so a
-  // blade bent by the wind turns its face away from the sun and goes dark.
-  // With a coherent gust that happens to every blade in a band at once, which
-  // is why the wind showed up as a shadow sweeping across the field rather
-  // than as movement. Grass is not a mirror; keeping its normal level is both
-  // cheaper and closer to how a blade actually scatters light.
+  // Columns of the world matrix. The through column stays horizontal: it is
+  // the one the normal rides on, and tipping it toward the ground turns a
+  // bent plant away from the sun and black.
   let across = vec3f(cf, 0.0, -sf) * wide;
   let up = vec3f(sf * sl, cl, cf * sl) * tall;
   let through = vec3f(sf, 0.0, cf) * wide;
@@ -161,229 +141,199 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // Board is x-east, y-north, z-up; the stage is y-up. Same swap as the mesh.
   matrices[at + 3u] = vec4f(where2.x, ground_z, where2.y, 1.0);
 
-  // Colour: the clump's cast, the board's slow drift, and a little of the
-  // blade's own. Wet ground is darker and greener; dry verge is yellower.
-  let green = 0.42 + 0.30 * clumpTone + 0.12 * drift;
-  let dry = 0.35 * wear + 0.25 * (1.0 - clumpTone);
-  tints[index] = vec4f(
-    0.16 + dry * 0.5,
-    green,
-    0.09 + 0.10 * (1.0 - dry),
-    1.0,
-  );
+  // The clump's cast, the board's slow drift, and a little of the plant's own.
+  let lift = 0.82 + 0.36 * clumpTone + 0.14 * drift + 0.1 * rand(seed + 7u);
+  tints[index] = vec4f(vec3f(lift), 1.0);
 }
 `;
 
-export interface Meadow {
+export interface Sown {
+  readonly plant: Plant;
   readonly mesh: Mesh;
-  /** The compute-written instance matrices, so a probe can read them back. */
-  readonly matrices: StorageBuffer;
-  /** How many blades are drawn, as a fraction of the buffer. */
+  readonly wind: BladeWind;
+  count: number;
+}
+
+export interface Meadow {
+  readonly sown: readonly Sown[];
+  /** How many plants are drawn, as a fraction of the buffers. */
   setDensity(fraction: number): void;
   /** Moves the wind. Cheap: one uniform, no dispatch. */
   step(seconds: number): void;
-  /** Whether the last dispatch actually ran. False means the effect is not ready. */
+  /** Whether the last sowing actually ran. */
   readonly ran: boolean;
-  readonly blades: number;
+  readonly plants: number;
   dispose(): void;
 }
 
 export function sowMeadow(
-  field: GroundField, scene: Scene, detailUrl: string,
+  field: GroundField, scene: Scene, plants: readonly Plant[] = MEADOW,
 ): Meadow {
   const engine = scene.getEngine() as WebGPUEngine;
+  const heightTexture = heightsAsTexture(field, scene);
+  const groundTexture = fieldTexture(field, scene);
+  const total = plants.reduce((sum, plant) => sum + plant.share, 0);
+  // One white texel. It exists so Babylon declares the uv attribute, which the
+  // wind plugin reads for the height up the plant; without a texture there is
+  // no uv, and without the uv the shader does not parse.
+  const keepUv = RawTexture.CreateRGBATexture(
+    new Uint8Array([255, 255, 255, 255]), 1, 1, scene, false, false,
+    Texture.NEAREST_SAMPLINGMODE,
+  );
 
-  const mesh = new Mesh('meadow', scene);
-  bladeGeometry().applyToMesh(mesh);
-  mesh.alwaysSelectAsActiveMesh = true;
-  mesh.useVertexColors = true;
-  const material = bladeMaterial(scene, detailUrl);
-  const wind = new BladeWind(material);
-  mesh.material = material;
-  mesh.receiveShadows = true;
-
-  // Storage *and* vertex, which is the whole trick: the compute pass writes it
-  // and the vertex stage reads it as instance attributes, with no copy and no
-  // trip through JavaScript in between.
-  // Storage, vertex *and* write. The write flag is what makes it a
-  // `CopyDst` — Babylon aligns a vertex buffer by re-uploading it, and without
-  // `CopyDst` that upload is rejected by the device with a validation error
-  // rather than an exception, so the buffer silently stays zero and every
-  // blade collapses to a degenerate triangle at the origin.
   const flags = Constants.BUFFER_CREATIONFLAG_STORAGE
     | Constants.BUFFER_CREATIONFLAG_VERTEX
     | Constants.BUFFER_CREATIONFLAG_WRITE;
-  const matrices = new StorageBuffer(engine, MAX_BLADES * 16 * 4, flags, 'bladeMatrices');
-  const tints = new StorageBuffer(engine, MAX_BLADES * 4 * 4, flags, 'bladeTints');
 
-  const matrixBuffer = new Buffer(engine, matrices.getBuffer(), false, 16, false, true);
-  for (let column = 0; column < 4; column++) {
-    mesh.setVerticesBuffer(matrixBuffer.createVertexBuffer(`world${column}`, column * 4, 4));
+  interface Bed {
+    readonly sown: Sown;
+    readonly matrices: StorageBuffer;
+    readonly tints: StorageBuffer;
+    readonly params: UniformBuffer;
+    readonly compute: ComputeShader;
+    readonly cap: number;
+    readonly offset: number;
   }
-  const tintBuffer = new Buffer(engine, tints.getBuffer(), false, 4, false, true);
-  mesh.setVerticesBuffer(tintBuffer.createVertexBuffer(VertexBuffer.ColorKind, 0, 4));
 
-  const heightTexture = heightsAsTexture(field, scene);
-  const groundTexture = fieldTexture(field, scene);
+  const beds: Bed[] = [];
+  let seedOffset = 0;
 
-  const params = new UniformBuffer(engine, undefined, true, 'meadowParams');
-  params.addUniform('a', 4);
-  params.addUniform('b', 4);
+  for (const plant of plants) {
+    const cap = Math.max(64, Math.round((MAX_PLANTS * plant.share) / total));
 
-  const sow = new ComputeShader('sow', engine, { computeSource: SOW }, {
-    bindingsMapping: {
-      params: { group: 0, binding: 0 },
-      matrices: { group: 0, binding: 1 },
-      tints: { group: 0, binding: 2 },
-      groundField: { group: 0, binding: 3 },
-      heights: { group: 0, binding: 4 },
-    },
-  });
-  sow.setUniformBuffer('params', params);
-  sow.setStorageBuffer('matrices', matrices);
-  sow.setStorageBuffer('tints', tints);
-  sow.setTexture('groundField', groundTexture, false);
-  sow.setTexture('heights', heightTexture, false);
+    const mesh = new Mesh(`meadow-${plant.id}`, scene);
+    plantGeometry(plant).applyToMesh(mesh);
+    mesh.alwaysSelectAsActiveMesh = true;
+    mesh.useVertexColors = true;
+    mesh.receiveShadows = true;
 
-  let count = Math.round(MAX_BLADES * 0.5);
-  mesh.forcedInstanceCount = count;
+    const material = new PBRMaterial(`plant-${plant.id}`, scene);
+    material.metallic = 0;
+    material.roughness = 0.78;
+    material.backFaceCulling = false;
+    // <b>Off, deliberately.</b> It flips the normal on a back face, and
+    // these normals are authored rather than derived — fanned across the leaf
+    // and held above the horizon. Flipping one of those points it at the
+    // ground, which is the black that was eating holes in the clover. With it
+    // off both sides shade from the same upward normal, which is how a leaf
+    // scatters anyway.
+    material.twoSidedLighting = false;
+    material.albedoColor = new Color3(plant.base[0], plant.base[1], plant.base[2]);
+    material.specularIntensity = 0.25;
+    material.albedoTexture = keepUv;
+    // Translucency, in the box: the Crysis approximation the old renderer
+    // spelled out by hand, except supported and interacting correctly with
+    // everything else the material does.
+    material.subSurface.isTranslucencyEnabled = true;
+    material.subSurface.translucencyIntensity = 0.85;
+    material.subSurface.minimumThickness = 0.1;
+    material.subSurface.maximumThickness = 0.6;
+    material.subSurface.tintColor = new Color3(0.42, 0.72, 0.24);
+
+    const wind = new BladeWind(material);
+    wind.strength = 1.35 * plant.stiff;
+    wind.tip = [
+      plant.tip[0] / Math.max(0.01, plant.base[0]),
+      plant.tip[1] / Math.max(0.01, plant.base[1]),
+      plant.tip[2] / Math.max(0.01, plant.base[2]),
+    ];
+    wind.floor = 0.3;
+    mesh.material = material;
+
+    const matrices = new StorageBuffer(engine, cap * 16 * 4, flags, `${plant.id}-m`);
+    const tints = new StorageBuffer(engine, cap * 4 * 4, flags, `${plant.id}-t`);
+    const matrixBuffer = new Buffer(engine, matrices.getBuffer(), false, 16, false, true);
+    for (let column = 0; column < 4; column++) {
+      mesh.setVerticesBuffer(matrixBuffer.createVertexBuffer(`world${column}`, column * 4, 4));
+    }
+    const tintBuffer = new Buffer(engine, tints.getBuffer(), false, 4, false, true);
+    mesh.setVerticesBuffer(tintBuffer.createVertexBuffer(VertexBuffer.ColorKind, 0, 4));
+
+    const params = new UniformBuffer(engine, undefined, true, `${plant.id}-params`);
+    params.addUniform('a', 4);
+    params.addUniform('b', 4);
+    params.addUniform('c', 4);
+
+    const compute = new ComputeShader(`sow-${plant.id}`, engine, { computeSource: SOW }, {
+      bindingsMapping: {
+        params: { group: 0, binding: 0 },
+        matrices: { group: 0, binding: 1 },
+        tints: { group: 0, binding: 2 },
+        groundField: { group: 0, binding: 3 },
+        heights: { group: 0, binding: 4 },
+      },
+    });
+    compute.setUniformBuffer('params', params);
+    compute.setStorageBuffer('matrices', matrices);
+    compute.setStorageBuffer('tints', tints);
+    compute.setTexture('groundField', groundTexture, false);
+    compute.setTexture('heights', heightTexture, false);
+
+    beds.push({
+      sown: { plant, mesh, wind, count: cap },
+      matrices, tints, params, compute, cap, offset: seedOffset,
+    });
+    seedOffset += cap;
+  }
 
   let ran = false;
-  const dispatch = (seconds: number): void => {
-    params.updateFloat4('a', field.extentXHalfFeet, field.extentYHalfFeet, count, seconds);
-    // Blade width and height in half-feet: a foot and a half of meadow grass,
-    // and a blade about an inch across.
-    params.updateFloat4('b', 0.17, 3.0, 0.62, 0.42);
-    params.update();
-    ran = sow.dispatch(Math.ceil(count / 64));
+  let density = 0.5;
+
+  const sow = (): void => {
+    let all = true;
+    for (const bed of beds) {
+      const count = Math.max(0, Math.round(bed.cap * density));
+      bed.sown.count = count;
+      bed.sown.mesh.forcedInstanceCount = count;
+      bed.params.updateFloat4(
+        'a', field.extentXHalfFeet, field.extentYHalfFeet, count, bed.offset,
+      );
+      bed.params.updateFloat4(
+        'b', bed.sown.plant.tall, bed.sown.plant.wide,
+        bed.sown.plant.wearMax, bed.sown.plant.droop,
+      );
+      bed.params.updateFloat4('c', bed.sown.plant.damp, 0, 0, 0);
+      bed.params.update();
+      all = bed.compute.dispatch(Math.ceil(Math.max(1, count) / 64)) && all;
+    }
+    ran = all;
   };
-  dispatch(0);
+  sow();
 
   return {
-    mesh,
-    matrices,
-    blades: MAX_BLADES,
+    sown: beds.map(bed => bed.sown),
+    plants: MAX_PLANTS,
     get ran(): boolean { return ran; },
     setDensity(fraction: number): void {
-      count = Math.max(0, Math.min(MAX_BLADES, Math.round(MAX_BLADES * fraction)));
-      mesh.forcedInstanceCount = count;
-      // <b>And re-sow.</b> The compute pass writes exactly `count` matrices
-      // and the rest of the buffer is zeros, so raising the density without
-      // this draws instances that were never placed — degenerate triangles
-      // stacked at the origin. Invisible, so the slider appeared to do nothing
-      // above whatever it was set to when the first sowing landed, while every
-      // measurement taken past that point was counting blades that did not
-      // exist.
-      //
-      // <p>One dispatch per drag of a slider is nothing. It is one per *frame*
-      // that was worth removing.
-      dispatch(wind.time);
+      density = Math.max(0, Math.min(1, fraction));
+      // Re-sows. The compute pass writes exactly `count` matrices and the rest
+      // of the buffer is zeros, so raising the density without this draws
+      // instances that were never placed — invisible, so the slider appears to
+      // do nothing while every measurement counts plants that do not exist.
+      sow();
     },
     step(seconds: number): void {
-      // Only the time has changed, and the bend reads that from a uniform in
-      // the vertex shader — so no dispatch, which is the whole saving.
-      wind.time = seconds;
+      for (const bed of beds) {
+        bed.sown.wind.time = seconds;
+      }
       if (!ran) {
-        // Except until the first one lands. A compute effect is compiled
-        // asynchronously and `dispatch` quietly returns false until it is
-        // ready, so the sowing at construction never actually runs. While the
-        // wind was also a dispatch that was invisible — some later frame
-        // caught it. Without one, the buffer stays zero and every blade is a
-        // degenerate triangle at the origin: six hundred thousand instances
-        // drawn, and a field with no grass in it.
-        dispatch(seconds);
+        // A compute effect compiles asynchronously and `dispatch` returns
+        // false until it is ready, so the sowing at construction never runs.
+        sow();
       }
     },
     dispose(): void {
-      mesh.dispose();
-      matrices.dispose();
-      tints.dispose();
-      params.dispose();
+      for (const bed of beds) {
+        bed.sown.mesh.dispose();
+        bed.matrices.dispose();
+        bed.tints.dispose();
+        bed.params.dispose();
+      }
       heightTexture.dispose();
       groundTexture.dispose();
+      keepUv.dispose();
     },
   };
-}
-
-/**
- * One blade: a strip that tapers to a point.
- *
- * <p>Built around the origin at the root and one unit tall, so the instance
- * matrix carries all of the size. Two-sided, because a blade seen from behind
- * is still a blade.
- */
-function bladeGeometry(): VertexData {
-  const rows = SEGMENTS + 1;
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-
-  for (let row = 0; row < rows; row++) {
-    const t = row / SEGMENTS;
-    // Width follows a curve rather than a straight taper — a real blade is
-    // widest a third of the way up, not at the ground.
-    const half = 0.5 * Math.sin(Math.PI * Math.pow(t, 0.62)) * (1 - t * 0.15);
-    positions.push(-half, t, 0, half, t, 0);
-    uvs.push(0, t, 1, t);
-  }
-  for (let row = 0; row < SEGMENTS; row++) {
-    const a = row * 2;
-    indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
-  }
-
-  const data = new VertexData();
-  data.positions = positions;
-  data.indices = indices;
-  data.uvs = uvs;
-  // <b>Rounded normals, baked into the geometry.</b> The blade is one flat
-  // strip and flat is exactly what it shades like: every blade in a clump
-  // catches the sun identically and the field reads as a printed texture
-  // standing up. Fanning the normal across the blade's width — pointing left
-  // at the left edge and right at the right — makes it shade as though it were
-  // a cylinder, for no geometry at all. It is the cheapest thing in the
-  // Tsushima talk and the most visible.
-  //
-  // <p>Static per vertex, so it costs a buffer rather than a shader.
-  const normals: number[] = [];
-  for (let row = 0; row < rows; row++) {
-    for (const across of [-1, 1]) {
-      const n = [across * 0.8, 0.3, 1];
-      const length = Math.hypot(n[0], n[1], n[2]);
-      normals.push(n[0] / length, n[1] / length, n[2] / length);
-    }
-  }
-  data.normals = normals;
-  return data;
-}
-
-function bladeMaterial(scene: Scene, detailUrl: string): PBRMaterial {
-  const material = new PBRMaterial('blade', scene);
-  material.metallic = 0;
-  material.roughness = 0.78;
-  material.backFaceCulling = false;
-  // A blade seen from behind is still a blade, and its normal has to turn
-  // round with it or half the meadow is lit as though the sun were on the
-  // other side of the sky.
-  material.twoSidedLighting = true;
-  material.albedoColor = Color3.White();
-  material.specularIntensity = 0.25;
-
-  // <b>Translucency, in the box.</b> This is the Crysis approximation the old
-  // renderer spelled out by hand — light arriving through a leaf from the far
-  // side — except that here it is a supported feature of the material and it
-  // interacts correctly with everything else the material does.
-  material.subSurface.isTranslucencyEnabled = true;
-  material.subSurface.translucencyIntensity = 0.85;
-  material.subSurface.minimumThickness = 0.1;
-  material.subSurface.maximumThickness = 0.6;
-  material.subSurface.tintColor = new Color3(0.42, 0.72, 0.24);
-
-  // <p>No texture. It used to sample the ground's grass photograph, which put
-  // a picture of a lawn on every blade — at this size a blade covers a few
-  // pixels and all that arrives is that photograph's average, plus its noise.
-  // The colour comes from the instance's own tint instead, shaded from root to
-  // tip by the plugin, which is both cheaper and controllable.
-  return material;
 }
 
 /**
@@ -391,8 +341,8 @@ function bladeMaterial(scene: Scene, detailUrl: string): PBRMaterial {
  *
  * <p>Read with `textureLoad` rather than sampled, so it needs no filtering —
  * which matters, because filtering a 32-bit float texture is a WebGPU device
- * feature that is not always there, and a blade a texel out of place is not a
- * blade anybody can see.
+ * feature that is not always there, and a plant a texel out of place is not a
+ * plant anybody can see.
  */
 function heightsAsTexture(field: GroundField, scene: Scene): RawTexture {
   return new RawTexture(
@@ -402,4 +352,4 @@ function heightsAsTexture(field: GroundField, scene: Scene): RawTexture {
   );
 }
 
-export { MAX_BLADES };
+export { MAX_PLANTS };

@@ -10,6 +10,8 @@ import { ROAD_NAME, roadMap } from '../road-level';
 import { clockLabel } from '../sun-position';
 import { assetUrl } from './assets';
 import { type Meadow, sowMeadow } from './meadow';
+import { PlantPreview } from './plant-preview';
+import { type Plant, MEADOW, plantTriangles } from './species';
 import { Stage } from './stage';
 import { type FrameCost, Stats } from './stats';
 import { type Terrain, buildTerrain } from './terrain';
@@ -25,7 +27,7 @@ import { type Terrain, buildTerrain } from './terrain';
 @Component({
   selector: 'ooze-bab-board',
   standalone: true,
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, PlantPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block h-full w-full min-h-0' },
   template: `
@@ -75,6 +77,67 @@ import { type Terrain, buildTerrain } from './terrain';
       }
 
       <div class="relative min-h-0 flex-1 overflow-hidden rounded">
+        @if (!flora()) {
+          <button type="button" (click)="flora.set(true)"
+            class="group absolute right-0 top-0 z-20 flex w-10 flex-col items-center gap-3 rounded-l border-y border-l border-rule-strong bg-bg-muted py-3 text-fg-muted shadow-lg transition-colors hover:bg-bg-sunk hover:text-fg"
+            aria-label="Open plant list">
+            <span class="grid size-5 shrink-0 place-items-center rounded border border-rule-strong bg-bg text-fg-muted transition-colors group-hover:border-accent group-hover:text-accent">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" class="size-3">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </span>
+            <span class="text-[0.6rem] font-semibold uppercase tracking-[0.2em]"
+                  style="writing-mode: vertical-rl">Plants</span>
+          </button>
+        }
+
+        @if (flora()) {
+          <aside class="absolute inset-y-0 right-0 z-20 flex w-80 flex-col border-l border-rule bg-bg shadow-xl">
+            <div class="flex h-11 shrink-0 items-center justify-between border-b border-rule px-3">
+              <span class="text-sm font-semibold text-fg">Plants</span>
+              <button type="button" (click)="flora.set(false)"
+                class="grid size-7 place-items-center rounded text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
+                aria-label="Collapse plant list">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" class="size-4">
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="min-h-0 flex-1 overflow-y-auto p-3">
+              <ooze-plant-preview [plant]="chosen()" />
+
+              <p class="mt-2 font-mono text-[0.6rem] text-fg-subtle">
+                {{ chosen().tall / 2 | number:'1.1-1' }} ft tall ·
+                {{ triangles(chosen()) }} tris ·
+                {{ share(chosen()) }}% of the sward ·
+                {{ drawn(chosen()) | number }} drawn
+              </p>
+              <p class="mt-2 text-xs leading-relaxed text-fg-muted">{{ chosen().note }}</p>
+
+              <ul class="mt-3 flex flex-col gap-1">
+                @for (plant of species; track plant.id) {
+                  <li>
+                    <button type="button" (click)="chosen.set(plant)"
+                      class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
+                      [class.border-accent]="chosen().id === plant.id"
+                      [class.text-fg]="chosen().id === plant.id"
+                      [class.border-rule]="chosen().id !== plant.id"
+                      [class.text-fg-muted]="chosen().id !== plant.id">
+                      <span class="font-medium">{{ plant.name }}</span>
+                      <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
+                        {{ share(plant) }}%
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          </aside>
+        }
+
         <canvas #canvas class="h-full w-full outline-none"
           style="touch-action: none; overscroll-behavior: contain"></canvas>
         @if (fault(); as message) {
@@ -94,6 +157,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly status = signal('starting…');
   protected readonly cost = signal<FrameCost | null>(null);
   protected readonly density = signal(50);
+  /** Collapsed by default, like the dice roller: it is a critique tool. */
+  protected readonly flora = signal(false);
+  protected readonly species = MEADOW;
+  protected readonly chosen = signal<Plant>(MEADOW[0]);
   protected readonly fault = signal<string | null>(null);
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
@@ -151,7 +218,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       this.terrain.chunks.forEach(chunk => stage.shadows.addShadowCaster(chunk));
       const built = Math.round(performance.now() - started);
 
-      this.meadow = sowMeadow(field, stage.scene, assetUrl(ground.layers[0].color));
+      this.meadow = sowMeadow(field, stage.scene);
       // <b>The meadow does not cast shadows.</b> Six hundred thousand blades
       // rendered again into every shadow cascade is the most expensive thing
       // on the board, and it is paid whenever the camera moves — because that
@@ -214,6 +281,20 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     } else {
       await scene.debugLayer.show({ embedMode: true, overlay: true });
     }
+  }
+
+  protected triangles(plant: Plant): number {
+    return plantTriangles(plant);
+  }
+
+  protected share(plant: Plant): number {
+    const total = MEADOW.reduce((sum, p) => sum + p.share, 0);
+    return Math.round((plant.share / total) * 100);
+  }
+
+  /** How many of this species are actually on the board right now. */
+  protected drawn(plant: Plant): number {
+    return this.meadow?.sown.find(s => s.plant.id === plant.id)?.count ?? 0;
   }
 
   protected setDensity(percent: number): void {

@@ -33,6 +33,9 @@ export class BladeWind extends MaterialPluginBase {
   eastward = 0.82;
   northward = 0.57;
   strength = 1.35;
+  /** What the tip is coloured relative to the root, and how dark the root is. */
+  tip: [number, number, number] = [1.2, 1.18, 0.98];
+  floor = 0.28;
 
   constructor(material: Material) {
     super(material, 'BladeWind', 200, { BLADE_WIND: true });
@@ -60,12 +63,20 @@ export class BladeWind extends MaterialPluginBase {
   }
 
   override getUniforms(): { ubo: { name: string; size: number; type: string }[] } {
-    return { ubo: [{ name: 'bladeWind', size: 4, type: 'vec4' }] };
+    return {
+      ubo: [
+        { name: 'bladeWind', size: 4, type: 'vec4' },
+        { name: 'bladeTip', size: 4, type: 'vec4' },
+      ],
+    };
   }
 
   override bindForSubMesh(uniformBuffer: UniformBuffer): void {
     uniformBuffer.updateFloat4(
       'bladeWind', this.eastward, this.northward, this.strength, this.time,
+    );
+    uniformBuffer.updateFloat4(
+      'bladeTip', this.tip[0], this.tip[1], this.tip[2], this.floor,
     );
   }
 
@@ -89,7 +100,7 @@ export class BladeWind extends MaterialPluginBase {
       // are separate injection sites in one function, so this is how the
       // shading block below sees it.
       CUSTOM_VERTEX_UPDATE_POSITION: `
-        var bladeAlong = positionUpdated.y;
+        var bladeAlong = vertexInputs.uv.y;
         {
           let root = vertexInputs.world3.xyz;
 
@@ -120,9 +131,16 @@ export class BladeWind extends MaterialPluginBase {
           let facing = normalize(vertexInputs.world2.xyz);
           let downwind = vec3f(uniforms.bladeWind.x, 0.0, uniforms.bladeWind.y);
 
-          positionUpdated.y = curve.y;
-          positionUpdated.x += curve.x * dot(downwind, sideways);
-          positionUpdated.z += curve.x * dot(downwind, facing);
+          // <b>Displace, do not replace.</b> Setting the vertical outright
+          // works for one upright blade and destroys anything else: a clover's
+          // leaflets carry their own direction in their local coordinates, and
+          // overwriting Y folds them flat into the stem. Pushing downwind and
+          // shortening by the same curve bends a blade and a leaflet alike.
+          let sink = 1.0 - over * over * 0.18 * bladeAlong;
+          positionUpdated = vec3f(
+            positionUpdated.x + curve.x * dot(downwind, sideways),
+            positionUpdated.y * sink,
+            positionUpdated.z + curve.x * dot(downwind, facing));
         }
       `,
 
@@ -132,11 +150,13 @@ export class BladeWind extends MaterialPluginBase {
       // difference between a field and a green carpet.
       CUSTOM_VERTEX_MAIN_END: `
         {
-          let shade = mix(0.28, 1.0, bladeAlong * bladeAlong * 0.55 + bladeAlong * 0.45);
-          let dry = mix(1.0, 1.2, bladeAlong * bladeAlong);
+          let shade = mix(uniforms.bladeTip.w, 1.0,
+            bladeAlong * bladeAlong * 0.55 + bladeAlong * 0.45);
+          // Per species, because a daisy's tip is white and a plantain's is
+          // the same green as its root. One ramp cannot serve both.
+          let toTip = mix(vec3f(1.0), uniforms.bladeTip.rgb, bladeAlong * bladeAlong);
           vertexOutputs.vColor = vec4f(
-            vertexOutputs.vColor.rgb * shade * vec3f(dry, dry * 0.98, dry * 0.82),
-            vertexOutputs.vColor.a);
+            vertexOutputs.vColor.rgb * shade * toTip, vertexOutputs.vColor.a);
         }
       `,
     };
