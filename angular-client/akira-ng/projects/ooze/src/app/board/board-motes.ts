@@ -1,6 +1,5 @@
 import {
-  AdditiveBlending, BufferGeometry, CanvasTexture, Float32BufferAttribute, Points,
-  PointsMaterial,
+  AdditiveBlending, BufferGeometry, Float32BufferAttribute, Points, PointsMaterial,
 } from 'three';
 
 /**
@@ -68,7 +67,9 @@ export class Motes {
       // when it is not — rather than a constant blob that grows into confetti
       // as you zoom out.
       sizeAttenuation: true,
-      map: moteTexture(),
+      // No texture. The renderer rounds these off in the shader instead — a
+      // point is a square unless something gives it a shape, and a canvas
+      // texture turned out to be an unreliable way to give it one.
       color: 0xffeccd,
       transparent: true,
       opacity: 0.5,
@@ -114,28 +115,4 @@ export class Motes {
     this.material().map?.dispose();
     this.material().dispose();
   }
-}
-
-/**
- * A soft dot.
- *
- * <p>A tighter core than a flame's glow and almost no tail — a mote is a speck
- * catching light, not a light of its own, and the long falloff that makes a
- * flame look hot makes a mote look like a smudge.
- */
-function moteTexture(): CanvasTexture {
-  const size = 32;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.4, 'rgba(255,255,255,0.35)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, size, size);
-  }
-  return new CanvasTexture(canvas);
 }

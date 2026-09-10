@@ -1,11 +1,11 @@
 import {
-  AdditiveBlending, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture,
+  AdditiveBlending, AmbientLight, BoxGeometry, BufferGeometry,
   ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DirectionalLight,
   Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, LinearFilter,
   Material, Matrix4, Mesh,
   MeshBasicMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D, OrthographicCamera,
-  PCFShadowMap, PerspectiveCamera, Plane, RGBAFormat, Raycaster, RingGeometry, Scene, Sprite,
-  SpriteMaterial, Vector2, Vector3, WebGLRenderer,
+  PCFShadowMap, PerspectiveCamera, Plane, PlaneGeometry, RGBAFormat, Raycaster, RingGeometry,
+  Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
 import { BoardScene, PropKind, PropPlacement, TerrainTile, TokenPlacement } from './board.models';
 import { BoardPiece, BoardTheme, PLAIN_THEME, pieceFor } from './board-assets';
@@ -198,7 +198,7 @@ export class BoardRenderer {
    * looks like a decal — and a torch is the first thing an eye goes to, so it
    * is the worst place on the board to be still.
    */
-  private readonly flames: { sprite: Sprite; scale: number; seed: number }[] = [];
+  private readonly flames: Flame[] = [];
 
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
@@ -440,7 +440,7 @@ export class BoardRenderer {
       }
       const flame = this.flame(prop);
       if (flame) {
-        this.props.add(flame.sprite);
+        this.props.add(flame.quad);
         this.flames.push(flame);
       }
     }
@@ -539,7 +539,7 @@ export class BoardRenderer {
       this.motes.dispose();
     }
     this.motes = new Motes(board.widthHalfFeet, board.heightHalfFeet);
-    this.lit(this.motes.material());
+    this.lit(this.motes.material(), 1, false, true);
     this.motes.points.visible = this.effects;
     this.scene.add(this.motes.points);
   }
@@ -567,30 +567,34 @@ export class BoardRenderer {
    * <p>Brighter than full white on purpose. That is what the bloom pass looks
    * for, and it is the whole reason the chain carries half-float buffers.
    */
-  private flame(prop: PropPlacement): { sprite: Sprite; scale: number; seed: number } | null {
+  private flame(prop: PropPlacement): Flame | null {
     const source = lightSource(prop.piece);
     if (!source) {
       return null;
     }
-    const sprite = new Sprite(new SpriteMaterial({
-      map: glow(),
-      color: new Color(FLAME_COLOUR[0], FLAME_COLOUR[1], FLAME_COLOUR[2]),
+    const scale = source.bright * 0.22;
+    const material = new ShaderMaterial({
+      uniforms: {
+        uSize: { value: scale },
+        uColour: { value: new Color(FLAME_COLOUR[0], FLAME_COLOUR[1], FLAME_COLOUR[2]) },
+        uIntensity: { value: 1 },
+      },
+      vertexShader: FLAME_VERTEX,
+      fragmentShader: FLAME_FRAGMENT,
+      transparent: true,
       blending: AdditiveBlending,
       depthWrite: false,
-      transparent: true,
-      // Over one, so the bloom pass has something above its threshold to find.
-      opacity: 1,
-    }));
-    // Sized and lifted off the piece it belongs to: a wall torch burns at head
-    // height and a candle burns at table height, and the pack's own proportions
-    // are the only thing that knows which.
-    const scale = source.bright * 0.22;
-    sprite.scale.set(scale, scale, 1);
-    sprite.position.set(prop.x, prop.y, prop.z + source.bright * 0.14);
+    });
+    const quad = new Mesh(new PlaneGeometry(1, 1), material);
+    // The geometry is a unit quad and the size is applied in the shader, so
+    // three's bounding sphere is far smaller than what gets drawn and it would
+    // cull a flame that is only half off the edge of the screen.
+    quad.frustumCulled = false;
+    quad.position.set(prop.x, prop.y, prop.z + source.bright * 0.14);
     // Seeded from where it stands, so two torches in a room never flicker in
     // step — which is the thing that gives a fake flame away instantly — and so
     // the same board always flickers the same way.
-    return { sprite, scale, seed: (prop.x * 7 + prop.y * 13) % 100 };
+    return { quad, material, scale, seed: (prop.x * 7 + prop.y * 13) % 100 };
   }
 
   /**
@@ -611,9 +615,8 @@ export class BoardRenderer {
       const wobble = 1
         + 0.10 * Math.sin(seconds * 6.1 + flame.seed)
         + 0.05 * Math.sin(seconds * 13.7 + flame.seed * 2.3);
-      flame.sprite.scale.set(flame.scale * wobble, flame.scale * wobble, 1);
-      const material = flame.sprite.material;
-      material.opacity = 0.78 + 0.22 * wobble;
+      flame.material.uniforms['uSize'].value = flame.scale * wobble;
+      flame.material.uniforms['uIntensity'].value = 0.8 + 0.3 * wobble;
     }
   }
 
@@ -658,7 +661,7 @@ export class BoardRenderer {
    * light is still linear radiance, so a pool over 1.0 rolls off into a warm
    * highlight the way a flame should.
    */
-  private lit<T extends Material>(material: T, blend = 1, ripple = false): T {
+  private lit<T extends Material>(material: T, blend = 1, ripple = false, round = false): T {
     if (this.patched.has(material)) {
       return material;
     }
@@ -691,6 +694,19 @@ export class BoardRenderer {
              texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb * ${LIGHT_RANGE.toFixed(1)},
              ${blend.toFixed(2)});
            #include <tonemapping_fragment>`);
+      if (round) {
+        // Points are squares unless something says otherwise, and the
+        // something is normally a texture. This is the same lesson the flames
+        // taught: a shape computed in the shader cannot arrive as a square.
+        // `gl_PointCoord` runs 0..1 across the point, so the distance from its
+        // middle is the whole of it.
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <tonemapping_fragment>',
+          `float boardDot = length(gl_PointCoord - 0.5) * 2.0;
+           if (boardDot > 1.0) { discard; }
+           gl_FragColor.a *= 1.0 - smoothstep(0.25, 1.0, boardDot);
+           #include <tonemapping_fragment>`);
+      }
       if (ripple) {
         // After three has finished deciding what the surface normal is —
         // including any normal map — and before it lights anything with it.
@@ -706,7 +722,8 @@ export class BoardRenderer {
     // material that was never patched, and the injection silently does nothing
     // for every material after the first. The blend is in the key because it is
     // compiled into the shader, so two blends are two programs.
-    material.customProgramCacheKey = () => `board-light-${blend}-${ripple ? 'wet' : 'dry'}`;
+    material.customProgramCacheKey = () =>
+      `board-light-${blend}-${ripple ? 'wet' : 'dry'}-${round ? 'round' : 'square'}`;
     return material;
   }
 
@@ -1259,37 +1276,62 @@ const RIPPLE = `
   }
 `;
 
-/**
- * A soft round glow, drawn once and shared by every flame on the board.
- *
- * <p>Generated rather than shipped: it is a radial gradient, and a file for a
- * radial gradient is a file to lose.
- */
-let glowTexture: CanvasTexture | null = null;
-
-function glow(): CanvasTexture {
-  if (glowTexture) {
-    return glowTexture;
-  }
-  const size = 128;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    // A hot core that falls away fast, then a long tail. A linear falloff reads
-    // as a disc with a soft edge; this reads as something burning.
-    gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.18, 'rgba(255,226,170,0.85)');
-    gradient.addColorStop(0.45, 'rgba(255,160,70,0.28)');
-    gradient.addColorStop(1, 'rgba(255,140,40,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, size, size);
-  }
-  glowTexture = new CanvasTexture(canvas);
-  return glowTexture;
+/** One flame: the quad, its material, and how it was told to move. */
+interface Flame {
+  readonly quad: Mesh;
+  readonly material: ShaderMaterial;
+  readonly scale: number;
+  readonly seed: number;
 }
+
+/**
+ * A quad that always faces the camera, sized in the shader.
+ *
+ * <p>Billboarded here rather than by using three's `Sprite`, because a Sprite
+ * needs a `SpriteMaterial` and a `SpriteMaterial` needs a *texture* to have a
+ * shape. That texture was the bug: the glow was drawn on a canvas, and whatever
+ * went wrong between the canvas and the GPU, what got drawn was the material's
+ * flat colour across the whole quad — a hard-edged additive square at every
+ * torch on the board, pulsing, because the flicker was animating its size.
+ *
+ * <p>Computing the falloff in the fragment shader instead removes the entire
+ * class of problem. There is no image to upload, no colour space to get wrong
+ * and no canvas to come back blank; a round flame is four lines of arithmetic
+ * that cannot arrive as a square.
+ */
+const FLAME_VERTEX = `
+  uniform float uSize;
+  varying vec2 vQuad;
+  void main() {
+    vQuad = position.xy;
+    // The object's own origin, in view space, with the quad's corners pushed
+    // out on the screen plane — which is what "faces the camera" means.
+    vec4 middle = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+    middle.xy += position.xy * uSize;
+    gl_Position = projectionMatrix * middle;
+  }
+`;
+
+const FLAME_FRAGMENT = `
+  uniform vec3 uColour;
+  uniform float uIntensity;
+  varying vec2 vQuad;
+  void main() {
+    // 0 at the middle, 1 at the edge of the quad.
+    float d = length(vQuad) * 2.0;
+    // A hot core and a long tail, added: the core is what reads as a flame and
+    // the tail is what makes it sit in the air rather than on a card.
+    float core = 1.0 - smoothstep(0.0, 0.30, d);
+    float tail = 1.0 - smoothstep(0.0, 1.0, d);
+    float alpha = core * 0.85 + tail * tail * 0.55;
+    if (alpha <= 0.002) {
+      discard;
+    }
+    // Not premultiplied: additive blending is SRC_ALPHA, ONE, so the alpha
+    // does the falloff and the colour stays at full strength.
+    gl_FragColor = vec4(uColour * uIntensity, alpha);
+  }
+`;
 
 /**
  * The ground.
