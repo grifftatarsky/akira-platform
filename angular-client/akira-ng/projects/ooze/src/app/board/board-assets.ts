@@ -1,4 +1,5 @@
 import { BoardPiece, PropPlacement, TerrainKind } from './board.models';
+import { ScatterKind } from './scatter';
 import { WALL_HEIGHT } from './board-scene';
 
 export type { BoardPiece, PropPlacement };
@@ -92,6 +93,14 @@ export interface GroundLayer {
 export interface SplatGround {
   readonly kind: 'splat';
   readonly layers: readonly [GroundLayer, GroundLayer, GroundLayer];
+  /**
+   * Models for the things lying on it.
+   *
+   * <p>Absent leaves the ground bare, which is a supported state and looks
+   * exactly like what it is: a printed surface. Nothing real is smooth for a
+   * hundred feet in every direction.
+   */
+  readonly scatter?: Partial<Record<ScatterKind, string>>;
 }
 
 /**
@@ -274,6 +283,7 @@ export const PLAIN_THEME: BoardTheme = {
 };
 
 const PH_ROOT = 'assets/board/polyhaven';
+const SCATTER_ROOT = 'assets/board/scatter';
 
 function layer(
   name: string, feet: number, tint?: readonly [number, number, number],
@@ -340,6 +350,14 @@ export const FIELD_THEME: BoardTheme = {
       layer('sparse_grass', 8, [1.0, 1.0, 0.82]),
       layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
     ],
+    scatter: {
+      GRASS_TUFT: `${SCATTER_ROOT}/grass_medium_02/grass_medium_02.gltf`,
+      // rock_07 and not rock_09: the latter measures seven centimetres by
+      // three, which is a pebble, and a pebble on a board seen from sixty feet
+      // up is nothing at all.
+      STONE: `${SCATTER_ROOT}/rock_07/rock_07.gltf`,
+      BRANCH: `${SCATTER_ROOT}/dry_branches_medium_01/dry_branches_medium_01.gltf`,
+    },
   },
   pieces: {},
 };

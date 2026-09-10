@@ -49,6 +49,72 @@ class BattlefieldTests {
     return new Battlefield(map, painted);
   }
 
+  @Nested
+  @DisplayName("Slope")
+  class Slope {
+
+    @Test
+    @DisplayName("Twenty degrees or more makes a space Difficult Terrain")
+    void steepGroundCostsDouble() {
+      // The SRD's only quantified statement about slope anywhere, and it lives
+      // in the list of things that make a space Difficult Terrain rather than
+      // as a rule of its own: "A slope of 20 degrees or more".
+      //
+      // Over a five-foot square, two feet of rise is 21.8 degrees.
+      cell(3, 3).setElevationFeet(2);
+
+      assertThat(field().steep(3, 3)).isTrue();
+      assertThat(field().enterCost(3, 3, CreatureSize.MEDIUM, List.of())).isEqualTo(10);
+      // And its neighbour looks up the same slope, so it is steep too — the
+      // book says a *space* contains a slope, not that a step crosses one.
+      assertThat(field().steep(3, 4)).isTrue();
+    }
+
+    @Test
+    @DisplayName("A gentler rise is ordinary ground")
+    void gentleGroundIsFree() {
+      // One foot over five is 11.3 degrees. There is no partial penalty in the
+      // rules: under the threshold it costs nothing at all.
+      cell(3, 3).setElevationFeet(1);
+
+      assertThat(field().steep(3, 3)).isFalse();
+      assertThat(field().enterCost(3, 3, CreatureSize.MEDIUM, List.of())).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("Flat ground is never steep, however high it is")
+    void aPlateauIsNotASlope() {
+      // Elevation is not steepness. A ledge twenty feet up is easy walking
+      // once you are on it; only its lip is awkward.
+      for (int x = 2; x <= 4; x++) {
+        for (int y = 2; y <= 4; y++) {
+          cell(x, y).setElevationFeet(20);
+        }
+      }
+
+      assertThat(field().steep(3, 3)).isFalse();
+      assertThat(field().enterCost(3, 3, CreatureSize.MEDIUM, List.of())).isEqualTo(5);
+      // The lip is, though: it stands twenty feet above what is beside it.
+      assertThat(field().steep(2, 2)).isTrue();
+    }
+
+    @Test
+    @DisplayName("The edge of the board is not a cliff")
+    void offBoardIsNotADrop() {
+      // Squares outside the map read as elevation zero, so without excluding
+      // them every board with a raised edge would have a difficult border.
+      cell(0, 0).setElevationFeet(20);
+
+      assertThat(field().steep(0, 0)).isTrue();
+      // ...because of its real neighbours, not the void. With the whole corner
+      // raised, nothing off-board makes it steep.
+      cell(0, 1).setElevationFeet(20);
+      cell(1, 0).setElevationFeet(20);
+      cell(1, 1).setElevationFeet(20);
+      assertThat(field().steep(0, 0)).isFalse();
+    }
+  }
+
   /** A creature standing in the middle of cell (cx, cy). */
   private static Footprint in(int cx, int cy, CreatureSize size) {
     return Footprint.of(new Point(feet(cx * 5) + 5, feet(cy * 5) + 5), size);

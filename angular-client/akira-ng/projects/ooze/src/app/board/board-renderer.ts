@@ -16,6 +16,8 @@ import { FLAME_COLOUR, LIGHT_RANGE, lightField, lightSource } from './light-fiel
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
 import { SplatSurface, splatGround } from './ground-splat';
+import { ScatterLayer, scatterGround } from './ground-scatter';
+import { groundField } from './ground-field';
 
 /** Top-down and locked, or a camera you can orbit. */
 export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
@@ -128,6 +130,9 @@ export class BoardRenderer {
    * path that is wrong for both.
    */
   private surface: SplatSurface | null = null;
+
+  /** Whatever is lying on that ground: tufts, stones, fallen branches. */
+  private litter: ScatterLayer | null = null;
 
   /**
    * The height the picture is actually rendered at, in device pixels.
@@ -313,9 +318,24 @@ export class BoardRenderer {
     this.relight(board);
     this.surface?.dispose();
     this.surface = null;
+    this.litter?.dispose();
+    this.litter = null;
     if (this.theme.ground) {
-      this.surface = splatGround(this.theme.ground, board, this.light, this.extent);
+      const ground = this.theme.ground;
+      this.surface = splatGround(ground, board, this.light, this.extent);
       this.terrain.add(this.surface.mesh);
+      // The scatter shares the ground's own wear field rather than building a
+      // second one, so a stone can never land somewhere the road is not.
+      const field = groundField(board);
+      const generation = this.generation + 1;
+      void scatterGround(ground, board, field, m => this.lit(m)).then(layer => {
+        if (this.disposed || generation !== this.generation) {
+          layer.dispose();
+          return;
+        }
+        this.litter = layer;
+        layer.meshes.forEach(mesh => this.terrainArt.add(mesh));
+      });
     } else {
       this.layGround(board);
     }
@@ -1174,6 +1194,7 @@ export class BoardRenderer {
     this.clear(this.grid);
     this.clear(this.tokens);
     this.surface?.dispose();
+    this.litter?.dispose();
     this.light.value?.dispose();
     this.motes?.dispose();
     this.post?.dispose();

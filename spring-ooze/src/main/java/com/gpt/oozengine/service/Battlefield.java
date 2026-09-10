@@ -136,7 +136,7 @@ public final class Battlefield {
    */
   public int enterCost(int cx, int cy, CreatureSize moverSize, List<Occupant> occupants) {
     int base = map.getCellFeet();
-    boolean difficult = staticExtraCost(cx, cy) > 0;
+    boolean difficult = staticExtraCost(cx, cy) > 0 || steep(cx, cy);
     if (!difficult) {
       for (Occupant o : occupants) {
         if (!o.ally() && o.size() != CreatureSize.TINY) {
@@ -150,6 +150,45 @@ public final class Battlefield {
 
   /** A creature standing in a square, from the mover's point of view. */
   public record Occupant(CreatureSize size, boolean ally) {}
+
+  /**
+   * Whether the ground here is steep enough to be Difficult Terrain.
+   *
+   * <p><b>"A slope of 20 degrees or more."</b> That line, in the list of things
+   * that make a space Difficult Terrain, is the only place the SRD quantifies
+   * slope anywhere — there is no rule for gentle ground, no penalty that scales
+   * with steepness, and no bonus for being above someone. Slope is a threshold
+   * and past it the ground simply costs double.
+   *
+   * <p>Derived from the neighbours rather than stored, which is what
+   * {@link MapCell#getElevationFeet()} has promised since it was written and
+   * nothing implemented: a stored slope and a stored elevation can disagree,
+   * and then the board says one thing and the picture another. Steepness is a
+   * property of the *space* — the book says a space "contains" a slope — so it
+   * is the sharpest change to any neighbour, which also makes the lip of a
+   * ledge awkward ground, as it should be.
+   */
+  public boolean steep(int cx, int cy) {
+    if (!inBounds(cx, cy)) {
+      return false;
+    }
+    int here = elevationAt(cx, cy);
+    int rise = 0;
+    for (int dy = -1; dy <= 1; dy++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        if ((dx == 0 && dy == 0) || !inBounds(cx + dx, cy + dy)) {
+          continue;
+        }
+        rise = Math.max(rise, Math.abs(elevationAt(cx + dx, cy + dy) - here));
+      }
+    }
+    // tan(20 degrees) is 0.36397, held as an integer ratio because every length
+    // in this engine is an integer and a floating-point comparison exactly at
+    // the threshold would make the same slope difficult on one board and not on
+    // another. Over a 5-foot square, two feet of rise is 21.8 degrees and does
+    // it; one foot is 11.3 and does not.
+    return rise * 100_000 >= 36_397L * map.getCellFeet();
+  }
 
   /**
    * How far a creature drops moving between two squares, in feet.
