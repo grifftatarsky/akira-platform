@@ -164,6 +164,17 @@ export const MEADOW: readonly Plant[] = [
   },
 ];
 
+/**
+ * How hard every plant's normal is held above the horizon, after its
+ * proportions have been baked in. Foliage is thin and scatters from both faces,
+ * so it does not go dark when it turns away — a flat lambert is the wrong
+ * physics for a leaf, and erring upward errs the way the real thing does.
+ */
+const LEAF_LIFT = 0.45;
+
+/** The lowest a leaf's normal is ever allowed to point. */
+const LEAF_FLOOR = 0.34;
+
 interface Build {
   positions: number[];
   normals: number[];
@@ -225,9 +236,30 @@ export function plantGeometry(plant: Plant): VertexData {
     const ny = build.normals[i + 1] / tall;
     const nz = build.normals[i + 2] / wide;
     const length = Math.hypot(nx, ny, nz) || 1;
-    build.normals[i] = nx / length;
-    build.normals[i + 1] = ny / length;
-    build.normals[i + 2] = nz / length;
+    // <b>And the upward bias has to be re-applied afterwards.</b> This is what
+    // was eating holes in the clover. A clover is 0.44 wide and 1.2 tall, so
+    // the reciprocal scale multiplies the horizontal components by 2.3 and the
+    // vertical by 0.83 — a normal that was set well above the horizon comes out
+    // of the rescale barely above it, and the leaflets' own splay then carries
+    // it under. A normal pointing at the ground gets the hemispheric light's
+    // ground colour, which is a dark brown that reads as black, and it does so
+    // whether the sun is on or off. That is why turning the sun off changed
+    // nothing and why every explanation about the material was wrong.
+    const bx = (nx / length) * (1 - LEAF_LIFT);
+    const by = (ny / length) * (1 - LEAF_LIFT) + LEAF_LIFT;
+    const bz = (nz / length) * (1 - LEAF_LIFT);
+    const lifted = Math.hypot(bx, by, bz) || 1;
+    // And a hard floor under it, because a blend can still be dragged below
+    // the horizon by a leaflet splayed far enough — a plantain's are sixty
+    // degrees out. Nothing that grows should shade as though it were the
+    // underside of something.
+    const fy = Math.max(by / lifted, LEAF_FLOOR);
+    const fx = bx / lifted;
+    const fz = bz / lifted;
+    const held = Math.hypot(fx, fy, fz) || 1;
+    build.normals[i] = fx / held;
+    build.normals[i + 1] = fy / held;
+    build.normals[i + 2] = fz / held;
   }
 
   const data = new VertexData();

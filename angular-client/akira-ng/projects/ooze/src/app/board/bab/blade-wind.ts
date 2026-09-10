@@ -150,6 +150,21 @@ export class BladeWind extends MaterialPluginBase {
       // difference between a field and a green carpet.
       CUSTOM_VERTEX_MAIN_END: `
         {
+          // <b>Hold the world normal above the horizon.</b> The geometry's own
+          // normals are already lifted, but that is done in the plant's local
+          // space and the instance matrix then leans the whole plant by up to
+          // a quarter turn — which carries a normal set twenty degrees up to
+          // several degrees down. A normal pointing at the ground takes the
+          // hemispheric light's ground colour, a dark brown that reads as
+          // black, and it does so whether the sun is up or not.
+          //
+          // <p>Clamping here rather than in the geometry is the only place it
+          // is exact, because here the lean has already happened.
+          var lit = vertexOutputs.vNormalW;
+          lit.y = max(lit.y, 0.22);
+          vertexOutputs.vNormalW = normalize(lit);
+        }
+        {
           let shade = mix(uniforms.bladeTip.w, 1.0,
             bladeAlong * bladeAlong * 0.55 + bladeAlong * 0.45);
           // Per species, because a daisy's tip is white and a plantain's is

@@ -142,12 +142,26 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let cl = cos(lean);
   let sl = sin(lean);
 
-  // Columns of the world matrix. The through column stays horizontal: it is
-  // the one the normal rides on, and tipping it toward the ground turns a
-  // bent plant away from the sun and black.
-  let across = vec3f(cf, 0.0, -sf) * wide;
-  let up = vec3f(sf * sl, cl, cf * sl) * tall;
-  let through = vec3f(sf, 0.0, cf) * wide;
+  // <b>Columns of the world matrix, and they have to be orthogonal.</b>
+  //
+  // <p>The through column used to be forced horizontal, to stop a leaning
+  // plant tipping its normal at the ground. It worked, and it was wrong: with
+  // up leaning and through level, through dot up is sin(lean), so the basis is
+  // skewed rather than rotated. A skewed matrix mistransforms a normal in
+  // exactly the way a non-uniform scale does — and the transformed normal for
+  // a leaflet facing the wrong way drops below the horizon and shades black.
+  // Which is the defect that survived every other explanation, because every
+  // other explanation was about the material and this one is arithmetic.
+  //
+  // <p>Built from a cross product instead: across and up are already unit and
+  // perpendicular, so their cross is the third axis of a true rotation. The
+  // normals no longer need the matrix to lie for them — the geometry biases
+  // them upward itself.
+  let acrossDir = vec3f(cf, 0.0, -sf);
+  let upDir = vec3f(sf * sl, cl, cf * sl);
+  let across = acrossDir * wide;
+  let up = upDir * tall;
+  let through = cross(acrossDir, upDir) * wide;
 
   let at = index * 4u;
   matrices[at + 0u] = vec4f(across, 0.0);
@@ -172,6 +186,9 @@ export interface Sown {
   readonly plant: Plant;
   readonly mesh: Mesh;
   readonly wind: BladeWind;
+  /** The compute-written instance matrices, so a probe can read them back. */
+  readonly matrices: StorageBuffer;
+  readonly tints: StorageBuffer;
   count: number;
 }
 
@@ -196,9 +213,14 @@ export function sowMeadow(
   const total = plants.reduce((sum, plant) => sum + plant.share, 0);
   const leaves: ProceduralTexture[] = [];
 
+  // Read as well as write: without it `StorageBuffer.read` never resolves —
+  // it does not fail, it simply hangs, and it takes the page's GPU context
+  // with it. The buffers are not read in a frame, only by a probe, and the
+  // flag costs nothing until one asks.
   const flags = Constants.BUFFER_CREATIONFLAG_STORAGE
     | Constants.BUFFER_CREATIONFLAG_VERTEX
-    | Constants.BUFFER_CREATIONFLAG_WRITE;
+    | Constants.BUFFER_CREATIONFLAG_WRITE
+    | Constants.BUFFER_CREATIONFLAG_READ;
 
   interface Bed {
     readonly sown: Sown;
@@ -295,7 +317,7 @@ export function sowMeadow(
     compute.setTexture('heights', heightTexture, false);
 
     beds.push({
-      sown: { plant, mesh, wind, count: cap },
+      sown: { plant, mesh, wind, matrices, tints, count: cap },
       matrices, tints, params, compute, cap, offset: seedOffset,
     });
     seedOffset += cap;
