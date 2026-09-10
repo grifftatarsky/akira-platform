@@ -592,8 +592,14 @@ const CHUNK = 100;
  * <p>It works *because* of the widening: a blade dropped at distance leaves a
  * gap, and the blades that remain are already being fattened to hold a pixel,
  * so they close it. Without that this would read as the meadow thinning out.
+ *
+ * <p>A third of a plant per pixel, not seven tenths. At seven tenths a plant
+ * covers under a pixel and a half — and a plant is four to eight strips, so
+ * every one of them is well under a pixel and the whole clump is being
+ * tessellated for detail that cannot land anywhere. Three pixels a plant is
+ * still small, and it halves the meadow.
  */
-const PLANTS_PER_PIXEL = 0.7;
+const PLANTS_PER_PIXEL = 0.32;
 
 /** Never below this fraction, or a distant board becomes bare ground. */
 const MIN_DETAIL = 0.25;
