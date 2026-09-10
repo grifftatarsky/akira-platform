@@ -49,6 +49,7 @@ export class Stage {
     readonly engine: WebGPUEngine,
     private readonly canvas: HTMLCanvasElement,
     private readonly look: BoardLook,
+    private readonly indoor = false,
   ) {
     this.scene = new Scene(engine);
     this.scene.clearColor = new Color4(0.55, 0.68, 0.82, 1);
@@ -102,6 +103,18 @@ export class Stage {
     this.ambient.diffuse = new Color3(0.62, 0.72, 0.9);
     this.ambient.groundColor = new Color3(0.28, 0.26, 0.2);
 
+    // Indoors there is no sky to build, and the ambient that stands in for one
+    // has to be nearly nothing — a crypt lit by a hemisphere light is a crypt
+    // with the lights on, which is the whole thing the torches are for.
+    if (indoor) {
+      this.scene.clearColor = new Color4(0.02, 0.02, 0.03, 1);
+      this.ambient.diffuse = new Color3(0.10, 0.11, 0.16);
+      this.ambient.groundColor = new Color3(0.05, 0.045, 0.04);
+      this.ambient.intensity = 0.18;
+      this.sun.intensity = 0;
+      this.shadows.dispose();
+    }
+
     this.sky = new SkyMaterial('sky', this.scene);
     this.sky.backFaceCulling = false;
     this.sky.useSunPosition = true;
@@ -111,6 +124,7 @@ export class Stage {
     this.skyBox = CreateBox('skyBox', { size: 6000 }, this.scene);
     this.skyBox.material = this.sky;
     this.skyBox.infiniteDistance = true;
+    this.skyBox.setEnabled(!indoor);
 
     const image = this.scene.imageProcessingConfiguration;
     image.toneMappingEnabled = true;
@@ -122,6 +136,7 @@ export class Stage {
 
   static async open(
     canvas: HTMLCanvasElement, look: BoardLook, environmentUrl?: string,
+    indoor = false,
   ): Promise<Stage> {
     const engine = new WebGPUEngine(canvas, {
       antialias: true,
@@ -151,7 +166,7 @@ export class Stage {
       engine.dispose();
       throw error;
     }
-    const stage = new Stage(engine, canvas, look);
+    const stage = new Stage(engine, canvas, look, indoor);
     if (environmentUrl) {
       stage.loadEnvironment(environmentUrl);
     }
@@ -182,6 +197,9 @@ export class Stage {
    * that file survived the port unchanged.
    */
   setClock(hour: number): void {
+    if (this.indoor) {
+      return;
+    }
     const { elevation, azimuth } = sunPosition(
       hour, this.look.latitude ?? 37.5, this.look.dayOfYear ?? 196,
     );

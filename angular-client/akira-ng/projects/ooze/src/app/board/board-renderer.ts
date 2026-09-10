@@ -12,7 +12,7 @@ import { BoardLook, BoardPiece, BoardTheme, INDOOR_LOOK, PLAIN_THEME, pieceFor }
 import { WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
 import { EnvironmentLibrary } from './environment';
-import { FLAME_COLOR, LIGHT_RANGE, lightField, lightSource } from './light-field';
+import { FLAME_COLOR, lightSource } from './light-rules';
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
 import {
@@ -1170,28 +1170,31 @@ export class BoardRenderer {
   }
 
   /**
-   * Rebuilds the board's light and hands it to every shader.
+   * Hands every shader a flat field.
    *
-   * <p>Cheap enough to do on every render — a whole level is 104 by 80 texels
-   * and a millisecond of arithmetic — so there is no cache to invalidate and no
-   * way for the light to disagree with the board it is lighting.
+   * <p>This used to bake the whole room's illumination — every torch, blurred,
+   * into a 104 by 80 image — because a forward renderer cannot afford twenty
+   * real lights. That file is gone: the dungeon has moved to the Babylon board
+   * and clustered lighting, where the torches are lights again and are
+   * occluded by the walls they stand against, which a texture could never be.
+   *
+   * <p>What is left here is a single white texel, so the injection below still
+   * has something to multiply by and the outdoor boards — which had no torches
+   * to bake and were only ever multiplying by one — look exactly as they did.
+   * The three.js dungeon loses its torchlight, and that is the point.
    */
   private relight(board: BoardScene): void {
-    const field = lightField(board);
     this.light.value?.dispose();
-    const texture = new DataTexture(field.data, field.width, field.height, RGBAFormat);
-    // Linear, which is what turns 104 by 80 texels into a smooth gradient
-    // across a 130-foot room: the hardware interpolates between them for free
-    // and the field never has to be stored at the resolution it is seen at.
+    const texture = new DataTexture(
+      new Uint8Array([255, 255, 255, 255]), 1, 1, RGBAFormat,
+    );
     texture.minFilter = LinearFilter;
     texture.magFilter = LinearFilter;
-    // Clamped, so a surface a hair past the edge of the board samples the edge
-    // rather than wrapping round to the far corner of the map.
     texture.wrapS = ClampToEdgeWrapping;
     texture.wrapT = ClampToEdgeWrapping;
     texture.needsUpdate = true;
     this.light.value = texture;
-    this.extent.value.set(field.extentXHalfFeet, field.extentYHalfFeet);
+    this.extent.value.set(board.widthHalfFeet, board.heightHalfFeet);
   }
 
   /**
@@ -1240,7 +1243,7 @@ export class BoardRenderer {
           '#include <tonemapping_fragment>',
           `gl_FragColor.rgb *= mix(
              vec3(1.0),
-             texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb * ${LIGHT_RANGE.toFixed(1)},
+             texture2D(uBoardLight, vBoardPos.xy / uBoardExtent).rgb,
              ${blend.toFixed(2)});
            #include <tonemapping_fragment>`);
       if (round) {

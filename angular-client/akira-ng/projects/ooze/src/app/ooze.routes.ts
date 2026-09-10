@@ -31,6 +31,12 @@ export const OOZE_ROUTES: Routes = [
         data: { title: 'Encounters' },
       },
       {
+        // The dungeon on Babylon: real torches, clustered.
+        path: 'board/bab-dungeon',
+        loadComponent: () => import('./board/bab/bab-dungeon').then(m => m.BabDungeon),
+        data: { title: 'The undercroft, on Babylon' },
+      },
+      {
         // The Babylon port. Same level data, same ground field, same sun.
         path: 'board/bab',
         loadComponent: () => import('./board/bab/bab-board').then(m => m.BabBoard),
