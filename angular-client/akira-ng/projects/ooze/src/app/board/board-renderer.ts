@@ -1919,9 +1919,20 @@ const NOWHERE = new Matrix4().makeScale(0, 0, 0);
  */
 const RIPPLE = `
   vec3 rippled(vec3 n, vec3 world, float t) {
-    vec2 p = world.xy * 0.22;
-    float x = 0.16 * sin(p.x + t * 0.9) + 0.10 * sin(p.y * 1.7 - t * 1.35);
-    float y = 0.16 * sin(p.y * 1.1 + t * 1.1) + 0.10 * sin(p.x * 1.4 + t * 0.75);
+    vec2 p = world.xy;
+    // Four octaves rather than two, and the top two much finer. Two sines at
+    // one scale is a puddle in a cellar seen from six feet; the same two across
+    // three hundred feet of sea are a regular lattice of dimples, and the sea
+    // came out looking like a golf ball. The fine terms are chop, they never
+    // line up with the swell, and they cost two sines each.
+    float x = 0.10 * sin(p.x * 0.22 + t * 0.90)
+            + 0.07 * sin(p.y * 0.37 - t * 1.35)
+            + 0.05 * sin(p.x * 0.91 + p.y * 0.44 + t * 2.10)
+            + 0.03 * sin(p.y * 1.73 - p.x * 0.61 + t * 3.30);
+    float y = 0.10 * sin(p.y * 0.24 + t * 1.10)
+            + 0.07 * sin(p.x * 0.31 + t * 0.75)
+            + 0.05 * sin(p.y * 0.87 - p.x * 0.52 + t * 1.90)
+            + 0.03 * sin(p.x * 1.61 + p.y * 0.73 - t * 3.05);
     return normalize(n + vec3(x, y, 0.0));
   }
 `;

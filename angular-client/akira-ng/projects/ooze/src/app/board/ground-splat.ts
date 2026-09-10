@@ -152,9 +152,11 @@ export const MESH_DETAIL = 2;
  * How far the board's own edge falls away, in half-feet.
  *
  * <p>Deep enough that the bottom is never in shot at any angle the camera
- * allows, so the board never shows how thin it is.
+ * allows, and no deeper: at two hundred and sixty a board with a sea round it
+ * sat in the water like a dropped brick, because the slab was taller than the
+ * cliff on top of it.
  */
-const SKIRT = 260;
+const SKIRT = 110;
 
 export interface SplatSurface {
   readonly mesh: Mesh;
