@@ -263,6 +263,17 @@ export function sowMeadow(
     setDensity(fraction: number): void {
       count = Math.max(0, Math.min(MAX_BLADES, Math.round(MAX_BLADES * fraction)));
       mesh.forcedInstanceCount = count;
+      // <b>And re-sow.</b> The compute pass writes exactly `count` matrices
+      // and the rest of the buffer is zeros, so raising the density without
+      // this draws instances that were never placed — degenerate triangles
+      // stacked at the origin. Invisible, so the slider appeared to do nothing
+      // above whatever it was set to when the first sowing landed, while every
+      // measurement taken past that point was counting blades that did not
+      // exist.
+      //
+      // <p>One dispatch per drag of a slider is nothing. It is one per *frame*
+      // that was worth removing.
+      dispatch(wind.time);
     },
     step(seconds: number): void {
       // Only the time has changed, and the bend reads that from a uniform in
