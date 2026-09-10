@@ -18,6 +18,14 @@ import type { Scene } from '@babylonjs/core/scene';
  * feature, requested in {@link Stage}; where it is missing `gpuMs` reads zero
  * and the CPU-side numbers still work. That is the honest failure mode — a
  * zero here means "not measured", never "free".
+ *
+ * <p>And it does not come from `EngineInstrumentation.gpuFrameTimeCounter`,
+ * which is the WebGL-era counter and reads a flat zero on the WebGPU path
+ * however much of the extension you have enabled. The WebGPU engine keeps its
+ * own: `gpuTimeInFrameForMainPass`, populated from the timestamps written
+ * either side of the main render pass. On the road board that reads 11.6 ms
+ * against a 2.1 ms CPU frame — which is the whole point of asking, because the
+ * CPU number alone says there is eight times more headroom than there is.
  */
 
 export interface FrameCost {
@@ -55,11 +63,15 @@ export class Stats {
 
   read(): FrameCost {
     const engine = this.target.getEngine();
+    // Nanoseconds from the device, and zero until the first second has passed.
+    const webgpu = (engine as unknown as {
+      gpuTimeInFrameForMainPass?: { counter: { lastSecAverage: number } };
+    }).gpuTimeInFrameForMainPass;
     return {
       fps: Math.round(engine.getFps()),
-      // Nanoseconds from the device, and the counter is zero until the first
-      // second has passed rather than undefined.
-      gpuMs: round(this.engine.gpuFrameTimeCounter.lastSecAverage / 1e6),
+      gpuMs: round(
+        (webgpu?.counter.lastSecAverage ?? this.engine.gpuFrameTimeCounter.lastSecAverage) / 1e6,
+      ),
       frameMs: round(this.scene.frameTimeCounter.lastSecAverage),
       cullMs: round(this.scene.activeMeshesEvaluationTimeCounter.lastSecAverage),
       drawCalls: this.scene.drawCallsCounter.current,

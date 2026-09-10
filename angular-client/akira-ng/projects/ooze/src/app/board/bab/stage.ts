@@ -82,6 +82,11 @@ export class Stage {
     this.camera.upperBetaLimit = Math.PI / 2 - 0.02;
 
     this.sun = new DirectionalLight('sun', new Vector3(0, -1, 0), this.scene);
+    // Stays at 2048. Halving it was measured and bought nothing at all — the
+    // shadow pass here is bound by its draw calls, not its fill: forty terrain
+    // chunks across four cascades is a hundred and sixty draws, and the map's
+    // resolution does not change that number. The lever worth pulling, when it
+    // is worth pulling one, is fewer casters or fewer cascades.
     this.shadows = new CascadedShadowGenerator(2048, this.sun);
     this.shadows.lambda = 0.9;
     this.shadows.cascadeBlendPercentage = 0.05;
@@ -90,7 +95,7 @@ export class Stage {
     // this range, so a range twice what anything casts across spends half its
     // resolution on empty air.
     this.shadows.shadowMaxZ = 400;
-    this.shadows.filteringQuality = CascadedShadowGenerator.QUALITY_HIGH;
+    this.shadows.filteringQuality = CascadedShadowGenerator.QUALITY_MEDIUM;
     this.shadows.usePercentageCloserFiltering = true;
 
     this.ambient = new HemisphericLight('sky', new Vector3(0, 1, 0), this.scene);
