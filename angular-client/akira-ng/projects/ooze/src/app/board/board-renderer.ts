@@ -15,6 +15,7 @@ import { EnvironmentLibrary } from './environment';
 import { FLAME_COLOUR, LIGHT_RANGE, lightField, lightSource } from './light-field';
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
+import { sunPosition, sunlight } from './sun-position';
 import { SplatSurface, splatGround } from './ground-splat';
 import { ScatterLayer, scatterGround } from './ground-scatter';
 import { groundField } from './ground-field';
@@ -131,6 +132,9 @@ export class BoardRenderer {
    */
   private surface: SplatSurface | null = null;
 
+  /** The board last drawn, so the sun can be re-aimed when the clock moves. */
+  private framed: BoardScene | null = null;
+
   /** Whatever is lying on that ground: tufts, stones, fallen branches. */
   private litter: ScatterLayer | null = null;
 
@@ -191,7 +195,10 @@ export class BoardRenderer {
    */
   private readonly sun = new DirectionalLight(0xffe9cc, 0.95);
   private readonly ambient = new AmbientLight(0xffffff, INDOOR_LOOK.ambient);
+  private sunElevation = 68;
+  private sunAzimuth = 145;
   private look: BoardLook = INDOOR_LOOK;
+  private hour = INDOOR_LOOK.hour;
 
   /**
    * The board's light, shared by every material that answers to it.
@@ -343,6 +350,7 @@ export class BoardRenderer {
     this.grid.add(this.squares(board));
     this.grid.visible = this.showGrid;
     board.tokens.forEach(t => this.tokens.add(this.token(t)));
+    this.framed = board;
     this.aimSun(board);
     this.place();
     const generation = ++this.generation;
@@ -371,8 +379,8 @@ export class BoardRenderer {
     // looked right once. High light keeps a wall's shadow under half its
     // height, which reads as depth without reading as ground a DM has to
     // discount; and outdoors the angle is simply what time it is.
-    const elevation = (this.look.sun.elevation * Math.PI) / 180;
-    const azimuth = (this.look.sun.azimuth * Math.PI) / 180;
+    const elevation = (this.sunElevation * Math.PI) / 180;
+    const azimuth = (this.sunAzimuth * Math.PI) / 180;
     const reach = span * 1.4;
     this.sun.position.set(
       cx + reach * Math.cos(elevation) * Math.sin(azimuth),
@@ -388,6 +396,15 @@ export class BoardRenderer {
     shadow.near = 1;
     shadow.far = span * 3;
     shadow.updateProjectionMatrix();
+  }
+
+  /** Points the sun, and re-aims it over whatever board is loaded. */
+  private pointSun(elevation: number, azimuth: number): void {
+    this.sunElevation = elevation;
+    this.sunAzimuth = azimuth;
+    if (this.framed) {
+      this.aimSun(this.framed);
+    }
   }
 
   /** Swaps the art without touching anything else about the board. */
@@ -414,11 +431,56 @@ export class BoardRenderer {
   private applyLook(theme: BoardTheme): void {
     const look = theme.look ?? INDOOR_LOOK;
     this.look = look;
+    this.hour = look.hour;
     this.renderer.toneMappingExposure = look.exposure;
     this.ambient.intensity = look.ambient;
-    this.sun.intensity = look.sun.intensity;
-    this.sun.color.set(look.sun.colour);
     this.post?.setGrade(look.saturation, look.contrast, look.vignette);
+    this.applyClock();
+  }
+
+  /**
+   * Moves the clock.
+   *
+   * <p>Everything about the sun follows: how high it is, which way it throws a
+   * shadow, how strong it is and what colour. Which is the point of making it
+   * a clock rather than four sliders — a low sun that is still white and full
+   * strength is not a time of day, it is a mistake.
+   */
+  setHour(hour: number): void {
+    this.hour = Math.max(0, Math.min(24, hour));
+    this.applyClock();
+    this.place();
+  }
+
+  hourOfDay(): number {
+    return this.hour;
+  }
+
+  /** Whether this board has a sky to have a time of day in. */
+  hasClock(): boolean {
+    return !this.look.fixedSun;
+  }
+
+  private applyClock(): void {
+    if (this.look.fixedSun) {
+      this.sun.intensity = this.look.fixedSun.intensity;
+      this.sun.color.set(this.look.fixedSun.colour);
+      this.pointSun(this.look.fixedSun.elevation, this.look.fixedSun.azimuth);
+      return;
+    }
+    const at = sunPosition(this.hour, this.look.latitude, this.look.dayOfYear);
+    const light = sunlight(at.elevation);
+    this.sun.intensity = light.intensity;
+    this.sun.color.set(light.colour);
+    // Below the horizon the sun contributes nothing, but its shadow camera
+    // still has to point somewhere sane, so it is parked just above it.
+    this.pointSun(Math.max(1, at.elevation), at.azimuth);
+    // The sky map is a noon capture and cannot change with the clock, so the
+    // ambient it provides is dimmed to follow the sun instead. An evening lit
+    // by a midday sky is the one thing that would give this away.
+    const dusk = Math.max(0.12, Math.min(1, Math.sin(Math.max(0, at.elevation) * Math.PI / 180)
+      * 1.25));
+    this.scene.environmentIntensity = (this.theme.environment?.intensity ?? 1) * dusk;
   }
 
   /**
@@ -435,7 +497,7 @@ export class BoardRenderer {
       return;
     }
     this.scene.environment = map;
-    this.scene.environmentIntensity = theme.environment?.intensity ?? 1;
+    this.applyClock();
     // Outdoors the sky is most of what says where you are; indoors a horizon
     // behind the walls would put the dungeon on a hilltop.
     this.scene.background = theme.sky ? map : null;

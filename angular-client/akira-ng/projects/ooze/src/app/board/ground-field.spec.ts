@@ -66,6 +66,44 @@ describe('ground field', () => {
       expect(worst).toBeLessThan(limit);
     });
 
+    it('keeps a rutted road under the threshold too', () => {
+      // The road is deliberately much lumpier than the turf — clods, ridges
+      // and hollows where water sat — and it still has to read as ground a
+      // cart went down rather than as a cliff. Measured cell to cell, which is
+      // the unit the rules charge in: bumps inside a square are roughness, not
+      // slope, and the SRD has no rule that makes rough ground difficult
+      // unless it is rubble.
+      const field = groundField(board('ROAD', 40));
+      const span = 10;
+      const limit = Math.tan((20 * Math.PI) / 180) * span;
+
+      let worst = 0;
+      for (let y = span; y < 380; y += span) {
+        for (let x = span; x < 380; x += span) {
+          worst = Math.max(
+            worst,
+            Math.abs(heightAt(field, x, y) - heightAt(field, x - span, y)),
+            Math.abs(heightAt(field, x, y) - heightAt(field, x, y - span)));
+        }
+      }
+      expect(worst).toBeLessThan(limit);
+    });
+
+    it('makes bare ground lumpier than turf', () => {
+      // Grass mats over whatever is beneath it and reads smooth; a driven road
+      // does not.
+      const roughness = (kind: TerrainTile['kind']) => {
+        const field = groundField(board(kind, 24));
+        let total = 0;
+        for (let i = 1; i < field.heights.length; i++) {
+          total += Math.abs(field.heights[i] - field.heights[i - 1]);
+        }
+        return total / field.heights.length;
+      };
+
+      expect(roughness('ROAD')).toBeGreaterThan(roughness('GRASS') * 1.5);
+    });
+
     it('has shape at all, rather than being flat with a texture on it', () => {
       // The other half of the same claim: a plane lit from seventy degrees up
       // has nothing to shade, so the ground has to actually vary.

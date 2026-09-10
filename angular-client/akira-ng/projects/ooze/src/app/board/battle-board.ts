@@ -7,6 +7,7 @@ import { BoardRenderer, CameraMode } from './board-renderer';
 import { BoardTheme, KAYKIT_THEME } from './board-assets';
 import { PointerStart, dropAt, gestureFor, pathBetween, zoomAfterWheel } from './board-gestures';
 import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
+import { clockLabel } from './sun-position';
 
 /**
  * The tactical board.
@@ -84,6 +85,18 @@ import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
               </button>
             }
           </div>
+
+          @if (hasClock()) {
+            <label class="pointer-events-auto flex items-center gap-2 rounded-md border
+                          border-rule bg-bg/85 px-2 py-1 text-[0.7rem] text-fg-muted
+                          backdrop-blur">
+              <span class="tabular-nums">{{ clock() }}</span>
+              <input type="range" min="4" max="21" step="0.25"
+                     [value]="hour()" (input)="setHour($event)"
+                     aria-label="Time of day"
+                     class="h-1 w-28 cursor-pointer accent-accent" />
+            </label>
+          }
 
           <button type="button" (click)="toggleGrid()"
                   [attr.aria-pressed]="grid()"
@@ -188,6 +201,17 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    */
   protected readonly grid = signal(true);
 
+  /**
+   * The time of day, where the board has a sky to have one in.
+   *
+   * <p>Everything about the sun follows from it — height, bearing, strength,
+   * colour — so this is one control rather than four, and it cannot be set to
+   * something the sky does not do.
+   */
+  protected readonly hour = signal(13);
+  protected readonly clock = computed(() => clockLabel(this.hour()));
+  protected readonly hasClock = signal(false);
+
   protected readonly dragging = signal(false);
   protected readonly selectedId = signal<string | null>(null);
 
@@ -235,6 +259,8 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
       const theme = this.theme();
       if (this.renderer) {
         this.renderer.setTheme(theme);
+        this.hasClock.set(this.renderer.hasClock());
+        this.hour.set(this.renderer.hourOfDay());
         if (board) {
           this.renderer.render(board);
         }
@@ -253,6 +279,8 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     });
     this.observer.observe(canvas.parentElement ?? canvas);
 
+    this.hasClock.set(this.renderer.hasClock());
+    this.hour.set(this.renderer.hourOfDay());
     const board = this.scene();
     if (board) {
       this.renderer.render(board);
@@ -272,6 +300,12 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     // lost, which reads as "the tab got slow" hours later.
     this.renderer?.dispose();
     this.renderer = null;
+  }
+
+  protected setHour(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.hour.set(value);
+    this.renderer?.setHour(value);
   }
 
   protected toggleGrid(): void {

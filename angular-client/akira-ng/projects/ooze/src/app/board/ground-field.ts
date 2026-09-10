@@ -173,11 +173,23 @@ function shapeGround(
       const rolling = (noise(x * 0.009, y * 0.009) - 0.5) * 7.0;
       const middling = (noise(x * 0.042, y * 0.042) - 0.5) * 1.8;
       const underfoot = (noise(x * 0.17, y * 0.17) - 0.5) * 0.35;
+
+      // Bare ground is lumpy in a way turf is not. Grass mats over everything
+      // beneath it and reads smooth from any distance; a road that has been
+      // driven on has clods, ridges thrown up between the wheel tracks, and
+      // hollows where water sat. All of it scaled by how bare the ground is,
+      // so it stops at the verge without anything having to say where that is.
+      const bare = wear[at];
+      const clods = (noise(x * 0.34, y * 0.34) - 0.5) * 0.75 * bare;
+      const ridges = (noise(x * 0.11, y * 0.62) - 0.5) * 0.55 * bare;
+      // Hollows only: the peaks of this noise are cut off, so the road is
+      // pitted rather than merely wavy, which is what standing water leaves.
+      const hollows = -Math.max(0, noise(x * 0.08, y * 0.08) - 0.58) * 3.2 * bare;
       // Worn ground is worn *down*. The road is the low line through the
       // country because that is what a century of wheels does, and a road that
       // sits level with the verge beside it reads as a stripe of paint.
-      const sunk = wear[at] * wear[at] * RUT_DEPTH;
-      ground[at] += rolling + middling + underfoot - sunk;
+      const sunk = bare * bare * RUT_DEPTH;
+      ground[at] += rolling + middling + underfoot + clods + ridges + hollows - sunk;
     }
   }
 }

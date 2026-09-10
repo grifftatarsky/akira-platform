@@ -119,7 +119,20 @@ export interface SplatGround {
 export interface BoardLook {
   readonly exposure: number;
   readonly ambient: number;
-  readonly sun: {
+  /**
+   * Where and when, rather than which way to point a lamp.
+   *
+   * <p>The sun's angle, strength and colour all follow from these — see
+   * {@link ./sun-position} — so the clock is a single knob that moves the
+   * shadows the way a day actually moves them, and cannot be set to a bright
+   * blue sunset.
+   */
+  readonly sky_?: never;
+  readonly latitude: number;
+  readonly dayOfYear: number;
+  readonly hour: number;
+  /** Indoors, where the sun is a stand-in for torches and has no clock. */
+  readonly fixedSun?: {
     readonly intensity: number;
     readonly colour: number;
     readonly elevation: number;
@@ -136,7 +149,12 @@ export interface BoardLook {
 export const INDOOR_LOOK: BoardLook = {
   exposure: 0.95,
   ambient: 0.08,
-  sun: { intensity: 0.95, colour: 0xffe9cc, elevation: 68, azimuth: 145 },
+  latitude: 37.5,
+  dayOfYear: 196,
+  hour: 13,
+  // A cellar has no sky. The key light is standing in for lamps that are not
+  // in the scene, so it is dialled rather than computed.
+  fixedSun: { intensity: 0.95, colour: 0xffe9cc, elevation: 68, azimuth: 145 },
   saturation: 1.16,
   contrast: 1.06,
   vignette: 0.34,
@@ -283,7 +301,6 @@ export const PLAIN_THEME: BoardTheme = {
 };
 
 const PH_ROOT = 'assets/board/polyhaven';
-const SCATTER_ROOT = 'assets/board/scatter';
 
 function layer(
   name: string, feet: number, tint?: readonly [number, number, number],
@@ -330,7 +347,11 @@ export const FIELD_THEME: BoardTheme = {
   look: {
     exposure: 1.15,
     ambient: 0.22,
-    sun: { intensity: 2.7, colour: 0xfff4e2, elevation: 70, azimuth: 197 },
+    // Mid-July, about the latitude of Richmond. One in the afternoon to start,
+    // and the board's clock moves it from there.
+    latitude: 37.5,
+    dayOfYear: 196,
+    hour: 13,
     saturation: 1.08,
     contrast: 1.02,
     vignette: 0.1,
@@ -350,13 +371,11 @@ export const FIELD_THEME: BoardTheme = {
       layer('sparse_grass', 8, [1.0, 1.0, 0.82]),
       layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
     ],
-    scatter: {
-      // rock_07 and not rock_09: the latter measures seven centimetres by
-      // three, which is a pebble, and a pebble on a board seen from sixty feet
-      // up is nothing at all.
-      STONE: `${SCATTER_ROOT}/rock_07/rock_07.gltf`,
-      BRANCH: `${SCATTER_ROOT}/dry_branches_medium_01/dry_branches_medium_01.gltf`,
-    },
+    // No scatter. Photogrammetry props at this camera distance read as litter
+    // rather than as landscape — a stone that is convincing at eye level is a
+    // dark speck from sixty feet up, and a field of dark specks looks like
+    // something spilled on the board. The placement machinery stays; what it
+    // places has to be reconsidered.
   },
   pieces: {},
 };
