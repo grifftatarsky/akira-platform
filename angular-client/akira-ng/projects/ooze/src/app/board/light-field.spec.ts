@@ -141,32 +141,40 @@ describe('light field', () => {
 
   describe('falloff', () => {
 
-    it('is full inside the bright radius and gone past the dim one', () => {
+    it('is full at the flame and gone at the outer edge', () => {
       expect(falloff(0, 40, 80)).toBe(1);
-      expect(falloff(40, 40, 80)).toBe(1);
       expect(falloff(80, 40, 80)).toBe(0);
       expect(falloff(200, 40, 80)).toBe(0);
     });
 
-    it('eases rather than ramps, so the pool has no visible crease', () => {
-      // A linear ramp creases at both ends, and the middle of a pool of
-      // torchlight is the one place an eye is guaranteed to be looking.
-      const quarter = falloff(50, 40, 80);
-      const middle = falloff(60, 40, 80);
-      const threeQuarters = falloff(70, 40, 80);
-
-      expect(quarter).toBeGreaterThan(middle);
-      expect(middle).toBeGreaterThan(threeQuarters);
-      expect(middle).toBeCloseTo(0.5, 5);
-      // Flatter at the ends than in the middle is what "eased" means.
-      expect(quarter - middle).toBeGreaterThan(1 - quarter);
+    it('falls away inside the bright radius rather than holding full strength', () => {
+      // The SRD's radii are a rules abstraction, not an intensity curve. Held
+      // flat across the whole bright radius, a dozen torches overlap into an
+      // even wash and nothing on the board reads as a light source — which is
+      // the opposite of the point of placing them.
+      expect(falloff(40, 40, 80)).toBeLessThan(0.5);
+      expect(falloff(40, 40, 80)).toBeGreaterThan(0);
     });
 
-    it('gives a light with no dim ring a hard edge rather than no light', () => {
-      // Degenerate but not meaningless: a light that is Bright to 20 feet and
-      // Dim nowhere is a hard-edged pool, which is what the numbers say.
-      expect(falloff(10, 40, 40)).toBe(1);
-      expect(falloff(50, 40, 40)).toBe(0);
+    it('drops monotonically, and steepest just past the flame', () => {
+      const near = falloff(20, 40, 80);
+      const middle = falloff(40, 40, 80);
+      const far = falloff(60, 40, 80);
+
+      expect(near).toBeGreaterThan(middle);
+      expect(middle).toBeGreaterThan(far);
+      // Measured clear of the core, or the comparison spans the plateau and
+      // says nothing: over equal distances the light gives up far more of
+      // itself near the flame than out at the edge, which is what makes the
+      // pool read as a pool rather than as a disc.
+      expect(falloff(20, 40, 80) - falloff(35, 40, 80))
+        .toBeGreaterThan(falloff(60, 40, 80) - falloff(75, 40, 80));
+    });
+
+    it('keeps the square the flame stands on properly lit', () => {
+      // A short plateau, so a torch's own square is lit rather than merely the
+      // brightest of a set of dim ones.
+      expect(falloff(10, 40, 80)).toBe(1);
     });
   });
 });

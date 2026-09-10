@@ -29,12 +29,13 @@ import { BoardScene, LightLevel, PropKind, TerrainTile } from './board.models';
 /**
  * Texels per half-foot.
  *
- * <p>0.4 puts four across a five-foot square, which the GPU's linear filtering
- * turns into a smooth gradient. A whole 130-by-100-foot level is 104 by 80 —
- * 33 KB, rebuilt in a millisecond, small enough that the resolution is never the
- * thing worth optimising.
+ * <p>Eight across a five-foot square. It was four, and four is not enough to
+ * blur over: a square's own light showed *as a square*, with a hard step at
+ * every room boundary and a torch sitting in the middle of a lit tile like a
+ * lamp in a box. A whole 130-by-100-foot level is 208 by 160 — 133 KB, rebuilt
+ * in a millisecond, and still not the thing worth optimising.
  */
-export const TEXELS_PER_HALF_FOOT = 0.4;
+export const TEXELS_PER_HALF_FOOT = 0.8;
 
 /**
  * What one byte of the field means.
@@ -57,7 +58,12 @@ export const LIGHT_RANGE = 2;
  */
 const LEVEL_COLOUR: Record<LightLevel, readonly [number, number, number]> = {
   BRIGHT: [1, 0.97, 0.9],
-  DIM: [0.42, 0.44, 0.55],
+  // Near-neutral and faintly warm, not blue. Dim was blue when it meant "this
+  // room is unlit"; it now means "this room is lit by what is standing in it",
+  // which is the state most of a dungeon is in — and a blue base under warm
+  // stone turned every room grey-green the moment it stopped being the
+  // exception.
+  DIM: [0.5, 0.47, 0.45],
   // Lifted once, after looking at an unlit crypt on a graded, tone-mapped
   // board and failing to make out the floor. A DM has to be able to read a dark
   // room; the creatures in it are the ones who cannot see.
@@ -85,13 +91,24 @@ export interface LightSource {
  * choice — it is the rule, drawn.
  */
 const REACH: Partial<Record<PropKind, LightSource>> = {
-  TORCH: { bright: 40, dim: 80, strength: 0.55 },
-  CANDLES: { bright: 10, dim: 20, strength: 0.3 },
-  SHELF_CANDLES: { bright: 10, dim: 20, strength: 0.3 },
+  // Strong enough to be the thing lighting the room rather than a highlight on
+  // a room that was already lit. That is the difference between a dungeon and a
+  // diagram of one — and it is why the sample level's rooms are Dim now: a
+  // torchlit hall *is* dim, twenty feet from a torch.
+  TORCH: { bright: 40, dim: 80, strength: 0.95 },
+  CANDLES: { bright: 10, dim: 20, strength: 0.35 },
+  SHELF_CANDLES: { bright: 10, dim: 20, strength: 0.35 },
 };
 
-/** How far light bleeds sideways, in texels, to turn steps into gradients. */
-const BLUR_PASSES = 2;
+/**
+ * How far the light is smeared sideways, in texels either way, per pass.
+ *
+ * <p>Three passes of five taps is about six texels — three quarters of a
+ * square. Enough to turn the step between a lit room and a dim corridor into a
+ * falloff, and not so much that a room loses its shape.
+ */
+const BLUR_RADIUS = 2;
+const BLUR_PASSES = 3;
 
 /** Whether a prop is on fire, and how brightly. Null for anything that is not. */
 export function lightSource(piece: PropKind): LightSource | null {
@@ -113,11 +130,13 @@ export function lightField(board: BoardScene): LightField {
   const width = Math.max(1, Math.ceil(board.widthHalfFeet * TEXELS_PER_HALF_FOOT));
   const height = Math.max(1, Math.ceil(board.heightHalfFeet * TEXELS_PER_HALF_FOOT));
   const rgb = new Float32Array(width * height * 3);
+  const solid = new Uint8Array(width * height);
 
-  paintLevels(board.tiles, rgb, width, height, board.widthHalfFeet, board.heightHalfFeet);
+  paintLevels(board.tiles, rgb, solid, width, height,
+    board.widthHalfFeet, board.heightHalfFeet);
   addFlames(board, rgb, width, height);
   for (let i = 0; i < BLUR_PASSES; i++) {
-    blur(rgb, width, height);
+    blur(rgb, solid, width, height);
   }
 
   return {
@@ -140,6 +159,7 @@ export function lightField(board: BoardScene): LightField {
 function paintLevels(
   tiles: readonly TerrainTile[],
   rgb: Float32Array,
+  solid: Uint8Array,
   width: number,
   height: number,
   extentX: number,
@@ -147,6 +167,7 @@ function paintLevels(
 ): void {
   for (const tile of tiles) {
     const colour = LEVEL_COLOUR[tile.light];
+    const wall = tile.height > 0;
     const half = tile.size / 2;
     const x0 = texel(tile.x - half, extentX, width);
     const x1 = texel(tile.x + half, extentX, width);
@@ -158,6 +179,9 @@ function paintLevels(
         rgb[at] = colour[0];
         rgb[at + 1] = colour[1];
         rgb[at + 2] = colour[2];
+        if (wall) {
+          solid[y * width + x] = 1;
+        }
       }
     }
   }
@@ -207,21 +231,33 @@ function addFlames(
 }
 
 /**
- * Full inside the bright radius, easing to nothing at the dim edge.
+ * Brightest at the flame, falling away to nothing at its outer edge.
  *
- * <p>Smoothed rather than linear because a linear ramp has a visible crease at
- * both ends, and a crease in a pool of torchlight is the one place an eye is
- * guaranteed to be looking.
+ * <p><b>The SRD's radii are a rules abstraction, not an intensity curve</b>,
+ * and using them as one is what made a torchlit room look flat. "Bright Light
+ * in a 20-foot radius" means a creature 19 feet away can see as if in daylight;
+ * it does not mean the floor 19 feet away is as bright as the floor under the
+ * flame. Held at full strength across the whole bright radius, a dozen torches
+ * in a level overlap into an even wash and nothing reads as a light source at
+ * all — which is the opposite of the point of placing them.
+ *
+ * <p>So the *rules* keep the radii and the *picture* gets a falloff: a small
+ * core at full strength, then quadratic to nothing at the dim edge. Quadratic
+ * because that is roughly what light does, and because it puts the visible
+ * change close to the flame where an eye reads it as a pool.
  */
 export function falloff(distance: number, bright: number, dim: number): number {
-  if (distance <= bright) {
-    return 1;
-  }
-  if (distance >= dim || dim <= bright) {
+  if (distance >= dim || dim <= 0) {
     return 0;
   }
-  const t = (distance - bright) / (dim - bright);
-  return 1 - t * t * (3 - 2 * t);
+  // A short plateau, so the square a torch stands on is properly lit rather
+  // than merely the brightest of a set of dim ones.
+  const core = bright * 0.35;
+  if (distance <= core) {
+    return 1;
+  }
+  const t = (dim - distance) / (dim - core);
+  return t * t;
 }
 
 /**
@@ -232,26 +268,47 @@ export function falloff(distance: number, bright: number, dim: number): number {
  * torchlight through walls, and a wall is four texels thick, so at this radius
  * the light dies inside the stone where it belongs.
  */
-function blur(rgb: Float32Array, width: number, height: number): void {
+function blur(rgb: Float32Array, solid: Uint8Array, width: number, height: number): void {
   const scratch = new Float32Array(rgb.length);
+  sweep(rgb, scratch, solid, width, height, 1, 0);
+  sweep(scratch, rgb, solid, width, height, 0, 1);
+}
+
+function sweep(
+  from: Float32Array,
+  into: Float32Array,
+  solid: Uint8Array,
+  width: number,
+  height: number,
+  stepX: number,
+  stepY: number,
+): void {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const at = (y * width + x) * 3;
-      const left = (y * width + Math.max(0, x - 1)) * 3;
-      const right = (y * width + Math.min(width - 1, x + 1)) * 3;
-      for (let c = 0; c < 3; c++) {
-        scratch[at + c] = (rgb[left + c] + rgb[at + c] + rgb[right + c]) / 3;
+      const centre = y * width + x;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let step = -BLUR_RADIUS; step <= BLUR_RADIUS; step++) {
+        const sx = x + step * stepX;
+        const sy = y + step * stepY;
+        const inside = sx >= 0 && sx < width && sy >= 0 && sy < height;
+        // Off the board, or across the face of a wall: fall back to this
+        // texel's own value. That keeps the average honest without letting
+        // anything leak between a room and what is on the far side of its
+        // stone.
+        const source = inside && solid[sy * width + sx] === solid[centre]
+          ? (sy * width + sx) * 3
+          : centre * 3;
+        r += from[source];
+        g += from[source + 1];
+        b += from[source + 2];
       }
-    }
-  }
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const at = (y * width + x) * 3;
-      const up = (Math.max(0, y - 1) * width + x) * 3;
-      const down = (Math.min(height - 1, y + 1) * width + x) * 3;
-      for (let c = 0; c < 3; c++) {
-        rgb[at + c] = (scratch[up + c] + scratch[at + c] + scratch[down + c]) / 3;
-      }
+      const taps = BLUR_RADIUS * 2 + 1;
+      const at = centre * 3;
+      into[at] = r / taps;
+      into[at + 1] = g / taps;
+      into[at + 2] = b / taps;
     }
   }
 }

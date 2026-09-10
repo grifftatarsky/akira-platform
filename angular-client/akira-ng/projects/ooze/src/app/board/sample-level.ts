@@ -217,6 +217,9 @@ export function furnish(): MapProp[] {
   add('TORCH', 2, 0.62);
   add('TORCH', 6, 0.62);
   add('TORCH', 0.62, 3, 1);
+  add('TORCH', 0.62, 5.4, 1);
+  add('TORCH', 7.38, 5, 3);
+  add('TORCH', 4, 6.38, 2);
   add('BANNER_BLUE', 4.6, 0.62);
   add('RUBBLE_SMALL', 6.5, 6);
 
@@ -244,9 +247,13 @@ export function furnish(): MapProp[] {
   }
   add('BANNER_GREEN', 11.4, 0.62);
   add('BANNER_BLUE', 15.6, 0.62);
-  add('TORCH', 10.62, 4, 1);
-  add('TORCH', 16.38, 4, 3);
+  add('TORCH', 10.62, 3, 1);
+  add('TORCH', 10.62, 6.5, 1);
+  add('TORCH', 16.38, 3, 3);
+  add('TORCH', 16.38, 6.5, 3);
   add('TORCH', 12, 0.62);
+  add('TORCH', 15, 0.62);
+  add('TORCH', 13.5, 8.38, 2);
   add('KEG', 16, 7.6);
   add('BARRELS', 10.6, 7.5);
 
@@ -264,6 +271,7 @@ export function furnish(): MapProp[] {
   add('TRUNK', 22.2, 4.4);
   add('CRATE', 22.6, 4.6);
   add('SHELF_CANDLES', 19.7, 4.2, 1);
+  add('TORCH', 19.7, 2, 1);
 
   // The undercroft, flooded from the north-west and barricaded from inside.
   add('RUBBLE', 2.6, 10);
@@ -310,6 +318,7 @@ export function furnish(): MapProp[] {
   add('BANNER_GREEN', 24.4, 10, 3);
   add('BANNER_GREEN', 24.4, 11.4, 3);
   add('TORCH', 20.4, 9.1);
+  add('TORCH', 24.38, 12.5, 3);
   add('BARRIER', 21, 13.6);
   add('BARRIER', 22.2, 13.6);
   add('TABLE', 22.5, 16, 1);
