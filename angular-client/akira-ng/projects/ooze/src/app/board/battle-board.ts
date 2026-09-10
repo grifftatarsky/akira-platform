@@ -3,7 +3,7 @@ import {
   effect, input, output, signal, viewChild,
 } from '@angular/core';
 import { Battle, BoardScene, Encounter } from './board.models';
-import { BoardRenderer, CameraMode } from './board-renderer';
+import { BoardRenderer } from './board-renderer';
 import { BoardTheme, KAYKIT_THEME } from './board-assets';
 import { PointerStart, dropAt, gestureFor, pathBetween, zoomAfterWheel } from './board-gestures';
 import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
@@ -65,26 +65,31 @@ import { clockLabel, dateLabel, latitudeName } from './sun-position';
 
         <div class="pointer-events-auto flex items-center gap-2">
           <!--
-            Both options shown with the active one marked, rather than one
-            button carrying the current mode. A lone button labelled "Top-down"
-            is genuinely ambiguous — it reads equally as "you are looking from
-            above" and as "click to look from above" — and a camera control is a
-            bad place to make someone find out by pressing it.
+            Turning the board, not choosing a projection. There used to be a
+            locked overhead camera beside this; it was its own projection with
+            its own bugs — a grid that shimmered, tokens that read as flat
+            discs — and no way to turn the board at all. Tilting this one all
+            the way up produces the same picture and keeps the rotation.
           -->
-          <div role="group" aria-label="Camera"
+          <div role="group" aria-label="Turn the board"
                class="flex overflow-hidden rounded-md border border-rule bg-bg/85 backdrop-blur">
-            @for (mode of cameraModes; track mode.id) {
-              <button type="button"
-                      (click)="setCamera(mode.id)"
-                      [attr.aria-pressed]="cameraMode() === mode.id"
-                      [class]="cameraMode() === mode.id
-                        ? 'bg-accent/15 text-accent'
-                        : 'text-fg-subtle hover:text-fg'"
-                      class="px-2 py-1 text-[0.7rem] font-medium transition">
-                {{ mode.label }}
-              </button>
-            }
+            <button type="button" (click)="turn(-1)" aria-label="Turn the board left"
+                    class="px-2 py-1 text-[0.7rem] text-fg-subtle transition hover:text-fg">↺</button>
+            <span class="border-x border-rule px-2 py-1 text-[0.7rem] tabular-nums text-fg-muted"
+                  aria-live="polite">{{ facing() }}</span>
+            <button type="button" (click)="turn(1)" aria-label="Turn the board right"
+                    class="px-2 py-1 text-[0.7rem] text-fg-subtle transition hover:text-fg">↻</button>
           </div>
+
+          <label class="flex items-center gap-2 rounded-md border border-rule bg-bg/85
+                        px-2 py-1 text-[0.7rem] text-fg-muted backdrop-blur"
+                 title="How steeply the camera looks down">
+            <span>Tilt</span>
+            <input type="range" min="0.15" max="1.45" step="0.01"
+                   [value]="pitch()" (input)="setPitch($event)"
+                   aria-label="How steeply the camera looks down"
+                   class="h-1 w-16 cursor-pointer accent-accent" />
+          </label>
 
           @if (hasClock()) {
             <button type="button" (click)="openPanel('plants')"
@@ -280,7 +285,7 @@ import { clockLabel, dateLabel, latitudeName } from './sun-position';
 
       <p class="pointer-events-none absolute bottom-2 right-2 rounded-md border border-rule
                 bg-bg/85 px-2 py-1 text-[0.65rem] text-fg-subtle backdrop-blur">
-        Drag a token to move · drag the board to pan · scroll to zoom · Alt to place freely@if (cameraMode() === 'PERSPECTIVE') { · Shift-drag to orbit }
+        Drag a token to move · drag the board to pan · scroll to zoom · Alt to place freely · Shift-drag to orbit
       </p>
     </div>
   `,
@@ -317,12 +322,11 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   private renderer: BoardRenderer | null = null;
   private observer: ResizeObserver | null = null;
 
-  protected readonly cameraMode = signal<CameraMode>('TOP_DOWN');
-
-  protected readonly cameraModes: readonly { id: CameraMode; label: string }[] = [
-    { id: 'TOP_DOWN', label: 'Top-down' },
-    { id: 'PERSPECTIVE', label: 'Perspective' },
-  ];
+  /** Which of the eight bearings the board is turned to, and how steep the view is. */
+  protected readonly bearing = signal(0);
+  protected readonly pitch = signal(0.9);
+  protected readonly facing = computed(() =>
+    ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][this.bearing() % 8]);
   /**
    * Whether the expensive passes are on.
    *
@@ -617,10 +621,17 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     this.renderer?.setEffects(on);
   }
 
-  protected setCamera(mode: CameraMode): void {
-    this.cameraMode.set(mode);
-    this.renderer?.setCameraMode(mode);
+  protected turn(steps: number): void {
+    this.renderer?.turnBy(steps);
+    this.bearing.set(this.renderer?.bearing() ?? 0);
   }
+
+  protected setPitch(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.pitch.set(value);
+    this.renderer?.setPitch(value);
+  }
+
 
   // region Pointer
   //
@@ -667,7 +678,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
       this.dragging.set(true);
       // Shift orbits when the camera can; otherwise a drag on empty ground
       // always pans, which is what an overhead view can do.
-      if (event.shiftKey && this.cameraMode() === 'PERSPECTIVE') {
+      if (event.shiftKey) {
         renderer.orbitBy(dx, dy);
       } else {
         renderer.panBy(dx, dy);

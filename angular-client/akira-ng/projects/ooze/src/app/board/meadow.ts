@@ -1,6 +1,6 @@
 import {
   BufferAttribute, BufferGeometry, Color, DoubleSide, InstancedMesh, Material, Matrix4,
-  MeshStandardMaterial, OrthographicCamera, PerspectiveCamera, Quaternion, Vector2, Vector3,
+  MeshStandardMaterial, PerspectiveCamera, Quaternion, Vector2, Vector3,
 } from 'three';
 import { BoardScene } from './board.models';
 import { GroundField, groundAt, heightAt, noise } from './ground-field';
@@ -358,7 +358,7 @@ export interface Meadow {
    *
    * <p>Called every frame. See {@link PLANTS_PER_PIXEL}.
    */
-  detail(camera: OrthographicCamera | PerspectiveCamera, pixelsHigh: number): void;
+  detail(camera: PerspectiveCamera, pixelsHigh: number): void;
   dispose(): void;
 }
 
@@ -802,7 +802,7 @@ export function meadow(
     meshes,
     plants,
     census,
-    detail(camera: OrthographicCamera | PerspectiveCamera, pixelsHigh: number): void {
+    detail(camera: PerspectiveCamera, pixelsHigh: number): void {
       detailFor(patches, camera, pixelsHigh);
     },
     dispose() {
@@ -845,28 +845,17 @@ interface Patch {
  */
 function detailFor(
   patches: readonly Patch[],
-  camera: OrthographicCamera | PerspectiveCamera,
+  camera: PerspectiveCamera,
   pixelsHigh: number,
 ): void {
-  const perspective = (camera as PerspectiveCamera).isPerspectiveCamera === true;
-  // Half the vertical field, as a tangent, for the perspective case.
-  const spread = perspective
-    ? Math.tan(((camera as PerspectiveCamera).fov * Math.PI) / 360) * 2
-    : 0;
-  const ortho = camera as OrthographicCamera;
-  // Orthographic has one answer for the whole board: the view is the same size
-  // wherever you are in it.
-  const flatWorldPerPixel = perspective
-    ? 0
-    : (ortho.top - ortho.bottom) / Math.max(1, pixelsHigh * (ortho.zoom || 1));
+  // Half the vertical field, as a tangent: how much world one pixel covers at
+  // a distance of one.
+  const spread = Math.tan((camera.fov * Math.PI) / 360) * 2;
 
   for (const patch of patches) {
-    let worldPerPixel = flatWorldPerPixel;
-    if (perspective) {
-      const centre = patch.mesh.boundingSphere?.center;
-      const away = centre ? camera.position.distanceTo(centre) : 1;
-      worldPerPixel = (spread * away) / Math.max(1, pixelsHigh);
-    }
+    const centre = patch.mesh.boundingSphere?.center;
+    const away = centre ? camera.position.distanceTo(centre) : 1;
+    const worldPerPixel = (spread * away) / Math.max(1, pixelsHigh);
     const perPixel = patch.density * worldPerPixel * worldPerPixel;
     const share = perPixel <= PLANTS_PER_PIXEL
       ? 1

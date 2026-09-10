@@ -3,7 +3,7 @@ import {
   ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DirectionalLight,
   Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, LinearFilter,
   Material, Matrix4, Mesh,
-  MeshBasicMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D, OrthographicCamera,
+  MeshBasicMaterial, MeshStandardMaterial, NeutralToneMapping, Object3D,
   PCFShadowMap, PerspectiveCamera, Plane, PlaneGeometry, RGBAFormat, Raycaster, RingGeometry,
   Scene, ShaderMaterial, Vector2, Vector3, WebGLRenderer,
 } from 'three';
@@ -23,8 +23,16 @@ import { ScatterLayer, scatterGround } from './ground-scatter';
 import { Meadow, meadow } from './meadow';
 import { groundField } from './ground-field';
 
-/** Top-down and locked, or a camera you can orbit. */
-export type CameraMode = 'TOP_DOWN' | 'PERSPECTIVE';
+/**
+ * The eight compass bearings the camera snaps to.
+ *
+ * <p>Snapping rather than free rotation, because a battle map is read against
+ * its own grid: a board at eleven degrees off north has every square a
+ * different shape and every distance a guess. Eight positions keep the grid
+ * legible from any of them and make "turn the board" a click rather than a
+ * drag somebody has to undo.
+ */
+export const BEARINGS = 8;
 
 /**
  * How far the structural boxes sit inside the art laid over them, in half-feet.
@@ -195,8 +203,7 @@ export class BoardRenderer {
    */
   private maxRenderHeight = 1440;
   private readonly tokens = new Group();
-  private camera: OrthographicCamera | PerspectiveCamera;
-  private mode: CameraMode = 'TOP_DOWN';
+  private camera: PerspectiveCamera;
   /** The pending requestAnimationFrame handle, so the loop can be stopped. */
   private animation = 0;
   private fps = 0;
@@ -397,7 +404,7 @@ export class BoardRenderer {
     // three reads the target's *world* matrix, and an orphan never gets one.
     this.scene.add(this.sun, this.sun.target);
 
-    this.camera = this.makeCamera('TOP_DOWN');
+    this.camera = this.makeCamera();
   }
 
   /**
@@ -1331,28 +1338,7 @@ export class BoardRenderer {
     return group;
   }
 
-  /** Switches between the locked overhead view and a camera you can orbit. */
-  setCameraMode(mode: CameraMode): void {
-    if (mode === this.mode) {
-      return;
-    }
-    this.mode = mode;
-    this.camera = this.makeCamera(mode);
-    this.post?.setCamera(this.camera);
-    this.place();
-  }
-
-  cameraMode(): CameraMode {
-    return this.mode;
-  }
-
-  private makeCamera(mode: CameraMode): OrthographicCamera | PerspectiveCamera {
-    if (mode === 'TOP_DOWN') {
-      const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 4000);
-      camera.up.set(0, 1, 0);
-      camera.layers.enable(MEADOW_LAYER);
-      return camera;
-    }
+  private makeCamera(): PerspectiveCamera {
     // A long lens, not a wide one. Fifty degrees puts the near corner of a
     // room a great deal closer than the far one and the board reads as a
     // fishbowl; thirty-four flattens the perspective toward the isometric look
@@ -1376,19 +1362,6 @@ export class BoardRenderer {
     // The element's shape, which the buffer matches — so this is the buffer's
     // aspect too, and neither camera has to know the picture is being scaled.
     const aspect = this.width / Math.max(1, this.height);
-    if (this.camera instanceof OrthographicCamera) {
-      const halfY = this.zoom / 2;
-      const halfX = halfY * aspect;
-      this.camera.left = -halfX;
-      this.camera.right = halfX;
-      this.camera.top = halfY;
-      this.camera.bottom = -halfY;
-      const target = new Vector3().addVectors(this.centre, this.pan);
-      this.camera.position.set(target.x, target.y, 1000);
-      this.camera.lookAt(target);
-      this.camera.updateProjectionMatrix();
-      return;
-    }
     this.camera.aspect = aspect;
     // Spherical around the look-at point, so orbiting keeps the board centred
     // rather than swinging it out of frame.
@@ -1663,16 +1636,55 @@ export class BoardRenderer {
     this.place();
   }
 
-  /** Orbits, for the perspective camera. Ignored while the view is locked overhead. */
+  /**
+   * Orbits freely, for a shift-drag.
+   *
+   * <p>Still here alongside the snapped bearings: a DM lining up a screenshot
+   * wants the angle they want, and a rule that only ever allowed eight would be
+   * a rule about the tool rather than about the board.
+   */
   orbitBy(dxPixels: number, dyPixels: number): void {
-    if (this.mode !== 'PERSPECTIVE') {
-      return;
-    }
     this.azimuth -= dxPixels * 0.005;
     // Clamped short of straight down and short of the horizon: past either the
     // board becomes unreadable and the camera feels broken rather than free.
     this.elevation = Math.max(0.15, Math.min(1.45, this.elevation - dyPixels * 0.005));
     this.place();
+  }
+
+  /**
+   * Turns the board a quarter-turn's eighth, and lands on it exactly.
+   *
+   * <p>Rounded onto the eight-point grid rather than added to wherever the
+   * camera happened to be, so a run of clicks always ends somewhere square and
+   * a free orbit is corrected by the next one rather than compounded.
+   */
+  turnBy(steps: number): void {
+    const step = (Math.PI * 2) / BEARINGS;
+    this.azimuth = (Math.round(this.azimuth / step) + steps) * step;
+    this.place();
+  }
+
+  /**
+   * How steeply the camera looks down, from nearly level to nearly overhead.
+   *
+   * <p>Replaces the orthographic view this board used to carry. Straight down
+   * was its own camera, its own projection and its own set of bugs — a grid
+   * that shimmered, tokens that read as flat discs, and no way to turn the
+   * board — for a picture this one produces by tilting.
+   */
+  setPitch(radians: number): void {
+    this.elevation = Math.max(0.15, Math.min(1.45, radians));
+    this.place();
+  }
+
+  pitch(): number {
+    return this.elevation;
+  }
+
+  /** Which of the eight bearings the camera is nearest, from 0 (north) round. */
+  bearing(): number {
+    const step = (Math.PI * 2) / BEARINGS;
+    return ((Math.round(this.azimuth / step) % BEARINGS) + BEARINGS) % BEARINGS;
   }
 
   /** Puts the camera back over the middle of the board. */
