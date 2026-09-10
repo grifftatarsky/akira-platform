@@ -187,9 +187,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       this.observer = new ResizeObserver(() => stage.resize());
       this.observer.observe(canvas);
     } catch (error) {
-      this.fault.set(
-        error instanceof Error ? error.message : 'The board could not start.',
-      );
+      // Babylon throws bare strings in places, so `error.message` is often
+      // undefined and the fallback hides the only useful thing there is.
+      console.error('[board]', error);
+      this.fault.set(String((error as { message?: string })?.message ?? error));
     }
   }
 

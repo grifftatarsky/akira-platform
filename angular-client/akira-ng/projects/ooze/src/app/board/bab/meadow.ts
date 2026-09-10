@@ -17,6 +17,7 @@ import type { Scene } from '@babylonjs/core/scene';
 // gets you `e.createComputeContext is not a function` at the first dispatch.
 import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
+import { BladeWind } from './blade-wind';
 import { fieldTexture } from './splat-bake';
 
 /**
@@ -45,10 +46,11 @@ const MAX_BLADES = 600_000;
 /** Segments up a blade. Four is enough to taper; the bend is not in geometry. */
 const SEGMENTS = 4;
 
+
 const SOW = `
 struct Params {
   a: vec4f,   // extentX, extentY, count, time
-  b: vec4f,   // width, height, wearCut, sway
+  b: vec4f,   // width, height, wearCut, droop
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -110,14 +112,22 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   var alive = 1.0 - smoothstep(params.b.z - 0.18, params.b.z, wear);
   alive *= step(0.02, alive);
 
+  // <p>There was a distance fade here, culling blades far from the camera. It
+  // is gone for two reasons, both measured. It bought nothing: a faded blade
+  // is still a degenerate triangle that the vertex stage pays for in full, and
+  // this meadow turned out to be bound by fill rather than by instances —
+  // halving the blade count saved 0.34 ms of 1.9. And it cannot work at all
+  // now that the sowing happens once instead of every frame, because the fade
+  // would freeze at wherever the camera stood when it ran. Culling for real
+  // means compacting the buffer and an indirect draw.
+
   let tall = params.b.y * clumpTall * (0.7 + 0.6 * rand(seed + 2u)) * alive;
   let wide = params.b.x * (0.8 + 0.4 * rand(seed + 5u));
 
-  // Wind: one slow travelling wave across the board plus a per-blade offset,
-  // so a gust crosses the field rather than every blade nodding together.
-  let phase = dot(where2, vec2f(0.021, 0.013)) - time * 1.5;
-  let gust = sin(phase) * 0.5 + 0.5;
-  let lean = params.b.w * (0.35 + 0.65 * gust) * (0.6 + 0.8 * rand(seed + 4u));
+  // A blade's own droop, and nothing to do with the wind — that bends the
+  // blade along its length in the vertex shader now, where it belongs, and
+  // where it does not need six hundred thousand threads a frame to happen.
+  let lean = params.b.w * (0.25 + 0.75 * rand(seed + 4u));
 
   let facing = rand(seed + 3u) * 6.2831853;
   let cf = cos(facing);
@@ -127,9 +137,18 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let sl = sin(lean);
 
   // Columns of the world matrix: across, up, through, and the root.
+  //
+  // <p><b>The through column stays horizontal, and that is the fix.</b>
+  // It is the column the blade's normal rides on, and building it properly
+  // perpendicular to a leaning blade tips the normal toward the ground — so a
+  // blade bent by the wind turns its face away from the sun and goes dark.
+  // With a coherent gust that happens to every blade in a band at once, which
+  // is why the wind showed up as a shadow sweeping across the field rather
+  // than as movement. Grass is not a mirror; keeping its normal level is both
+  // cheaper and closer to how a blade actually scatters light.
   let across = vec3f(cf, 0.0, -sf) * wide;
   let up = vec3f(sf * sl, cl, cf * sl) * tall;
-  let through = vec3f(sf * cl, -sl, cf * cl) * wide;
+  let through = vec3f(sf, 0.0, cf) * wide;
 
   let at = index * 4u;
   matrices[at + 0u] = vec4f(across, 0.0);
@@ -157,7 +176,7 @@ export interface Meadow {
   readonly matrices: StorageBuffer;
   /** How many blades are drawn, as a fraction of the buffer. */
   setDensity(fraction: number): void;
-  /** Re-sows for a new time, which is how the wind moves. */
+  /** Moves the wind. Cheap: one uniform, no dispatch. */
   step(seconds: number): void;
   /** Whether the last dispatch actually ran. False means the effect is not ready. */
   readonly ran: boolean;
@@ -174,7 +193,9 @@ export function sowMeadow(
   bladeGeometry().applyToMesh(mesh);
   mesh.alwaysSelectAsActiveMesh = true;
   mesh.useVertexColors = true;
-  mesh.material = bladeMaterial(scene, detailUrl);
+  const material = bladeMaterial(scene, detailUrl);
+  const wind = new BladeWind(material);
+  mesh.material = material;
   mesh.receiveShadows = true;
 
   // Storage *and* vertex, which is the whole trick: the compute pass writes it
@@ -244,7 +265,19 @@ export function sowMeadow(
       mesh.forcedInstanceCount = count;
     },
     step(seconds: number): void {
-      dispatch(seconds);
+      // Only the time has changed, and the bend reads that from a uniform in
+      // the vertex shader — so no dispatch, which is the whole saving.
+      wind.time = seconds;
+      if (!ran) {
+        // Except until the first one lands. A compute effect is compiled
+        // asynchronously and `dispatch` quietly returns false until it is
+        // ready, so the sowing at construction never actually runs. While the
+        // wind was also a dispatch that was invisible — some later frame
+        // caught it. Without one, the buffer stays zero and every blade is a
+        // degenerate triangle at the origin: six hundred thousand instances
+        // drawn, and a field with no grass in it.
+        dispatch(seconds);
+      }
     },
     dispose(): void {
       mesh.dispose();

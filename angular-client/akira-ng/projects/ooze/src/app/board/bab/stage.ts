@@ -213,14 +213,48 @@ export class Stage {
 
     this.sun.direction = toward.scale(-1);
     const { intensity, color } = sunlight(elevation);
-    this.sun.intensity = Math.max(0, intensity);
-    this.sun.diffuse = Color3.FromHexString(
+    const sunColor = Color3.FromHexString(
       `#${color.toString(16).padStart(6, '0')}`,
     );
+    this.sun.intensity = Math.max(0, intensity);
+    this.sun.diffuse = sunColor;
+    this.sun.specular = sunColor;
     this.sky.sunPosition = toward.scale(100);
+
+    // How far into evening this is: nothing above twenty-five degrees, all the
+    // way at the horizon. Everything below hangs off it, because everything
+    // below has the same cause — light arriving through more air.
+    const dusk = Math.max(0, Math.min(1, 1 - Math.max(0, elevation) / 25));
+
+    // <b>The sky has to travel with the sun.</b> Left at one setting it simply
+    // greys as the sun drops, which is what a photograph of dusk looks like
+    // with the white balance nailed to noon. Turbidity is how much haze the
+    // light is crossing, and it is the whole reason a low sun is orange.
+    this.sky.turbidity = 2.2 + 9 * dusk;
+    this.sky.rayleigh = 1.5 + 1.1 * dusk;
+    this.sky.luminance = 1 - 0.4 * dusk;
+    this.sky.mieDirectionalG = 0.8 - 0.1 * dusk;
+
+    // The ambient stands in for the whole sky, so it cannot stay the same cool
+    // blue all evening — at six the sky over a field *is* the warm half of the
+    // light, and a blue fill under an orange sun is what made the grass read
+    // as midday green at half past five.
+    this.ambient.diffuse = Color3.Lerp(
+      new Color3(0.62, 0.72, 0.9), new Color3(0.55, 0.42, 0.36), dusk,
+    );
+    this.ambient.groundColor = Color3.Lerp(
+      new Color3(0.28, 0.26, 0.2), new Color3(0.16, 0.12, 0.1), dusk,
+    );
+    this.ambient.intensity = (0.3 + 0.45 * Math.max(0, up)) * (1 - 0.5 * dusk);
+
+    // <b>Adaptation, but only part of it.</b> `eyeExposure` returns the full
+    // ratio an eye would settle on — about 2.7x at half past five — and
+    // applying all of it turns evening back into afternoon: the same picture,
+    // paler, with the warmth washed out of it. A real eye does open up, and a
+    // real evening is still visibly evening. The root keeps the direction of
+    // the adjustment and drops most of its size.
     this.scene.imageProcessingConfiguration.exposure =
-      (this.look.exposure ?? 1) * eyeExposure(elevation);
-    this.ambient.intensity = 0.35 + 0.45 * Math.max(0, up);
+      (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45);
   }
 
   /** Frames the whole board. */
