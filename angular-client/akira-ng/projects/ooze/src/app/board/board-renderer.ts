@@ -1460,6 +1460,9 @@ export class BoardRenderer {
         this.measuredAt = now;
       }
       this.time.value = now / 1000;
+      // How much of the meadow is worth drawing, for where the camera is now.
+      // A division and a clamp per chunk; see PLANTS_PER_PIXEL in the meadow.
+      this.plants?.detail(this.camera, this.renderer.domElement.height);
       this.flicker(this.time.value);
       if (this.effects) {
         this.motes?.step(this.time.value);

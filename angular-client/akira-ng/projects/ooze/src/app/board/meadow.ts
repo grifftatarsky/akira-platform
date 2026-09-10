@@ -1,6 +1,6 @@
 import {
   BufferAttribute, BufferGeometry, Color, DoubleSide, InstancedMesh, Material, Matrix4,
-  MeshStandardMaterial, Quaternion, Vector2, Vector3,
+  MeshStandardMaterial, OrthographicCamera, PerspectiveCamera, Quaternion, Vector2, Vector3,
 } from 'three';
 import { BoardScene } from './board.models';
 import { GroundField, groundAt, heightAt, noise } from './ground-field';
@@ -353,6 +353,12 @@ export interface Meadow {
    * anybody should be estimating in their head.
    */
   readonly census: readonly { name: string; plants: number; triangles: number }[];
+  /**
+   * Sets how much of each chunk to draw, for this camera at this size.
+   *
+   * <p>Called every frame. See {@link PLANTS_PER_PIXEL}.
+   */
+  detail(camera: OrthographicCamera | PerspectiveCamera, pixelsHigh: number): void;
   dispose(): void;
 }
 
@@ -447,6 +453,129 @@ function surfaceAt(field: GroundField, x: number, y: number): number {
 interface Plant {
   x: number; y: number; z: number;
   turn: number; tilt: number; scale: number; tone: number;
+  /** A stable draw, so that any prefix of a sorted bucket is a fair sample. */
+  rank: number;
+}
+
+/**
+ * How wide a chunk of meadow is, in half-feet.
+ *
+ * <p>The whole reason there are chunks. An instanced mesh is culled as one
+ * object, so a single mesh holding the board's grass is either wholly drawn or
+ * wholly skipped — and since it always overlaps the view, it is always wholly
+ * drawn. Zoomed in on two creatures, the board was submitting eight hundred
+ * thousand plants to show about fifteen thousand of them.
+ *
+ * <p>A hundred half-feet — fifty feet, ten squares — is a compromise between
+ * two costs that pull opposite ways. Smaller chunks cull more precisely and
+ * cost a draw call each, and a draw call in WebGL is not free: at eighty
+ * half-feet the board came to three hundred and eighteen calls a frame, which
+ * is a real slice of a sixty-hertz budget spent on submission rather than on
+ * anything visible. This is fifteen chunks, so five species come to at most
+ * seventy-five calls with the whole board in view — and a small fraction of
+ * that as soon as it is not, which is the case the chunking exists for.
+ */
+const CHUNK = 100;
+
+/**
+ * How many plants a pixel is allowed to be worth before they start being left
+ * out.
+ *
+ * <p>The other half of the same idea. Drawing eight hundred thousand plants
+ * into a screen that is a million pixels wide is not detail, it is a queue of
+ * geometry competing for the same pixel — every one of them shaded, and all but
+ * one of them thrown away. So the count drawn is scaled to keep roughly this
+ * many plants per pixel, which makes the meadow's cost a function of how big
+ * the picture is rather than how big the board is.
+ *
+ * <p>It works *because* of the widening: a blade dropped at distance leaves a
+ * gap, and the blades that remain are already being fattened to hold a pixel,
+ * so they close it. Without that this would read as the meadow thinning out.
+ */
+const PLANTS_PER_PIXEL = 0.7;
+
+/** Never below this fraction, or a distant board becomes bare ground. */
+const MIN_DETAIL = 0.25;
+
+/**
+ * A deterministic stream of random numbers from a position.
+ *
+ * <p>Nine values were wanted per candidate — two for the jitter, one for the
+ * species draw, one for the thinning, and five for turn, tilt, scale, tone and
+ * rank — and each was a separate `sin`-based hash. At three times density that
+ * is thirteen million transcendental calls to lay out a board, which is most of
+ * the pause when one loads. This seeds once per candidate from its position and
+ * shifts, which is a handful of integer operations a value.
+ *
+ * <p>Still deterministic from the coordinate, which is the property that
+ * matters: the same board is grown the same way every time it is drawn, and a
+ * meadow that reshuffled on every render would be a bug report.
+ */
+let stream = 1;
+function seedAt(x: number, y: number): void {
+  stream = (Math.imul(Math.round(x * 128), 0x27d4eb2d)
+    ^ Math.imul(Math.round(y * 128) + 0x9e37, 0x165667b1)) >>> 0;
+  // A zero state is a fixed point of xorshift and would make a whole row
+  // identical.
+  stream = stream === 0 ? 0x6d2b79f5 : stream;
+}
+function nextRandom(): number {
+  stream ^= stream << 13;
+  stream >>>= 0;
+  stream ^= stream >>> 17;
+  stream ^= stream << 5;
+  stream >>>= 0;
+  return stream / 4294967296;
+}
+
+/**
+ * One species' drift field, sampled once on a coarse lattice.
+ *
+ * <p>These fields decide where a species clusters and their features are tens
+ * of half-feet across; the candidates asking about them are a third of a
+ * half-foot apart. Evaluating the noise per candidate was sampling a hill at
+ * the resolution of the grass on it — seven and a half million calls for about
+ * thirty thousand distinct values. A lattice at a quarter of the field's own
+ * period, read back bilinearly, is the same field for a fortieth of the work.
+ */
+class Drift {
+
+  private readonly values: Float32Array;
+  private readonly wide: number;
+  private readonly high: number;
+
+  constructor(
+    widthHalfFeet: number,
+    heightHalfFeet: number,
+    private readonly step: number,
+    frequency: number,
+    salt: number,
+  ) {
+    this.wide = Math.ceil(widthHalfFeet / step) + 2;
+    this.high = Math.ceil(heightHalfFeet / step) + 2;
+    this.values = new Float32Array(this.wide * this.high);
+    for (let j = 0; j < this.high; j++) {
+      for (let i = 0; i < this.wide; i++) {
+        this.values[j * this.wide + i] =
+          noise(i * step * frequency + salt * 37.3, j * step * frequency + salt * 91.7);
+      }
+    }
+  }
+
+  at(x: number, y: number): number {
+    const gx = Math.min(this.wide - 2, Math.max(0, x / this.step));
+    const gy = Math.min(this.high - 2, Math.max(0, y / this.step));
+    const i = Math.floor(gx);
+    const j = Math.floor(gy);
+    const fx = gx - i;
+    const fy = gy - j;
+    const at = j * this.wide + i;
+    const a = this.values[at];
+    const b = this.values[at + 1];
+    const c = this.values[at + this.wide];
+    const d = this.values[at + this.wide + 1];
+    return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+  }
 }
 
 /**
@@ -474,13 +603,28 @@ export function meadow(
   // the spacing directly would go from bare to unusable across two notches at
   // one end and do nothing at the other.
   const stride = (mixed ? MIXED_STRIDE : GRASS_STRIDE) / Math.sqrt(Math.max(0.05, spread));
-  const plots: Plant[][] = growing.map(() => []);
+
+  const wide = Math.max(1, Math.ceil(board.widthHalfFeet / CHUNK));
+  const high = Math.max(1, Math.ceil(board.heightHalfFeet / CHUNK));
+  const chunkWide = board.widthHalfFeet / wide;
+  const chunkHigh = board.heightHalfFeet / high;
+  const chunks = wide * high;
+
+  // A bucket per species per chunk. Sparse in practice — the road has no
+  // grass on it — and empty ones never become a mesh.
+  const plots: Plant[][] = new Array(growing.length * chunks);
   const weights = new Float64Array(growing.length);
+  const drifts = growing.map((species, s) =>
+    // A quarter of the field's own period, which is as coarse as bilinear
+    // interpolation can be without visibly flattening the crests.
+    new Drift(board.widthHalfFeet, board.heightHalfFeet,
+      Math.max(1, 0.25 / species.patch), species.patch, s));
 
   for (let y = stride / 2; y < board.heightHalfFeet; y += stride) {
     for (let x = stride / 2; x < board.widthHalfFeet; x += stride) {
-      const jx = x + (hash(x, y, 3) - 0.5) * stride;
-      const jy = y + (hash(x, y, 5) - 0.5) * stride;
+      seedAt(x, y);
+      const jx = x + (nextRandom() - 0.5) * stride;
+      const jy = y + (nextRandom() - 0.5) * stride;
       const { wear, wet } = groundAt(field, jx, jy);
       if (wet > 0.3) {
         continue;
@@ -503,7 +647,7 @@ export function meadow(
           weights[s] = 0;
           continue;
         }
-        const drift = noise(jx * species.patch + s * 37.3, jy * species.patch + s * 91.7);
+        const drift = drifts[s].at(jx, jy);
         const share = species.punctuates ? species.share / spread : species.share;
         weights[s] = share * Math.pow(drift, species.clumping);
         total += weights[s];
@@ -511,7 +655,7 @@ export function meadow(
       if (total <= 0) {
         continue;
       }
-      let pick = hash(jx, jy, 29) * total;
+      let pick = nextRandom() * total;
       let best = growing.length - 1;
       for (let s = 0; s < growing.length; s++) {
         pick -= weights[s];
@@ -528,19 +672,22 @@ export function meadow(
       // Thinning toward whatever this species cannot take, so the mixture
       // changes across the verge as well as the amount — which is what a real
       // path edge does.
-      if (hash(jx, jy, 7) > vigour * density) {
+      if (nextRandom() > vigour * density) {
         continue;
       }
-      const [low, high] = species.scale;
-      plots[best].push({
+      const [low, high2] = species.scale;
+      const cx = Math.min(wide - 1, Math.floor(jx / chunkWide));
+      const cy = Math.min(high - 1, Math.floor(jy / chunkHigh));
+      const bucket = best * chunks + cy * wide + cx;
+      (plots[bucket] ??= []).push({
         x: jx,
         y: jy,
         z: surfaceAt(field, jx, jy) - ROOT_SINK,
-        turn: hash(jx, jy, 11) * Math.PI * 2,
+        turn: nextRandom() * Math.PI * 2,
         // Rooted a few degrees off vertical. Nothing grows out of the ground
         // at a right angle, and a meadow where everything does reads as
         // something placed rather than something grown.
-        tilt: (hash(jx, jy, 17) - 0.5) * 0.34,
+        tilt: (nextRandom() - 0.5) * 0.34,
         // <b>Cropped as well as thinned.</b> Thinning alone left the meadow
         // full height right up to a line and then nothing, which is a lawn
         // with a hole cut in it — the one shape a verge never has. Grass
@@ -549,15 +696,26 @@ export function meadow(
         // makes the edge of a path look walked rather than drawn. Cubed
         // toward the vigorous end, so the middle of the meadow is untouched
         // and the last two feet do nearly all of the shortening.
-        scale: (low + hash(jx, jy, 13) * (high - low))
+        scale: (low + nextRandom() * (high2 - low))
           * (0.34 + 0.66 * (1 - (1 - vigour) * (1 - vigour) * (1 - vigour))),
-        tone: hash(jx, jy, 19),
+        tone: nextRandom(),
+        rank: nextRandom(),
       });
+    }
+  }
+
+  // Everything standing in each chunk, whatever species it is. See Patch.
+  const chunkTotals = new Float64Array(chunks);
+  for (let s = 0; s < growing.length; s++) {
+    for (let chunk = 0; chunk < chunks; chunk++) {
+      chunkTotals[chunk] += plots[s * chunks + chunk]?.length ?? 0;
     }
   }
 
   const meshes: InstancedMesh[] = [];
   const materials: Material[] = [];
+  const geometries: BufferGeometry[] = [];
+  const patches: Patch[] = [];
   const census: { name: string; plants: number; triangles: number }[] = [];
   let plants = 0;
 
@@ -573,45 +731,68 @@ export function meadow(
   const tone = new Color();
 
   growing.forEach((species, s) => {
-    const plot = plots[s];
-    if (plot.length === 0) {
-      return;
-    }
+    const geometry = speciesGeometry(species);
     const material = plantMaterial(species, light, time, viewport, wind);
-    const mesh = new InstancedMesh(speciesGeometry(species), material, plot.length);
-    mesh.receiveShadow = true;
-    mesh.castShadow = species.casts;
-    // An instanced mesh's bounding sphere is one *plant's*, so three would
-    // cull the entire meadow the moment the camera left one square foot of it.
-    mesh.frustumCulled = false;
+    const perPlant = (geometry.getIndex()?.count ?? 0) / 3;
+    let grown = 0;
 
     // Two colors rather than a tint on one: the dry end of a July meadow is
     // not the wet end darkened, it is a different, yellower color.
     lush.setHex(species.lush);
     dry.setHex(species.dry);
-    plot.forEach((plant, i) => {
-      position.set(plant.x, plant.y, plant.z);
-      quaternion.setFromAxisAngle(up, plant.turn);
-      lean.setFromAxisAngle(across, plant.tilt);
-      quaternion.multiply(lean);
-      scale.setScalar(plant.scale);
-      mesh.setMatrixAt(i, matrix.compose(position, quaternion, scale));
-      // Multiplies the per-vertex root-to-tip ramp rather than replacing it,
-      // so a plant keeps its own shading and only shifts along its range.
-      mesh.setColorAt(i, tone.copy(lush).lerp(dry, plant.tone));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (mesh.instanceColor) {
-      mesh.instanceColor.needsUpdate = true;
+
+    for (let chunk = 0; chunk < chunks; chunk++) {
+      const plot = plots[s * chunks + chunk];
+      if (!plot || plot.length === 0) {
+        continue;
+      }
+      // Sorted so that drawing the first n of them is a fair sample of the
+      // whole chunk rather than a wedge of it — which is what makes the
+      // detail level below a thinning and not a hole.
+      plot.sort((a, b) => a.rank - b.rank);
+
+      const mesh = new InstancedMesh(geometry, material, plot.length);
+      mesh.receiveShadow = true;
+      mesh.castShadow = species.casts;
+      plot.forEach((plant, i) => {
+        position.set(plant.x, plant.y, plant.z);
+        quaternion.setFromAxisAngle(up, plant.turn);
+        lean.setFromAxisAngle(across, plant.tilt);
+        quaternion.multiply(lean);
+        scale.setScalar(plant.scale);
+        mesh.setMatrixAt(i, matrix.compose(position, quaternion, scale));
+        // Multiplies the per-vertex root-to-tip ramp rather than replacing it,
+        // so a plant keeps its own shading and only shifts along its range.
+        mesh.setColorAt(i, tone.copy(lush).lerp(dry, plant.tone));
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+      // Now that a mesh covers one chunk rather than the board, its bounding
+      // sphere is a real answer to "is any of this on screen" and culling can
+      // be left on. This is the whole point of the chunking.
+      mesh.computeBoundingSphere();
+      mesh.frustumCulled = true;
+
+      meshes.push(mesh);
+      patches.push({
+        mesh,
+        total: plot.length,
+        density: chunkTotals[chunk] / (chunkWide * chunkHigh),
+      });
+      grown += plot.length;
     }
-    meshes.push(mesh);
+
+    if (grown === 0) {
+      geometry.dispose();
+      material.dispose();
+      return;
+    }
     materials.push(material);
-    plants += plot.length;
-    census.push({
-      name: species.name,
-      plants: plot.length,
-      triangles: ((mesh.geometry.getIndex()?.count ?? 0) / 3) * plot.length,
-    });
+    geometries.push(geometry);
+    plants += grown;
+    census.push({ name: species.name, plants: grown, triangles: perPlant * grown });
   });
 
   if (meshes.length === 0) {
@@ -621,11 +802,79 @@ export function meadow(
     meshes,
     plants,
     census,
+    detail(camera: OrthographicCamera | PerspectiveCamera, pixelsHigh: number): void {
+      detailFor(patches, camera, pixelsHigh);
+    },
     dispose() {
-      meshes.forEach(mesh => mesh.geometry.dispose());
+      geometries.forEach(geometry => geometry.dispose());
       materials.forEach(material => material.dispose());
     },
   };
+}
+
+/** One chunk of one species, and what it takes to decide how much of it to draw. */
+interface Patch {
+  readonly mesh: InstancedMesh;
+  readonly total: number;
+  /**
+   * Plants per square half-foot *of the whole chunk*, every species counted.
+   *
+   * <p>Not this species' own density, which was the first attempt and barely
+   * did anything: five species each measuring only themselves each concluded
+   * they were sparse enough to draw in full, and between them they put six
+   * plants in every pixel. They are competing for the same pixel, so they have
+   * to be measured against it together — and then thinned by the same factor,
+   * which is also what keeps the mixture the mixture.
+   */
+  readonly density: number;
+}
+
+/**
+ * Draws as much of each chunk as the picture can actually show.
+ *
+ * <p>How many plants land in a pixel is the whole question, and it is
+ * answerable: it is the chunk's density times the square of how much world one
+ * pixel covers. Under the target every plant is drawn; over it, the count is
+ * scaled down to meet it. So a board seen whole draws a fraction of its meadow
+ * and a board zoomed in draws all of the little that is in view, and in both
+ * cases the work is set by the size of the picture rather than the size of the
+ * board.
+ *
+ * <p>Cheap enough to do every frame — a division and a clamp per chunk, and
+ * there are on the order of a hundred of them.
+ */
+function detailFor(
+  patches: readonly Patch[],
+  camera: OrthographicCamera | PerspectiveCamera,
+  pixelsHigh: number,
+): void {
+  const perspective = (camera as PerspectiveCamera).isPerspectiveCamera === true;
+  // Half the vertical field, as a tangent, for the perspective case.
+  const spread = perspective
+    ? Math.tan(((camera as PerspectiveCamera).fov * Math.PI) / 360) * 2
+    : 0;
+  const ortho = camera as OrthographicCamera;
+  // Orthographic has one answer for the whole board: the view is the same size
+  // wherever you are in it.
+  const flatWorldPerPixel = perspective
+    ? 0
+    : (ortho.top - ortho.bottom) / Math.max(1, pixelsHigh * (ortho.zoom || 1));
+
+  for (const patch of patches) {
+    let worldPerPixel = flatWorldPerPixel;
+    if (perspective) {
+      const centre = patch.mesh.boundingSphere?.center;
+      const away = centre ? camera.position.distanceTo(centre) : 1;
+      worldPerPixel = (spread * away) / Math.max(1, pixelsHigh);
+    }
+    const perPixel = patch.density * worldPerPixel * worldPerPixel;
+    const share = perPixel <= PLANTS_PER_PIXEL
+      ? 1
+      : Math.max(MIN_DETAIL, PLANTS_PER_PIXEL / perPixel);
+    patch.mesh.count = share >= 1
+      ? patch.total
+      : Math.max(1, Math.ceil(patch.total * share));
+  }
 }
 
 /**
@@ -775,9 +1024,4 @@ function plantMaterial(
   // with no wind in it at all and the whole meadow stands still.
   material.customProgramCacheKey = () => `board-meadow-${species.name}`;
   return material;
-}
-
-function hash(x: number, y: number, salt: number): number {
-  const n = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
-  return n - Math.floor(n);
 }
