@@ -19,7 +19,7 @@ describe('scatter', () => {
         tiles.push({
           x: x * 10 + 5, y: y * 10 + 5, size: 10, base: 0, height: 0,
           kind, light: 'BRIGHT', opaque: false, cover: 'NONE', rotation: 0,
-          colour: 0, baseColour: 0,
+          color: 0, baseColor: 0,
         });
       }
     }

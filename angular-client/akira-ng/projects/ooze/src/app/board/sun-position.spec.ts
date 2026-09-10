@@ -59,7 +59,7 @@ describe('sun position', () => {
     it('reddens as it falls, because the blue end scatters out first', () => {
       const blueness = (c: number) => (c & 0xff) / ((c >> 16) & 0xff);
 
-      expect(blueness(sunlight(5).colour)).toBeLessThan(blueness(sunlight(74).colour));
+      expect(blueness(sunlight(5).color)).toBeLessThan(blueness(sunlight(74).color));
     });
 
     it('goes out below the horizon', () => {

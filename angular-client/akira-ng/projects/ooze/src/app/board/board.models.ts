@@ -233,19 +233,19 @@ export interface TerrainTile {
    * What the square looks like in the light it is in.
    *
    * <p>For a renderer that has no lighting of its own — light folded into the
-   * colour is the only way a flat drawing can show a dark room.
+   * color is the only way a flat drawing can show a dark room.
    */
-  readonly colour: number;
+  readonly color: number;
   /**
    * The same square's material, before any light reaches it.
    *
    * <p>Both are carried because a renderer that *does* light the scene must not
-   * use the first. Shading the colour and then laying a dark film over the
+   * use the first. Shading the color and then laying a dark film over the
    * square applies the light level twice: deep water in an unlit room came out
-   * at five per cent of its own colour, which is to say black, and a DM could
+   * at five per cent of its own color, which is to say black, and a DM could
    * not tell a flooded cellar from a chasm.
    */
-  readonly baseColour: number;
+  readonly baseColor: number;
 }
 
 /** One creature on the board. */
@@ -264,7 +264,7 @@ export interface TokenPlacement {
   readonly acting: boolean;
   /** Not yet in the fight, drawn faded. */
   readonly onDeck: boolean;
-  readonly colour: number;
+  readonly color: number;
 }
 
 /**

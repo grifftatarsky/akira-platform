@@ -8,9 +8,9 @@ import { ROAD_NAME, at, roadMap } from './road-level';
  * Open country, drawn from measured materials.
  *
  * <p>The counter-argument to the dungeon. That board is a stylised pack: flat
- * colour off one hand-painted atlas, and no amount of lighting will make its
+ * color off one hand-painted atlas, and no amount of lighting will make its
  * stone look like stone because there is no surface in it to light. This one is
- * scans — colour, relief and roughness measured off real ground — and the whole
+ * scans — color, relief and roughness measured off real ground — and the whole
  * question it exists to answer is whether that is the difference it looks like
  * it should be.
  *

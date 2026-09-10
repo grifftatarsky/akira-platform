@@ -12,7 +12,7 @@ import { BoardLook, BoardPiece, BoardTheme, INDOOR_LOOK, PLAIN_THEME, pieceFor }
 import { WALL_HEIGHT } from './board-scene';
 import { ModelLibrary } from './model-library';
 import { EnvironmentLibrary } from './environment';
-import { FLAME_COLOUR, LIGHT_RANGE, lightField, lightSource } from './light-field';
+import { FLAME_COLOR, LIGHT_RANGE, lightField, lightSource } from './light-field';
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
 import { sunPosition, sunlight } from './sun-position';
@@ -104,7 +104,7 @@ export class BoardRenderer {
    * The squares, drawn.
    *
    * <p>Lit, which took two tries to get right. An unlit line is a constant
-   * colour against a floor whose brightness varies five-fold across the board,
+   * color against a floor whose brightness varies five-fold across the board,
    * so it cannot hold its contrast: a warm line was invisible in the torchlit
    * hall and glaring in the crypt, and a mid-grey one was merely faint in both.
    * Taking the same light as the floor makes the line a fixed *fraction*
@@ -152,6 +152,9 @@ export class BoardRenderer {
   private mode: CameraMode = 'TOP_DOWN';
   /** The pending requestAnimationFrame handle, so the loop can be stopped. */
   private animation = 0;
+  private fps = 0;
+  private frames = 0;
+  private measuredAt = 0;
   private disposed = false;
 
   /** Bumped on every render, so a model that loads late knows it is stale. */
@@ -271,6 +274,12 @@ export class BoardRenderer {
     // than photographed: torchlight that goes cream at the centre of the pool
     // is exactly the look we are aiming away from. Neutral keeps the hue and
     // only compresses the level.
+    // Counted by hand, because the effect chain renders the scene several
+    // times a frame and three resets these on every one of them — left alone,
+    // the readout reports the last full-screen blit and nothing else, which is
+    // one draw call and no triangles.
+    this.renderer.info.autoReset = false;
+
     this.renderer.toneMapping = NeutralToneMapping;
     // Slightly under one, so a torch has headroom to be the brightest thing on
     // the board rather than one more surface at full white.
@@ -442,7 +451,7 @@ export class BoardRenderer {
    * Moves the clock.
    *
    * <p>Everything about the sun follows: how high it is, which way it throws a
-   * shadow, how strong it is and what colour. Which is the point of making it
+   * shadow, how strong it is and what color. Which is the point of making it
    * a clock rather than four sliders — a low sun that is still white and full
    * strength is not a time of day, it is a mistake.
    */
@@ -464,14 +473,14 @@ export class BoardRenderer {
   private applyClock(): void {
     if (this.look.fixedSun) {
       this.sun.intensity = this.look.fixedSun.intensity;
-      this.sun.color.set(this.look.fixedSun.colour);
+      this.sun.color.set(this.look.fixedSun.color);
       this.pointSun(this.look.fixedSun.elevation, this.look.fixedSun.azimuth);
       return;
     }
     const at = sunPosition(this.hour, this.look.latitude, this.look.dayOfYear);
     const light = sunlight(at.elevation);
     this.sun.intensity = light.intensity;
-    this.sun.color.set(light.colour);
+    this.sun.color.set(light.color);
     // Below the horizon the sun contributes nothing, but its shadow camera
     // still has to point somewhere sane, so it is parked just above it.
     this.pointSun(Math.max(1, at.elevation), at.azimuth);
@@ -549,7 +558,7 @@ export class BoardRenderer {
         matrix.setPosition(tile.x, tile.y, tile.base);
         mesh.setMatrixAt(slot, matrix);
         // The box goes quiet only under a floor tile at ground level, where the
-        // model covers the square exactly and the box is nothing but colour
+        // model covers the square exactly and the box is nothing but color
         // underneath. It stays under a raised floor, where it is the plinth —
         // and it stays behind a wall, where it is the wall's mass: KayKit's
         // wall is a 1 1/4-foot facing panel, so hiding the box left every
@@ -720,7 +729,7 @@ export class BoardRenderer {
     const material = new ShaderMaterial({
       uniforms: {
         uSize: { value: scale },
-        uColour: { value: new Color(FLAME_COLOUR[0], FLAME_COLOUR[1], FLAME_COLOUR[2]) },
+        uColor: { value: new Color(FLAME_COLOR[0], FLAME_COLOR[1], FLAME_COLOR[2]) },
         uIntensity: { value: 1 },
       },
       vertexShader: FLAME_VERTEX,
@@ -798,7 +807,7 @@ export class BoardRenderer {
    * three release along with it.
    *
    * <p><b>The multiply lands before tone mapping, not after.</b> Three's last
-   * chunk is the obvious hook and the wrong one: by then the colour has been
+   * chunk is the obvious hook and the wrong one: by then the color has been
    * through the tone curve and encoded to sRGB, so scaling it there darkens a
    * display value rather than reducing an amount of light, and a torch could
    * never be brighter than white. Injected ahead of `tonemapping_fragment` the
@@ -908,7 +917,7 @@ export class BoardRenderer {
    * kind of object and raising one is a number rather than a different mesh.
    *
    * <p>Grouped by material and not by terrain, because that is what actually
-   * has to differ: colour rides on the instance, and only roughness, metalness
+   * has to differ: color rides on the instance, and only roughness, metalness
    * and whether the surface ripples need their own draw. A 520-square level is
    * three calls.
    */
@@ -926,7 +935,7 @@ export class BoardRenderer {
 
     this.tileSlots = new Array(board.tiles.length);
     const matrix = new Matrix4();
-    const colour = new Color();
+    const color = new Color();
 
     for (const [surface, indices] of buckets) {
       const size = board.tiles[indices[0]].size;
@@ -938,7 +947,7 @@ export class BoardRenderer {
       indices.forEach((tileIndex, slot) => {
         const tile = board.tiles[tileIndex];
         mesh.setMatrixAt(slot, boxMatrix(tile, matrix));
-        mesh.setColorAt(slot, colour.set(tile.baseColour));
+        mesh.setColorAt(slot, color.set(tile.baseColor));
         this.tileSlots[tileIndex] = { mesh, slot };
       });
       mesh.instanceMatrix.needsUpdate = true;
@@ -976,7 +985,7 @@ export class BoardRenderer {
    * token vanishes the moment a creature walks into the dark — which is exactly
    * when a DM needs to find it. Fully unlit, it escapes the atmosphere
    * entirely: once the room around it had an environment map, a tone curve and
-   * a colour grade, a flat disc of constant colour read as a plastic counter
+   * a color grade, a flat disc of constant color read as a plastic counter
    * dropped onto a painting, and got worse every time the lighting got better.
    *
    * <p>Half-lit is neither. The face still darkens as a creature walks into the
@@ -1000,13 +1009,13 @@ export class BoardRenderer {
     geometry.rotateX(Math.PI / 2);
 
     const face = this.lit(new MeshBasicMaterial({
-      color: new Color(t.colour),
+      color: new Color(t.color),
       transparent: t.onDeck,
       opacity: t.onDeck ? 0.5 : 1,
     }), TOKEN_LIGHT_BLEND);
     const side = this.lit(new MeshStandardMaterial({
       // Pewter, so it belongs to the room rather than to the token's state —
-      // the colour above is the information and this must not compete with it.
+      // the color above is the information and this must not compete with it.
       color: 0x26262c,
       roughness: 0.5,
       metalness: 0.15,
@@ -1220,7 +1229,17 @@ export class BoardRenderer {
       if (this.disposed) {
         return;
       }
-      this.time.value = performance.now() / 1000;
+      this.renderer.info.reset();
+      const now = performance.now();
+      // Counted over a second rather than from the last frame's delta, which
+      // swings far too much to read off a screen.
+      this.frames++;
+      if (now - this.measuredAt >= 1000) {
+        this.fps = Math.round((this.frames * 1000) / (now - this.measuredAt));
+        this.frames = 0;
+        this.measuredAt = now;
+      }
+      this.time.value = now / 1000;
       this.flicker(this.time.value);
       if (this.effects) {
         this.motes?.step(this.time.value);
@@ -1377,6 +1396,25 @@ export class BoardRenderer {
 
   // endregion
 
+  /**
+   * What the last frame actually cost.
+   *
+   * <p>Read off the renderer rather than estimated. Every budget on this board
+   * before this existed was a guess — triangles counted by hand, multiplied by
+   * the number of passes, and compared against a number that felt safe. That is
+   * not engineering, and it cost real quality: the scatter was capped at a few
+   * hundred objects on an estimate, when the right move was to throw ten
+   * thousand at it and watch what happened.
+   */
+  statistics(): { fps: number; calls: number; triangles: number; buffer: string } {
+    return {
+      fps: this.fps,
+      calls: this.renderer.info.render.calls,
+      triangles: this.renderer.info.render.triangles,
+      buffer: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
+    };
+  }
+
   /** Exposed so a test can assert what was built without a WebGL context. */
   meshCounts(): { tiles: number; art: number; props: number; tokens: number } {
     return {
@@ -1400,13 +1438,13 @@ function surfaceOf(tile: TerrainTile): GroundSurface {
 
 function groundMaterial(surface: GroundSurface): MeshStandardMaterial {
   return new MeshStandardMaterial({
-    // White, because the colour rides on the instance: three multiplies the
-    // per-instance colour into this one, so anything but white would tint the
+    // White, because the color rides on the instance: three multiplies the
+    // per-instance color into this one, so anything but white would tint the
     // whole board.
     color: 0xffffff,
     // Smooth for water, so the environment shows up in it as a highlight that
     // moves when the surface does. Metalness stays at zero even there: it tints
-    // the reflection by the base colour and drops the diffuse, so a blue
+    // the reflection by the base color and drops the diffuse, so a blue
     // surface reflected a warm cellar as bright cyan and stopped looking like
     // water at all. Water is a dielectric — a dark body with a clean highlight.
     roughness: surface === 'WET' ? 0.12 : surface === 'ICE' ? 0.25 : 0.9,
@@ -1463,11 +1501,11 @@ interface Flame {
  * needs a `SpriteMaterial` and a `SpriteMaterial` needs a *texture* to have a
  * shape. That texture was the bug: the glow was drawn on a canvas, and whatever
  * went wrong between the canvas and the GPU, what got drawn was the material's
- * flat colour across the whole quad — a hard-edged additive square at every
+ * flat color across the whole quad — a hard-edged additive square at every
  * torch on the board, pulsing, because the flicker was animating its size.
  *
  * <p>Computing the falloff in the fragment shader instead removes the entire
- * class of problem. There is no image to upload, no colour space to get wrong
+ * class of problem. There is no image to upload, no color space to get wrong
  * and no canvas to come back blank; a round flame is four lines of arithmetic
  * that cannot arrive as a square.
  */
@@ -1485,7 +1523,7 @@ const FLAME_VERTEX = `
 `;
 
 const FLAME_FRAGMENT = `
-  uniform vec3 uColour;
+  uniform vec3 uColor;
   uniform float uIntensity;
   varying vec2 vQuad;
   void main() {
@@ -1500,8 +1538,8 @@ const FLAME_FRAGMENT = `
       discard;
     }
     // Not premultiplied: additive blending is SRC_ALPHA, ONE, so the alpha
-    // does the falloff and the colour stays at full strength.
-    gl_FragColor = vec4(uColour * uIntensity, alpha);
+    // does the falloff and the color stays at full strength.
+    gl_FragColor = vec4(uColor * uIntensity, alpha);
   }
 `;
 

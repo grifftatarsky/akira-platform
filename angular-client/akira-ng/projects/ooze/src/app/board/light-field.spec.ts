@@ -14,7 +14,7 @@ describe('light field', () => {
   function tile(over: Partial<TerrainTile> = {}): TerrainTile {
     return {
       x: 5, y: 5, size: 10, base: 0, height: 0, kind: 'FLOOR', light: 'BRIGHT',
-      opaque: false, cover: 'NONE', rotation: 0, colour: 0, baseColour: 0, ...over,
+      opaque: false, cover: 'NONE', rotation: 0, color: 0, baseColor: 0, ...over,
     };
   }
 
@@ -97,7 +97,7 @@ describe('light field', () => {
 
       expect(brightness(after)).toBeGreaterThan(brightness(before));
       // Warm: a flame is orange, and the whole point of adding rather than
-      // brightening is that the pool differs in colour from the room.
+      // brightening is that the pool differs in color from the room.
       expect(after[0]).toBeGreaterThan(after[2]);
     });
 

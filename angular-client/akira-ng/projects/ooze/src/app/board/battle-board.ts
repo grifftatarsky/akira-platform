@@ -98,6 +98,13 @@ import { clockLabel } from './sun-position';
             </label>
           }
 
+          <button type="button" (click)="toggleStats()"
+                  [attr.aria-pressed]="!!stats()"
+                  [class]="stats() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
+                  class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
+                         font-medium backdrop-blur transition"
+                  title="Frame rate, draw calls, triangles">Stats</button>
+
           <button type="button" (click)="toggleGrid()"
                   [attr.aria-pressed]="grid()"
                   [class]="grid() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
@@ -131,6 +138,15 @@ import { clockLabel } from './sun-position';
         </p>
       }
 
+      @if (stats(); as s) {
+        <p class="pointer-events-none absolute left-2 top-11 rounded-md border border-rule
+                  bg-bg/85 px-2 py-1 font-mono text-[0.65rem] leading-relaxed text-fg-muted
+                  backdrop-blur">
+          {{ s.fps }} fps · {{ s.calls }} draws<br />
+          {{ s.tris }} · {{ s.buffer }}
+        </p>
+      }
+
       @if (selectedName(); as name) {
         <p class="pointer-events-none absolute bottom-2 left-2 rounded-md border border-rule
                   bg-bg/85 px-2 py-1 text-[0.7rem] text-fg backdrop-blur">{{ name }}</p>
@@ -152,7 +168,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    * Which art pack to draw with.
    *
    * <p>An input rather than a constant, so a DM can swap or remove one without
-   * the board caring. A theme with no models draws coloured tiles, which is what
+   * the board caring. A theme with no models draws colored tiles, which is what
    * deleting a pack looks like — and what building your own starts from.
    */
   readonly theme = input<BoardTheme>(KAYKIT_THEME);
@@ -205,12 +221,24 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    * The time of day, where the board has a sky to have one in.
    *
    * <p>Everything about the sun follows from it — height, bearing, strength,
-   * colour — so this is one control rather than four, and it cannot be set to
+   * color — so this is one control rather than four, and it cannot be set to
    * something the sky does not do.
    */
   protected readonly hour = signal(13);
   protected readonly clock = computed(() => clockLabel(this.hour()));
   protected readonly hasClock = signal(false);
+
+  /**
+   * What the last frame cost, while the readout is on.
+   *
+   * <p>Polled rather than pushed: the renderer runs its own loop outside
+   * Angular on purpose, and waking change detection sixty times a second to
+   * update a number nobody is reading would cost more than the number is
+   * worth.
+   */
+  protected readonly stats = signal<
+    { fps: number; calls: number; tris: string; buffer: string } | null>(null);
+  private polling = 0;
 
   protected readonly dragging = signal(false);
   protected readonly selectedId = signal<string | null>(null);
@@ -294,12 +322,35 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    clearInterval(this.polling);
     this.observer?.disconnect();
     // Geometries and materials hold device buffers that nothing collects for
     // us; a board rebuilt on every state change would leak until the context is
     // lost, which reads as "the tab got slow" hours later.
     this.renderer?.dispose();
     this.renderer = null;
+  }
+
+  protected toggleStats(): void {
+    if (this.polling) {
+      clearInterval(this.polling);
+      this.polling = 0;
+      this.stats.set(null);
+      return;
+    }
+    // Twice a second: fast enough to watch a change land, slow enough that the
+    // readout is legible rather than a blur of digits.
+    this.polling = setInterval(() => {
+      const read = this.renderer?.statistics();
+      this.stats.set(read ? {
+        fps: read.fps,
+        calls: read.calls,
+        tris: read.triangles >= 1_000_000
+          ? `${(read.triangles / 1_000_000).toFixed(1)}M tris`
+          : `${Math.round(read.triangles / 1000)}k tris`,
+        buffer: read.buffer,
+      } : null);
+    }, 500);
   }
 
   protected setHour(event: Event): void {

@@ -30,7 +30,7 @@ export const WALL_HEIGHT = 16;
  */
 export const TOKEN_LIFT = 1;
 
-const TERRAIN_COLOURS: Record<TerrainKind, number> = {
+const TERRAIN_COLORS: Record<TerrainKind, number> = {
   FLOOR: 0x6b6558,
   GRASS: 0x4f6134,
   ROAD: 0x7d6647,
@@ -46,11 +46,11 @@ const TERRAIN_COLOURS: Record<TerrainKind, number> = {
 };
 
 /**
- * How much of a tile's colour survives its light level.
+ * How much of a tile's color survives its light level.
  *
  * <p>A tint under an orthographic camera, and the same numbers become real light
  * intensities when a perspective camera and actual lights arrive — which is why
- * this is a multiplier rather than a palette of pre-darkened colours.
+ * this is a multiplier rather than a palette of pre-darkened colors.
  */
 export const LIGHT_FACTOR: Record<LightLevel, number> = {
   BRIGHT: 1,
@@ -83,11 +83,11 @@ export function opaqueAt(map: BattleMap, cell: MapCell | null): boolean {
   return (cell?.terrain ?? map.defaultTerrain) === 'WALL';
 }
 
-/** Darkens a colour by a light factor, channel by channel. */
-export function shade(colour: number, factor: number): number {
-  const r = Math.round(((colour >> 16) & 0xff) * factor);
-  const g = Math.round(((colour >> 8) & 0xff) * factor);
-  const b = Math.round((colour & 0xff) * factor);
+/** Darkens a color by a light factor, channel by channel. */
+export function shade(color: number, factor: number): number {
+  const r = Math.round(((color >> 16) & 0xff) * factor);
+  const g = Math.round(((color >> 8) & 0xff) * factor);
+  const b = Math.round((color & 0xff) * factor);
   return (r << 16) | (g << 8) | b;
 }
 
@@ -123,8 +123,8 @@ export function terrainTiles(map: BattleMap): TerrainTile[] {
         opaque: opaqueAt(map, cell),
         cover: cell?.cover ?? (kind === 'WALL' ? 'TOTAL' : 'NONE'),
         rotation: kind === 'WALL' ? wallRotation(x, y, isWall) : 0,
-        colour: shade(TERRAIN_COLOURS[kind], LIGHT_FACTOR[light]),
-        baseColour: TERRAIN_COLOURS[kind],
+        color: shade(TERRAIN_COLORS[kind], LIGHT_FACTOR[light]),
+        baseColor: TERRAIN_COLORS[kind],
       });
     }
   }
@@ -161,14 +161,14 @@ export function groundAt(map: BattleMap, xHalfFeet: number, yHalfFeet: number): 
   return (cell?.elevationFeet ?? 0) * 2;
 }
 
-// Muted on purpose, and re-muted once the board had a colour grade on it: a
+// Muted on purpose, and re-muted once the board had a color grade on it: a
 // saturation lift that flatters painted stone also flatters a flat disc, and
 // four bright counters were briefly the most eye-catching thing in a dungeon.
 // These are close to what a printed miniature base actually is.
-const ON_DECK_COLOUR = 0x5f5b69;
-const DOWN_COLOUR = 0x46464a;
-const BLOODIED_COLOUR = 0x8a3b31;
-const HEALTHY_COLOUR = 0x4a705a;
+const ON_DECK_COLOR = 0x5f5b69;
+const DOWN_COLOR = 0x46464a;
+const BLOODIED_COLOR = 0x8a3b31;
+const HEALTHY_COLOR = 0x4a705a;
 
 /**
  * Tokens from a saved encounter — the board before anybody rolls.
@@ -251,10 +251,10 @@ function token(
     bloodied: state.bloodied,
     acting: state.acting,
     onDeck: state.onDeck,
-    colour: state.down ? DOWN_COLOUR
-      : state.onDeck ? ON_DECK_COLOUR
-      : state.bloodied ? BLOODIED_COLOUR
-      : HEALTHY_COLOUR,
+    color: state.down ? DOWN_COLOR
+      : state.onDeck ? ON_DECK_COLOR
+      : state.bloodied ? BLOODIED_COLOR
+      : HEALTHY_COLOR,
   };
 }
 

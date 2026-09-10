@@ -87,17 +87,17 @@ describe('board scene', () => {
       expect(ledge.base).toBe(30);
     });
 
-    it('darkens a tile by its light level rather than recolouring it', () => {
+    it('darkens a tile by its light level rather than recoloring it', () => {
       const lit = terrainTiles(map())[0];
       const dark = terrainTiles(map({ defaultLight: 'DARKNESS' }))[0];
 
       // A multiplier, so the same numbers become light intensities when a
       // perspective camera and real lights arrive.
       expect(LIGHT_FACTOR.DARKNESS).toBeLessThan(LIGHT_FACTOR.BRIGHT);
-      expect(dark.colour).toBeLessThan(lit.colour);
+      expect(dark.color).toBeLessThan(lit.color);
       // The material itself is untouched, so a renderer with real lights can
       // apply the level once instead of inheriting it already applied.
-      expect(dark.baseColour).toBe(lit.baseColour);
+      expect(dark.baseColor).toBe(lit.baseColor);
       expect(shade(0xffffff, 0.5)).toBe(0x808080);
     });
 
@@ -255,14 +255,14 @@ describe('board scene', () => {
       expect(paused.tokens[0].acting).toBe(false);
     });
 
-    it('colours a bloodied creature differently from a healthy one, and a downed one again', () => {
+    it('colors a bloodied creature differently from a healthy one, and a downed one again', () => {
       const healthy = sceneForBattle(encounter, battle()).tokens[0];
       const hurt = sceneForBattle(encounter,
         battle({ order: [participant({ bloodied: true })] })).tokens[0];
       const down = sceneForBattle(encounter,
         battle({ order: [participant({ bloodied: true, down: true })] })).tokens[0];
 
-      expect(new Set([healthy.colour, hurt.colour, down.colour]).size).toBe(3);
+      expect(new Set([healthy.color, hurt.color, down.color]).size).toBe(3);
     });
 
     it('draws the on-deck list as well as the order', () => {

@@ -57,16 +57,16 @@ export function sunPosition(hour: number, latitude: number, dayOfYear: number): 
 }
 
 /**
- * How strong and what colour sunlight is at a given elevation.
+ * How strong and what color sunlight is at a given elevation.
  *
  * <p>Both change together and both come from the same cause: low light travels
  * through more atmosphere, so it loses more of itself and loses the blue end
  * first. That is the whole of why evening is orange, and getting it from one
  * number means the knob cannot be set to a bright blue sunset.
  */
-export function sunlight(elevation: number): { intensity: number; colour: number } {
+export function sunlight(elevation: number): { intensity: number; color: number } {
   if (elevation <= 0) {
-    return { intensity: 0, colour: 0x24304a };
+    return { intensity: 0, color: 0x24304a };
   }
   // Air mass, roughly: one at the zenith and rising sharply near the horizon.
   const mass = 1 / Math.max(0.06, Math.sin(elevation * RAD));
@@ -81,7 +81,7 @@ export function sunlight(elevation: number): { intensity: number; colour: number
 
   return {
     intensity: 3.4 * survives,
-    colour: (byte(r) << 16) | (byte(g) << 8) | byte(b),
+    color: (byte(r) << 16) | (byte(g) << 8) | byte(b),
   };
 }
 

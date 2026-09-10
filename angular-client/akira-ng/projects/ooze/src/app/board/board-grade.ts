@@ -11,7 +11,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
  * contrasty" is a taste and not a measurement.
  *
  * <p>Deliberately small. Saturation, contrast, a warm bias and a vignette are
- * four knobs that between them do most of what a colour grade does, and a LUT —
+ * four knobs that between them do most of what a color grade does, and a LUT —
  * the professional answer — is a texture to source, ship and keep in step with
  * a look nobody has settled on yet.
  *
@@ -51,23 +51,23 @@ export function gradePass(): ShaderPass {
 
       void main() {
         vec4 texel = texture2D(tDiffuse, vUv);
-        vec3 colour = texel.rgb;
+        vec3 color = texel.rgb;
 
         // Rec. 709 luma, not a flat average of the channels: the eye weighs
         // green far more than blue, and desaturating by the average turns a
         // warm scene muddy on its way to grey.
-        float luma = dot(colour, vec3(0.2126, 0.7152, 0.0722));
-        colour = mix(vec3(luma), colour, saturation);
+        float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+        color = mix(vec3(luma), color, saturation);
 
-        colour = (colour - 0.5) * contrast + 0.5;
-        colour *= tint;
+        color = (color - 0.5) * contrast + 0.5;
+        color *= tint;
 
         // Distance to the corner rather than to the edge, so the darkening is
         // round and does not track the shape of the window.
         float radius = length(vUv - 0.5) * 1.4142;
-        colour *= 1.0 - vignette * smoothstep(0.5, 1.0, radius);
+        color *= 1.0 - vignette * smoothstep(0.5, 1.0, radius);
 
-        gl_FragColor = vec4(max(colour, 0.0), texel.a);
+        gl_FragColor = vec4(max(color, 0.0), texel.a);
       }`,
   }));
 }

@@ -10,7 +10,7 @@ export type { BoardPiece, PropPlacement };
  * <p><b>A theme is a lookup table, not a dependency.</b> The renderer asks this
  * for a model and draws a primitive when it gets nothing back, so a pack can be
  * deleted from `public/` and the board still works — it just goes back to
- * coloured boxes. That is what "swappable" has to mean if it is going to survive
+ * colored boxes. That is what "swappable" has to mean if it is going to survive
  * the first time somebody wants their own art: not a switch that has to be
  * flipped everywhere, but an absence that degrades.
  *
@@ -63,21 +63,21 @@ export interface BoardEnvironment {
 
 /** One physically-based material set, and how big a tile of it is. */
 export interface GroundLayer {
-  readonly colour: string;
+  readonly color: string;
   readonly normal: string;
   /** Ambient occlusion, roughness and metalness packed into R, G and B. */
   readonly arm: string;
   /** Feet across one repeat. Too small and it visibly tiles; too big and it blurs. */
   readonly feet: number;
   /**
-   * Multiplied onto the scan's own colour, as r,g,b.
+   * Multiplied onto the scan's own color, as r,g,b.
    *
    * <p>Because a scan is of one particular place. Poly Haven's dirt was
    * photographed somewhere with pale sandy soil; the Virginia piedmont is red
    * clay, and the difference between the two is most of what makes a road look
    * like it is *somewhere*. Tinting is honest here in a way that repainting
    * would not be — the relief and the roughness are still measured, and only
-   * the colour is being placed.
+   * the color is being placed.
    */
   readonly tint?: readonly [number, number, number];
 }
@@ -122,7 +122,7 @@ export interface BoardLook {
   /**
    * Where and when, rather than which way to point a lamp.
    *
-   * <p>The sun's angle, strength and colour all follow from these — see
+   * <p>The sun's angle, strength and color all follow from these — see
    * {@link ./sun-position} — so the clock is a single knob that moves the
    * shadows the way a day actually moves them, and cannot be set to a bright
    * blue sunset.
@@ -134,7 +134,7 @@ export interface BoardLook {
   /** Indoors, where the sun is a stand-in for torches and has no clock. */
   readonly fixedSun?: {
     readonly intensity: number;
-    readonly colour: number;
+    readonly color: number;
     readonly elevation: number;
     readonly azimuth: number;
   };
@@ -154,7 +154,7 @@ export const INDOOR_LOOK: BoardLook = {
   hour: 13,
   // A cellar has no sky. The key light is standing in for lamps that are not
   // in the scene, so it is dialled rather than computed.
-  fixedSun: { intensity: 0.95, colour: 0xffe9cc, elevation: 68, azimuth: 145 },
+  fixedSun: { intensity: 0.95, color: 0xffe9cc, elevation: 68, azimuth: 145 },
   saturation: 1.16,
   contrast: 1.06,
   vignette: 0.34,
@@ -207,7 +207,7 @@ const HDRI_ROOT = 'assets/board/hdri';
  *
  * <p>A curated 37 of the pack's 203 pieces — enough to furnish a room rather
  * than merely floor it. Adding another is a line here plus a file; deleting the
- * directory takes the board back to coloured tiles, which is the point.
+ * directory takes the board back to colored tiles, which is the point.
  *
  * <p><b>Two scales, because the pack disagrees with D&D about how big a tile
  * is.</b> Measured: every floor and wall piece is 4.00 model units across and
@@ -306,7 +306,7 @@ function layer(
   name: string, feet: number, tint?: readonly [number, number, number],
 ): GroundLayer {
   return {
-    colour: `${PH_ROOT}/${name}_diff_1k.jpg`,
+    color: `${PH_ROOT}/${name}_diff_1k.jpg`,
     normal: `${PH_ROOT}/${name}_nor_gl_1k.jpg`,
     arm: `${PH_ROOT}/${name}_arm_1k.jpg`,
     feet,
@@ -318,9 +318,9 @@ function layer(
  * Open country, from Poly Haven scans.
  *
  * <p>The other half of the argument the dungeon pack makes. KayKit is drawn:
- * flat colour off one hand-painted atlas, stylised on purpose, and no amount of
+ * flat color off one hand-painted atlas, stylised on purpose, and no amount of
  * lighting will make its stone look like stone because there is no surface
- * detail in it to light. These are measured: colour, relief and roughness from
+ * detail in it to light. These are measured: color, relief and roughness from
  * a real surface, which is what lets a low sun rake across a rut or a high one
  * pick out the grain of dry dirt.
  *
@@ -390,7 +390,7 @@ export function themeById(id: string): BoardTheme {
  * Which piece a square of terrain should be built from.
  *
  * <p>Terrain kinds the pack has nothing for map to nothing, and the renderer
- * draws its coloured box. Water, lava and a chasm are all better as flat colour
+ * draws its colored box. Water, lava and a chasm are all better as flat color
  * than as a wrong-looking floor tile, so they are left unmapped on purpose
  * rather than by omission.
  */

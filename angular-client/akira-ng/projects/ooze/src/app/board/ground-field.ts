@@ -127,7 +127,7 @@ export function groundField(board: BoardScene): GroundField {
       const i = y * width + x;
       data[i * 4] = clampByte(wear[i]);
       data[i * 4 + 1] = clampByte(wet[i]);
-      // Two slow octaves, tens of feet across. Real ground is not one colour:
+      // Two slow octaves, tens of feet across. Real ground is not one color:
       // it is drier on the rises and ranker in the hollows, and without
       // something at that scale a perfectly good scanned texture repeats
       // visibly and the eye reads the repeat instead of the ground.

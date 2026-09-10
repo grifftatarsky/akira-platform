@@ -15,7 +15,7 @@ import { GroundField, groundField, heightAt } from './ground-field';
  * a dirt road can cross a meadow without a visible edge, and the edge is the
  * thing that gives a tiled board away.
  *
- * <p><b>Everything is a full PBR set, not a picture.</b> Colour, a normal map
+ * <p><b>Everything is a full PBR set, not a picture.</b> Color, a normal map
  * and a packed ambient-occlusion/roughness/metalness map, per layer. The normal
  * map is what makes dirt read as dirt under a high sun: at one o'clock the
  * light is nearly overhead and a flat surface has almost no shading to give, so
@@ -86,8 +86,8 @@ const STOCHASTIC = `
   }
 
   void splatLayer(
-    sampler2D colourMap, sampler2D normalMap, sampler2D armMap, vec2 uv,
-    out vec4 outColour, out vec3 outNormal, out vec3 outArm
+    sampler2D colorMap, sampler2D normalMap, sampler2D armMap, vec2 uv,
+    out vec4 outColor, out vec3 outNormal, out vec3 outArm
   ) {
     vec3 w; vec2 v1; vec2 v2; vec2 v3;
     splatGrid(uv, w, v1, v2, v3);
@@ -108,10 +108,10 @@ const STOCHASTIC = `
     vec3 sharp = w * w * w;
     sharp /= max(sharp.x + sharp.y + sharp.z, 0.0001);
 
-    outColour =
-        texture2D(colourMap, uv + o1) * sharp.x
-      + texture2D(colourMap, uv + o2) * sharp.y
-      + texture2D(colourMap, uv + o3) * sharp.z;
+    outColor =
+        texture2D(colorMap, uv + o1) * sharp.x
+      + texture2D(colorMap, uv + o2) * sharp.y
+      + texture2D(colorMap, uv + o3) * sharp.z;
 
     outNormal =
         (texture2D(normalMap, uv + o1).xyz * 2.0 - 1.0) * sharp.x
@@ -155,7 +155,7 @@ export function splatGround(
 
   const loader = new TextureLoader();
   const layers = ground.layers.map(layer => ({
-    colour: load(loader, layer.colour, true),
+    color: load(loader, layer.color, true),
     normal: load(loader, layer.normal, false),
     arm: load(loader, layer.arm, false),
     // Half-feet across one repeat of the texture.
@@ -171,7 +171,7 @@ export function splatGround(
     shader.uniforms['uBoardLight'] = lightUniform;
     shader.uniforms['uBoardExtent'] = extentUniform;
     layers.forEach((layer, i) => {
-      shader.uniforms[`uColour${i}`] = { value: layer.colour };
+      shader.uniforms[`uColor${i}`] = { value: layer.color };
       shader.uniforms[`uNormal${i}`] = { value: layer.normal };
       shader.uniforms[`uArm${i}`] = { value: layer.arm };
       shader.uniforms[`uRepeat${i}`] = { value: layer.repeat };
@@ -201,9 +201,9 @@ export function splatGround(
       varying vec3 vGroundNormal;
       uniform sampler2D uBoardLight;
       uniform vec2 uBoardExtent;
-      uniform sampler2D uColour0; uniform sampler2D uNormal0; uniform sampler2D uArm0;
-      uniform sampler2D uColour1; uniform sampler2D uNormal1; uniform sampler2D uArm1;
-      uniform sampler2D uColour2; uniform sampler2D uNormal2; uniform sampler2D uArm2;
+      uniform sampler2D uColor0; uniform sampler2D uNormal0; uniform sampler2D uArm0;
+      uniform sampler2D uColor1; uniform sampler2D uNormal1; uniform sampler2D uArm1;
+      uniform sampler2D uColor2; uniform sampler2D uNormal2; uniform sampler2D uArm2;
       uniform float uRepeat0; uniform float uRepeat1; uniform float uRepeat2;
       uniform vec3 uTint0; uniform vec3 uTint1; uniform vec3 uTint2;
       varying vec2 vGround;
@@ -228,7 +228,7 @@ export function splatGround(
         // Sampled once for the whole material and shared by every chunk below.
         // Each layer is nine texture reads, so gathering them here rather than
         // per chunk is the difference between nine and thirty-six.
-        vec4 layerColour = vec4(0.0);
+        vec4 layerColor = vec4(0.0);
         vec3 layerNormal = vec3(0.0);
         vec3 layerArm = vec3(0.0);
         vec4 c; vec3 n; vec3 a;
@@ -237,31 +237,31 @@ export function splatGround(
         // the middle of the road is bare and the meadow is lush, and only the
         // verge is a mixture. Branching here cuts the common case to a third.
         if (lw.x > 0.002) {
-          splatLayer(uColour0, uNormal0, uArm0, vGround / uRepeat0, c, n, a);
-          layerColour += vec4(uTint0, 1.0) * c * lw.x;
+          splatLayer(uColor0, uNormal0, uArm0, vGround / uRepeat0, c, n, a);
+          layerColor += vec4(uTint0, 1.0) * c * lw.x;
           layerNormal += n * lw.x;
           layerArm += a * lw.x;
         }
         if (lw.y > 0.002) {
-          splatLayer(uColour1, uNormal1, uArm1, vGround / uRepeat1, c, n, a);
-          layerColour += vec4(uTint1, 1.0) * c * lw.y;
+          splatLayer(uColor1, uNormal1, uArm1, vGround / uRepeat1, c, n, a);
+          layerColor += vec4(uTint1, 1.0) * c * lw.y;
           layerNormal += n * lw.y;
           layerArm += a * lw.y;
         }
         if (lw.z > 0.002) {
-          splatLayer(uColour2, uNormal2, uArm2, vGround / uRepeat2, c, n, a);
-          layerColour += vec4(uTint2, 1.0) * c * lw.z;
+          splatLayer(uColor2, uNormal2, uArm2, vGround / uRepeat2, c, n, a);
+          layerColor += vec4(uTint2, 1.0) * c * lw.z;
           layerNormal += n * lw.z;
           layerArm += a * lw.z;
         }
 
         // Wet ground is darker and shinier. Both, and it has to be both: dark
         // alone reads as a stain and shiny alone reads as varnish.
-        layerColour.rgb *= mix(1.0, 0.38, groundMask.g);
+        layerColor.rgb *= mix(1.0, 0.38, groundMask.g);
         // And the slow variation across the whole board, which is what stops a
         // perfectly good scan from reading as wallpaper.
-        layerColour.rgb *= mix(0.84, 1.16, groundMask.b);
-        diffuseColor *= layerColour;
+        layerColor.rgb *= mix(0.84, 1.16, groundMask.b);
+        diffuseColor *= layerColor;
       `)
       .replace('#include <roughnessmap_fragment>', `
         float roughnessFactor = roughness * layerArm.g;
@@ -323,7 +323,7 @@ export function splatGround(
       material.dispose();
       mask.dispose();
       layers.forEach(layer => {
-        layer.colour.dispose();
+        layer.color.dispose();
         layer.normal.dispose();
         layer.arm.dispose();
       });
@@ -363,15 +363,15 @@ function displace(
 /**
  * One map, tiling.
  *
- * <p>Colour maps are sRGB and the other two are not, and getting that backwards
+ * <p>Color maps are sRGB and the other two are not, and getting that backwards
  * is the classic way to end up with washed-out ground and normals that bend the
- * wrong way: a normal map is a direction encoded as a colour, not a colour.
+ * wrong way: a normal map is a direction encoded as a color, not a color.
  */
-function load(loader: TextureLoader, url: string, isColour: boolean): Texture {
+function load(loader: TextureLoader, url: string, isColor: boolean): Texture {
   const texture = loader.load(new URL(url, import.meta.url).href);
   texture.wrapS = RepeatWrapping;
   texture.wrapT = RepeatWrapping;
-  if (isColour) {
+  if (isColor) {
     texture.colorSpace = SRGBColorSpace;
   }
   // Sixteen taps rather than the default, because this ground is seen at a

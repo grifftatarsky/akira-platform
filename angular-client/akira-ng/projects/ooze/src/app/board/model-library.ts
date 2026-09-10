@@ -22,7 +22,7 @@ export interface InstancedPiece {
  * simply not be there — somebody deleted a pack, swapped in their own, or is
  * running before the assets were fetched — and the board has to keep working. A
  * miss resolves to null rather than rejecting, and the renderer draws its
- * coloured box. That is what makes the art removable rather than load-bearing.
+ * colored box. That is what makes the art removable rather than load-bearing.
  *
  * <p>Loaded once and cloned per instance: a forty-by-forty board is 1 600
  * squares, and parsing one floor tile that many times would be slow and would
@@ -208,7 +208,7 @@ export class ModelLibrary {
       : mergeGeometries(parts, !oneMaterial);
     if (!merged) {
       // Mismatched attributes between a model's own meshes. Rare, and not
-      // worth a second code path: the board draws its coloured box instead,
+      // worth a second code path: the board draws its colored box instead,
       // which is the same thing a missing file does.
       console.warn('[board] %s could not be merged for instancing — drawing a plain tile', piece);
       parts.forEach(g => g.dispose());

@@ -48,7 +48,7 @@ export const TEXELS_PER_HALF_FOOT = 0.8;
 export const LIGHT_RANGE = 2;
 
 /**
- * The colour of each light level, in linear RGB.
+ * The color of each light level, in linear RGB.
  *
  * <p>Not greys. Unlit is *blue*, because that is how an eye reports a room it
  * cannot see — and because a DM still has to read the board, so darkness has to
@@ -56,7 +56,7 @@ export const LIGHT_RANGE = 2;
  * and an unlit one differ in temperature and not only in level; that difference
  * is most of what separates a painted scene from a dimmed one.
  */
-const LEVEL_COLOUR: Record<LightLevel, readonly [number, number, number]> = {
+const LEVEL_COLOR: Record<LightLevel, readonly [number, number, number]> = {
   BRIGHT: [1, 0.97, 0.9],
   // Near-neutral and faintly warm, not blue. Dim was blue when it meant "this
   // room is unlit"; it now means "this room is lit by what is standing in it",
@@ -71,7 +71,7 @@ const LEVEL_COLOUR: Record<LightLevel, readonly [number, number, number]> = {
 };
 
 /** What a flame adds, on top of whatever the square's level already was. */
-export const FLAME_COLOUR: readonly [number, number, number] = [1, 0.6, 0.26];
+export const FLAME_COLOR: readonly [number, number, number] = [1, 0.6, 0.26];
 
 /** One thing that burns: how far it reaches and how hard. */
 export interface LightSource {
@@ -166,7 +166,7 @@ function paintLevels(
   extentY: number,
 ): void {
   for (const tile of tiles) {
-    const colour = LEVEL_COLOUR[tile.light];
+    const color = LEVEL_COLOR[tile.light];
     const wall = tile.height > 0;
     const half = tile.size / 2;
     const x0 = texel(tile.x - half, extentX, width);
@@ -176,9 +176,9 @@ function paintLevels(
     for (let y = y0; y < y1; y++) {
       for (let x = x0; x < x1; x++) {
         const at = (y * width + x) * 3;
-        rgb[at] = colour[0];
-        rgb[at + 1] = colour[1];
-        rgb[at + 2] = colour[2];
+        rgb[at] = color[0];
+        rgb[at + 1] = color[1];
+        rgb[at + 2] = color[2];
         if (wall) {
           solid[y * width + x] = 1;
         }
@@ -222,9 +222,9 @@ function addFlames(
           continue;
         }
         const at = (y * width + x) * 3;
-        rgb[at] += FLAME_COLOUR[0] * fall;
-        rgb[at + 1] += FLAME_COLOUR[1] * fall;
-        rgb[at + 2] += FLAME_COLOUR[2] * fall;
+        rgb[at] += FLAME_COLOR[0] * fall;
+        rgb[at + 1] += FLAME_COLOR[1] * fall;
+        rgb[at + 2] += FLAME_COLOR[2] * fall;
       }
     }
   }

@@ -64,7 +64,7 @@ import { CAST, SAMPLE_NAME, sampleMap, toCombatant, toParticipant } from './samp
         <p class="text-[0.65rem] text-fg-subtle">{{ credit }}</p>
       } @else {
         <p class="text-[0.65rem] text-fg-subtle">
-          No art loaded — the board falls back to coloured tiles and the furniture
+          No art loaded — the board falls back to colored tiles and the furniture
           goes with it, which is what removing a pack looks like. The rooms, the
           light and the terrain are all still there, because those are rules.
         </p>
@@ -90,7 +90,7 @@ export class BoardDemo {
   protected readonly selected = signal<string | null>(null);
 
   /**
-   * A fight in progress, so the ring, the bloodied colour and on-deck all show.
+   * A fight in progress, so the ring, the bloodied color and on-deck all show.
    *
    * <p>Held in a signal so a drag can move somebody. There is no server behind
    * this route, and a preview where dragging does nothing is worse than no
