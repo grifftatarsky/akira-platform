@@ -32,6 +32,15 @@ export interface Plant {
   /** Half-feet, before the clump's own scaling. */
   readonly tall: number;
   readonly wide: number;
+  /**
+   * How far a flower or seed head reaches from its stem, in half-feet.
+   *
+   * <p>Its own dimension, and that is the point. Scaling a head by the leaf's
+   * width squashed a daisy's twelve petals into a sixth of a foot on a stem
+   * more than a foot tall — every one of them present, counted in the
+   * triangles, and invisible.
+   */
+  readonly head: number;
 
   /** Segments up one leaf. More only matters where the thing curves. */
   readonly segments: number;
@@ -93,8 +102,8 @@ export const MEADOW: readonly Plant[] = [
       + 'with a crease along the midrib that catches the sun on one side only '
       + '— which is why a field of it glitters rather than sitting flat.',
     share: 0.55,
-    tall: 3.0, wide: 0.18, segments: 4,
-    widest: 0.22, fullness: 0.85, blunt: 0.04, notch: 0, fold: 0.55,
+    tall: 3.0, wide: 0.34, head: 0, segments: 4,
+    widest: 0.22, fullness: 0.85, blunt: 0.04, notch: 0, fold: 0.62,
     leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 0,
     droop: 0.42, stiff: 1,
     base: [0.13, 0.30, 0.08], tip: [0.44, 0.63, 0.21], bloom: [0, 0, 0],
@@ -108,9 +117,9 @@ export const MEADOW: readonly Plant[] = [
       + 'lump on a stick. It stands a foot above everything else so the sward '
       + 'has no flat ceiling, and it is the first thing to catch a low sun.',
     share: 0.08,
-    tall: 4.4, wide: 0.13, segments: 4,
-    widest: 0.18, fullness: 0.7, blunt: 0.03, notch: 0, fold: 0.4,
-    leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 8,
+    tall: 4.2, wide: 0.15, head: 0.42, segments: 4,
+    widest: 0.2, fullness: 0.8, blunt: 0.04, notch: 0, fold: 0.4,
+    leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 11,
     droop: 0.8, stiff: 1.5,
     base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.74, 0.66, 0.56],
     veins: 0, sweep: 0,
@@ -124,9 +133,9 @@ export const MEADOW: readonly Plant[] = [
       + 'without it a clover leaf is a spade, and a spade is a weed nobody can '
       + 'name.',
     share: 0.18,
-    tall: 1.2, wide: 0.44, segments: 4,
-    widest: 0.62, fullness: 1.55, blunt: 0.72, notch: 0.2, fold: 0.3,
-    leaflets: 3, spread: 0.72, stem: 0.52, petals: 0, spikelets: 0,
+    tall: 1.5, wide: 0.52, head: 0, segments: 6,
+    widest: 0.62, fullness: 1.05, blunt: 0.74, notch: 0.15, fold: 0.28,
+    leaflets: 3, spread: 0.8, stem: 0.85, petals: 0, spikelets: 0,
     droop: 0.12, stiff: 0.35,
     base: [0.10, 0.26, 0.09], tip: [0.26, 0.50, 0.19], bloom: [0, 0, 0],
     veins: 0, sweep: 0,
@@ -139,9 +148,9 @@ export const MEADOW: readonly Plant[] = [
       + 'the centre. Five parallel veins running the length of the leaf are '
       + 'what name it, and it grows where the grass has been trodden thin.',
     share: 0.13,
-    tall: 1.9, wide: 0.22, segments: 5,
-    widest: 0.38, fullness: 0.95, blunt: 0.1, notch: 0, fold: 0.5,
-    leaflets: 4, spread: 1.05, stem: 0.04, petals: 0, spikelets: 0,
+    tall: 2.1, wide: 0.26, head: 0, segments: 5,
+    widest: 0.35, fullness: 0.95, blunt: 0.12, notch: 0, fold: 0.45,
+    leaflets: 6, spread: 0.62, stem: 0.05, petals: 0, spikelets: 0,
     droop: 0.28, stiff: 0.3,
     base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
     veins: 5, sweep: 0.1,
@@ -153,10 +162,10 @@ export const MEADOW: readonly Plant[] = [
     note: 'A real head: twelve white ray florets around a yellow disc, on a '
       + 'thin stem. Rare on purpose — scattered white reads as flowers, evenly '
       + 'spread white reads as litter.',
-    share: 0.06,
-    tall: 2.4, wide: 0.16, segments: 3,
-    widest: 0.3, fullness: 0.8, blunt: 0.06, notch: 0, fold: 0.35,
-    leaflets: 1, spread: 0, stem: 0.78, petals: 12, spikelets: 0,
+    share: 0.03,
+    tall: 2.4, wide: 0.26, head: 0.34, segments: 3,
+    widest: 0.3, fullness: 0.85, blunt: 0.08, notch: 0, fold: 0.35,
+    leaflets: 1, spread: 0, stem: 1.9, petals: 12, spikelets: 0,
     droop: 0.22, stiff: 0.8,
     base: [0.16, 0.30, 0.10], tip: [0.30, 0.46, 0.16], bloom: [0.95, 0.94, 0.88],
     veins: 0, sweep: 0,
@@ -170,10 +179,8 @@ export const MEADOW: readonly Plant[] = [
  * so it does not go dark when it turns away — a flat lambert is the wrong
  * physics for a leaf, and erring upward errs the way the real thing does.
  */
-const LEAF_LIFT = 0.45;
 
 /** The lowest a leaf's normal is ever allowed to point. */
-const LEAF_FLOOR = 0.34;
 
 interface Build {
   positions: number[];
@@ -182,84 +189,70 @@ interface Build {
   indices: number[];
 }
 
+type Vec = readonly [number, number, number];
+
+/** How hard a leaf's normal is held above the horizon, and its hard floor. */
+const LEAF_LIFT = 0.42;
+const LEAF_FLOOR = 0.3;
+
 /**
- * One plant, as geometry.
+ * One plant, at true size in half-feet, rooted at the origin.
  *
- * <p>Built around the origin at the root and one unit tall, so the instance
- * matrix carries all of the size and every species shares one shader. The uv
- * runs across the leaf in x and along it in y — the wind shader reads the y for
- * the height up the plant, and the leaf texture uses both.
+ * <p><b>Built at true size rather than scaled at the end.</b> The generator
+ * used to work in a unit cube and multiply by width and height afterwards,
+ * which is fine for a blade — width and height are the only two dimensions a
+ * blade has — and wrong for everything else. A daisy's head has a radius of its
+ * own; scaling it by the leaf's width squashed twelve petals into a sixth of a
+ * foot on a stem more than a foot tall. They were all there and all counted in
+ * the triangles and none of them visible. A plantain's rosette collapsed the
+ * same way, into a chevron.
+ *
+ * <p>Building at true size also leaves the normals correct as generated, with
+ * no inverse-transpose rescale to undo — and that rescale is what was pushing
+ * leaf normals under the horizon and shading them black.
+ *
+ * <p>The uv runs across the leaf in x and, in y, the height above the ground as
+ * a fraction of the plant's own: what the wind shader reads to bend it, and
+ * what the leaf texture reads to know whether it is drawing leaf or flower.
  */
 export function plantGeometry(plant: Plant): VertexData {
   const build: Build = { positions: [], normals: [], uvs: [], indices: [] };
-
   const heads = plant.petals > 0 || plant.spikelets > 0;
-  // A flowering stem carries one leaf low down; a rosette carries all of them.
-  const leaves = heads ? 1 : plant.leaflets;
+
+  // <b>The stalk runs to the head, not to `stem`.</b> A flowering or seeding
+  // plant is a stem with something on top of it; drawing the stem only as far
+  // as the bare bit below the leaves left a daisy's head and a fog's panicle
+  // hanging in the air with a hand's width of nothing under them. `stem` still
+  // means what it says for a rosette, which is the only shape that has a bare
+  // bit and then leaves.
+  const stalk = heads ? plant.tall : plant.stem;
+  if (stalk > 0.02) {
+    addStem(build, plant, stalk);
+  }
+
+  // A flowering or seeding stem carries a couple of leaves low down; a rosette
+  // is nothing but leaves.
+  const leaves = heads ? 2 : plant.leaflets;
+  const length = heads ? plant.tall * 0.42 : plant.tall - plant.stem;
+  const from = heads ? plant.tall * 0.05 : plant.stem;
 
   for (let leaf = 0; leaf < leaves; leaf++) {
-    const around = leaves === 1 ? 0 : (leaf / leaves) * Math.PI * 2;
-    const lean = leaves === 1 ? 0 : plant.spread;
-    addLeaf(build, plant, around, lean, heads ? 0 : plant.stem, heads ? 0.55 : 1);
+    // Evenly spaced and evenly leaned is a plus sign, and four of them in a
+    // field is a pattern the eye picks out immediately. The jitter is a fixed
+    // function of the index rather than a random number so the mesh is the
+    // same every build — it is geometry, not a simulation.
+    const around = leaves === 1 ? 0
+      : (leaf / leaves) * Math.PI * 2 + Math.sin(leaf * 12.9898) * 0.38;
+    const lean = leaves === 1 ? 0
+      : (heads ? 0.5 : plant.spread * (0.74 + 0.42 * fract(leaf * 0.7548)));
+    addLeaf(build, plant, around, lean, from, length);
   }
 
-  if (plant.stem > 0.02) {
-    addStem(build, plant);
-  }
   if (plant.spikelets > 0) {
     addPanicle(build, plant);
   }
   if (plant.petals > 0) {
     addFlower(build, plant);
-  }
-
-  // <b>The plant's proportions are baked in here, not carried by the instance
-  // matrix.</b> A matrix that scales width and height differently is
-  // non-uniform, and a normal transformed by such a matrix is wrong unless the
-  // inverse transpose is used instead — which Babylon does, but only when it
-  // knows the scaling is non-uniform, and it cannot know that of a matrix
-  // supplied per instance. The result was clover leaflets shading black on
-  // whichever side the skew pushed their normal past the horizon, in the field
-  // but never in the preview, where the same geometry is drawn with a scale
-  // Babylon can see.
-  //
-  // <p>With the shape baked in, the instance matrix is a rotation and one
-  // uniform scale, and a rotation cannot skew a normal at all.
-  const wide = plant.wide;
-  const tall = plant.tall;
-  for (let i = 0; i < build.positions.length; i += 3) {
-    build.positions[i] *= wide;
-    build.positions[i + 1] *= tall;
-    build.positions[i + 2] *= wide;
-    // The inverse transpose of a diagonal scale is the reciprocal of it.
-    const nx = build.normals[i] / wide;
-    const ny = build.normals[i + 1] / tall;
-    const nz = build.normals[i + 2] / wide;
-    const length = Math.hypot(nx, ny, nz) || 1;
-    // <b>And the upward bias has to be re-applied afterwards.</b> This is what
-    // was eating holes in the clover. A clover is 0.44 wide and 1.2 tall, so
-    // the reciprocal scale multiplies the horizontal components by 2.3 and the
-    // vertical by 0.83 — a normal that was set well above the horizon comes out
-    // of the rescale barely above it, and the leaflets' own splay then carries
-    // it under. A normal pointing at the ground gets the hemispheric light's
-    // ground colour, which is a dark brown that reads as black, and it does so
-    // whether the sun is on or off. That is why turning the sun off changed
-    // nothing and why every explanation about the material was wrong.
-    const bx = (nx / length) * (1 - LEAF_LIFT);
-    const by = (ny / length) * (1 - LEAF_LIFT) + LEAF_LIFT;
-    const bz = (nz / length) * (1 - LEAF_LIFT);
-    const lifted = Math.hypot(bx, by, bz) || 1;
-    // And a hard floor under it, because a blend can still be dragged below
-    // the horizon by a leaflet splayed far enough — a plantain's are sixty
-    // degrees out. Nothing that grows should shade as though it were the
-    // underside of something.
-    const fy = Math.max(by / lifted, LEAF_FLOOR);
-    const fx = bx / lifted;
-    const fz = bz / lifted;
-    const held = Math.hypot(fx, fy, fz) || 1;
-    build.normals[i] = fx / held;
-    build.normals[i + 1] = fy / held;
-    build.normals[i + 2] = fz / held;
   }
 
   const data = new VertexData();
@@ -271,26 +264,22 @@ export function plantGeometry(plant: Plant): VertexData {
 }
 
 /**
- * A leaf: three columns of vertices, so it has a middle.
+ * A leaf: `length` half-feet from `from`, `plant.wide` across.
  *
- * <p>The midrib column stands proud of the two edges by `fold`, which is what
- * gives a blade a crease and a leaf a spine. Without it a leaf is a flat card
- * and shades like one — every one in a clump catching the sun identically. The
- * tip is cut back into the leaf by `notch`, which is the entire difference
- * between a clover leaflet and a spade.
+ * <p>Tilting it by `lean` carries its far end `sin(lean) * length` out from the
+ * stem — a real distance, so a rosette is as wide as its leaves are long, the
+ * way a rosette is.
  */
 function addLeaf(
   build: Build, plant: Plant, around: number, lean: number,
-  stem: number, scale: number,
+  from: number, length: number,
 ): void {
   const rows = plant.segments + 1;
   const ca = Math.cos(around);
   const sa = Math.sin(around);
-  const up: [number, number, number] = [
-    Math.sin(lean) * ca, Math.cos(lean), Math.sin(lean) * sa,
-  ];
-  const across: [number, number, number] = [-sa, 0, ca];
-  const face: [number, number, number] = [
+  const up: Vec = [Math.sin(lean) * ca, Math.cos(lean), Math.sin(lean) * sa];
+  const across: Vec = [-sa, 0, ca];
+  const face: Vec = [
     across[1] * up[2] - across[2] * up[1],
     across[2] * up[0] - across[0] * up[2],
     across[0] * up[1] - across[1] * up[0],
@@ -299,26 +288,29 @@ function addLeaf(
   const first = build.positions.length / 3;
   for (let row = 0; row < rows; row++) {
     const t = row / plant.segments;
-    const half = outline(plant, t) * 0.5;
-    // The notch: the midrib stops short of the edges at the tip, so the leaf
-    // ends in two lobes with a cleft between them.
-    const cleft = plant.notch * Math.max(0, t - 0.86) / 0.14;
+    const half = outline(plant, t) * plant.wide * 0.5;
+    // The notch: the midrib stops short of the edges, so the leaf ends in two
+    // lobes with a cleft between them. It is the whole of a clover.
+    // Over the last third, not the last sixth: at four segments a leaf has
+    // one row above 0.84, so the whole heart of a clover was a single V. The
+    // curve is steep because a clover's notch is a dimple in a round leaflet,
+    // not a cleft — cut it linearly and the leaflet becomes a maple leaf.
+    const into = Math.max(0, (t - 0.66) / 0.34);
+    const cleft = plant.notch * length * Math.pow(into, 2.1);
+    const along = t * length;
     for (const column of [-1, 0, 1]) {
       const wide = half * column;
       const rise = column === 0 ? half * plant.fold : 0;
-      const along = (stem + (1 - stem) * t) * scale;
-      const height = along - (column === 0 ? cleft : 0) * scale;
+      const reach = along - (column === 0 ? cleft : 0);
       build.positions.push(
-        up[0] * height + across[0] * wide + face[0] * rise,
-        up[1] * height + across[1] * wide + face[1] * rise,
-        up[2] * height + across[2] * wide + face[2] * rise,
+        up[0] * reach + across[0] * wide + face[0] * rise,
+        from + up[1] * reach + across[1] * wide + face[1] * rise,
+        up[2] * reach + across[2] * wide + face[2] * rise,
       );
-      build.uvs.push((column + 1) / 2, along);
-      // Fanned across the leaf so a flat surface shades like a curved one, and
-      // held well above the horizon: a leaf tilted past horizontal has a face
-      // vector pointing under itself, and a normal pointing at the ground is
-      // black under a midday sun.
-      pushNormal(build, plant, across, up, face, column);
+      build.uvs.push(
+        (column + 1) / 2, (from + along * up[1]) / plant.tall,
+      );
+      pushNormal(build, across, up, face, column);
     }
   }
   for (let row = 0; row < plant.segments; row++) {
@@ -329,82 +321,121 @@ function addLeaf(
   }
 }
 
+/**
+ * Fanned across the leaf so a flat surface shades like a curved one, then held
+ * above the horizon.
+ *
+ * <p>Foliage is thin and scatters from both faces, so it does not go dark when
+ * it turns away — a flat lambert is the wrong physics for a leaf, and erring
+ * upward errs the way the real thing does. A normal pointing at the ground
+ * takes the hemispheric light's ground colour, a dark brown that reads as black
+ * whether the sun is up or not.
+ */
 function pushNormal(
-  build: Build, plant: Plant,
-  across: readonly number[], up: readonly number[], face: readonly number[],
-  column: number,
+  build: Build, across: Vec, up: Vec, face: Vec, column: number,
 ): void {
-  const bias = plant.leaflets > 1 || plant.spread > 0 ? 0.6 : 0.18;
-  const fx = across[0] * column * 0.85 + up[0] * 0.25 + face[0];
-  const fy = across[1] * column * 0.85 + up[1] * 0.25 + face[1];
-  const fz = across[2] * column * 0.85 + up[2] * 0.25 + face[2];
+  const fx = across[0] * column * 0.85 + up[0] * 0.2 + face[0];
+  const fy = across[1] * column * 0.85 + up[1] * 0.2 + face[1];
+  const fz = across[2] * column * 0.85 + up[2] * 0.2 + face[2];
   const flat = Math.hypot(fx, fy, fz) || 1;
-  const nx = (fx / flat) * (1 - bias);
-  const ny = (fy / flat) * (1 - bias) + bias;
-  const nz = (fz / flat) * (1 - bias);
-  const length = Math.hypot(nx, ny, nz) || 1;
-  build.normals.push(nx / length, ny / length, nz / length);
+  const bx = (fx / flat) * (1 - LEAF_LIFT);
+  const by = (fy / flat) * (1 - LEAF_LIFT) + LEAF_LIFT;
+  const bz = (fz / flat) * (1 - LEAF_LIFT);
+  const lifted = Math.hypot(bx, by, bz) || 1;
+  const nx = bx / lifted;
+  const ny = Math.max(by / lifted, LEAF_FLOOR);
+  const nz = bz / lifted;
+  const held = Math.hypot(nx, ny, nz) || 1;
+  build.normals.push(nx / held, ny / held, nz / held);
 }
 
-/** The outline of a leaf: how wide it is a given fraction of the way up. */
+/** How wide the leaf is a given fraction along it, as a fraction of `wide`. */
 export function outline(plant: Plant, at: number): number {
   const t = Math.max(0, Math.min(1, at));
-  // A power curve either side of the widest point, so the shape can be a blade
-  // (widest low, long taper) or a leaflet (widest high, coming back in).
   const rising = Math.pow(t / Math.max(0.001, plant.widest), plant.fullness);
   const falling = Math.pow(
     (1 - t) / Math.max(0.001, 1 - plant.widest), plant.fullness,
   );
   const body = Math.min(1, t < plant.widest ? rising : falling);
-  return Math.max(0, body * (1 - plant.blunt) + plant.blunt * smoothTip(t));
+  const full = body * (1 - plant.blunt) + plant.blunt;
+  // <b>A notched leaf must not come to a point.</b> `closeTip` pinched every
+  // leaf shut at its very end regardless of how blunt it was asked to be, so a
+  // clover's cleft was a V pulled back from a point: present in the triangles,
+  // invisible on screen. Where there is a notch, the width survives to the tip
+  // and the notch is what ends the leaf.
+  return Math.max(0, plant.notch > 0 ? full : full * closeTip(t));
+}
+
+/** The fractional part, for jitter that is a function of an index. */
+function fract(x: number): number {
+  return x - Math.floor(x);
 }
 
 /** Keeps a blunt leaf blunt until very near the tip, then closes it. */
-function smoothTip(t: number): number {
-  return t > 0.94 ? Math.max(0, (1 - t) / 0.06) : 1;
+function closeTip(t: number): number {
+  return t > 0.92 ? Math.max(0, (1 - t) / 0.08) : 1;
 }
 
-/** A bare stem, where the leaves or the head stand off the ground on one. */
-function addStem(build: Build, plant: Plant): void {
-  const first = build.positions.length / 3;
-  const thin = 0.09;
-  for (const height of [0, plant.stem]) {
-    for (const side of [-1, 1]) {
-      build.positions.push(side * thin, height, 0);
-      build.uvs.push(side > 0 ? 1 : 0, height);
-      build.normals.push(side * 0.42, 0.62, 0.56);
+/**
+ * A stem from the ground to `top`: two quads crossed at right angles.
+ *
+ * <p>One quad is a ribbon, and a ribbon seen edge-on is nothing — a daisy
+ * turned a few degrees the wrong way had a head floating over bare ground.
+ * Four triangles buy a stem that is there from every direction, and the
+ * normals radiate outward so it shades like a round thing rather than a card.
+ */
+function addStem(build: Build, plant: Plant, top: number): void {
+  // Thickness follows the plant's height, not its leaf width. Clover has the
+  // widest leaves in the meadow on one of the thinnest stalks, and scaling off
+  // the leaf gave it a trunk.
+  const thick = Math.max(0.016, plant.tall * 0.02);
+  for (const turn of [0, Math.PI / 2]) {
+    const ca = Math.cos(turn);
+    const sa = Math.sin(turn);
+    const first = build.positions.length / 3;
+    for (const [height, taper] of [[0, 1], [top, 0.55]]) {
+      for (const side of [-1, 1]) {
+        const out = side * thick * taper;
+        build.positions.push(ca * out, height, sa * out);
+        build.uvs.push(side > 0 ? 1 : 0, height / plant.tall);
+        build.normals.push(ca * side * 0.6, 0.74, sa * side * 0.6);
+      }
     }
+    build.indices.push(
+      first, first + 1, first + 2, first + 1, first + 3, first + 2,
+    );
   }
-  build.indices.push(first, first + 1, first + 2, first + 1, first + 3, first + 2);
 }
 
 /**
  * A panicle: spikelets on short side branches near the top.
  *
- * <p>A seed head is a cluster, not a swelling. Drawn as a spray of small
- * tapering blades angled up and out from the stem, which is enough at the size
- * anybody sees one — and enough to break the silhouette, which is the job.
+ * <p>Its reach is `head`, in half-feet, and not the leaf's width — which is the
+ * difference between a cluster and an invisible smear up the stem.
  */
 function addPanicle(build: Build, plant: Plant): void {
+  const bottom = plant.tall * 0.64;
+  const run = plant.tall - bottom;
   for (let i = 0; i < plant.spikelets; i++) {
-    const at = 0.62 + 0.36 * (i / plant.spikelets);
+    const t = i / Math.max(1, plant.spikelets - 1);
     const around = i * 2.399963;
-    const out = 0.55 + 0.45 * Math.sin(i * 1.7);
+    const out = plant.head * (0.35 + 0.65 * (1 - t));
+    const ca = Math.cos(around);
+    const sa = Math.sin(around);
+    const rootY = bottom + run * t * 0.78;
+    const tipY = rootY + run * 0.24;
     const first = build.positions.length / 3;
-    const ca = Math.cos(around) * out;
-    const sa = Math.sin(around) * out;
-    const length = 0.16 * (1 - (at - 0.62) / 0.5);
     for (let row = 0; row < 3; row++) {
-      const t = row / 2;
-      const half = 0.5 * Math.sin(Math.PI * Math.pow(t, 0.5)) * 0.55;
+      const along = row / 2;
+      const fat = Math.sin(Math.PI * Math.pow(along, 0.55)) * plant.wide * 0.45;
       for (const side of [-1, 1]) {
         build.positions.push(
-          ca * t * length * 6 + side * half * 0.4,
-          at + t * length * 2.4,
-          sa * t * length * 6,
+          ca * out * along - sa * side * fat,
+          rootY + (tipY - rootY) * along,
+          sa * out * along + ca * side * fat,
         );
-        build.uvs.push(side > 0 ? 1 : 0, at + t * length * 2.4);
-        build.normals.push(ca * 0.4, 0.8, sa * 0.4);
+        build.uvs.push(side > 0 ? 1 : 0, (rootY + (tipY - rootY) * along) / plant.tall);
+        build.normals.push(ca * 0.35, 0.88, sa * 0.35);
       }
     }
     for (let row = 0; row < 2; row++) {
@@ -415,51 +446,65 @@ function addPanicle(build: Build, plant: Plant): void {
 }
 
 /**
- * A flower head: ray florets around a disc.
+ * A flower head: ray florets around a disc, on top of the stem.
  *
- * <p>Not a pale end on a stem. The petals lie almost flat and radiate, the disc
- * is a small fan in the middle, and the whole thing sits on top of the stem —
- * which is what makes a daisy read as a daisy from ten feet up.
+ * <p>`head` half-feet from the middle to the end of a petal — about four inches
+ * for a daisy. Real, and nothing to do with how wide its leaves are.
  */
 function addFlower(build: Build, plant: Plant): void {
-  const top = 1;
-  const disc = 0.34;
+  const top = plant.tall;
+  const disc = plant.head * 0.34;
 
-  // The disc, as a fan.
+  // <b>A daisy nods.</b> Built flat in the ground plane a head is a disc with
+  // no thickness: from anywhere near eye level — which is where this camera
+  // spends most of its time — twelve ray florets and eighty triangles of them
+  // collapse into a line. Tipping the whole head back off vertical is what
+  // makes a flower read as a flower rather than as a white speck.
+  const tilt = 0.6;
+  const ct = Math.cos(tilt);
+  const st = Math.sin(tilt);
+  const axis: Vec = [0, ct, st];      // the head's own up: its normal
+  const across: Vec = [1, 0, 0];      // across its face
+  const down: Vec = [0, -st, ct];     // the other direction in its face
+
+  const at = (r: number, a: number, lift: number): Vec => [
+    across[0] * Math.cos(a) * r + down[0] * Math.sin(a) * r + axis[0] * lift,
+    top + across[1] * Math.cos(a) * r + down[1] * Math.sin(a) * r + axis[1] * lift,
+    across[2] * Math.cos(a) * r + down[2] * Math.sin(a) * r + axis[2] * lift,
+  ];
+
+  // The disc: a shallow cone rather than a flat fan, so it catches the sun
+  // across its face instead of all at once.
   const centre = build.positions.length / 3;
-  build.positions.push(0, top + 0.03, 0);
-  build.uvs.push(0.5, top + 0.03);
-  build.normals.push(0, 1, 0);
+  push(build, at(0, 0, disc * 0.42), axis, 0.5, 1);
   for (let i = 0; i <= plant.petals; i++) {
     const a = (i / plant.petals) * Math.PI * 2;
-    build.positions.push(Math.cos(a) * disc, top, Math.sin(a) * disc);
-    build.uvs.push(0.5, top);
-    build.normals.push(Math.cos(a) * 0.25, 0.97, Math.sin(a) * 0.25);
+    push(build, at(disc, a, 0), axis, 0.5, 0.995);
   }
   for (let i = 0; i < plant.petals; i++) {
     build.indices.push(centre, centre + 1 + i, centre + 2 + i);
   }
 
-  // The rays, each a narrow leaf lying nearly flat.
   for (let i = 0; i < plant.petals; i++) {
-    const a = (i / plant.petals) * Math.PI * 2 + 0.11;
-    const ca = Math.cos(a);
-    const sa = Math.sin(a);
-    const droop = 0.1 + 0.06 * Math.sin(i * 2.3);
+    const a = (i / plant.petals) * Math.PI * 2 + 0.13;
+    // Every other floret sits a little lower and reaches a little further, so
+    // the rim is a ragged real one and not a cog.
+    const stagger = i % 2 === 0 ? 1 : 0.86;
+    const droop = plant.head * (0.2 + 0.1 * Math.sin(i * 2.3));
     const first = build.positions.length / 3;
     for (let row = 0; row < 3; row++) {
       const t = row / 2;
-      const reach = disc + t * 0.72;
-      const half = 0.12 * Math.sin(Math.PI * Math.pow(0.2 + 0.8 * t, 0.8));
+      const reach = disc + t * (plant.head * stagger - disc);
+      const fat = plant.head * 0.17
+        * Math.sin(Math.PI * Math.pow(0.25 + 0.75 * t, 0.75));
       for (const side of [-1, 1]) {
-        build.positions.push(
-          ca * reach - sa * side * half,
-          top - droop * t * t,
-          sa * reach + ca * side * half,
-        );
-        // Along the petal, and into the pale end of the leaf texture.
-        build.uvs.push(side > 0 ? 1 : 0, top - droop * t * t);
-        build.normals.push(ca * 0.12, 0.98, sa * 0.12);
+        const mid = at(reach, a, -droop * t * t);
+        const edge = at(fat, a + Math.PI / 2, 0);
+        push(build, [
+          mid[0] + side * edge[0],
+          mid[1] + side * (edge[1] - top),
+          mid[2] + side * edge[2],
+        ], axis, side > 0 ? 1 : 0, 0.97);
       }
     }
     for (let row = 0; row < 2; row++) {
@@ -469,12 +514,18 @@ function addFlower(build: Build, plant: Plant): void {
   }
 }
 
+function push(build: Build, at: Vec, normal: Vec, u: number, v: number): void {
+  build.positions.push(at[0], at[1], at[2]);
+  build.normals.push(normal[0], normal[1], normal[2]);
+  build.uvs.push(u, v);
+}
+
 /** Triangles in one plant, for the sidebar to be honest about cost. */
 export function plantTriangles(plant: Plant): number {
   const heads = plant.petals > 0 || plant.spikelets > 0;
-  const leaves = heads ? 1 : plant.leaflets;
+  const leaves = heads ? 2 : plant.leaflets;
   return leaves * plant.segments * 4
-    + (plant.stem > 0.02 ? 2 : 0)
+    + ((heads ? plant.tall : plant.stem) > 0.02 ? 4 : 0)
     + plant.spikelets * 4
     + (plant.petals > 0 ? plant.petals * 5 : 0);
 }
