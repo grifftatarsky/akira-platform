@@ -1,6 +1,6 @@
 import {
   BufferAttribute, BufferGeometry, Color, DoubleSide, InstancedMesh, Material, Matrix4,
-  MeshStandardMaterial, Quaternion, Vector3,
+  MeshStandardMaterial, Quaternion, Vector2, Vector3,
 } from 'three';
 import { BoardScene } from './board.models';
 import { GroundField, groundAt, heightAt, noise } from './ground-field';
@@ -335,6 +335,9 @@ function speciesGeometry(species: Species): BufferGeometry {
   const colors: number[] = [];
   const uvs: number[] = [];
   const indices: number[] = [];
+  // How far each vertex sits off the middle of its own strip, so the shader can
+  // rebuild the centreline and widen about it. See MIN_HALF_PIXELS.
+  const sides: number[] = [];
   const root = new Color();
   const tip = new Color();
   const shade = new Color();
@@ -365,6 +368,7 @@ function speciesGeometry(species: Species): BufferGeometry {
           strip.rootY + sin * out + cos * across,
           up,
         );
+        sides.push(-sin * across, cos * across, 0);
         colors.push(shade.r, shade.g, shade.b);
         uvs.push((side + 1) / 2, t);
       }
@@ -379,6 +383,7 @@ function speciesGeometry(species: Species): BufferGeometry {
   geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
   geometry.setAttribute('color', new BufferAttribute(new Float32Array(colors), 3));
   geometry.setAttribute('uv', new BufferAttribute(new Float32Array(uvs), 2));
+  geometry.setAttribute('boardSide', new BufferAttribute(new Float32Array(sides), 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
   return geometry;
@@ -427,6 +432,7 @@ export function meadow(
   density: number,
   mixed: boolean,
   spread: number,
+  viewport: { value: Vector2 },
 ): Meadow | null {
   // Grass alone, or grass with the four others competing for the ground.
   const growing = mixed ? SPECIES : SPECIES.slice(0, 1);
@@ -537,7 +543,7 @@ export function meadow(
     if (plot.length === 0) {
       return;
     }
-    const material = plantMaterial(species, light, time);
+    const material = plantMaterial(species, light, time, viewport);
     const mesh = new InstancedMesh(speciesGeometry(species), material, plot.length);
     mesh.receiveShadow = true;
     mesh.castShadow = species.casts;
@@ -588,10 +594,31 @@ export function meadow(
   };
 }
 
+/**
+ * The narrowest a strip is allowed to be on screen, as a half-width in pixels.
+ *
+ * <p><b>The whole of the grass aliasing problem, and the one thing that can
+ * actually fix it.</b> A blade a third of a pixel wide is not an edge waiting
+ * to be resolved — it is geometry that falls between the sample points, so it
+ * appears and disappears as the camera moves however many samples are taken of
+ * it. Multisampling gives a quieter version of the same flicker at four times
+ * the bandwidth; the fix is to stop the blade being that thin.
+ *
+ * <p>So every strip is widened about its own centreline until it holds about a
+ * pixel across. Near the camera the clamp never bites and the blade is its real
+ * width; far away it stops narrowing and the meadow closes into the solid green
+ * a distant field actually is, instead of a boiling stipple of half-blades.
+ *
+ * <p>Slightly over one, because a strip exactly one pixel wide still lands
+ * between two pixel centres half the time.
+ */
+const MIN_HALF_PIXELS = 0.6;
+
 function plantMaterial(
   species: Species,
   light: (material: Material) => Material,
   time: { value: number },
+  viewport: { value: Vector2 },
 ): MeshStandardMaterial {
   const material = light(new MeshStandardMaterial({
     vertexColors: true,
@@ -610,7 +637,18 @@ function plantMaterial(
   material.onBeforeCompile = (shader, renderer) => {
     lit(shader, renderer);
     shader.uniforms['uBoardTime'] = time;
-    shader.vertexShader = 'uniform float uBoardTime;\n' + shader.vertexShader.replace(
+    shader.uniforms['uViewport'] = viewport;
+    shader.fragmentShader = 'varying float vBoardCover;\n' + shader.fragmentShader.replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+       // Not all the way: at the far edge of a big board the widening runs to
+       // several times, and dimming in full proportion would put the far half
+       // of the meadow in shadow for a reason that has nothing to do with
+       // light. Most of the way is enough to stop the flowers shouting.
+       diffuseColor.rgb *= mix(1.0, clamp(vBoardCover, 0.0, 1.0), 0.7);`);
+    shader.vertexShader = 'uniform float uBoardTime;\nuniform vec2 uViewport;\n'
+      + 'attribute vec3 boardSide;\nvec3 boardCentre;\nvarying float vBoardCover;\n'
+      + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
        // Wind, bent by the square of the height up the plant so the root stays
@@ -639,7 +677,45 @@ function plantMaterial(
        vec2 local = vec2(
          dot(normalize(instanceMatrix[0].xyz), wind),
          dot(normalize(instanceMatrix[1].xyz), wind));
-       transformed.xy += local * gust * along * along * ${species.sway.toFixed(3)};`);
+       transformed.xy += local * gust * along * along * ${species.sway.toFixed(3)};
+       // Kept before the widening, which needs to know where the middle of the
+       // strip is. The wind moves the whole strip, so the offset is unchanged.
+       boardCentre = transformed - boardSide;`)
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+         // Widen the strip about its centreline until it covers a pixel. Done
+         // here because it is a screen-space measurement and this is the first
+         // point at which there is a screen to measure against.
+         vBoardCover = 1.0;
+         {
+           vec4 midView = modelViewMatrix
+             #ifdef USE_INSTANCING
+               * instanceMatrix
+             #endif
+             * vec4(boardCentre, 1.0);
+           vec4 midClip = projectionMatrix * midView;
+           if (midClip.w > 0.0001 && gl_Position.w > 0.0001) {
+             vec2 mid = midClip.xy / midClip.w;
+             vec2 here = gl_Position.xy / gl_Position.w;
+             // Half the viewport, because normalised device coordinates run
+             // from -1 to 1 across the whole of it.
+             float across = length((here - mid) * uViewport * 0.5);
+             if (across > 0.0001) {
+               float widen = max(1.0, ${MIN_HALF_PIXELS} / across);
+               gl_Position.xy = (mid + (here - mid) * widen) * gl_Position.w;
+               // A strip widened to twice its true size covers twice the pixels
+               // it should, and sends twice the light. Left alone that turns a
+               // drift of daisies at forty feet into a sheet of white specks —
+               // the flowers get louder as they get further away, which is the
+               // opposite of what distance does. Dividing the colour by the
+               // same factor puts the total back where it was: this is what an
+               // alpha fade would be doing, without the sorting that alpha on a
+               // quarter of a million instances would cost.
+               vBoardCover = 1.0 / widen;
+             }
+           }
+         }`);
   };
   // Its own key per species, or three hands one of them a program compiled for
   // another and a rosette sways like a seed head — or, worse, a lit material

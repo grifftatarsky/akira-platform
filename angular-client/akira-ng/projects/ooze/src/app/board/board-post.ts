@@ -5,6 +5,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { gradePass } from './board-grade';
 
 /**
@@ -35,6 +36,7 @@ export class PostChain {
   private readonly bloom: UnrealBloomPass;
   private readonly render: RenderPass;
   private readonly grade: ShaderPass;
+  private readonly smaa: SMAAPass;
 
   /**
    * A stand-in camera for the occlusion pass, on the ground's layer alone.
@@ -64,7 +66,18 @@ export class PostChain {
     // Half-float, so a torch pool that is twice full brightness survives the
     // trip between passes. An 8-bit buffer would clip it to white before the
     // bloom pass ever saw it, and bloom would have nothing to find.
-    const target = new WebGLRenderTarget(width, height, { type: HalfFloatType, samples: 4 });
+    //
+    // <p><b>No multisampling.</b> It was four samples, and four samples of a
+    // half-float target is eight bytes a pixel times four — the most expensive
+    // thing in the chain, spent on the one problem it cannot solve. A blade of
+    // grass a third of a pixel wide is not an edge that needs resolving; it is
+    // geometry that should not be that thin, and MSAA only gives you a quieter
+    // version of the same shimmer. The blades are widened to hold a pixel in
+    // the vertex shader instead, and what edges remain are cleaned up by SMAA
+    // at the end of the chain for one pass rather than four samples of
+    // everything. The saving pays for rendering at the element's own
+    // resolution, which is worth more than either.
+    const target = new WebGLRenderTarget(width, height, { type: HalfFloatType });
     this.composer = new EffectComposer(renderer, target);
 
     this.render = new RenderPass(scene, camera);
@@ -111,6 +124,13 @@ export class PostChain {
     // opinion, and they are easier to tune apart than together.
     this.grade = gradePass();
     this.composer.addPass(this.grade);
+
+    // Last of all, and it has to be. SMAA finds edges by luminance contrast, so
+    // it wants the picture as it will be seen — after the tone curve, after the
+    // grade's contrast. Run before them, it would smooth edges that the grade
+    // then sharpens back up.
+    this.smaa = new SMAAPass();
+    this.composer.addPass(this.smaa);
   }
 
   /** Retunes the grade for a different kind of place. */
@@ -158,5 +178,6 @@ export class PostChain {
     this.composer.dispose();
     this.ao.dispose();
     this.bloom.dispose();
+    this.smaa.dispose();
   }
 }

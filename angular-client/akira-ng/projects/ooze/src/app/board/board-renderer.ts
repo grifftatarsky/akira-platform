@@ -178,14 +178,20 @@ export class BoardRenderer {
   private plantSpread = 1;
 
   /**
-   * The height the picture is actually rendered at, in device pixels.
+   * The most pixels tall the picture will be rendered at.
    *
-   * <p>Fixed, and the width follows from the viewport's shape so nothing is
-   * stretched. Everything expensive on this board — occlusion, bloom, the
-   * splat ground's twelve texture reads — costs per pixel, and a 5K display
-   * asks for eleven times the pixels of this while showing the same board.
+   * <p><b>A ceiling, not a target.</b> It was a fixed 720 and the element was
+   * usually wider than that, so every frame was upscaled by CSS — and a
+   * fractional upscale is not a free saving: it is a resample, and a resample
+   * of a field of one-pixel grass blades shimmers on its own account. The
+   * board renders at its own size now and this only bites on a display large
+   * enough for the per-pixel cost to matter, which is what it was for.
+   *
+   * <p>Everything expensive here — occlusion, bloom, the splat ground's twelve
+   * texture reads — costs per pixel, and a 5K panel asks for eleven times the
+   * pixels of a 720p buffer to show the same board at the same apparent size.
    */
-  private renderHeight = 720;
+  private maxRenderHeight = 1440;
   private readonly tokens = new Group();
   private camera: OrthographicCamera | PerspectiveCamera;
   private mode: CameraMode = 'TOP_DOWN';
@@ -265,6 +271,14 @@ export class BoardRenderer {
 
   /** Seconds since the board opened, for anything that moves in a shader. */
   private readonly time = { value: 0 };
+
+  /**
+   * The buffer's size in pixels, for anything that has to reason in them.
+   *
+   * <p>The meadow does: it widens a blade until it covers a pixel, and "a
+   * pixel" is not a thing a vertex shader can work out on its own.
+   */
+  private readonly viewport = { value: new Vector2(1, 1) };
 
   /**
    * Materials already patched.
@@ -410,7 +424,7 @@ export class BoardRenderer {
       if (ground.blades) {
         this.plants = meadow(
           board, field, m => this.lit(m), this.time,
-          ground.blades, this.mixedPlants, this.plantSpread);
+          ground.blades, this.mixedPlants, this.plantSpread, this.viewport);
         this.plants?.meshes.forEach(mesh => {
           // Its own layer, so the occlusion pass can be told not to look at it.
           // See MEADOW_LAYER.
@@ -1344,28 +1358,31 @@ export class BoardRenderer {
   }
 
   /**
-   * Fits the picture to the element, at a fixed rendering height.
+   * Fits the buffer to the element, up to {@link maxRenderHeight}.
    *
-   * <p><b>The canvas and the buffer are two different sizes and that is the
-   * point.</b> The element is whatever the layout gives it and CSS stretches
-   * the result to fill it; the buffer is {@link renderHeight} tall, with its
-   * width taken from the element's shape so the image is never distorted.
+   * <p>One buffer pixel per CSS pixel, which on any ordinary display is one
+   * device pixel too. A buffer smaller than the element is not free: CSS
+   * scales it back up, and a fractional upscale of a field of one-pixel grass
+   * blades resamples them into a shimmer of its own — the saving bought a
+   * cheaper frame and a worse-looking one.
    *
-   * <p>Locked because everything expensive here costs per pixel — ambient
-   * occlusion, bloom, and a splat ground that reads twelve textures for every
-   * fragment — and a 5K display would otherwise ask for eleven times the work
-   * to show the same board at the same apparent size.
+   * <p>The ceiling is still there for the case it was written for, which is a
+   * 5K panel asking for eleven times the pixels to show the same board at the
+   * same apparent size. Everything expensive here costs per pixel: occlusion,
+   * bloom, and a splat ground that reads twelve textures a fragment.
    */
   resize(width: number, height: number): void {
     this.width = Math.max(1, width);
     this.height = Math.max(1, height);
     const shape = this.width / this.height;
-    const bufferHeight = Math.max(1, Math.round(this.renderHeight));
+    const bufferHeight = Math.max(1, Math.round(Math.min(this.height, this.maxRenderHeight)));
     const bufferWidth = Math.max(1, Math.round(bufferHeight * shape));
-    // One device pixel per buffer pixel: the ratio is already expressed by
-    // rendering smaller than the element and letting CSS scale it up.
+    // One buffer pixel per CSS pixel. Device pixel ratio is deliberately not
+    // applied: a 2x panel would quadruple the cost for a board whose finest
+    // detail is a blade of grass already being widened to hold a pixel.
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(bufferWidth, bufferHeight, false);
+    this.viewport.value.set(bufferWidth, bufferHeight);
     if (this.effects && !this.post) {
       this.post = new PostChain(this.renderer, this.scene, this.camera, bufferWidth, bufferHeight);
       this.post.setGrade(this.look.saturation, this.look.contrast, this.look.vignette);
@@ -1375,9 +1392,9 @@ export class BoardRenderer {
     this.place();
   }
 
-  /** The height the picture is rendered at, whatever size the element is. */
+  /** The most pixels tall the picture may be rendered at. */
   setRenderHeight(pixels: number): void {
-    this.renderHeight = Math.max(120, Math.min(2160, Math.round(pixels)));
+    this.maxRenderHeight = Math.max(120, Math.min(2160, Math.round(pixels)));
     this.resize(this.width, this.height);
   }
 
