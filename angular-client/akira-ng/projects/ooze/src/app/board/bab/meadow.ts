@@ -107,8 +107,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   alive *= clamp(1.0 + damp * (wet - 0.35) * 1.6, 0.15, 1.0);
   alive *= step(0.02, alive);
 
+  // <b>Everything scales by alive, not just the height.</b> Scaling only
+  // the height leaves a plant that failed the wear test as a flat quad of full
+  // width lying on the ground with a zeroed column in its matrix — and a
+  // matrix with a zero column has no usable normal, so it shades black. On the
+  // grass-only meadow those were slivers nobody saw. A clover leaf is not a
+  // sliver: it is a black scrap on the road verge, hundreds of them, exactly
+  // where the wear test culled the most. Scaling all three columns makes a
+  // culled plant a point with no area at all.
   let tall = params.b.x * clumpTall * (0.72 + 0.56 * rand(seed + 2u)) * alive;
-  let wide = params.b.y * (0.82 + 0.36 * rand(seed + 3u));
+  let wide = params.b.y * (0.82 + 0.36 * rand(seed + 3u)) * alive;
 
   // <b>Facing splays out from the clump.</b> Plants growing together lean away
   // from each other for the light, so a clump is a rosette rather than a
