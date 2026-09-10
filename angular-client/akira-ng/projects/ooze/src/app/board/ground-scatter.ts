@@ -5,7 +5,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SplatGround } from './board-assets';
 import { BoardScene } from './board.models';
-import { GroundField, groundAt } from './ground-field';
+import { GroundField, groundAt, heightAt } from './ground-field';
 import { ScatterKind, Scattered, scatter } from './scatter';
 
 /**
@@ -16,14 +16,10 @@ import { ScatterKind, Scattered, scatter } from './scatter';
  * roughly what it takes: scatter is a numbers game, and a dozen carefully
  * placed rocks read as a dozen carefully placed rocks.
  *
- * <p>Every piece sits on the ground *as the ground actually is* — sunk by the
- * same rut depth the vertex shader applies to the surface, from the same wear
- * field. Placing them on the flat plane instead leaves stones hovering over
- * the middle of the road, which is the one place stones are most likely to be.
+ * <p>Every piece sits on the ground *as the ground actually is*, read from the
+ * same height field the mesh was displaced by. Placing them on a flat plane
+ * instead leaves a stone hovering over every hollow and sunk into every rise.
  */
-
-/** Matches `RUT_DEPTH` in the ground; the same sink, applied on the CPU. */
-const RUT_DEPTH = 0.9;
 
 export interface ScatterLayer {
   readonly meshes: readonly InstancedMesh[];
@@ -68,8 +64,10 @@ export async function scatterGround(
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     items.forEach((item, slot) => {
-      const { wear } = groundAt(field, item.x, item.y);
-      position.set(item.x, item.y, -wear * wear * RUT_DEPTH);
+      // Sat on the ground as the ground actually is, from the same height
+      // field the mesh was displaced by. Placed on a flat plane instead, a
+      // stone hovers over every hollow and sinks into every rise.
+      position.set(item.x, item.y, heightAt(field, item.x, item.y));
       quaternion.setFromAxisAngle(up, item.turn);
       scale.setScalar(item.scale * shape.fit);
       mesh.setMatrixAt(slot, matrix.compose(position, quaternion, scale));

@@ -32,11 +32,6 @@ describe('scatter', () => {
   const count = (scene: BoardScene, kind: ScatterKind) =>
     scatter(scene).filter(s => s.kind === kind).length;
 
-  it('grows grass on grass and not on the road', () => {
-    expect(count(board('GRASS'), 'GRASS_TUFT')).toBeGreaterThan(20);
-    expect(count(board('ROAD'), 'GRASS_TUFT')).toBe(0);
-  });
-
   it('leaves stones where the turf has gone, and not under it', () => {
     // The road is what strips the grass, so it is where stones surface.
     expect(count(board('ROAD'), 'STONE')).toBeGreaterThan(20);
@@ -49,29 +44,37 @@ describe('scatter', () => {
     expect(scatter(board('MUD'))).toHaveLength(0);
   });
 
+  it('leaves an untouched meadow bare', () => {
+    // Nothing is scattered on lush grass at all any more. Grass used to be
+    // scattered here as photogrammetry tufts, and from this camera a few
+    // hundred of them read as dark smudges on a green field — the wrong class
+    // of asset, not a budget problem. Grass is the ground now.
+    expect(scatter(board('GRASS'))).toHaveLength(0);
+  });
+
   it('places the same board the same way every time', () => {
-    // Deterministic on purpose: a meadow that reshuffled on every render would
+    // Deterministic on purpose: a verge that reshuffled on every render would
     // be a distraction, and it would make every screenshot of a bug
     // impossible to reproduce.
-    const once = scatter(board('GRASS'));
-    const twice = scatter(board('GRASS'));
+    const once = scatter(board('ROAD'));
+    const twice = scatter(board('ROAD'));
 
     expect(twice).toEqual(once);
   });
 
   it('varies size and facing rather than stamping one shape', () => {
-    const placed = scatter(board('GRASS'));
+    const placed = scatter(board('ROAD'));
 
+    expect(placed.length).toBeGreaterThan(10);
     expect(new Set(placed.map(s => s.turn)).size).toBeGreaterThan(placed.length / 2);
     expect(Math.max(...placed.map(s => s.scale)))
       .toBeGreaterThan(Math.min(...placed.map(s => s.scale)) * 1.4);
   });
 
   it('scatters off the lattice it walks, not on it', () => {
-    // The candidates are a grid; the placements must not be, or the meadow
-    // comes out in rows — which is the whole thing the ground work exists to
-    // avoid.
-    const xs = scatter(board('GRASS')).map(s => s.x % 7);
+    // The candidates are a grid; the placements must not be, or the ground
+    // comes out in rows — which is the whole thing this work exists to avoid.
+    const xs = scatter(board('ROAD')).map(s => s.x % 7);
 
     expect(new Set(xs.map(x => Math.round(x))).size).toBeGreaterThan(3);
   });

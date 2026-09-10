@@ -11,11 +11,17 @@ import { GroundField, groundAt, groundField } from './ground-field';
  * hundred feet in every direction.
  *
  * <p><b>Placed from the wear field, not sprinkled evenly.</b> Where a thing
- * ends up is a consequence of what the ground is doing: grass grows where the
- * grass is winning, stones surface where the wheels have stripped the turf, and
- * both thin out across the verge between. So the same field that decides which
- * material to draw decides what is standing on it, and the scatter cannot
- * disagree with the ground it is scattered on.
+ * ends up is a consequence of what the ground is doing: stones surface where
+ * the wheels have stripped the turf, branches collect at the verge. So the same
+ * field that decides which material to draw decides what is lying on it, and
+ * the scatter cannot disagree with the ground it is scattered on.
+ *
+ * <p><b>No grass here, and that was the lesson.</b> Grass was a photogrammetry
+ * scan — eight thousand triangles, its own lighting baked in, authored to be
+ * looked at from eye level — and from sixty feet up a few hundred of them read
+ * as dark smudges on a green field. No triangle budget fixes that; it is the
+ * wrong class of asset for this camera. Grass is the *ground* now: a texture on
+ * a mesh with real shape in it, which catches the light the way the water does.
  *
  * <p>Pure and deterministic, like the fields either side of it. The same board
  * scatters identically every time it is drawn: a meadow that reshuffled on
@@ -24,7 +30,7 @@ import { GroundField, groundAt, groundField } from './ground-field';
  */
 
 /** What kind of thing is lying there. */
-export type ScatterKind = 'GRASS_TUFT' | 'STONE' | 'BRANCH';
+export type ScatterKind = 'STONE' | 'BRANCH';
 
 export interface Scattered {
   readonly kind: ScatterKind;
@@ -47,12 +53,7 @@ export interface Scattered {
 const HABIT: Record<ScatterKind, {
   at: number; spread: number; per: number; small: number; large: number;
 }> = {
-  // Thickest in untouched meadow, thinning fast as the ground gets walked on
-  // and gone entirely by the middle of the road. Clumps of taller grass, not a
-  // lawn — the ground texture is already the lawn, and this is what stands
-  // above it.
-  GRASS_TUFT: { at: 0.0, spread: 0.42, per: 0.28, small: 0.45, large: 0.85 },
-  // The opposite: stones are what is left when the turf goes, so they are
+  // Stones are what is left when the turf goes, so they are
   // commonest on bare ground and absent under thick grass.
   STONE: { at: 1.0, spread: 0.55, per: 0.35, small: 0.6, large: 1.6 },
   // Blown into the verge and left there. Neither the road nor the meadow —
@@ -124,7 +125,7 @@ export function scatter(board: BoardScene, field?: GroundField): Scattered[] {
 }
 
 function kindSeed(kind: ScatterKind): number {
-  return kind === 'GRASS_TUFT' ? 31 : kind === 'STONE' ? 47 : 59;
+  return kind === 'STONE' ? 47 : 59;
 }
 
 /** Deterministic 0..1 from a position and a salt. */

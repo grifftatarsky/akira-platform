@@ -27,11 +27,36 @@ export const GROUND_TEXELS_PER_HALF_FOOT = 1.6;
 const BLUR_RADIUS = 3;
 const BLUR_PASSES = 4;
 
+/**
+ * How deep a fully worn rut sits below the verge, in half-feet.
+ *
+ * <p>Here rather than in the renderer because three things have to agree about
+ * it: the mesh that is displaced, the stones that sit on that mesh, and
+ * anything later that asks how high the ground is at a point.
+ */
+export const RUT_DEPTH = 0.9;
+
 export interface GroundField {
   readonly width: number;
   readonly height: number;
   readonly extentXHalfFeet: number;
   readonly extentYHalfFeet: number;
+  /**
+   * How high the ground is at each texel, in half-feet.
+   *
+   * <p><b>Real shape, not a normal map.</b> A flat plane lit from seventy
+   * degrees up has almost nothing to shade — which is why the water on this
+   * board looked real and the grass did not: water has a surface that answers
+   * to light, and a texture pretending to have one does not. Geometry catches
+   * the sun at a different angle everywhere, casts its own shadows, and breaks
+   * its own silhouette.
+   *
+   * <p>And it is free in the rules. The SRD makes a space Difficult Terrain at
+   * "a slope of 20 degrees or more" and says nothing about anything gentler, so
+   * ground that rolls under that threshold costs a creature exactly nothing —
+   * which is asserted, rather than hoped, in the tests.
+   */
+  readonly heights: Float32Array;
   /**
    * RGBA. Red is wear — 0 lush, 255 bare. Green is wet. Blue is a slow
    * variation across the whole board, which is what stops a tiling texture from
@@ -67,6 +92,7 @@ export function groundField(board: BoardScene): GroundField {
   const height = Math.max(1, Math.ceil(board.heightHalfFeet * GROUND_TEXELS_PER_HALF_FOOT));
   const wear = new Float32Array(width * height);
   const wet = new Float32Array(width * height);
+  const ground = new Float32Array(width * height);
 
   for (const tile of board.tiles) {
     const half = tile.size / 2;
@@ -80,6 +106,9 @@ export function groundField(board: BoardScene): GroundField {
       for (let x = x0; x < x1; x++) {
         wear[y * width + x] = w;
         wet[y * width + x] = damp;
+        // The square's own elevation, which the mesh has to follow or a hill
+        // is a hill in the rules and a flat patch in the picture.
+        ground[y * width + x] = tile.base;
       }
     }
   }
@@ -87,8 +116,10 @@ export function groundField(board: BoardScene): GroundField {
   for (let i = 0; i < BLUR_PASSES; i++) {
     smear(wear, width, height);
     smear(wet, width, height);
+    smear(ground, width, height);
   }
   roughen(wear, width, height);
+  shapeGround(ground, wear, width, height);
 
   const data = new Uint8Array(width * height * 4);
   for (let y = 0; y < height; y++) {
@@ -110,8 +141,54 @@ export function groundField(board: BoardScene): GroundField {
     height,
     extentXHalfFeet: board.widthHalfFeet,
     extentYHalfFeet: board.heightHalfFeet,
+    heights: ground,
     data,
   };
+}
+
+/**
+ * Gives the ground its shape: three scales of undulation, and the ruts.
+ *
+ * <p>Three, because ground varies at every scale at once and picking one gives
+ * you either a rolling desert with no texture or a gravel pit with no
+ * landscape. Long and low is the lie of the land, middling is where the ground
+ * gathers and drains, and short is the unevenness underfoot.
+ *
+ * <p>All three are deliberately gentle. The rules make a space difficult at
+ * twenty degrees, so anything below that is free — and there is no reason to
+ * spend a movement penalty on decoration.
+ */
+function shapeGround(
+  ground: Float32Array,
+  wear: Float32Array,
+  width: number,
+  height: number,
+): void {
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const at = y * width + x;
+      // Amplitudes in half-feet, pushed as far as the rules allow and no
+      // further: the tests measure the worst slope over a five-foot span and
+      // hold it under twenty degrees, which is where ground stops being free.
+      const rolling = (noise(x * 0.009, y * 0.009) - 0.5) * 7.0;
+      const middling = (noise(x * 0.042, y * 0.042) - 0.5) * 1.8;
+      const underfoot = (noise(x * 0.17, y * 0.17) - 0.5) * 0.35;
+      // Worn ground is worn *down*. The road is the low line through the
+      // country because that is what a century of wheels does, and a road that
+      // sits level with the verge beside it reads as a stripe of paint.
+      const sunk = wear[at] * wear[at] * RUT_DEPTH;
+      ground[at] += rolling + middling + underfoot - sunk;
+    }
+  }
+}
+
+/** How high the ground is at a point, in half-feet. */
+export function heightAt(field: GroundField, xHalfFeet: number, yHalfFeet: number): number {
+  const x = Math.max(0, Math.min(field.width - 1,
+    Math.floor((xHalfFeet / field.extentXHalfFeet) * field.width)));
+  const y = Math.max(0, Math.min(field.height - 1,
+    Math.floor((yHalfFeet / field.extentYHalfFeet) * field.height)));
+  return field.heights[y * field.width + x];
 }
 
 /**

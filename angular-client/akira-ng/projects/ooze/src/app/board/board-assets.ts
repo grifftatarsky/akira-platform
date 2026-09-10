@@ -351,7 +351,6 @@ export const FIELD_THEME: BoardTheme = {
       layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
     ],
     scatter: {
-      GRASS_TUFT: `${SCATTER_ROOT}/grass_medium_02/grass_medium_02.gltf`,
       // rock_07 and not rock_09: the latter measures seven centimetres by
       // three, which is a pebble, and a pebble on a board seen from sixty feet
       // up is nothing at all.

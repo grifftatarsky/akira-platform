@@ -4,7 +4,7 @@ import {
 } from 'three';
 import { SplatGround } from './board-assets';
 import { BoardScene } from './board.models';
-import { GroundField, groundField } from './ground-field';
+import { GroundField, groundField, heightAt } from './ground-field';
 
 /**
  * Ground made of real materials, blended by how worn it is.
@@ -125,11 +125,16 @@ const STOCHASTIC = `
   }
 `;
 
-/** How deep a fully worn rut sits below the verge, in half-feet. */
-const RUT_DEPTH = 0.9;
-
-/** Quads per half-foot along each axis. Enough to bend a rut, not a terrain. */
-const MESH_DETAIL = 0.25;
+/**
+ * Vertices per half-foot along each axis.
+ *
+ * <p>One, so the mesh can carry unevenness at the scale a foot of ground
+ * actually has it. A 220-by-150-foot board is about a quarter of a million
+ * triangles, which is a rounding error next to what a single photogrammetry
+ * tuft of grass was costing — and it buys real shape rather than a picture of
+ * shape.
+ */
+const MESH_DETAIL = 1;
 
 export interface SplatSurface {
   readonly mesh: Mesh;
@@ -165,7 +170,6 @@ export function splatGround(
     shader.uniforms['uExtent'] = { value: new Vector2(board.widthHalfFeet, board.heightHalfFeet) };
     shader.uniforms['uBoardLight'] = lightUniform;
     shader.uniforms['uBoardExtent'] = extentUniform;
-    shader.uniforms['uRut'] = { value: RUT_DEPTH };
     layers.forEach((layer, i) => {
       shader.uniforms[`uColour${i}`] = { value: layer.colour };
       shader.uniforms[`uNormal${i}`] = { value: layer.normal };
@@ -177,26 +181,24 @@ export function splatGround(
     });
 
     shader.vertexShader = `
-      uniform sampler2D uMask;
-      uniform vec2 uExtent;
-      uniform float uRut;
       varying vec2 vGround;
       varying vec3 vBoardPos;
+      varying vec3 vGroundNormal;
     ` + shader.vertexShader.replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>
-       vec3 world = (modelMatrix * vec4(transformed, 1.0)).xyz;
-       vGround = world.xy;
-       // Sunk before anything downstream reads the position, so the shadow
-       // pass, the normals and the light lookup all agree about where the
-       // ground actually is.
-       float wearHere = texture2D(uMask, world.xy / uExtent).r;
-       transformed.z -= wearHere * wearHere * uRut;
-       vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
+       // The shape is already in the geometry — displaced once on the way in,
+       // with its normals recomputed from the result. Doing it here instead
+       // would leave every normal pointing straight up at ground the shader
+       // had just bent, which is a flat-looking hill.
+       vBoardPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+       vGround = vBoardPos.xy;
+       vGroundNormal = normalize(mat3(modelMatrix) * normal);`);
 
     shader.fragmentShader = `
       uniform sampler2D uMask;
       uniform vec2 uExtent;
+      varying vec3 vGroundNormal;
       uniform sampler2D uBoardLight;
       uniform vec2 uBoardExtent;
       uniform sampler2D uColour0; uniform sampler2D uNormal0; uniform sampler2D uArm0;
@@ -266,10 +268,26 @@ export function splatGround(
         roughnessFactor = mix(roughnessFactor, 0.12, groundMask.g);
       `)
       .replace('#include <normal_fragment_maps>', `
-        // The plane's tangent frame is the world's, so the map's X and Y are
-        // the board's X and Y and its Z is up. No TBN needed, and none of the
-        // seams one would bring.
-        normal = normalize(vec3(layerNormal.xy, layerNormal.z * 1.4));
+        // A real tangent frame, built from the surface the ground actually has.
+        //
+        // This used to hand the tangent-space normal straight to three as if it
+        // were the shading normal, which is wrong twice over: three's is in
+        // *view* space, and the surface is no longer flat, so "up" is not up.
+        // On a flat plane under a top-down camera the error was invisible; on
+        // ground with shape in it, every slope would have been lit as if level.
+        //
+        // The UVs run along world X and Y, so the tangent is world X projected
+        // onto the surface and the bitangent follows.
+        vec3 gN = normalize(vGroundNormal);
+        vec3 gT = normalize(vec3(1.0, 0.0, 0.0) - gN * gN.x);
+        vec3 gB = cross(gN, gT);
+        // Pushed harder than the scan measured. A surface lit from seventy
+        // degrees up returns almost the same amount of light whichever way it
+        // faces, so at noon the relief has to be exaggerated to be seen at all
+        // — the sun is the thing flattening this ground, not the maps.
+        vec3 detail = normalize(vec3(layerNormal.xy * 1.9, layerNormal.z));
+        vec3 worldNormal = normalize(gT * detail.x + gB * detail.y + gN * detail.z);
+        normal = normalize((viewMatrix * vec4(worldNormal, 0.0)).xyz);
       `)
       .replace('#include <aomap_fragment>', `
         reflectedLight.indirectDiffuse *= layerArm.r;
@@ -281,19 +299,22 @@ export function splatGround(
   };
   material.customProgramCacheKey = () => 'board-splat-ground';
 
-  const mesh = new Mesh(
-    new PlaneGeometry(
-      board.widthHalfFeet,
-      board.heightHalfFeet,
-      Math.max(1, Math.round(board.widthHalfFeet * MESH_DETAIL)),
-      Math.max(1, Math.round(board.heightHalfFeet * MESH_DETAIL)),
-    ),
-    material,
+  const geometry = new PlaneGeometry(
+    board.widthHalfFeet,
+    board.heightHalfFeet,
+    Math.max(1, Math.round(board.widthHalfFeet * MESH_DETAIL)),
+    Math.max(1, Math.round(board.heightHalfFeet * MESH_DETAIL)),
   );
+  displace(geometry, field, board);
+
+  const mesh = new Mesh(geometry, material);
   // PlaneGeometry is built around the origin in XY, which is already this
   // world's ground plane — no rotation, only a shift to put its corner at 0.
   mesh.position.set(board.widthHalfFeet / 2, board.heightHalfFeet / 2, 0);
   mesh.receiveShadow = true;
+  // And casts, now that it has shape: a rise catching the afternoon sun should
+  // put its own far side in shadow, which is half of why shape reads as shape.
+  mesh.castShadow = true;
 
   return {
     mesh,
@@ -308,6 +329,35 @@ export function splatGround(
       });
     },
   };
+}
+
+/**
+ * Bends a flat grid into the ground the field describes.
+ *
+ * <p>On the way in rather than in the vertex shader, and that is the whole
+ * point: normals recomputed from the displaced positions mean every slope is
+ * lit as the slope it is. Displacing in the shader leaves the normals pointing
+ * straight up at ground that is no longer flat — a hill you can see the
+ * silhouette of and cannot see the shading of.
+ */
+function displace(
+  geometry: PlaneGeometry,
+  field: GroundField,
+  board: BoardScene,
+): void {
+  const position = geometry.getAttribute('position');
+  const halfWidth = board.widthHalfFeet / 2;
+  const halfHeight = board.heightHalfFeet / 2;
+  for (let i = 0; i < position.count; i++) {
+    // The geometry is centred on the origin and the field is not, so the
+    // sample point is the vertex shifted by half the board.
+    position.setZ(i, heightAt(
+      field,
+      position.getX(i) + halfWidth,
+      position.getY(i) + halfHeight));
+  }
+  position.needsUpdate = true;
+  geometry.computeVertexNormals();
 }
 
 /**
