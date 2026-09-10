@@ -38,6 +38,9 @@ const BLUR_HALF_FEET = 1.875;
 const BLUR_RADIUS = Math.max(1, Math.round(BLUR_HALF_FEET * GROUND_TEXELS_PER_HALF_FOOT));
 const BLUR_PASSES = 4;
 
+/** Extra smoothing for the elevation alone, to lose the cell staircase. */
+const TERRACE_PASSES = 6;
+
 /**
  * The width between a cart's wheels, in half-feet.
  *
@@ -139,6 +142,22 @@ export function groundField(board: BoardScene): GroundField {
     smear(wet, width, height);
     smear(ground, width, height);
   }
+  // <b>And the elevation gets far more.</b> A map stores height per five-foot
+  // cell as a whole number of feet, so the raw field is a staircase with
+  // two-half-foot risers thirty texels apart. On level ground that is invisible
+  // — the risers are inches and the ground is flat anyway. On a cliff it is
+  // *terracing*: regular steps running along the face, which through a
+  // separable blur come out as a plaid, and which read as brown corduroy up
+  // every mountain on the board.
+  //
+  // <p>The blur has to reach across a whole cell to remove them, and the shared
+  // pass above is tuned for the verge of a road, which is a much shorter
+  // distance. Six more passes on the elevation alone is about a cell and a half
+  // of reach — enough to lose the steps and nowhere near enough to lose a
+  // hillside, which is a hundred times wider.
+  for (let i = 0; i < TERRACE_PASSES; i++) {
+    smear(ground, width, height);
+  }
   roughen(wear, width, height);
   shapeGround(ground, wear, width, height);
   puddle(wet, ground, wear, width, height);
@@ -190,6 +209,10 @@ function shapeGround(
 ): void {
   const track = cartTrack(wear, width, height);
   const per = GROUND_TEXELS_PER_HALF_FOOT;
+  // How level the ground already is, before any of this is added. The base at
+  // this point is the map's own elevation, smeared — so this is the shape of
+  // the country and not of the texture on it.
+  const level = levelness(ground, width, height, per);
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -212,7 +235,15 @@ function shapeGround(
       // driven on has clods, ridges thrown up between the wheel tracks, and
       // hollows where water sat. All of it scaled by how bare the ground is,
       // so it stops at the verge without anything having to say where that is.
-      const bare = wear[at];
+      //
+      // <p><b>And by how level it is</b>, which was not obvious until there was
+      // a mountain on the board. Every one of these features is a mark that
+      // traffic left, and traffic does not go up a cliff — so on the first pass
+      // through the mountains the rock walls came out ribbed with cart ruts and
+      // stamped with hoofprints, which read as brown corduroy and took three
+      // wrong diagnoses to find. Bare rock is bare; only bare *ground* is
+      // worked.
+      const bare = wear[at] * level[at];
       const clods = (noise(hx * 0.544, hy * 0.544) - 0.5) * 0.75 * bare;
       const ridges = (noise(hx * 0.176, hy * 0.992) - 0.5) * 0.55 * bare;
       // Hollows only: the peaks of this noise are cut off, so the road is
@@ -235,6 +266,39 @@ function shapeGround(
         - rutAt(track, x, y, width, per) * bare;
     }
   }
+}
+
+/**
+ * How level each texel is, from 1 on the flat to 0 on a cliff.
+ *
+ * <p>Measured off the map's own elevation before any relief is added, and used
+ * to decide where the marks of traffic belong. See the note in
+ * {@link shapeGround}.
+ */
+function levelness(
+  ground: Float32Array,
+  width: number,
+  height: number,
+  per: number,
+): Float32Array {
+  const level = new Float32Array(ground.length);
+  const step = Math.max(1, Math.round(per));
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const at = y * width + x;
+      const east = Math.min(width - 1, x + step);
+      const west = Math.max(0, x - step);
+      const north = Math.min(height - 1, y + step);
+      const south = Math.max(0, y - step);
+      const dx = ground[y * width + east] - ground[y * width + west];
+      const dy = ground[north * width + x] - ground[south * width + x];
+      // Rise over run in half-feet, against a run of two steps.
+      const slope = Math.hypot(dx, dy) / ((2 * step) / per);
+      // Wholly level under a one-in-five, gone by a one-in-two.
+      level[at] = Math.max(0, Math.min(1, 1 - (slope - 0.2) / 0.3));
+    }
+  }
+  return level;
 }
 
 /**
@@ -322,13 +386,31 @@ function rutAt(
   return Math.exp(-across * across) * 0.8;
 }
 
-/** How high the ground is at a point, in half-feet. */
+/**
+ * How high the ground is at a point, in half-feet.
+ *
+ * <p><b>Interpolated, not nearest.</b> This looks like a detail and is not. The
+ * field holds three samples to the half-foot and the mesh has two vertices to
+ * it, so nearest-neighbour lookup makes consecutive vertices land on the same
+ * texel in an irregular beat — which on level ground is a step of an inch that
+ * nobody will ever see, and on a forty-degree wall is a staircase. The first
+ * mountain drawn on this board came out as brown corduroy, and this was why.
+ */
 export function heightAt(field: GroundField, xHalfFeet: number, yHalfFeet: number): number {
-  const x = Math.max(0, Math.min(field.width - 1,
-    Math.floor((xHalfFeet / field.extentXHalfFeet) * field.width)));
-  const y = Math.max(0, Math.min(field.height - 1,
-    Math.floor((yHalfFeet / field.extentYHalfFeet) * field.height)));
-  return field.heights[y * field.width + x];
+  const gx = Math.max(0, Math.min(field.width - 1.001,
+    (xHalfFeet / field.extentXHalfFeet) * field.width));
+  const gy = Math.max(0, Math.min(field.height - 1.001,
+    (yHalfFeet / field.extentYHalfFeet) * field.height));
+  const x = Math.floor(gx);
+  const y = Math.floor(gy);
+  const fx = gx - x;
+  const fy = gy - y;
+  const at = y * field.width + x;
+  const a = field.heights[at];
+  const b = field.heights[at + 1];
+  const c = field.heights[at + field.width];
+  const d = field.heights[at + field.width + 1];
+  return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
 }
 
 /**

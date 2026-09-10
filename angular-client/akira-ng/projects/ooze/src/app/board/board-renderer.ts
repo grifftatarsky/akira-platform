@@ -869,8 +869,10 @@ export class BoardRenderer {
     // the picture is wrong: six in the evening really is a twentieth of noon on
     // flat ground, and rendering that ratio faithfully at a fixed exposure
     // produced a black field at what should be the best light of the day.
+    // Divided by how bright the ground itself is, because an eye adapts to
+    // luminance and not to illumination. See BoardLook.ground.
     this.renderer.toneMappingExposure = this.look.exposure
-      * (this.adaptive ? eyeExposure(at.elevation) : 1);
+      * (this.adaptive ? eyeExposure(at.elevation) * (0.25 / (this.look.ground ?? 0.25)) : 1);
     // Below the horizon the sun contributes nothing, but its shadow camera
     // still has to point somewhere sane, so it is parked just above it.
     this.pointSun(Math.max(1, at.elevation), at.azimuth);
@@ -1847,17 +1849,21 @@ export class BoardRenderer {
 }
 
 /**
- * How high the ground on a board typically stands, in half-feet.
+ * How high the ground a party would stand on is, in half-feet.
  *
- * <p>The median rather than the mean, because a coast is a third sea and the
- * mean of a cliff and a seabed is a height nothing on the map is at.
+ * <p>A low quantile rather than the median, and that is not fussiness. On a
+ * pass, four fifths of the squares are the mountain either side and only the
+ * narrow floor is anywhere anybody goes — so the median height is halfway up a
+ * wall, and a camera aiming there looks at snow. The low ground is where the
+ * map happens on every board that has relief, and on a flat one every quantile
+ * is the same number.
  */
 function standingHeight(board: BoardScene): number {
   if (board.tiles.length === 0) {
     return 0;
   }
   const heights = board.tiles.map(t => t.base).sort((a, b) => a - b);
-  return heights[Math.floor(heights.length / 2)];
+  return heights[Math.floor(heights.length * 0.3)];
 }
 
 /** Which of the three ground materials a square wants. */

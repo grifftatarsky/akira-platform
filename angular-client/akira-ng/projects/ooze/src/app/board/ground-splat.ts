@@ -269,26 +269,29 @@ export function splatGround(
        * brickwork. It is the single thing that made the first cliff on this
        * board unusable.
        *
-       * <p>The usual answer is triplanar mapping — three projections blended by
-       * the normal — but this ground is a height field and can never overhang,
-       * so one alternative projection is enough: across the slope and up it.
-       * Half the cost of triplanar and, on a surface that is a function of X
-       * and Y, the same picture.
+       * <p><b>The axes have to be world axes.</b> The first attempt projected
+       * along the contour — the horizontal part of the surface normal, turned a
+       * quarter — which is the mathematically natural choice and produces a
+       * texture that *swirls*, because the contour direction rotates with every
+       * bump and the projection rotates with it. Triplanar mapping works
+       * precisely because its three planes never move. This is triplanar with
+       * the two side planes chosen rather than blended, which on a height field
+       * costs one sample instead of three and differs only along the diagonal
+       * where the two are equally edge-on — and natural ground is broken up
+       * enough there that the seam has nothing to sit on.
        */
-      vec2 groundPlane(vec2 flat, float scale) {
+      vec2 groundPlane(vec2 level, float scale) {
         vec3 gN = normalize(vGroundNormal);
         float steep = 1.0 - abs(gN.z);
         if (steep < 0.12) {
-          return flat;
+          return level;
         }
-        // Along the contour, and up. The contour direction is the horizontal
-        // part of the normal turned a quarter, which is the one direction on a
-        // slope that does not change height.
-        vec2 across = normalize(vec2(-gN.y, gN.x) + vec2(0.0001));
-        vec2 wall = vec2(dot(vBoardPos.xy, across), vBoardPos.z) / scale;
+        vec2 wall = abs(gN.x) > abs(gN.y)
+          ? vec2(vBoardPos.y, vBoardPos.z) / scale
+          : vec2(vBoardPos.x, vBoardPos.z) / scale;
         // A wide crossover, or the seam between the two projections is a line
         // drawn round the hill at a fixed angle.
-        return mix(flat, wall, smoothstep(0.12, 0.55, steep));
+        return mix(level, wall, smoothstep(0.12, 0.55, steep));
       }
 
       ${GROUND_SAMPLING}
@@ -318,6 +321,24 @@ export function splatGround(
       // and the ground turns into weather.
       const float COARSE = 3.5;
 
+      /**
+       * How much the stochastic shuffle should give way to plain tiling.
+       *
+       * <p>The shuffle hides repetition by cutting the texture into a triangle
+       * lattice and drawing each cell from a different offset. That works while
+       * the cells are large on screen; on a steep face, where the projection
+       * compresses one axis hard, the cells shrink until the lattice itself is
+       * what you see — a regular chevron corduroy running up the rock. It is
+       * the third time this grid has become the pattern it exists to hide.
+       *
+       * <p>So on steep ground the shuffle is faded out and the texture simply
+       * tiles. A visible repeat on a cliff seen edge-on is a far smaller crime
+       * than a visible lattice, and nobody counts repeats on a wall.
+       */
+      float groundPlain() {
+        return smoothstep(0.3, 0.6, 1.0 - abs(normalize(vGroundNormal).z));
+      }
+
       // One sampler per layer, generated rather than parameterised: which
       // binding a layer reads from is a property of the theme, known when the
       // shader is built, and passing a sampler around as an argument is
@@ -334,9 +355,11 @@ export function splatGround(
         vec3 s = groundSharpen(w);
         vec2 dx = dFdx(uv);
         vec2 dy = dFdy(uv);
-        return ${pick('v1')} * s.x
-             + ${pick('v2')} * s.y
-             + ${pick('v3')} * s.z;
+        vec2 flatCell = vec2(0.0);
+        return mix(
+          ${pick('v1')} * s.x + ${pick('v2')} * s.y + ${pick('v3')} * s.z,
+          ${pick('flatCell')},
+          groundPlain());
       }
 
       /**
@@ -375,15 +398,22 @@ export function splatGround(
 
         outColor = scaledColor${i}(uv, far);
 
-        outNormal =
+        float plain = groundPlain();
+        vec2 flatCell = vec2(0.0);
+
+        outNormal = mix(
             (groundVariant(uNormal${i}, uv, v1, dx, dy).xyz * 2.0 - 1.0) * s.x
           + (groundVariant(uNormal${i}, uv, v2, dx, dy).xyz * 2.0 - 1.0) * s.y
-          + (groundVariant(uNormal${i}, uv, v3, dx, dy).xyz * 2.0 - 1.0) * s.z;
+          + (groundVariant(uNormal${i}, uv, v3, dx, dy).xyz * 2.0 - 1.0) * s.z,
+            groundVariant(uNormal${i}, uv, flatCell, dx, dy).xyz * 2.0 - 1.0,
+            plain);
 
-        outArm =
+        outArm = mix(
             groundVariant(uArm${i}, uv, v1, dx, dy).xyz * s.x
           + groundVariant(uArm${i}, uv, v2, dx, dy).xyz * s.y
-          + groundVariant(uArm${i}, uv, v3, dx, dy).xyz * s.z;
+          + groundVariant(uArm${i}, uv, v3, dx, dy).xyz * s.z,
+            groundVariant(uArm${i}, uv, flatCell, dx, dy).xyz,
+            plain);
       }`;
       }).join('\n')}
     ` + shader.fragmentShader

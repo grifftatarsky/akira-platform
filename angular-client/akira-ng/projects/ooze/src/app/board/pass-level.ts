@@ -31,8 +31,24 @@ function widthAt(y: number): number {
   // It narrows and opens. The narrow places are where an ambush goes and the
   // open ones are where a fight has room, and a pass of one width is a corridor
   // in a dungeon rather than a place in mountains.
-  return 4.4 + Math.sin(y * 0.13 + 0.6) * 1.9 + Math.sin(y * 0.33) * 0.8;
+  //
+  // <p>Wide. The first pass at this was four cells and the map came out
+  // three-quarters mountain — which is a fair picture of a pass and a useless
+  // battle map, because almost none of it was ground anybody could stand on and
+  // almost none of it was snow. A pass is a *place*; the walls are its edges,
+  // not its subject.
+  return 8.5 + Math.sin(y * 0.13 + 0.6) * 2.6 + Math.sin(y * 0.33) * 1.1;
 }
+
+/**
+ * How far up the wall snow still lies, in cells past the floor's edge.
+ *
+ * <p>Snow holds on anything up to about forty degrees and slides off what is
+ * steeper, which is why a mountain in winter is white to a line and bare rock
+ * above it. Drawn from the same profile as the height, so the line moves when
+ * the shape does.
+ */
+const SNOW_LINE = 5.5;
 
 /**
  * The height of the ground, in feet.
@@ -52,7 +68,15 @@ function heightAt(x: number, y: number): number {
   if (out <= 0) {
     return 4 + drift;
   }
-  return 4 + drift + Math.pow(out, 1.75) * 5.2;
+  // Capped, and it has to be. Unclamped this reached five hundred feet at the
+  // board's edge — which is a fair mountain and a useless map: the walls filled
+  // the frame from every angle and the camera ended up level with their tops.
+  //
+  // <p>Gentle at first and then hard, so there is an apron of snow before the
+  // rock. A wall that goes vertical the instant the floor ends has no snow line
+  // on it, and the snow line is most of what says "mountain in winter" rather
+  // than "canyon".
+  return 4 + drift + Math.min(115, Math.pow(out, 1.45) * 1.9);
 }
 
 export function buildPass(): MapCell[] {
@@ -62,7 +86,11 @@ export function buildPass(): MapCell[] {
       const out = Math.abs(x - floorAt(y)) - widthAt(y);
       // Deep snow on the floor, scoured snow on the lower slopes, bare rock
       // where it is too steep for anything to lie.
-      const kind: TerrainKind = out <= 0 ? 'GRASS' : out < 2.4 ? 'RUBBLE' : 'ROAD';
+      // Deep snow on the floor, wind-scoured snow up the apron, bare rock
+      // above the snow line.
+      const kind: TerrainKind = out <= 0
+        ? 'GRASS'
+        : out < SNOW_LINE ? 'RUBBLE' : 'ROAD';
       cells.push({
         x, y,
         elevationFeet: Math.round(heightAt(x, y)),

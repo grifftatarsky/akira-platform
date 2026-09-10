@@ -207,6 +207,19 @@ export interface Species {
    * elevation on it and wrong for every board that has any.
    */
   readonly slope?: number;
+  /**
+   * The *least* worn the ground may be and still grow it.
+   *
+   * <p>The mirror of {@link Species#tolerates}, and needed as soon as there was
+   * a snowfield: mountain tussock grows on the scoured, stony places the wind
+   * keeps clear and not in the drifts, so a species that only asks for an upper
+   * bound carpets the one part of the map it should be absent from. It made the
+   * pass a brown field with snow round the edges.
+   *
+   * <p>Absent means it will grow on anything up to its tolerance, which is what
+   * every plant on a meadow wants.
+   */
+  readonly needs?: number;
   readonly scale: readonly [number, number];
   /** How far the wind moves its tips. */
   readonly sway: number;
@@ -803,8 +816,13 @@ export function meadow(sowing: Sowing): Meadow | null {
   for (let y = spacing / 2; y < board.heightHalfFeet; y += spacing) {
     for (let x = spacing / 2; x < board.widthHalfFeet; x += spacing) {
       seedAt(x, y);
-      const jx = x + (nextRandom() - 0.5) * spacing;
-      const jy = y + (nextRandom() - 0.5) * spacing;
+      // A whole spacing of jitter, not half. Half keeps every plant inside its
+      // own lattice cell, and on a steep surface — where the world-to-screen
+      // mapping squashes one axis hard — that cell structure becomes visible as
+      // rows. A full spacing lets neighbours cross, which costs nothing and
+      // destroys the grid.
+      const jx = x + (nextRandom() - 0.5) * spacing * 2;
+      const jy = y + (nextRandom() - 0.5) * spacing * 2;
       const { wear, wet } = groundAt(field, jx, jy);
       if (wet > 0.3) {
         continue;
@@ -824,7 +842,9 @@ export function meadow(sowing: Sowing): Meadow | null {
       let total = 0;
       for (let s = 0; s < growing.length; s++) {
         const species = growing[s];
-        if (wear > species.tolerates || (species.slope !== undefined && steep > species.slope)) {
+        if (wear > species.tolerates
+          || (species.needs !== undefined && wear < species.needs)
+          || (species.slope !== undefined && steep > species.slope)) {
           weights[s] = 0;
           continue;
         }

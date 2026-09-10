@@ -200,6 +200,20 @@ export interface BoardLook {
   readonly vignette: number;
   /** How much dust hangs in the air, as a multiple of the usual amount. */
   readonly motes: number;
+  /**
+   * How much light this ground gives back, roughly, from 0 to 1.
+   *
+   * <p>Because the eye adapts to *luminance*, and luminance is illumination
+   * times albedo. The adaptation was computed from the sun alone, which is
+   * right for grass and badly wrong for snow: a snowfield under a nine-degree
+   * winter sun is dimly lit and *very bright*, and opening the exposure three
+   * stops for the dim light clipped the bright surface to a white void with no
+   * shading and therefore no shape at all.
+   *
+   * <p>Grass and dirt are about a quarter, which is the default; snow is about
+   * three quarters and a wet road rather less than a fifth.
+   */
+  readonly ground?: number;
 }
 
 /** A torchlit interior: the values the dungeon was tuned to. */
@@ -680,16 +694,23 @@ export const PASS_THEME: BoardTheme = {
   name: 'The pass',
   attribution: 'Ground and sky from Poly Haven (polyhaven.com), CC0',
   unitsPerModelUnit: 2.5,
-  environment: { url: `${PH_ROOT}/snow_field_2k.hdr`, intensity: 1.5 },
+  environment: { url: `${PH_ROOT}/snow_field_2k.hdr`, intensity: 1.6 },
   sky: true,
   look: {
-    // Down, not up. Snow returns most of the light that hits it and an exposure
-    // set for grass turns it into a white sheet with nothing in it.
-    exposure: 0.82,
-    ambient: 0.5,
-    latitude: 61,
-    dayOfYear: 20,
-    hour: 13,
+    // <b>A snowfield is lit by the sky, not by the sun.</b> At sixty-one
+    // degrees north in January the sun stands nine degrees up, and nine degrees
+    // of sun puts almost nothing on level ground — so the first version of this
+    // map was correctly dark, and unusable. Moved south and into February the
+    // sun clears twenty; and the ambient goes up hard, because on snow under
+    // cloud very nearly all the light on the ground arrived from above as
+    // skylight and was reflected between the drifts before it got there.
+    exposure: 0.78,
+    ambient: 0.85,
+    // Snow is bright as well as dimly lit, and the eye adapts to the product.
+    ground: 0.55,
+    latitude: 48,
+    dayOfYear: 35,
+    hour: 12,
     // Nearly untouched: snow is not a colourful place and pushing it is how you
     // get blue shadows in a cartoon.
     saturation: 0.94,
@@ -700,11 +721,21 @@ export const PASS_THEME: BoardTheme = {
   ground: {
     kind: 'splat',
     layers: [
-      layer('snow_02', 6, [1.0, 1.0, 1.02]),
-      layer('snow_03', 7, [0.96, 0.97, 1.02]),
-      layer('rocks_ground_08', 8, [0.82, 0.82, 0.86]),
+      // Well under white, and slightly blue. Snow rendered at full value has
+      // nowhere left to go when the sun hits it, and the highlights are the
+      // only thing that describes a drift; held at three quarters there is
+      // room above for the light and room below for the shadow.
+      layer('snow_02', 6, [0.76, 0.79, 0.86]),
+      layer('snow_03', 7, [0.72, 0.75, 0.84]),
+      // Grey and slightly blue. The scan is a warm brown, and warm brown rock
+      // in a snowfield reads as mud — mountains in winter are the colour of the
+      // light on them, which is the sky.
+      layer('rocks_ground_08', 8, [0.46, 0.48, 0.56]),
     ],
-    blades: 0.5,
+    // Very thin. Almost nothing grows through a snowfield, and the little that
+    // does is the point of it — a scatter of dead grass on the scoured ground
+    // says how deep the drifts are beside it.
+    blades: 0.22,
     plants: TUSSOCK,
   },
   pieces: {},

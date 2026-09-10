@@ -223,7 +223,13 @@ export const WOOD_FLOOR: readonly Species[] = [
 export const TUSSOCK: readonly Species[] = [
   {
     name: 'tussock', punctuates: false, share: 1, patch: 0.05, clumping: 2.2,
-    tolerates: 0.55, slope: 0.9, scale: [1.1, 2.4], sway: 0.22, casts: false,
+    // Only where the snow does not lie. Grass in a drift is grass under three
+    // feet of snow, which is to say invisible.
+    // On the scoured apron between the drifts and the rock, and nowhere else:
+    // below 0.4 it is buried in snow, above 0.85 it is bare rock, and past a
+    // slope of a half it is a face nothing roots on.
+    needs: 0.4, tolerates: 0.85, slope: 0.5,
+    scale: [1.1, 2.4], sway: 0.22, casts: false,
     lush: 0x7d7148, dry: 0xa39268,
     strips: () => spread(7, 0.35, (i, yaw, rootX, rootY) => ({
       rootX, rootY, yaw,
