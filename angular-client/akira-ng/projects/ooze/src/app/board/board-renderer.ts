@@ -1596,6 +1596,10 @@ export class BoardRenderer {
   }
 
   start(): void {
+    // So probeCost can be driven from the console against the live board.
+    // Deliberate: the numbers it gives are the only honest ones we have, and a
+    // board that has to be rebuilt to be measured does not get measured.
+    (globalThis as unknown as Record<string, unknown>)['board'] = this;
     const loop = () => {
       if (this.disposed) {
         return;
@@ -1811,6 +1815,118 @@ export class BoardRenderer {
   }
 
   // endregion
+
+  /**
+   * What each part of a frame costs the GPU, in milliseconds.
+   *
+   * <p>A frame rate cannot answer this and never could. It is one number for
+   * the whole frame, it moves with whatever else the tab is doing, and in a
+   * headless pane it moves with requestAnimationFrame throttling too — so a
+   * board that draws in 8 ms and one that draws in 60 ms report the same
+   * figure. This asks the GPU directly, through `EXT_disjoint_timer_query`.
+   *
+   * <p>Three things about it are load-bearing, each learned by getting a wrong
+   * answer first:
+   *
+   * <ul>
+   * <li><b>`gl.finish` is not a measurement.</b> Timing a draw between two
+   *     calls to it reported the whole board at 0.13 ms, because the command
+   *     buffer is forwarded to another process and the call does not wait for
+   *     the work the way the name suggests. Every number this file ever
+   *     produced that way was fiction.
+   * <li><b>A query's result is not readable in the task that issued it.</b> It
+   *     comes back over IPC, so the read has to happen after a yield — hence
+   *     the await, and hence why this is async and cannot be called from a
+   *     frame loop.
+   * <li><b>Stages must not be interleaved.</b> Measured round-robin, a cheap
+   *     stage sitting behind an expensive one inherits its tail: an empty scene
+   *     timed at 14.8 ms in a mixed batch and 0.45 ms in its own. One stage per
+   *     batch, and compare batches.
+   * </ul>
+   */
+  async probeCost(reps = 8): Promise<Record<string, number>> {
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2') as {
+      TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number;
+    } | null;
+    if (!ext) {
+      return {};
+    }
+
+    const scene = () => this.renderer.render(this.scene, this.camera);
+    const chain = () => (this.post ? this.post.draw() : scene());
+    const meadow = [...(this.plants?.meshes ?? []), ...(this.canopy?.meshes ?? [])];
+    const withMeadow = (shown: boolean, run: () => void) => {
+      meadow.forEach(mesh => (mesh.visible = shown));
+      run();
+      meadow.forEach(mesh => (mesh.visible = true));
+    };
+    const withGround = (shown: boolean, run: () => void) => {
+      this.terrain.visible = shown;
+      run();
+      this.terrain.visible = true;
+    };
+
+    const stages: [string, () => void][] = [
+      ['frame', chain],
+      ['scene', scene],
+      ['grassOnly', () => withGround(false, scene)],
+      ['groundOnly', () => withMeadow(false, scene)],
+    ];
+
+    const measured: Record<string, number> = {};
+    for (const [name, draw] of stages) {
+      for (let warm = 0; warm < 4; warm++) {
+        draw();
+      }
+      gl.finish();
+      const queries: WebGLQuery[] = [];
+      for (let i = 0; i < reps; i++) {
+        const query = gl.createQuery();
+        if (!query) continue;
+        gl.beginQuery(ext.TIME_ELAPSED_EXT, query);
+        draw();
+        gl.endQuery(ext.TIME_ELAPSED_EXT);
+        // Between queries, so each one's work has drained before the next
+        // begins. Without it the stages bleed into each other.
+        gl.finish();
+        queries.push(query);
+      }
+      // A read of the framebuffer is what actually forces the results home:
+      // `finish` alone leaves them pending, and a timer alone is throttled to
+      // a second at a time in a background tab. One pixel is enough.
+      const pixel = new Uint8Array(4);
+      for (let wait = 0; wait < 40; wait++) {
+        await new Promise(resolve => setTimeout(resolve, 16));
+        gl.finish();
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+        if (gl.getQueryParameter(queries[queries.length - 1], gl.QUERY_RESULT_AVAILABLE)) {
+          break;
+        }
+      }
+      const taken: number[] = [];
+      for (const query of queries) {
+        if (
+          gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE) &&
+          !gl.getParameter(ext.GPU_DISJOINT_EXT)
+        ) {
+          taken.push(gl.getQueryParameter(query, gl.QUERY_RESULT) / 1e6);
+        }
+        gl.deleteQuery(query);
+      }
+      taken.sort((a, b) => a - b);
+      if (taken.length) {
+        measured[name] = Number(taken[taken.length >> 1].toFixed(2));
+      }
+    }
+
+    measured['post'] = Number(((measured['frame'] ?? 0) - (measured['scene'] ?? 0)).toFixed(2));
+    measured['triangles'] = this.renderer.info.render.triangles;
+    measured['calls'] = this.renderer.info.render.calls;
+    measured['width'] = this.renderer.domElement.width;
+    measured['height'] = this.renderer.domElement.height;
+    return measured;
+  }
 
   /**
    * What the last frame actually cost.
