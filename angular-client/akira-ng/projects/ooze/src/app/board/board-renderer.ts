@@ -15,7 +15,9 @@ import { EnvironmentLibrary } from './environment';
 import { FLAME_COLOR, LIGHT_RANGE, lightField, lightSource } from './light-field';
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
-import { bearingName, eyeExposure, shadowStretch, sunPosition, sunlight } from './sun-position';
+import {
+  bearingName, eyeExposure, shadowStretch, sunPosition, sunlight,
+} from './sun-position';
 import { SplatSurface, splatGround } from './ground-splat';
 import { ScatterLayer, scatterGround } from './ground-scatter';
 import { Meadow, meadow } from './meadow';
@@ -384,6 +386,13 @@ export class BoardRenderer {
     // camera can see but the shadow camera cannot is a seed head that stops
     // casting. This is the whole cost of moving the meadow off layer zero.
     this.sun.shadow.camera.layers.enable(MEADOW_LAYER);
+    // Drawn on demand rather than every frame. See restageShadows().
+    this.sun.shadow.autoUpdate = false;
+    this.sun.shadow.needsUpdate = true;
+    // A wider percentage-closer kernel, now that a texel is a fraction of what
+    // it was: at radius 1 on the fitted frustum the edges came out razor sharp,
+    // which is not what a shadow in open air looks like.
+    this.sun.shadow.radius = 2.5;
     // The target has to be in the scene or the light ignores where it points —
     // three reads the target's *world* matrix, and an orphan never gets one.
     this.scene.add(this.sun, this.sun.target);
@@ -454,6 +463,7 @@ export class BoardRenderer {
         }
         this.litter = layer;
         layer.meshes.forEach(mesh => this.terrainArt.add(mesh));
+        this.restageShadows();
       });
     } else {
       this.layGround(board);
@@ -483,10 +493,19 @@ export class BoardRenderer {
    * texel on a level this size.
    */
   private aimSun(board: BoardScene): void {
-    const cx = board.widthHalfFeet / 2;
-    const cy = board.heightHalfFeet / 2;
     const span = Math.max(board.widthHalfFeet, board.heightHalfFeet, 20);
-    this.sun.target.position.set(cx, cy, 0);
+    // <b>Aimed at what is on screen, not at the board.</b> A shadow map has a
+    // fixed number of texels and they go wherever its camera looks, so one
+    // sized to a two-hundred-foot board spends every texel it has on ground
+    // that is mostly off screen. Zoomed in on a fight, that was a fortieth of
+    // the map doing all the work and shadows a hand's breadth wide made of
+    // three texels. Following the view instead costs nothing and is worth more
+    // than any amount of extra resolution.
+    const focus = new Vector3().addVectors(this.centre, this.pan);
+    focus.x = Math.max(0, Math.min(board.widthHalfFeet, focus.x));
+    focus.y = Math.max(0, Math.min(board.heightHalfFeet, focus.y));
+    this.sun.target.position.set(focus.x, focus.y, 0);
+
     // Placed from a real elevation and bearing rather than from a nudge that
     // looked right once. High light keeps a wall's shadow under half its
     // height, which reads as depth without reading as ground a DM has to
@@ -495,12 +514,21 @@ export class BoardRenderer {
     const azimuth = (this.sunAzimuth * Math.PI) / 180;
     const reach = span * 1.4;
     this.sun.position.set(
-      cx + reach * Math.cos(elevation) * Math.sin(azimuth),
-      cy + reach * Math.cos(elevation) * Math.cos(azimuth),
-      cy * 0 + reach * Math.sin(elevation),
+      focus.x + reach * Math.cos(elevation) * Math.sin(azimuth),
+      focus.y + reach * Math.cos(elevation) * Math.cos(azimuth),
+      reach * Math.sin(elevation),
     );
+
+    // What the camera can see, plus however far a shadow reaches into it from
+    // outside. The second part is not optional: a wall just off the left edge
+    // still throws a shadow across the ground that is on screen, and a frustum
+    // fitted to the view alone would cut it off at the edge of the picture.
+    const aspect = this.width / Math.max(1, this.height);
+    const seen = this.zoom * 0.5 * Math.max(1, aspect);
+    const reachIn = Math.min(shadowStretch(this.sunElevation), 8) * WALL_HEIGHT;
+    const half = Math.min(span * 0.8, seen + reachIn);
+
     const shadow = this.sun.shadow.camera;
-    const half = span * 0.8;
     shadow.left = -half;
     shadow.right = half;
     shadow.top = half;
@@ -508,6 +536,33 @@ export class BoardRenderer {
     shadow.near = 1;
     shadow.far = span * 3;
     shadow.updateProjectionMatrix();
+
+    // Both offsets are texel-sized, so both have to follow the frustum. Left
+    // at the number tuned for a board-wide map, the normal bias would be two
+    // feet of offset on a map whose texels are now half an inch — every
+    // shadow sliding away from the thing casting it.
+    const texel = (2 * half) / this.sun.shadow.mapSize.x;
+    this.sun.shadow.normalBias = texel * 2.5;
+    this.sun.shadow.bias = -texel * 0.05;
+    this.restageShadows();
+  }
+
+  /**
+   * Says the shadow map is out of date, so it will be drawn again next frame.
+   *
+   * <p>The map is not redrawn every frame any more. It only changes when the
+   * sun moves, the view moves or the board's contents do — and between those,
+   * re-rendering it is the whole scene submitted a second time for a picture
+   * that would come out identical. On a still board, which is what a board
+   * spends most of its life being, that is several million triangles a frame
+   * for nothing.
+   *
+   * <p>The one thing it costs: the meadow sways and its shadows do not. A seed
+   * head's shadow is an inch across, and nobody has ever noticed one holding
+   * still.
+   */
+  private restageShadows(): void {
+    this.sun.shadow.needsUpdate = true;
   }
 
   /** Points the sun, and re-aims it over whatever board is loaded. */
@@ -754,6 +809,7 @@ export class BoardRenderer {
       const first = board.tiles[indices[0]];
       // Every tile of a kind is the same size, and a wall is the same height as
       // every other wall — so one shape serves the whole bucket.
+      this.restageShadows();
       const model = await this.library.instanced(
         piece, first.size, first.height > 0 ? first.height : undefined);
       // The board may have been replaced or disposed while a model loaded; a
@@ -824,6 +880,9 @@ export class BoardRenderer {
       }
       const mesh = new InstancedMesh(model.geometry, this.litAll(model.material), placements.length);
       mesh.castShadow = true;
+      // The map was drawn before this arrived, so without this the prop stands
+      // in the light with nothing under it.
+      this.restageShadows();
       mesh.receiveShadow = true;
       placements.forEach((prop, slot) => {
         matrix.makeRotationZ(prop.rotation);
@@ -1310,6 +1369,10 @@ export class BoardRenderer {
 
   /** Points the camera at the board, whichever camera it is. */
   private place(): void {
+    // The shadow frustum follows the view, so moving the view moves it.
+    if (this.framed) {
+      this.aimSun(this.framed);
+    }
     // The element's shape, which the buffer matches — so this is the buffer's
     // aspect too, and neither camera has to know the picture is being scaled.
     const aspect = this.width / Math.max(1, this.height);
