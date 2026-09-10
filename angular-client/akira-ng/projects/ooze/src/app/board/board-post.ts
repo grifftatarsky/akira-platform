@@ -36,6 +36,24 @@ export class PostChain {
   private readonly render: RenderPass;
   private readonly grade: ShaderPass;
 
+  /**
+   * A stand-in camera for the occlusion pass, on the ground's layer alone.
+   *
+   * <p>GTAO renders the scene again, into depth and normal buffers, to find its
+   * creases. That second submission is as expensive as the first, and on this
+   * board most of it is grass — which the pass searches a two-foot radius for
+   * occlusion and therefore cannot resolve at all. Given a camera that cannot
+   * see the meadow, it draws the ground and the props and nothing else, and the
+   * result is the same picture for half the geometry.
+   *
+   * <p>A clone rather than a flag, because the pass takes a camera and there is
+   * no hook between "start the AO render" and "finish it". It is re-copied from
+   * the real camera every frame and then put back on its own layer, since
+   * `Object3D.copy` copies the layer mask along with everything else.
+   */
+  private aoCamera: Camera;
+  private live: Camera;
+
   constructor(
     renderer: WebGLRenderer,
     private readonly scene: Scene,
@@ -52,7 +70,10 @@ export class PostChain {
     this.render = new RenderPass(scene, camera);
     this.composer.addPass(this.render);
 
-    this.ao = new GTAOPass(scene, camera, width, height);
+    this.live = camera;
+    this.aoCamera = camera.clone();
+    this.aoCamera.layers.set(0);
+    this.ao = new GTAOPass(scene, this.aoCamera, width, height);
     // The world unit is the half-foot, and every default in this pass is
     // written for a world measured in metres — a 0.25 radius here is an inch
     // and a half, which finds nothing. Four half-feet is two feet: the scale of
@@ -104,7 +125,10 @@ export class PostChain {
   /** Swaps the camera on every pass that holds one. */
   setCamera(camera: Camera): void {
     this.render.camera = camera;
-    this.ao.camera = camera;
+    this.live = camera;
+    this.aoCamera = camera.clone();
+    this.aoCamera.layers.set(0);
+    this.ao.camera = this.aoCamera;
   }
 
   /**
@@ -123,6 +147,10 @@ export class PostChain {
   }
 
   draw(): void {
+    // The stand-in has to follow the real camera every frame — it is only
+    // standing in for its layer mask, not for where it is looking.
+    this.aoCamera.copy(this.live);
+    this.aoCamera.layers.set(0);
     this.composer.render();
   }
 

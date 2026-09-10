@@ -7,7 +7,7 @@ import { BoardRenderer, CameraMode } from './board-renderer';
 import { BoardTheme, KAYKIT_THEME } from './board-assets';
 import { PointerStart, dropAt, gestureFor, pathBetween, zoomAfterWheel } from './board-gestures';
 import { cellSize, sceneForBattle, sceneForEncounter } from './board-scene';
-import { clockLabel } from './sun-position';
+import { clockLabel, dateLabel, latitudeName } from './sun-position';
 
 /**
  * The tactical board.
@@ -87,15 +87,12 @@ import { clockLabel } from './sun-position';
           </div>
 
           @if (hasClock()) {
-            <label class="pointer-events-auto flex items-center gap-2 rounded-md border
-                          border-rule bg-bg/85 px-2 py-1 text-[0.7rem] text-fg-muted
-                          backdrop-blur">
-              <span class="tabular-nums">{{ clock() }}</span>
-              <input type="range" min="4" max="21" step="0.25"
-                     [value]="hour()" (input)="setHour($event)"
-                     aria-label="Time of day"
-                     class="h-1 w-28 cursor-pointer accent-accent" />
-            </label>
+            <button type="button" (click)="sunPanel.set(!sunPanel())"
+                    [attr.aria-expanded]="sunPanel()"
+                    [class]="sunPanel() ? 'bg-accent/15 text-accent' : 'text-fg-subtle hover:text-fg'"
+                    class="rounded-md border border-rule bg-bg/85 px-2 py-1 text-[0.7rem]
+                           font-medium tabular-nums backdrop-blur transition"
+                    title="Where the sun is">Sun · {{ clock() }}</button>
           }
 
           <button type="button" (click)="toggleStats()"
@@ -146,6 +143,71 @@ import { clockLabel } from './sun-position';
           {{ s.tris }} · {{ s.buffer }}<br />
           {{ s.plants }} growing
         </p>
+      }
+
+      <!--
+        Every row says what it does in the terms the change will be seen in, not
+        in the terms it is stored in. "Latitude 51" is a number a DM has to look
+        up; "about London" is the thing they were picturing when they reached
+        for the control. And the summary at the bottom reports what the board
+        will actually look like — how long the shadows are and which way they
+        fall — because a panel that only reads its own settings back is telling
+        somebody what they just typed.
+      -->
+      @if (sunPanel() && hasClock()) {
+        <div class="pointer-events-auto absolute right-2 top-11 w-64 rounded-md border
+                    border-rule bg-bg/95 p-3 text-[0.7rem] text-fg-muted shadow-lg
+                    backdrop-blur">
+          <p class="mb-2 font-semibold text-fg">The sun</p>
+
+          <label class="mb-3 block">
+            <span class="flex items-baseline justify-between">
+              <span class="font-medium text-fg">Time</span>
+              <span class="tabular-nums">{{ clock() }}</span>
+            </span>
+            <input type="range" min="4" max="21" step="0.25"
+                   [value]="hour()" (input)="setHour($event)"
+                   aria-label="Time of day"
+                   class="mt-1 h-1 w-full cursor-pointer accent-accent" />
+            <span class="text-fg-subtle">Carries it across the sky, east to west.</span>
+          </label>
+
+          <label class="mb-3 block">
+            <span class="flex items-baseline justify-between">
+              <span class="font-medium text-fg">Season</span>
+              <span class="tabular-nums">{{ date() }}</span>
+            </span>
+            <input type="range" min="1" max="365" step="1"
+                   [value]="dayOfYear()" (input)="setDay($event)"
+                   aria-label="Day of the year"
+                   class="mt-1 h-1 w-full cursor-pointer accent-accent" />
+            <span class="text-fg-subtle">How high it climbs at midday. Summer high, winter low.</span>
+          </label>
+
+          <label class="mb-3 block">
+            <span class="flex items-baseline justify-between">
+              <span class="font-medium text-fg">How far north</span>
+              <span class="tabular-nums">{{ place() }}</span>
+            </span>
+            <input type="range" min="0" max="66" step="0.5"
+                   [value]="latitude()" (input)="setLatitude($event)"
+                   aria-label="Latitude"
+                   class="mt-1 h-1 w-full cursor-pointer accent-accent" />
+            <span class="text-fg-subtle">Nearer the pole, the lower the sun stays all day.</span>
+          </label>
+
+          <label class="mb-3 flex items-start gap-2">
+            <input type="checkbox" [checked]="adaptive()" (change)="setAdaptive($event)"
+                   class="mt-0.5 accent-accent" />
+            <span>
+              <span class="font-medium text-fg">Let the eye adjust</span><br />
+              <span class="text-fg-subtle">Opens up as the light falls, so evening stays
+                a scene you can play on instead of going black.</span>
+            </span>
+          </label>
+
+          <p class="border-t border-rule pt-2 text-fg">{{ sunSummary() }}</p>
+        </div>
       }
 
       @if (selectedName(); as name) {
@@ -229,6 +291,41 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
   protected readonly clock = computed(() => clockLabel(this.hour()));
   protected readonly hasClock = signal(false);
 
+  /** Where in the year, and how far north — the other two things the sun answers to. */
+  protected readonly dayOfYear = signal(196);
+  protected readonly latitude = signal(37.5);
+  protected readonly adaptive = signal(true);
+  protected readonly sunPanel = signal(false);
+  protected readonly date = computed(() => dateLabel(this.dayOfYear()));
+  protected readonly place = computed(() => latitudeName(this.latitude()));
+
+  /**
+   * What the sun is doing, said in what will be visible on the board.
+   *
+   * <p>Recomputed off a counter the setters bump rather than off the sliders,
+   * because the answer comes from the renderer — which owns the sun — and a
+   * computed cannot depend on a method call.
+   */
+  private readonly sunTick = signal(0);
+  protected readonly sunSummary = computed(() => {
+    this.sunTick();
+    const sun = this.renderer?.sunReadout();
+    if (!sun) {
+      return '';
+    }
+    if (sun.elevation <= 0) {
+      return 'Below the horizon — no shadows, only the sky.';
+    }
+    const height = `${Math.round(sun.elevation)}° above the horizon`;
+    if (!Number.isFinite(sun.shadow) || sun.shadow > 12) {
+      return `${height}. Shadows run ${sun.bearing}, far longer than anything is tall.`;
+    }
+    const stretch = sun.shadow < 1
+      ? `about ${Math.round(sun.shadow * 10) / 10}×`
+      : `about ${Math.round(sun.shadow * 2) / 2}×`;
+    return `${height}. Shadows fall ${sun.bearing}, ${stretch} as long as things are tall.`;
+  });
+
   /**
    * What the last frame cost, while the readout is on.
    *
@@ -289,7 +386,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
       if (this.renderer) {
         this.renderer.setTheme(theme);
         this.hasClock.set(this.renderer.hasClock());
-        this.hour.set(this.renderer.hourOfDay());
+        this.readSun();
         if (board) {
           this.renderer.render(board);
         }
@@ -309,7 +406,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     this.observer.observe(canvas.parentElement ?? canvas);
 
     this.hasClock.set(this.renderer.hasClock());
-    this.hour.set(this.renderer.hourOfDay());
+    this.readSun();
     const board = this.scene();
     if (board) {
       this.renderer.render(board);
@@ -357,10 +454,44 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
     }, 500);
   }
 
+  /** Pulls the panel's controls back into step with whatever the theme set. */
+  private readSun(): void {
+    const sun = this.renderer?.sunReadout();
+    if (!sun) {
+      return;
+    }
+    this.hour.set(sun.hour);
+    this.dayOfYear.set(sun.dayOfYear);
+    this.latitude.set(sun.latitude);
+    this.adaptive.set(sun.adaptive);
+    this.sunTick.update(n => n + 1);
+  }
+
+  protected setDay(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.dayOfYear.set(value);
+    this.renderer?.setDayOfYear(value);
+    this.sunTick.update(n => n + 1);
+  }
+
+  protected setLatitude(event: Event): void {
+    const value = Number((event.target as HTMLInputElement).value);
+    this.latitude.set(value);
+    this.renderer?.setLatitude(value);
+    this.sunTick.update(n => n + 1);
+  }
+
+  protected setAdaptive(event: Event): void {
+    const on = (event.target as HTMLInputElement).checked;
+    this.adaptive.set(on);
+    this.renderer?.setAdaptive(on);
+  }
+
   protected setHour(event: Event): void {
     const value = Number((event.target as HTMLInputElement).value);
     this.hour.set(value);
     this.renderer?.setHour(value);
+    this.sunTick.update(n => n + 1);
   }
 
   protected toggleGrid(): void {

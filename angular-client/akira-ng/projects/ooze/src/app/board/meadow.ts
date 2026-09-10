@@ -40,6 +40,13 @@ import { MESH_DETAIL } from './ground-splat';
  * triangles, which costs less than the alpha-cut cards it replaces and brings
  * none of the sorting or the cutout fringing. Color is per-vertex, dark at the
  * root and pale at the tip, times a per-instance tone.
+ *
+ * <p>That root-to-tip ramp is now carrying more than it used to. The occlusion
+ * pass has been told not to look at the meadow — see MEADOW_LAYER in the
+ * renderer — so the darkness down among the stems, which the pass used to
+ * supply, has to be painted into the plants themselves. It is a cheaper way to
+ * get the same reading: the shade at a blade's base is not really a
+ * screen-space effect, it is a fact about grass.
  */
 
 /** Half-feet between candidate plants, before jitter. */
@@ -69,6 +76,23 @@ interface Strip {
   width: number;
   /** How much of the width survives to the tip. */
   taper: number;
+  /**
+   * Shapes it as a leaf rather than a tapering ribbon.
+   *
+   * <p>A linear taper can only make a wedge, and a wedge is what made the
+   * clover look like flat cabbage: a leaflet an inch long, wider than it is
+   * long, holding almost its full width to a squared-off tip, is a green
+   * rectangle from every angle. A leaf is none of those things — it is narrow
+   * where it joins the stalk, widest somewhere along its length, and closed to
+   * a point at the end.
+   *
+   * <p>The number says where the widest part falls: the width follows
+   * sin(pi * t^leaf), so 0.5 peaks a quarter of the way up (a clover leaflet,
+   * round and broad near the base) and 1 peaks halfway (a plantain leaf,
+   * lance-shaped). Absent leaves the plain taper, which is what a blade of
+   * grass actually is.
+   */
+  leaf?: number;
   /** Sections along it. Three reads as a curve; one reads as a shard. */
   segments: number;
   root: number;
@@ -108,8 +132,12 @@ interface Species {
    * <p>What *is* worth casting is whatever stands clear of the sward. A seed
    * head two feet up throws a shadow a foot long across the grass below it,
    * and that shadow is the only thing that says the head is above the field
-   * rather than painted on it. So the tall species cast and the mat does not,
-   * which is a small fraction of the plants and nearly all of the depth.
+   * rather than painted on it. So the seed heads cast and nothing else does.
+   *
+   * <p>Not the flowers, though they are as tall: a daisy's head is an inch
+   * across, so its shadow is a speck at any distance and a texel of noise at
+   * the shadow map's resolution, and it was costing a million triangles a
+   * frame to be that.
    */
   readonly casts: boolean;
   readonly lush: number;
@@ -124,7 +152,7 @@ function grassStrips(): Strip[] {
     tall: 0.72 + ((i * 7) % 5) * 0.13,
     bend: 0.34 + ((i * 3) % 4) * 0.13,
     width: 0.048, taper: 0.15, segments: 3,
-    root: 0x3d5423, tip: 0x9cb85a,
+    root: 0x30431a, tip: 0x9cb85a,
   }));
 }
 
@@ -142,7 +170,7 @@ function seedStrips(): Strip[] {
     tall: 2.5 + ((i * 5) % 3) * 0.35,
     bend: 0.16 + (i % 2) * 0.08,
     width: 0.036, taper: 0.35, segments: 4,
-    root: 0x4a5b2a, tip: 0xb8b46a,
+    root: 0x3c4a20, tip: 0xb8b46a,
   }));
   const heads = stalks.flatMap(stalk => [0, 1].map(k => ({
     // Rooted where the stalk's tip lands, so the head sits on the stalk rather
@@ -166,24 +194,38 @@ function broadleafStrips(): Strip[] {
     // Nearly flat: a rosette pressed to the ground is the shape, and it is why
     // the plant is still there.
     bend: 1.5 + (i % 2) * 0.3,
-    width: 0.17, taper: 0.35, segments: 3,
-    root: 0x2f4a1c, tip: 0x6f8f3c,
+    width: 0.19, taper: 1, leaf: 0.9, segments: 3,
+    root: 0x253c14, tip: 0x6f8f3c,
   }));
 }
 
-/** Clover: low three-lobed cover that mats the gaps between the grass. */
+/**
+ * Clover: low three-lobed cover that mats the gaps between the grass.
+ *
+ * <p><b>Five heads and no stems.</b> It was seven heads on seven stems, and
+ * measured rather than guessed it came to 112 triangles a plant — forty per
+ * cent of the whole meadow's cost, for something three inches tall that is a
+ * green dot from the camera the game is played at. The stems were the waste:
+ * a clover leaf at that height sits *on* the ground, so the stalk under it is
+ * two triangles nobody can see, seven times over. Trimmed to five heads it is
+ * sixty, and it looks the same.
+ */
 function cloverStrips(): Strip[] {
-  return spread(7, 0.42, (i, yaw, rootX, rootY) => {
-    const stem = 0.3 + ((i * 5) % 3) * 0.06;
-    return [
-      { rootX, rootY, yaw, tall: stem, bend: 0.2, width: 0.02, taper: 0.6,
-        segments: 2, root: 0x35521f, tip: 0x4f7a2c },
-      ...[0, 1, 2].map(lobe => ({
-        rootX, rootY, yaw: yaw + lobe * 2.094,
-        tall: 0.16, bend: 1.6, width: 0.1, taper: 0.9, segments: 2,
-        root: 0x4f7a2c, tip: 0x7ba33f, lift: stem,
-      } as Strip & { lift: number })),
-    ];
+  return spread(4, 0.45, (i, yaw, rootX, rootY) => {
+    // A short petiole's worth of height, implied rather than drawn: the stalk
+    // under a three-inch leaf is two triangles nobody can see.
+    const lift = 0.14 + ((i * 5) % 3) * 0.06;
+    return [0, 1, 2].map(lobe => ({
+      rootX, rootY, yaw: yaw + lobe * 2.094,
+      // Held up at an angle rather than pressed flat. Clover is a mat, but
+      // each trefoil tilts its faces to the light, and flat leaflets give the
+      // whole patch one shading value — which is the other half of why it read
+      // as painted cardboard.
+      tall: 0.3, bend: 0.55, width: 0.085, taper: 1, leaf: 0.5, segments: 3,
+      // Pale toward the tip, which from above is the whitish band across a
+      // clover leaf and is most of how the eye names the plant.
+      root: 0x335620, tip: 0x8fb857, lift,
+    } as Strip & { lift: number }));
   }).flat() as Strip[];
 }
 
@@ -193,10 +235,10 @@ function flowerStrips(): Strip[] {
     const stem = 1.9 + (i % 2) * 0.35;
     return [
       { rootX, rootY, yaw, tall: stem, bend: 0.22, width: 0.022, taper: 0.7,
-        segments: 3, root: 0x415c22, tip: 0x6c8a39 },
+        segments: 3, root: 0x354b1a, tip: 0x6c8a39 },
       ...[0, 1, 2, 3, 4].map(petal => ({
         rootX, rootY, yaw: yaw + petal * 1.2566,
-        tall: 0.2, bend: 1.1, width: 0.07, taper: 0.55, segments: 2,
+        tall: 0.22, bend: 1.1, width: 0.085, taper: 1, leaf: 0.7, segments: 2,
         // White, and shifted per instance — the drift is one flower, and two
         // drifts twenty feet apart are usually not the same one.
         root: 0xe8e2cf, tip: 0xfffdf2, lift: stem,
@@ -250,7 +292,7 @@ const SPECIES: readonly Species[] = [
   },
   {
     name: 'flower', share: 0.5, patch: 0.16, clumping: 4, tolerates: 0.26,
-    scale: [0.85, 1.25], sway: 0.3, casts: true,
+    scale: [0.85, 1.25], sway: 0.3, casts: false,
     lush: 0xefe8d2, dry: 0xd8bf5e, strips: flowerStrips,
   },
 ];
@@ -259,6 +301,17 @@ export interface Meadow {
   readonly meshes: readonly InstancedMesh[];
   /** Individual plants standing on the board, for the readout. */
   readonly plants: number;
+  /**
+   * What each species costs, measured rather than reasoned about.
+   *
+   * <p>Exists because the triangle count on screen cannot be attributed by
+   * looking at it: five instanced meshes report as one number, the shadow pass
+   * adds an unknown fraction of them again, and arithmetic on the species table
+   * gets the *distribution* wrong — the roulette weights are each species'
+   * share times a random field raised to its own power, which is not a number
+   * anybody should be estimating in their head.
+   */
+  readonly census: readonly { name: string; plants: number; triangles: number }[];
   dispose(): void;
 }
 
@@ -287,7 +340,9 @@ function speciesGeometry(species: Species): BufferGeometry {
 
     for (let i = 0; i <= strip.segments; i++) {
       const t = i / strip.segments;
-      const halfWidth = strip.width * (1 - t * (1 - strip.taper));
+      const halfWidth = strip.leaf
+        ? strip.width * Math.sin(Math.PI * Math.pow(t, strip.leaf))
+        : strip.width * (1 - t * (1 - strip.taper));
       // Height eases off as the strip leans over, and the lean grows faster
       // than the height, so the last third is nearly horizontal.
       const up = lift + Math.sin(t * Math.PI * 0.5) * strip.tall;
@@ -445,6 +500,7 @@ export function meadow(
 
   const meshes: InstancedMesh[] = [];
   const materials: Material[] = [];
+  const census: { name: string; plants: number; triangles: number }[] = [];
   let plants = 0;
 
   const matrix = new Matrix4();
@@ -493,6 +549,11 @@ export function meadow(
     meshes.push(mesh);
     materials.push(material);
     plants += plot.length;
+    census.push({
+      name: species.name,
+      plants: plot.length,
+      triangles: ((mesh.geometry.getIndex()?.count ?? 0) / 3) * plot.length,
+    });
   });
 
   if (meshes.length === 0) {
@@ -501,6 +562,7 @@ export function meadow(
   return {
     meshes,
     plants,
+    census,
     dispose() {
       meshes.forEach(mesh => mesh.geometry.dispose());
       materials.forEach(material => material.dispose());

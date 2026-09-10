@@ -15,7 +15,7 @@ import { EnvironmentLibrary } from './environment';
 import { FLAME_COLOR, LIGHT_RANGE, lightField, lightSource } from './light-field';
 import { PostChain } from './board-post';
 import { Motes } from './board-motes';
-import { sunPosition, sunlight } from './sun-position';
+import { bearingName, eyeExposure, shadowStretch, sunPosition, sunlight } from './sun-position';
 import { SplatSurface, splatGround } from './ground-splat';
 import { ScatterLayer, scatterGround } from './ground-scatter';
 import { Meadow, meadow } from './meadow';
@@ -76,6 +76,23 @@ const GRID_LIFT = 0.5;
  * against a real WebGL context, which is why the rules live in
  * {@code board-scene.ts} instead.
  */
+/**
+ * The layer everything growing is on.
+ *
+ * <p>So that one pass can be told to ignore a quarter of a million plants.
+ * Ambient occlusion is computed from a depth and normal render of the whole
+ * scene — a second full submission of the geometry — and at a two-foot search
+ * radius it cannot resolve a blade of grass anyway: what it recovers from the
+ * meadow is noise at the cost of thirteen million triangles a frame. It still
+ * darkens the ground *under* the grass, which is the part that reads, because
+ * the ground is on layer zero where the pass can see it.
+ *
+ * <p>Everything that must still see the meadow has to opt in by hand — both
+ * cameras and, easy to miss, the sun's shadow camera, which has a layer mask of
+ * its own.
+ */
+const MEADOW_LAYER = 1;
+
 export class BoardRenderer {
 
   private readonly renderer: WebGLRenderer;
@@ -205,6 +222,18 @@ export class BoardRenderer {
   private sunElevation = 68;
   private sunAzimuth = 145;
   private look: BoardLook = INDOOR_LOOK;
+
+  /** Where in the year the board is, and how far north. Both start at the theme's. */
+  private dayOfYear = 196;
+  private latitude = 37.5;
+
+  /**
+   * Whether the exposure follows the light the way an eye would.
+   *
+   * <p>On by default, because off is a fixed-exposure photograph of a field
+   * rather than the field. See {@link ./sun-position#eyeExposure}.
+   */
+  private adaptive = true;
   private hour = INDOOR_LOOK.hour;
 
   /**
@@ -316,6 +345,10 @@ export class BoardRenderer {
     // frustum this wide has to be large enough to detach a shadow from the
     // thing casting it; normalBias solves the same acne without the gap.
     this.sun.shadow.normalBias = 0.4;
+    // The shadow camera has its own layer mask, and a seed head that the main
+    // camera can see but the shadow camera cannot is a seed head that stops
+    // casting. This is the whole cost of moving the meadow off layer zero.
+    this.sun.shadow.camera.layers.enable(MEADOW_LAYER);
     // The target has to be in the scene or the light ignores where it points —
     // three reads the target's *world* matrix, and an orphan never gets one.
     this.scene.add(this.sun, this.sun.target);
@@ -358,7 +391,23 @@ export class BoardRenderer {
       const field = groundField(board);
       if (ground.blades) {
         this.plants = meadow(board, field, m => this.lit(m), this.time, ground.blades);
-        this.plants?.meshes.forEach(mesh => this.terrainArt.add(mesh));
+        this.plants?.meshes.forEach(mesh => {
+          // Its own layer, so the occlusion pass can be told not to look at it.
+          // See MEADOW_LAYER.
+          mesh.layers.set(MEADOW_LAYER);
+          this.terrainArt.add(mesh);
+        });
+        if (this.plants) {
+          // Said out loud once per board. What the meadow costs is not
+          // recoverable from anything on screen — five instanced meshes are
+          // one number in the renderer's counters, and the shadow pass adds
+          // some of them again — so the breakdown is printed where it can be
+          // read rather than guessed at.
+          console.debug('[board] meadow %s',
+            this.plants.census
+              .map(c => `${c.name} ${c.plants} plants / ${Math.round(c.triangles / 1000)}k tris`)
+              .join(' · '));
+        }
       }
       const generation = this.generation + 1;
       void scatterGround(ground, board, field, m => this.lit(m)).then(layer => {
@@ -458,6 +507,8 @@ export class BoardRenderer {
     const look = theme.look ?? INDOOR_LOOK;
     this.look = look;
     this.hour = look.hour;
+    this.dayOfYear = look.dayOfYear;
+    this.latitude = look.latitude;
     this.renderer.toneMappingExposure = look.exposure;
     this.ambient.intensity = look.ambient;
     this.post?.setGrade(look.saturation, look.contrast, look.vignette);
@@ -478,8 +529,60 @@ export class BoardRenderer {
     this.place();
   }
 
+  /**
+   * Moves the board through the year.
+   *
+   * <p>Which changes how high the sun ever gets: at this latitude it climbs to
+   * seventy-four degrees in July and thirty in December, so the same hour is a
+   * different light and a different length of shadow. Cheaper than it sounds —
+   * nothing is rebuilt, the sun is simply somewhere else.
+   */
+  setDayOfYear(day: number): void {
+    this.dayOfYear = Math.max(1, Math.min(365, day));
+    this.applyClock();
+    this.place();
+  }
+
+  /** Moves the board north or south, which is the other half of where the sun goes. */
+  setLatitude(degrees: number): void {
+    this.latitude = Math.max(-66, Math.min(66, degrees));
+    this.applyClock();
+    this.place();
+  }
+
+  /** Whether the exposure opens up as the light falls, the way an eye does. */
+  setAdaptive(on: boolean): void {
+    this.adaptive = on;
+    this.applyClock();
+  }
+
   hourOfDay(): number {
     return this.hour;
+  }
+
+  /**
+   * Where the sun is and what it is doing, in terms somebody can act on.
+   *
+   * <p>Degrees and bearings are the inputs; what a person reads off a board is
+   * how long the shadows are and which way they fall. Both are here, because a
+   * control panel that only reported its own settings back would be telling the
+   * user what they already typed.
+   */
+  sunReadout(): {
+    hour: number; dayOfYear: number; latitude: number; adaptive: boolean;
+    elevation: number; bearing: string; shadow: number;
+  } {
+    const at = sunPosition(this.hour, this.latitude, this.dayOfYear);
+    return {
+      hour: this.hour,
+      dayOfYear: this.dayOfYear,
+      latitude: this.latitude,
+      adaptive: this.adaptive,
+      elevation: at.elevation,
+      // Where the shadows point, which is opposite the sun.
+      bearing: bearingName(at.azimuth + 180),
+      shadow: shadowStretch(at.elevation),
+    };
   }
 
   /** Whether this board has a sky to have a time of day in. */
@@ -494,10 +597,16 @@ export class BoardRenderer {
       this.pointSun(this.look.fixedSun.elevation, this.look.fixedSun.azimuth);
       return;
     }
-    const at = sunPosition(this.hour, this.look.latitude, this.look.dayOfYear);
+    const at = sunPosition(this.hour, this.latitude, this.dayOfYear);
     const light = sunlight(at.elevation);
     this.sun.intensity = light.intensity;
     this.sun.color.set(light.color);
+    // The eye opens as the light falls. Without this the sun model is right and
+    // the picture is wrong: six in the evening really is a twentieth of noon on
+    // flat ground, and rendering that ratio faithfully at a fixed exposure
+    // produced a black field at what should be the best light of the day.
+    this.renderer.toneMappingExposure = this.look.exposure
+      * (this.adaptive ? eyeExposure(at.elevation) : 1);
     // Below the horizon the sun contributes nothing, but its shadow camera
     // still has to point somewhere sane, so it is parked just above it.
     this.pointSun(Math.max(1, at.elevation), at.azimuth);
@@ -1093,6 +1202,7 @@ export class BoardRenderer {
     if (mode === 'TOP_DOWN') {
       const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 4000);
       camera.up.set(0, 1, 0);
+      camera.layers.enable(MEADOW_LAYER);
       return camera;
     }
     // A long lens, not a wide one. Fifty degrees puts the near corner of a
@@ -1105,6 +1215,7 @@ export class BoardRenderer {
     // three's Y-up default would put a conversion between the data and the
     // picture — the one place it must not be.
     camera.up.set(0, 0, 1);
+    camera.layers.enable(MEADOW_LAYER);
     return camera;
   }
 
