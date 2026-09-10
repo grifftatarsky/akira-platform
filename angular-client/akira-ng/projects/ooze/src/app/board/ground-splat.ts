@@ -132,13 +132,21 @@ const STOCHASTIC = `
 /**
  * Vertices per half-foot along each axis.
  *
- * <p>One, so the mesh can carry unevenness at the scale a foot of ground
- * actually has it. A 220-by-150-foot board is about a quarter of a million
- * triangles, which is a rounding error next to what a single photogrammetry
- * tuft of grass was costing — and it buys real shape rather than a picture of
- * shape.
+ * <p>Two, so a vertex every three inches: the scale a wheel rut, a hoofprint
+ * and a clod of a driven road actually vary at. One was enough for a meadow
+ * and visibly not enough for the road, which was the point of the road — the
+ * field underneath describes prints and ruts and a mesh that samples every six
+ * inches averages them into a gentle wobble.
+ *
+ * <p>A 220-by-150-foot board is about a million triangles at this density.
+ * Measured rather than assumed to be affordable, and it is: shape is what the
+ * light has to work with, and there is no texture that substitutes for it.
+ *
+ * <p>Exported because the grass has to root itself on the surface this makes,
+ * and that surface is the *interpolation* between these vertices rather than
+ * the field's own value — see {@link ../grass-blades}.
  */
-const MESH_DETAIL = 1;
+export const MESH_DETAIL = 2;
 
 export interface SplatSurface {
   readonly mesh: Mesh;
@@ -236,11 +244,75 @@ export function splatGround(
       ${GROUND_HEIGHT_BLEND}
       ${GROUND_TINT}
 
-      // One layer, sampled stochastically: three cells, each with its own
-      // offset, turn and — for the grass — its own photograph.
+      // Where the coarser scale starts and finishes taking over, measured in
+      // texture repeats per screen pixel.
+      //
+      // <p>Not distance from the camera, which was the obvious thing and the
+      // wrong one: what actually breaks a texture down is how many of its
+      // repeats land inside one pixel, and that depends on the zoom, the
+      // projection and the angle of the ground as much as on range. A
+      // top-down orthographic board sixty feet up and a perspective camera
+      // six feet up can want the same scale. Repeats-per-pixel is the
+      // quantity itself, so the crossover is right at every zoom without a
+      // number tuned per camera.
+      //
+      // <p>A repeat spanning 128 pixels still has detail to give; by 32 it is
+      // averaging most of the photograph into every pixel.
+      const float FINE_PIXELS = 1.0 / 128.0;
+      const float COARSE_PIXELS = 1.0 / 32.0;
+
+      // How much bigger the far read's world footprint is. Enough that a
+      // repeat is a body-length rather than a hand-span; more than about four
+      // and the ground turns into weather.
+      const float COARSE = 3.5;
+
+      // One layer's color, sampled stochastically: three cells, each with its
+      // own offset, turn and — for the grass — its own photograph.
+      vec4 stochasticColor(sampler2D colorMap, vec2 uv, bool useVariants) {
+        vec3 w; vec2 v1; vec2 v2; vec2 v3;
+        groundGrid(uv, w, v1, v2, v3);
+        vec3 s = groundSharpen(w);
+        vec2 dx = dFdx(uv);
+        vec2 dy = dFdy(uv);
+        if (useVariants) {
+          return grassVariant(uVariants, uv, v1, uVariantCount, dx, dy) * s.x
+               + grassVariant(uVariants, uv, v2, uVariantCount, dx, dy) * s.y
+               + grassVariant(uVariants, uv, v3, uVariantCount, dx, dy) * s.z;
+        }
+        return groundVariant(colorMap, uv, v1, dx, dy) * s.x
+             + groundVariant(colorMap, uv, v2, dx, dy) * s.y
+             + groundVariant(colorMap, uv, v3, dx, dy) * s.z;
+      }
+
+      /**
+       * The same layer read at two world scales and crossed over with distance.
+       *
+       * <p>A texture sized to read as blades underfoot has nothing left at
+       * sixty feet: the repeat is a few pixels wide, so every screen pixel is
+       * an average of the whole photograph and the far half of the board goes
+       * to flat mush — the exact failure a sharper texture makes worse rather
+       * than better. Read at several times the footprint, the same photograph
+       * is back in its useful mip range at that distance and carries clumps
+       * and patches instead. Near ground keeps the fine read, far ground gets
+       * the coarse one, and the crossover is wide enough that nothing moves
+       * through a visible line as the camera pulls back.
+       */
+      vec4 scaledColor(sampler2D colorMap, vec2 uv, bool useVariants, float far) {
+        vec4 near = stochasticColor(colorMap, uv, useVariants);
+        if (far < 0.004) {
+          return near;
+        }
+        return mix(near, stochasticColor(colorMap, uv / COARSE, useVariants), far);
+      }
+
+      // One layer, whole: color at two scales, relief and occlusion at one.
+      // The normal and the packed map are deliberately not blended across
+      // scales — at the distance where the coarse color matters, a bump the
+      // size of a blade of grass is well under a pixel and paying for it twice
+      // buys nothing.
       void sampleLayer(
         sampler2D colorMap, sampler2D normalMap, sampler2D armMap, vec2 uv, bool useVariants,
-        out vec4 outColor, out vec3 outNormal, out vec3 outArm
+        float far, out vec4 outColor, out vec3 outNormal, out vec3 outArm
       ) {
         vec3 w; vec2 v1; vec2 v2; vec2 v3;
         groundGrid(uv, w, v1, v2, v3);
@@ -248,17 +320,7 @@ export function splatGround(
         vec2 dx = dFdx(uv);
         vec2 dy = dFdy(uv);
 
-        if (useVariants) {
-          outColor =
-              grassVariant(uVariants, uv, v1, uVariantCount, dx, dy) * s.x
-            + grassVariant(uVariants, uv, v2, uVariantCount, dx, dy) * s.y
-            + grassVariant(uVariants, uv, v3, uVariantCount, dx, dy) * s.z;
-        } else {
-          outColor =
-              groundVariant(colorMap, uv, v1, dx, dy) * s.x
-            + groundVariant(colorMap, uv, v2, dx, dy) * s.y
-            + groundVariant(colorMap, uv, v3, dx, dy) * s.z;
-        }
+        outColor = scaledColor(colorMap, uv, useVariants, far);
 
         outNormal =
             (groundVariant(normalMap, uv, v1, dx, dy).xyz * 2.0 - 1.0) * s.x
@@ -285,9 +347,14 @@ export function splatGround(
         float bare = smoothstep(0.45, 0.90, groundMask.r);
         float worn = max(0.0, 1.0 - lush - bare);
 
-        if (lush > 0.002) { sampleLayer(uColor0, uNormal0, uArm0, vGround / uRepeat0, true, c0, n0, a0); }
-        if (worn > 0.002) { sampleLayer(uColor1, uNormal1, uArm1, vGround / uRepeat1, false, c1, n1, a1); }
-        if (bare > 0.002) { sampleLayer(uColor2, uNormal2, uArm2, vGround / uRepeat2, false, c2, n2, a2); }
+        // How much of one repeat of the base layer falls inside this pixel.
+        vec2 fine = vGround / uRepeat0;
+        float density = max(length(dFdx(fine)), length(dFdy(fine)));
+        float far = smoothstep(FINE_PIXELS, COARSE_PIXELS, density);
+
+        if (lush > 0.002) { sampleLayer(uColor0, uNormal0, uArm0, vGround / uRepeat0, true, far, c0, n0, a0); }
+        if (worn > 0.002) { sampleLayer(uColor1, uNormal1, uArm1, vGround / uRepeat1, false, far, c1, n1, a1); }
+        if (bare > 0.002) { sampleLayer(uColor2, uNormal2, uArm2, vGround / uRepeat2, false, far, c2, n2, a2); }
 
         // Blended by relief rather than cross-faded, so grass stands proud into
         // the bare ground at the verge instead of dissolving into it. The red

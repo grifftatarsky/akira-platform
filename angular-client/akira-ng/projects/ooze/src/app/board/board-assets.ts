@@ -104,6 +104,20 @@ export interface SplatGround {
    */
   readonly variants?: readonly string[];
   /**
+   * How thickly grass grows as geometry, from 0 to 1.
+   *
+   * <p>Tufts standing out of the painted turf. A photograph of grass has no
+   * silhouette and does not move, so ground that is only a photograph reads as
+   * a printed surface however good the print is — the blades are what make it
+   * a field. Absent leaves the ground flat, which is right for a flagstone
+   * floor and wrong for a meadow.
+   *
+   * <p>A fraction rather than a count, because the wear field already decides
+   * *where*: this scales that, so turning it down thins the whole meadow
+   * evenly instead of clearing one end of it.
+   */
+  readonly blades?: number;
+  /**
    * Models for the things lying on it.
    *
    * <p>Absent leaves the ground bare, which is a supported state and looks
@@ -400,6 +414,7 @@ export const FIELD_THEME: BoardTheme = {
       layer('dirt_floor', 10, [1.06, 0.78, 0.58]),
     ],
     variants: GRASS_VARIANTS,
+    blades: 0.9,
     // No scatter. Photogrammetry props at this camera distance read as litter
     // rather than as landscape — a stone that is convincing at eye level is a
     // dark speck from sixty feet up, and a field of dark specks looks like

@@ -18,6 +18,7 @@ import { Motes } from './board-motes';
 import { sunPosition, sunlight } from './sun-position';
 import { SplatSurface, splatGround } from './ground-splat';
 import { ScatterLayer, scatterGround } from './ground-scatter';
+import { Meadow, meadow } from './meadow';
 import { groundField } from './ground-field';
 
 /** Top-down and locked, or a camera you can orbit. */
@@ -137,6 +138,9 @@ export class BoardRenderer {
 
   /** Whatever is lying on that ground: tufts, stones, fallen branches. */
   private litter: ScatterLayer | null = null;
+
+  /** Everything growing out of the painted turf, where the theme grows any. */
+  private plants: Meadow | null = null;
 
   /**
    * The height the picture is actually rendered at, in device pixels.
@@ -336,13 +340,21 @@ export class BoardRenderer {
     this.surface = null;
     this.litter?.dispose();
     this.litter = null;
+    this.plants?.dispose();
+    this.plants = null;
     if (this.theme.ground) {
       const ground = this.theme.ground;
       this.surface = splatGround(ground, board, this.light, this.extent);
       this.terrain.add(this.surface.mesh);
-      // The scatter shares the ground's own wear field rather than building a
-      // second one, so a stone can never land somewhere the road is not.
+      // The scatter and the grass share the ground's own wear field rather
+      // than building a second one, so nothing can land somewhere the road is
+      // not — and the tufts stop growing at exactly the line where the painted
+      // grass gives way to dirt.
       const field = groundField(board);
+      if (ground.blades) {
+        this.plants = meadow(board, field, m => this.lit(m), this.time, ground.blades);
+        this.plants?.meshes.forEach(mesh => this.terrainArt.add(mesh));
+      }
       const generation = this.generation + 1;
       void scatterGround(ground, board, field, m => this.lit(m)).then(layer => {
         if (this.disposed || generation !== this.generation) {
@@ -1276,6 +1288,7 @@ export class BoardRenderer {
     this.clear(this.tokens);
     this.surface?.dispose();
     this.litter?.dispose();
+    this.plants?.dispose();
     this.light.value?.dispose();
     this.motes?.dispose();
     this.post?.dispose();
@@ -1406,11 +1419,17 @@ export class BoardRenderer {
    * hundred objects on an estimate, when the right move was to throw ten
    * thousand at it and watch what happened.
    */
-  statistics(): { fps: number; calls: number; triangles: number; buffer: string } {
+  statistics(): {
+    fps: number; calls: number; triangles: number; plants: number; buffer: string;
+  } {
     return {
       fps: this.fps,
       calls: this.renderer.info.render.calls,
       triangles: this.renderer.info.render.triangles,
+      // Not derivable from the triangle count: the meadow is instanced, so
+      // what the GPU reports is one species' geometry times a number nobody
+      // outside this class can see.
+      plants: this.plants?.plants ?? 0,
       buffer: `${this.renderer.domElement.width}x${this.renderer.domElement.height}`,
     };
   }

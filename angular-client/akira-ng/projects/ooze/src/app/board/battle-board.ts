@@ -143,7 +143,8 @@ import { clockLabel } from './sun-position';
                   bg-bg/85 px-2 py-1 font-mono text-[0.65rem] leading-relaxed text-fg-muted
                   backdrop-blur">
           {{ s.fps }} fps · {{ s.calls }} draws<br />
-          {{ s.tris }} · {{ s.buffer }}
+          {{ s.tris }} · {{ s.buffer }}<br />
+          {{ s.plants }} growing
         </p>
       }
 
@@ -237,7 +238,7 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
    * worth.
    */
   protected readonly stats = signal<
-    { fps: number; calls: number; tris: string; buffer: string } | null>(null);
+    { fps: number; calls: number; tris: string; plants: string; buffer: string } | null>(null);
   private polling = 0;
 
   protected readonly dragging = signal(false);
@@ -348,6 +349,9 @@ export class BattleBoard implements AfterViewInit, OnDestroy {
         tris: read.triangles >= 1_000_000
           ? `${(read.triangles / 1_000_000).toFixed(1)}M tris`
           : `${Math.round(read.triangles / 1000)}k tris`,
+        plants: read.plants >= 1000
+          ? `${Math.round(read.plants / 1000)}k plants`
+          : `${read.plants} plants`,
         buffer: read.buffer,
       } : null);
     }, 500);

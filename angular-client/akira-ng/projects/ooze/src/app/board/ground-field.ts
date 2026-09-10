@@ -20,12 +20,33 @@ import { BoardScene, TerrainTile } from './board.models';
  * where the carts swing wide, holding on longer in the lee of things.
  */
 
-/** Texels per half-foot. Sixteen across a five-foot square: this is what you see. */
-export const GROUND_TEXELS_PER_HALF_FOOT = 1.6;
+/**
+ * Texels per half-foot. Thirty across a five-foot square: this is what you see.
+ *
+ * <p><b>Everything measured in texels has to be derived from this, never
+ * written as a texel count.</b> Raising it is the obvious way to get finer
+ * ground and the obvious way to silently rescale the whole landscape with it:
+ * a noise frequency written per texel makes hills twice as wide when the field
+ * doubles in resolution, and a blur written in texels smears half as far. Every
+ * such number below is expressed in half-feet and converted here, so this can
+ * be turned up for detail without redesigning the country.
+ */
+export const GROUND_TEXELS_PER_HALF_FOOT = 3;
 
-/** How far wear bleeds sideways, in texels either way, per pass. */
-const BLUR_RADIUS = 3;
+/** How far wear bleeds sideways, in half-feet either way, per pass. */
+const BLUR_HALF_FEET = 1.875;
+const BLUR_RADIUS = Math.max(1, Math.round(BLUR_HALF_FEET * GROUND_TEXELS_PER_HALF_FOOT));
 const BLUR_PASSES = 4;
+
+/**
+ * The width between a cart's wheels, in half-feet.
+ *
+ * <p>An English wagon of the period ran about five feet between the wheel
+ * centres, and every wagon on the road ran the same, which is the whole reason
+ * a track has ruts rather than a general hollow: a hundred carts put their
+ * wheels in the same two lines.
+ */
+const AXLE = 10;
 
 /**
  * How deep a fully worn rut sits below the verge, in half-feet.
@@ -131,8 +152,10 @@ export function groundField(board: BoardScene): GroundField {
       // it is drier on the rises and ranker in the hollows, and without
       // something at that scale a perfectly good scanned texture repeats
       // visibly and the eye reads the repeat instead of the ground.
+      const mx = x / GROUND_TEXELS_PER_HALF_FOOT;
+      const my = y / GROUND_TEXELS_PER_HALF_FOOT;
       data[i * 4 + 2] = clampByte(
-        noise(x * 0.012, y * 0.012) * 0.7 + noise(x * 0.035, y * 0.035) * 0.3);
+        noise(mx * 0.0192, my * 0.0192) * 0.7 + noise(mx * 0.056, my * 0.056) * 0.3);
       data[i * 4 + 3] = 255;
     }
   }
@@ -164,15 +187,24 @@ function shapeGround(
   width: number,
   height: number,
 ): void {
+  const track = cartTrack(wear, width, height);
+  const per = GROUND_TEXELS_PER_HALF_FOOT;
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const at = y * width + x;
+      // Sampled in half-feet, not in texels. See GROUND_TEXELS_PER_HALF_FOOT:
+      // a frequency written against the texel grid changes what it means the
+      // moment that grid changes.
+      const hx = x / per;
+      const hy = y / per;
+
       // Amplitudes in half-feet, pushed as far as the rules allow and no
       // further: the tests measure the worst slope over a five-foot span and
       // hold it under twenty degrees, which is where ground stops being free.
-      const rolling = (noise(x * 0.009, y * 0.009) - 0.5) * 7.0;
-      const middling = (noise(x * 0.042, y * 0.042) - 0.5) * 1.8;
-      const underfoot = (noise(x * 0.17, y * 0.17) - 0.5) * 0.35;
+      const rolling = (noise(hx * 0.0144, hy * 0.0144) - 0.5) * 7.0;
+      const middling = (noise(hx * 0.0672, hy * 0.0672) - 0.5) * 1.8;
+      const underfoot = (noise(hx * 0.272, hy * 0.272) - 0.5) * 0.35;
 
       // Bare ground is lumpy in a way turf is not. Grass mats over everything
       // beneath it and reads smooth from any distance; a road that has been
@@ -180,18 +212,109 @@ function shapeGround(
       // hollows where water sat. All of it scaled by how bare the ground is,
       // so it stops at the verge without anything having to say where that is.
       const bare = wear[at];
-      const clods = (noise(x * 0.34, y * 0.34) - 0.5) * 0.75 * bare;
-      const ridges = (noise(x * 0.11, y * 0.62) - 0.5) * 0.55 * bare;
+      const clods = (noise(hx * 0.544, hy * 0.544) - 0.5) * 0.75 * bare;
+      const ridges = (noise(hx * 0.176, hy * 0.992) - 0.5) * 0.55 * bare;
       // Hollows only: the peaks of this noise are cut off, so the road is
       // pitted rather than merely wavy, which is what standing water leaves.
-      const hollows = -Math.max(0, noise(x * 0.08, y * 0.08) - 0.58) * 3.2 * bare;
+      const hollows = -Math.max(0, noise(hx * 0.128, hy * 0.128) - 0.58) * 3.2 * bare;
+
+      // Hoof and boot prints: sharp little pits about a hand across, cut into
+      // the surface rather than added to it. Made by subtracting only the
+      // peaks of a high-frequency noise, because a print is a hole and the
+      // ground between prints is not a bump.
+      const prints = -Math.max(0, noise(hx * 1.6, hy * 1.6) - 0.55) * 0.9 * bare;
+
       // Worn ground is worn *down*. The road is the low line through the
       // country because that is what a century of wheels does, and a road that
       // sits level with the verge beside it reads as a stripe of paint.
       const sunk = bare * bare * RUT_DEPTH;
-      ground[at] += rolling + middling + underfoot + clods + ridges + hollows - sunk;
+
+      ground[at] += rolling + middling + underfoot
+        + clods + ridges + hollows + prints - sunk
+        - rutAt(track, x, y, width, per) * bare;
     }
   }
+}
+
+/**
+ * Where the wheels go: one line down the road, per column.
+ *
+ * <p>Derived from the wear rather than from the map, so it needs nothing the
+ * level has to declare and cannot drift out of step with the road it is a
+ * track in. The road is a band of bare ground; the centre of that band, column
+ * by column, is where a driver aims.
+ *
+ * <p>Smoothed hard afterwards. A centroid taken column by column jitters by a
+ * texel or two wherever the verge is ragged, and a cart rut that jitters is a
+ * sawtooth rather than a track — nothing that carries a wheel wanders faster
+ * than the vehicle can steer.
+ */
+function cartTrack(wear: Float32Array, width: number, height: number): Float32Array {
+  const centre = new Float32Array(width);
+  const spread = new Float32Array(width);
+  for (let x = 0; x < width; x++) {
+    let weight = 0;
+    let sum = 0;
+    for (let y = 0; y < height; y++) {
+      const w = wear[y * width + x];
+      weight += w;
+      sum += y * w;
+    }
+    centre[x] = weight > 0 ? sum / weight : height / 2;
+    // Half the worn width, which is how far a rut may sit from the middle
+    // before it is off the road and in the grass.
+    spread[x] = weight / 2;
+  }
+  // A wide running mean. Wide because the thing being smoothed is a vehicle's
+  // path, not a surface.
+  const smoothed = new Float32Array(width * 2);
+  const reach = Math.max(4, Math.round(width / 24));
+  for (let x = 0; x < width; x++) {
+    let c = 0;
+    let s = 0;
+    let n = 0;
+    for (let step = -reach; step <= reach; step++) {
+      const at = Math.max(0, Math.min(width - 1, x + step));
+      c += centre[at];
+      s += spread[at];
+      n++;
+    }
+    smoothed[x * 2] = c / n;
+    smoothed[x * 2 + 1] = s / n;
+  }
+  return smoothed;
+}
+
+/**
+ * How deep the wheel ruts cut at a texel, in half-feet.
+ *
+ * <p>Two lines an axle apart either side of the track's centre, weaving a
+ * little the way a road does, each one a narrow trough. Faded out where the
+ * road is too narrow to hold them — a cart on a footpath is not a cart track.
+ */
+function rutAt(
+  track: Float32Array,
+  x: number,
+  y: number,
+  width: number,
+  per: number,
+): number {
+  const centre = track[x * 2];
+  const spread = track[x * 2 + 1];
+  if (spread < AXLE * per * 0.55) {
+    return 0;
+  }
+  // The pair as a whole weaves down the road over tens of feet, and the two
+  // wheels stay exactly an axle apart while it does.
+  const weave = (noise(x / per * 0.02, 40) - 0.5) * 3 * per;
+  const half = (AXLE / 2) * per;
+  const from = Math.min(
+    Math.abs(y - (centre + weave - half)),
+    Math.abs(y - (centre + weave + half)));
+  // A trough about a foot across. Deep enough to catch the light and shallow
+  // enough that walking across it is not a slope the rules would charge for.
+  const across = from / (1.1 * per);
+  return Math.exp(-across * across) * 0.42;
 }
 
 /** How high the ground is at a point, in half-feet. */
@@ -219,7 +342,9 @@ function roughen(wear: Float32Array, width: number, height: number): void {
       const w = wear[at];
       // A bell over the transition: zero at 0 and 1, one at a half.
       const edge = 4 * w * (1 - w);
-      const n = noise(x * 0.09, y * 0.09) * 0.65 + noise(x * 0.31, y * 0.31) * 0.35;
+      const hx = x / GROUND_TEXELS_PER_HALF_FOOT;
+      const hy = y / GROUND_TEXELS_PER_HALF_FOOT;
+      const n = noise(hx * 0.144, hy * 0.144) * 0.65 + noise(hx * 0.496, hy * 0.496) * 0.35;
       wear[at] = Math.max(0, Math.min(1, w + (n - 0.5) * 0.55 * edge));
     }
   }
