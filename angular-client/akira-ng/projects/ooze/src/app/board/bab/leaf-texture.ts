@@ -125,6 +125,20 @@ export function leafTexture(plant: Plant, scene: Scene): ProceduralTexture {
   // at and enormously more expensive — 29 ms against 8. It is thickness for
   // the translucency to read, and nothing else.
   texture.hasAlpha = false;
+  // <b>These are linear albedo, not picked colours.</b> Babylon assumes every
+  // colour texture is gamma-encoded and puts it through sRGB-to-linear in the
+  // PBR shader, and the shader above writes the species table straight out —
+  // numbers chosen as reflectances, with grass sitting at a luminance of 0.25,
+  // which is exactly the measured albedo of short green grass.
+  //
+  // <p>Left flagged as gamma, that conversion ran anyway, and it is not a
+  // dimmer — it is a curve. A root at 0.13 came out at 0.015, eight and a half
+  // times darker; a tip at 0.63 came out at 0.355, less than twice. So a second
+  // root-to-tip ramp, far steeper than the one the wind plugin applies on
+  // purpose, was being multiplied in underneath it. That is a black-at-the-base
+  // signature, and it is there with the sun off and every normal pointing at
+  // the sky.
+  texture.gammaSpace = false;
   texture.wrapU = Texture.CLAMP_ADDRESSMODE;
   texture.wrapV = Texture.CLAMP_ADDRESSMODE;
 

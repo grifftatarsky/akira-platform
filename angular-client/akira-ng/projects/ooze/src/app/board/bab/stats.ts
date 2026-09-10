@@ -1,5 +1,6 @@
 import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation';
 import { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation';
+import type { RenderTargetTexture } from '@babylonjs/core/Materials/Textures/renderTargetTexture';
 import type { Scene } from '@babylonjs/core/scene';
 
 /**
@@ -43,12 +44,30 @@ export interface FrameCost {
   readonly triangles: number;
   /** Cumulative milliseconds spent compiling shaders, which is a load cost. */
   readonly shaderMs: number;
+  /**
+   * GPU milliseconds in the shadow cascades, separately from the main pass.
+   *
+   * <p>The only split WebGPU gives away for free: a render target is its own
+   * pass, and `WebGPURenderTargetWrapper` carries a counter for it. Everything
+   * else on the board — terrain, meadow, sky — is drawn into one pass and has
+   * to be separated by taking it away instead. See `split-frame.ts`.
+   */
+  readonly shadowMs: number;
 }
 
 export class Stats {
 
   private readonly scene: SceneInstrumentation;
   private readonly engine: EngineInstrumentation;
+
+  /**
+   * Render targets to time individually.
+   *
+   * <p>Each one is its own WebGPU render pass, so unlike everything in the main
+   * pass it can be read straight off the device rather than inferred from a
+   * difference.
+   */
+  private readonly targets: RenderTargetTexture[] = [];
 
   constructor(private readonly target: Scene) {
     this.scene = new SceneInstrumentation(target);
@@ -59,6 +78,11 @@ export class Stats {
     this.engine = new EngineInstrumentation(target.getEngine());
     this.engine.captureGPUFrameTime = true;
     this.engine.captureShaderCompilationTime = true;
+  }
+
+  /** Times this render target's own pass from now on. */
+  watch(texture: RenderTargetTexture): void {
+    this.targets.push(texture);
   }
 
   read(): FrameCost {
@@ -78,6 +102,15 @@ export class Stats {
       activeMeshes: this.target.getActiveMeshes().length,
       triangles: Math.round(this.target.getActiveIndices() / 3),
       shaderMs: round(this.engine.shaderCompilationTimeCounter.total),
+      shadowMs: round(this.targets.reduce((sum, texture) => {
+        // Present only on the WebGPU wrapper, and only once
+        // `enableGPUTimingMeasurements` is on and the device offered
+        // `timestamp-query`. Absent reads as zero, which means "not measured".
+        const wrapper = texture.renderTarget as unknown as {
+          gpuTimeInFrame?: { counter: { lastSecAverage: number } };
+        } | null;
+        return sum + (wrapper?.gpuTimeInFrame?.counter.lastSecAverage ?? 0);
+      }, 0) / 1e6),
     };
   }
 

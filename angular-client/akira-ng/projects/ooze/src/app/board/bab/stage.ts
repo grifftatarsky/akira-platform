@@ -40,6 +40,22 @@ export class Stage {
   readonly sun: DirectionalLight;
   readonly shadows: CascadedShadowGenerator;
   readonly ambient: HemisphericLight;
+  /**
+   * The light that comes back off the ground.
+   *
+   * <p>The third of Íñigo Quilez's three outdoor lights, and the one this scene
+   * did not have. Its direction is the sun's, horizontally reversed and laid
+   * flat on the horizon, because the main source of indirect light outdoors is
+   * sunlight bouncing off the ground back the way it came. Its colour is warm
+   * and its intensity is small.
+   *
+   * <p>It is aimed at exactly one thing: the side of every blade the sun cannot
+   * reach. A leaf lit by one directional and one hemisphere has a lit face and
+   * a face that falls to whatever the ambient's ground colour is, which is a
+   * brown that reads as black. Real grass does not have that face, because the
+   * field around it is throwing light back up into it.
+   */
+  readonly bounce: DirectionalLight;
 
   private readonly sky: SkyMaterial;
   private readonly skyBox: Mesh;
@@ -98,6 +114,14 @@ export class Stage {
     this.shadows.shadowMaxZ = 400;
     this.shadows.filteringQuality = CascadedShadowGenerator.QUALITY_MEDIUM;
     this.shadows.usePercentageCloserFiltering = true;
+    // The terrain is the only caster and it never moves, so the bounding info
+    // it is fitted to can be computed once instead of every frame.
+    this.shadows.freezeShadowCastersBoundingInfo = true;
+
+    this.bounce = new DirectionalLight('bounce', new Vector3(0, -1, 0), this.scene);
+    this.bounce.intensity = 0.3;
+    this.bounce.diffuse = new Color3(0.40, 0.28, 0.20);
+    this.bounce.specular = new Color3(0, 0, 0);
 
     this.ambient = new HemisphericLight('sky', new Vector3(0, 1, 0), this.scene);
     this.ambient.diffuse = new Color3(0.62, 0.72, 0.9);
@@ -112,6 +136,7 @@ export class Stage {
       this.ambient.groundColor = new Color3(0.05, 0.045, 0.04);
       this.ambient.intensity = 0.18;
       this.sun.intensity = 0;
+      this.bounce.intensity = 0;
       this.shadows.dispose();
     }
 
@@ -126,9 +151,23 @@ export class Stage {
     this.skyBox.infiniteDistance = true;
     this.skyBox.setEnabled(!indoor);
 
+    // <b>Aerial perspective, which the board had none of.</b> The far end of a
+    // two-hundred-foot field is not the same colour as the near end, and fog is
+    // the cheapest depth cue in real-time rendering — one exponential and a
+    // colour. The colour is set with the clock, because fog that does not
+    // match the sky it is standing in front of reads as a grey wash.
+    this.scene.fogMode = Scene.FOGMODE_EXP2;
+    this.scene.fogDensity = 0.0009;
+
     const image = this.scene.imageProcessingConfiguration;
     image.toneMappingEnabled = true;
-    image.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
+    // <b>Not ACES.</b> ACES is a film look built for wide-gamut input, and its
+    // documented failure is hue skew in the highlights and desaturation — the
+    // reported symptom being washed-out highlights and crushed blacks
+    // *especially in foliage*, which is the entire content of this board.
+    // Khronos published the neutral mapper to keep hue and saturation while
+    // still taming highlights, and Babylon ships it.
+    image.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_KHR_PBR_NEUTRAL;
     image.contrast = look.contrast ?? 1;
     image.vignetteEnabled = (look.vignette ?? 0) > 0;
     image.vignetteWeight = (look.vignette ?? 0) * 4;
@@ -221,6 +260,17 @@ export class Stage {
     this.sun.specular = sunColor;
     this.sky.sunPosition = toward.scale(100);
 
+    // The bounce comes back the way the sun went: the sun's horizontal
+    // direction reversed and flattened onto the horizon. Flat, because light
+    // leaving the ground leaves it upward and the part that matters for a blade
+    // is the part arriving sideways.
+    this.bounce.direction = flat === 0
+      ? new Vector3(0, -1, 0)
+      : new Vector3(east, 0, north).normalize();
+    // It is sunlight, so it goes out with the sun, and it carries the ground's
+    // colour rather than the sun's.
+    this.bounce.intensity = 0.34 * Math.max(0, Math.min(1, intensity));
+
     // How far into evening this is: nothing above twenty-five degrees, all the
     // way at the horizon. Everything below hangs off it, because everything
     // below has the same cause — light arriving through more air.
@@ -255,6 +305,14 @@ export class Stage {
     // the adjustment and drops most of its size.
     this.scene.imageProcessingConfiguration.exposure =
       (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45);
+
+    // Fog is the sky at the horizon, so the far end of the field dissolves into
+    // the thing behind it rather than into a grey. Warmer and heavier at dusk,
+    // for the same reason the sky is: more air in the way.
+    this.scene.fogColor = Color3.Lerp(
+      new Color3(0.64, 0.72, 0.82), new Color3(0.58, 0.45, 0.37), dusk,
+    );
+    this.scene.fogDensity = 0.0008 + 0.0009 * dusk;
   }
 
   /** Frames the whole board. */

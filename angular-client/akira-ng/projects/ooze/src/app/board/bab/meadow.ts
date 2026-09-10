@@ -242,11 +242,35 @@ export function sowMeadow(
     plantGeometry(plant).applyToMesh(mesh);
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.useVertexColors = true;
-    mesh.receiveShadows = true;
+    // <b>The meadow does not receive shadows either.</b> It did, and the shadow
+    // map it was reading contains the terrain and nothing else — so six hundred
+    // thousand blades standing up to two feet above the depth that map recorded
+    // were each asking whether the *ground* under them was lit. Every one of the
+    // three standard biases fails on that: a constant one has to cover a
+    // two-foot vertical spread, a slope-scaled one is derived from a receiver
+    // whose slope is vertical, and a normal-offset one needs a real geometric
+    // normal where every normal in `species.ts` is deliberate fiction.
+    //
+    // <p>Nobody shadow-maps grass. Fortnite never put it in the map and used
+    // screen-space contact shadows instead; Unity's own guidance is that
+    // contact shadows alone are a sufficient substitute for grass; *Ghost of
+    // Tsushima* raises the terrain to grass height and writes it dithered. This
+    // is the cheapest of those — it *removes* a texture fetch and a filtering
+    // loop from the most-invoked fragment shader on the board — and what it
+    // gives up is grass darkening under a rise, which the bounce light and the
+    // root-to-tip ramp were already doing more of than the map was.
+    mesh.receiveShadows = false;
 
     const material = new PBRMaterial(`plant-${plant.id}`, scene);
     material.metallic = 0;
-    material.roughness = 0.78;
+    // <b>Grass is shiny.</b> Counter-intuitively so: individual blades throw
+    // hard specular highlights, and the glitter of a field in sun is those
+    // highlights at ten thousand random orientations. Measured references put
+    // fresh grass near 0.5–0.55 rough, not the 0.78 that was here, and this
+    // material was also suppressing the highlight to a quarter strength on top
+    // of that — which between them removed the single feature that most says
+    // "grass in sunlight" rather than "green surface".
+    material.roughness = 0.55;
     material.backFaceCulling = false;
     // <b>Off, deliberately.</b> It flips the normal on a back face, and
     // these normals are authored rather than derived — fanned across the leaf
@@ -256,7 +280,7 @@ export function sowMeadow(
     // scatters anyway.
     material.twoSidedLighting = false;
     material.albedoColor = new Color3(plant.base[0], plant.base[1], plant.base[2]);
-    material.specularIntensity = 0.25;
+    material.specularIntensity = 1;
     // <b>The leaf's own surface</b>, baked once: veins, a paler midrib,
     // mottling and a dried edge. It also keeps the uv attribute alive, which
     // the wind plugin needs for the height up the plant — without a texture

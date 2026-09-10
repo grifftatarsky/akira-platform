@@ -1,4 +1,5 @@
 import { DecimalPipe } from '@angular/common';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, OnDestroy, signal,
   viewChild,
@@ -12,6 +13,7 @@ import { assetUrl } from './assets';
 import { type Meadow, sowMeadow } from './meadow';
 import { PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
+import { type Slice, splitFrame } from './split-frame';
 import { Stage } from './stage';
 import { type FrameCost, Stats } from './stats';
 import { type Terrain, buildTerrain } from './terrain';
@@ -58,6 +60,30 @@ import { type Terrain, buildTerrain } from './terrain';
         </button>
       </div>
 
+      <div class="flex flex-wrap items-center gap-3 font-mono text-[0.65rem] text-fg-subtle">
+        <span class="uppercase tracking-widest">probe</span>
+        <label class="flex items-center gap-1">
+          <input type="checkbox" [checked]="bare()"
+            (change)="setBare($any($event.target).checked)" />
+          hide terrain
+        </label>
+        <label class="flex items-center gap-1">
+          <input type="checkbox" [checked]="flat()"
+            (change)="setFlat($any($event.target).checked)" />
+          flat light
+        </label>
+        <button type="button" (click)="split()" [disabled]="splitting()"
+          class="rounded border border-rule px-2 py-0.5 hover:border-accent disabled:opacity-50">
+          {{ splitting() ? 'measuring…' : 'split frame' }}
+        </button>
+        @for (slice of slices(); track slice.name) {
+          <span class="tabular-nums">
+            {{ slice.name }}
+            <span class="text-fg">{{ slice.ms }} ms</span>
+          </span>
+        }
+      </div>
+
       @if (cost(); as c) {
         <dl class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
           <div><dt class="inline">fps</dt> <dd class="inline tabular-nums text-fg">{{ c.fps }}</dd></div>
@@ -72,6 +98,7 @@ import { type Terrain, buildTerrain } from './terrain';
           <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
           <div><dt class="inline">meshes</dt> <dd class="inline tabular-nums text-fg">{{ c.activeMeshes }}</dd></div>
           <div><dt class="inline">tris</dt> <dd class="inline tabular-nums text-fg">{{ c.triangles | number }}</dd></div>
+          <div><dt class="inline">shadow</dt> <dd class="inline tabular-nums text-fg">{{ c.shadowMs }} ms</dd></div>
           <div><dt class="inline">shaders</dt> <dd class="inline tabular-nums text-fg">{{ c.shaderMs }} ms</dd></div>
         </dl>
       }
@@ -162,6 +189,19 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly species = MEADOW;
   protected readonly chosen = signal<Plant>(MEADOW[0]);
   protected readonly fault = signal<string | null>(null);
+  /**
+   * The two diagnostics the report asked for before any fix.
+   *
+   * <p>`bare` hides the terrain and `flat` replaces every light with a uniform
+   * white hemisphere. Between them they separate three explanations of the same
+   * black that a screenshot cannot: shading on the blades, shadowing on the
+   * blades, and correctly-shadowed ground showing through gaps in the sward.
+   * Black that survives both is none of the three, and is the albedo itself.
+   */
+  protected readonly bare = signal(false);
+  protected readonly flat = signal(false);
+  protected readonly splitting = signal(false);
+  protected readonly slices = signal<readonly Slice[]>([]);
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private stage: Stage | null = null;
@@ -245,6 +285,12 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         { stage, terrain: this.terrain, meadow: this.meadow, field };
       stage.start();
       this.stats = new Stats(stage.scene);
+      // The cascades are their own render pass, so unlike everything else on
+      // the board their cost can be read from the device rather than inferred.
+      const cascades = stage.shadows.getShadowMap();
+      if (cascades) {
+        this.stats.watch(cascades);
+      }
       // Once a second: the counters are already rolling averages over exactly
       // that window, so reading them faster shows the same number more often
       // and drags change detection along for nothing.
@@ -280,6 +326,75 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       scene.debugLayer.hide();
     } else {
       await scene.debugLayer.show({ embedMode: true, overlay: true });
+    }
+  }
+
+  /**
+   * Hides the terrain, leaving the meadow standing in the sky.
+   *
+   * <p>If the black patches go with it, they were never on the grass: they were
+   * the ground between the clumps, which the terrain legitimately shadow-maps
+   * onto itself, seen through gaps that Voronoi clumping leaves by
+   * construction. If they stay, they are on the blades.
+   */
+  protected setBare(on: boolean): void {
+    this.bare.set(on);
+    this.terrain?.chunks.forEach(chunk => chunk.setEnabled(!on));
+  }
+
+  /**
+   * Every light replaced by one white hemisphere.
+   *
+   * <p>No sun means no cascade, because a cascade only ever multiplies into its
+   * own light's contribution — so this removes shadowing and directional
+   * shading in one move. A white ground colour matters as much as the missing
+   * sun: the hemisphere's ground colour is a dark brown, so a downward normal
+   * reads as black under ambient alone, and an earlier version of this test
+   * turned the sun off but left the brown, which is why it proved nothing.
+   */
+  protected setFlat(on: boolean): void {
+    this.flat.set(on);
+    const stage = this.stage;
+    if (!stage) {
+      return;
+    }
+    if (on) {
+      stage.sun.setEnabled(false);
+      stage.bounce.setEnabled(false);
+      stage.ambient.diffuse = new Color3(1, 1, 1);
+      stage.ambient.groundColor = new Color3(1, 1, 1);
+      stage.ambient.intensity = 1;
+    } else {
+      stage.sun.setEnabled(true);
+      stage.bounce.setEnabled(true);
+      // Puts the whole time of day back, which is what set them in the first
+      // place.
+      stage.setClock(this.hour());
+    }
+  }
+
+  /**
+   * What each part of the frame costs, measured by taking it away.
+   *
+   * <p>Roughly a second a group, and it visibly flickers while it runs, because
+   * it is turning the board's contents off and on. That is the price of the
+   * only honest answer available: terrain, meadow and sky share one WebGPU
+   * render pass and no counter can separate them.
+   */
+  protected async split(): Promise<void> {
+    const stage = this.stage;
+    if (!stage || this.splitting()) {
+      return;
+    }
+    this.splitting.set(true);
+    this.slices.set([]);
+    try {
+      this.slices.set(await splitFrame(stage.scene, [
+        { name: 'meadow', meshes: this.meadow?.sown.map(s => s.mesh) ?? [] },
+        { name: 'terrain', meshes: this.terrain?.chunks ?? [] },
+      ]));
+    } finally {
+      this.splitting.set(false);
     }
   }
 

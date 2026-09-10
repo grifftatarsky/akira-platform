@@ -84,9 +84,16 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, 0.6), scene);
     sun.intensity = 2.4;
     const sky = new HemisphericLight('sky', new Vector3(0, 1, 0), scene);
-    sky.intensity = 0.7;
-    sky.diffuse = new Color3(0.6, 0.72, 0.9);
-    sky.groundColor = new Color3(0.2, 0.18, 0.14);
+    // Brighter and warmer underneath than it was. The leaf texture is flagged
+    // linear now rather than gamma — it always held reflectances and was being
+    // put through sRGB-to-linear anyway — so the same rig that looked right
+    // against the old, silently-darkened albedo now under-lights the true one.
+    // The ground colour matters as much as the intensity: this is a critique
+    // tool, and a leaf that turns its back on the key light should show its
+    // shape, not a hole.
+    sky.intensity = 1.15;
+    sky.diffuse = new Color3(0.7, 0.78, 0.92);
+    sky.groundColor = new Color3(0.34, 0.31, 0.26);
 
     this.model(this.plant());
     // Turning slowly, because a silhouette is the thing being judged and a
@@ -117,7 +124,9 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     material.useAlphaFromAlbedoTexture = false;
     material.transparencyMode = PBRMaterial.MATERIAL_OPAQUE;
     material.metallic = 0;
-    material.roughness = 0.75;
+    // The same value the meadow uses, because this is what the meadow will
+    // look like and a preview that flatters is worse than no preview.
+    material.roughness = 0.55;
     material.backFaceCulling = false;
     material.twoSidedLighting = false;
 
