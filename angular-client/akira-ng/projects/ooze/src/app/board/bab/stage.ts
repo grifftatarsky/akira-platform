@@ -9,6 +9,7 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
 import { TAARenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/taaRenderingPipeline';
 import { ReflectionProbe } from '@babylonjs/core/Probes/reflectionProbe';
 import { Scene } from '@babylonjs/core/scene';
@@ -118,6 +119,7 @@ export class Stage {
    * still frame is the one worth resolving.
    */
   private readonly taa: TAARenderingPipeline;
+  private bloom: DefaultRenderingPipeline | null = null;
 
   private constructor(
     readonly engine: WebGPUEngine,
@@ -319,6 +321,33 @@ export class Stage {
     // reprojection: a ghost trail bought for no anti-aliasing at all.
     this.taa.disableOnCameraMove = true;
     this.taa.isEnabled = !indoor;
+
+    if (!indoor) {
+      // <b>Bloom, and only bloom.</b> The default pipeline carries anti-
+      // aliasing, depth of field, sharpening, grain and chromatic aberration as
+      // well; every one of them is either already done better here or is a
+      // filter on a board that wants to be read rather than photographed. What
+      // it is here for is the one thing a low sun over a field actually does,
+      // which is spill light around the bright edges of things.
+      //
+      // <p>After the temporal resolve in the chain, because bloom on a jittered
+      // frame is bloom that flickers.
+      this.bloom = new DefaultRenderingPipeline('bloom', true, this.scene, [this.camera]);
+      this.bloom.fxaaEnabled = false;
+      this.bloom.samples = 1;
+      this.bloom.imageProcessingEnabled = false;
+      this.bloom.bloomEnabled = true;
+      // High, because almost nothing on a meadow is bright enough to bloom and
+      // the things that are — a low sun on wet grass, the sky at the horizon —
+      // are the whole point. A low threshold blooms the entire field into soup.
+      this.bloom.bloomThreshold = 0.86;
+      this.bloom.bloomWeight = 0.34;
+      this.bloom.bloomKernel = 32;
+      // A quarter of the resolution. Bloom is a blur and a blur of a blur is
+      // the same blur — at half it measured 1.8 ms, which is more than the sun
+      // costs, for an effect that only appears at dusk.
+      this.bloom.bloomScale = 0.25;
+    }
 
     const image = this.scene.imageProcessingConfiguration;
     image.toneMappingEnabled = true;
@@ -562,6 +591,12 @@ export class Stage {
   setSkyLight(on: boolean): void {
     this.scene.environmentTexture = on && !this.indoor
       ? this.skyProbe.cubeTexture : null;
+  }
+
+  setBloom(on: boolean): void {
+    if (this.bloom) {
+      this.bloom.bloomEnabled = on;
+    }
   }
 
   setGrade(on: boolean): void {

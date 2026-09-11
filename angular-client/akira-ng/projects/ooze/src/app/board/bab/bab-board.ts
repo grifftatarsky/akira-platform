@@ -17,7 +17,7 @@ import { plantScans, scatterStone } from './standing';
 
 /** One switchable piece of the board. */
 type Part = 'meadow' | 'trees' | 'stones' | 'shadows' | 'taa' | 'relief'
-  | 'sky' | 'grade';
+  | 'sky' | 'grade' | 'bloom';
 import { type Meadow, sowMeadow } from './meadow';
 import { PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -249,6 +249,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     { key: 'relief', label: 'ground relief', note: 'The terrain normal and roughness maps.' },
     { key: 'sky', label: 'sky light', note: 'Image-based light from the sky probe.' },
     { key: 'grade', label: 'grade', note: 'Tone mapping, contrast and exposure.' },
+    { key: 'bloom', label: 'bloom', note: 'Light spilling around bright edges.' },
   ];
 
   protected readonly on = signal<Partial<Record<Part, boolean>>>({});
@@ -292,6 +293,9 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         break;
       case 'grade':
         stage.setGrade(want);
+        break;
+      case 'bloom':
+        stage.setBloom(want);
         break;
     }
   }
