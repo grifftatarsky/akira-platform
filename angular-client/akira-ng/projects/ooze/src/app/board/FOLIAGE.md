@@ -1,5 +1,10 @@
 # The meadow: what is wrong with it and what to do
 
+> **Superseded by [PLAN.md](./PLAN.md) for what to do next.** This document is
+> kept for its dive log and its failures, which are the useful half — including
+> the several confident claims in its first half that were measured against the
+> wrong GPU counter and are simply wrong.
+
 Ten passes of research, then a rebuild, then a second round of measurement that
 overturned most of the first. The dive log is at the bottom, because a report
 that shows only its final answer hides the two useful things: which ideas did not
