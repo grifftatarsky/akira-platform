@@ -48,12 +48,12 @@ export interface Standing {
  * the middle of the open field is thrown away, so the survivors are wherever
  * the board happens to have a margin.
  */
-const TREES = 12;
+const TREES = 7;
 const SCRUB = 54;
 const STONES = 26;
 
 /** Half-feet. A hedgerow oak in a Virginia field, give or take. */
-const TREE_TALL = 74;
+const TREE_TALL = 64;
 
 interface Build {
   positions: number[];
@@ -83,14 +83,20 @@ function margin(field: GroundField, x: number, y: number): number {
   const near = Math.min(
     x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
   );
-  // <b>Nought right at the edge, not one.</b> A tree wants the boundary and it
-  // wants to be *inside* it: planted on the line, half its canopy hangs over
-  // the rim of the board with nothing under it, which reads as the map being
-  // cut out with scissors.
-  if (near < 14) {
+  // <b>A band inside the boundary, not a ramp off the edge.</b> A tree wants
+  // the field's margin and it wants its whole crown on the board — which is
+  // fifty-odd half-feet in, because a crown reaches a third of the tree's
+  // height out from the trunk and a lobe adds its own radius. So the band the
+  // trees want is the one just inside that line, and it fades toward the middle
+  // of the field where only the occasional specimen stands.
+  //
+  // <p>Written as a ramp off the edge it was worth almost nothing at the only
+  // distances a tree is allowed to stand, and the board came out with one tree
+  // on it.
+  if (near < 52) {
     return 0;
   }
-  return 1 - Math.min(1, (near - 14) / 22);
+  return 1 - Math.min(1, Math.max(0, near - 58) / 64);
 }
 
 /**
@@ -104,6 +110,169 @@ function margin(field: GroundField, x: number, y: number): number {
  * <p>Scattered as thin instances off one mesh: two dozen rocks is one draw, and
  * a rock has no reason to be its own object until something stands behind it.
  */
+/**
+ * One scanned model, ready to be scattered.
+ *
+ * <p>A glTF arrives under a `__root__` node carrying the handedness flip, and a
+ * thin instance's matrix is composed against whatever world matrix the mesh
+ * already has — so left attached, everything is placed through that root's
+ * rotation and lands somewhere else entirely. Baking the transform in and
+ * clearing the node leaves an instance matrix meaning what it says.
+ */
+async function loadScan(
+  name: string, scene: Scene, part?: number,
+): Promise<Mesh | null> {
+  const box = await LoadAssetContainerAsync(
+    assetUrl(`assets/board/models/${name}/${name}.gltf`), scene,
+  );
+  const all = box.meshes.filter(mesh => mesh.getTotalVertices() > 0) as Mesh[];
+  if (!all.length) {
+    box.dispose();
+    return null;
+  }
+  // <b>One part of a scan, where the scan is several plants.</b> `searsia_lucida`
+  // is three shrubs captured together — merged it is half a million vertices a
+  // bush, and instanced twenty-two times that is ten million vertices of
+  // scrub for twelve and a half milliseconds. One of the three is a bush.
+  const parts = part === undefined ? all : [all[Math.min(part, all.length - 1)]];
+  parts.forEach(mesh => { if (!parts.includes(mesh)) { mesh.dispose(); } });
+  all.filter(mesh => !parts.includes(mesh)).forEach(mesh => mesh.dispose());
+  // A scan often arrives as several primitives — bark and leaves are different
+  // materials. Merging keeps it one instanceable mesh; `true` for the second
+  // argument disposes the sources, and the multi-material flag keeps both
+  // materials alive on the result.
+  const one = parts.length === 1
+    ? parts[0]
+    : Mesh.MergeMeshes(parts, true, true, undefined, false, true);
+  if (!one) {
+    box.dispose();
+    return null;
+  }
+  box.removeAllFromScene();
+  scene.addMesh(one);
+  one.getChildMeshes().forEach(child => scene.addMesh(child as Mesh));
+  one.parent = null;
+  one.bakeCurrentTransformIntoVertices();
+  one.position.setAll(0);
+  one.rotationQuaternion = null;
+  one.rotation.setAll(0);
+  one.scaling.setAll(1);
+  one.computeWorldMatrix(true);
+  return one;
+}
+
+/**
+ * Trees and scrub, from scans, scattered by the same rules the cards were.
+ *
+ * <p><b>These replaced trees I built out of cards, and building them was the
+ * mistake.</b> The plants in the sward worked because a scan states a shape
+ * exactly and a card only has to carry it; a tree is not one shape, it is a
+ * structure, and composing one out of foliage clumps produced something that
+ * read as a stack of boxes however the cards were arranged. The lesson the
+ * meadow already taught — find the photograph, do not draw it — applies twice
+ * as hard to the more complicated object.
+ *
+ * <p><b>They are big, and that is the trade.</b> Poly Haven's `island_tree_02`
+ * is forty-five megabytes and `searsia_lucida` nineteen. Every CC0 tree that is
+ * photographic is that size, and every CC0 tree that is small is flat-shaded
+ * low-poly that would sit beside photographed grass looking like a different
+ * game. This board is not deployed; it downloads once and instances after.
+ */
+export async function plantScans(
+  field: GroundField, scene: Scene,
+): Promise<Mesh[]> {
+  const kinds: {
+    readonly name: string;
+    readonly count: number;
+    /** Half-feet the scan measures, so it can be fitted to the board's scale. */
+    readonly tall: number;
+    readonly inside: number;
+    readonly wearMax: number;
+    /** How strongly it wants the field's margin over its middle. */
+    readonly edge: number;
+    /** Which primitive of a multi-plant scan to take. */
+    readonly part?: number;
+  }[] = [
+    // <b>Counts are a budget, and this is the expensive kind of asset.</b> A
+    // photographic tree is eight hundred thousand vertices; seven of them and
+    // twenty-two bushes measured twenty-four milliseconds of a thirty-six
+    // millisecond frame. These numbers are what fits, not what a field would
+    // have — and the way to get the field's number back is impostors, which is
+    // in the plan rather than in this file.
+    // Two specimens of the expensive scan, and the rest of the trees from a
+    // part of the cheap one grown large. `searsia_lucida` is three shrubs
+    // captured together; one of them at forty half-feet is a small field tree,
+    // at eighty-five thousand vertices against eight hundred and seventy.
+    { name: 'island_tree_02', count: 2, tall: 54, inside: 58, wearMax: 0.58, edge: 0.8 },
+    { name: 'searsia_lucida', count: 5, tall: 34, inside: 40, wearMax: 0.58, edge: 0.7, part: 2 },
+    { name: 'searsia_lucida', count: 10, tall: 12, inside: 14, wearMax: 0.66, edge: 0.5, part: 0 },
+  ];
+
+  const out: Mesh[] = [];
+  for (let kind = 0; kind < kinds.length; kind++) {
+    const want = kinds[kind];
+    const scan = await loadScan(want.name, scene, want.part);
+    if (!scan) {
+      continue;
+    }
+    scan.name = `scan-${want.name}-${kind}`;
+    // The scan's own height, so a tree can be asked for in half-feet rather
+    // than in whatever units it was captured at.
+    scan.refreshBoundingInfo();
+    const box = scan.getBoundingInfo().boundingBox;
+    const own = Math.max(0.001, box.maximum.y - box.minimum.y);
+
+    const matrices: Matrix[] = [];
+    // <b>The count is a promise, the rule is a preference.</b> A weighted rule
+    // that can refuse every candidate will, and the board comes back with one
+    // tree on it — which has happened twice. So the rule gets the first
+    // two-thirds of the attempts to itself, and after that only the hard vetoes
+    // apply: on the board, off the track, off a bank.
+    const tries = want.count * 40;
+    for (let at = 0; at < tries && matrices.length < want.count; at++) {
+      const insist = at > tries * 0.66;
+      const x = dice(at, 37 + kind * 3, 61 + kind * 7) * field.extentXHalfFeet;
+      const y = dice(at, 41 + kind * 5, 67 + kind * 11) * field.extentYHalfFeet;
+      const inside = Math.min(
+        x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+      );
+      const { wear } = groundAt(field, x, y);
+      if (inside < want.inside || wear > want.wearMax
+        || slopeAt(field, x, y) > 0.44) {
+        continue;
+      }
+      const band = 1 - Math.min(1, Math.max(0, inside - want.inside - 6) / 70);
+      const verge = wear > 0.18 && wear < 0.5 ? 1 : 0;
+      const drift = noise(
+        x * 0.014 + 31.7 + kind * 9, y * 0.014 - 12.3 - kind * 4,
+      );
+      if (!insist && band * want.edge + verge * 0.45 + drift * 0.55 < 0.66
+        && dice(at, 1, 91 + kind) > 0.1) {
+        continue;
+      }
+      const size = (want.tall / own) * (0.78 + 0.44 * dice(at, 5, 7 + kind));
+      matrices.push(Matrix.Compose(
+        new Vector3(size, size * (0.9 + 0.22 * dice(at, 9, 13)), size),
+        Quaternion.FromEulerAngles(0, dice(at, 13, 89) * 6.2831853, 0),
+        // A shade into the ground, so a trunk meets the turf rather than
+        // standing on it.
+        new Vector3(x, heightAt(field, x, y) - want.tall * 0.012, y),
+      ));
+    }
+    if (!matrices.length) {
+      scan.dispose();
+      continue;
+    }
+    const packed = new Float32Array(matrices.length * 16);
+    matrices.forEach((matrix, at) => matrix.copyToArray(packed, at * 16));
+    scan.thinInstanceSetBuffer('matrix', packed, 16);
+    scan.alwaysSelectAsActiveMesh = true;
+    scan.receiveShadows = true;
+    out.push(scan);
+  }
+  return out;
+}
+
 export async function scatterStone(
   field: GroundField, scene: Scene,
 ): Promise<Mesh[]> {
@@ -122,6 +291,21 @@ export async function scatterStone(
     box.removeAllFromScene();
     rock.name = `stone-${kind}`;
     scene.addMesh(rock);
+    // <b>Off its parent, and its own transform baked in.</b> A glTF arrives
+    // under a `__root__` node carrying the handedness flip, and a thin
+    // instance's matrix is composed against whatever the mesh's own world
+    // matrix already is — so left attached, two dozen boulders were placed
+    // through that root's rotation and scale and landed in a line beside the
+    // board, floating at nothing. Baking the transform into the vertices and
+    // clearing the node leaves the instance matrix meaning exactly what it
+    // says.
+    rock.parent = null;
+    rock.bakeCurrentTransformIntoVertices();
+    rock.position.setAll(0);
+    rock.rotationQuaternion = null;
+    rock.rotation.setAll(0);
+    rock.scaling.setAll(1);
+    rock.computeWorldMatrix(true);
     if (rock.material) {
       scene.addMaterial(rock.material);
     }
@@ -136,10 +320,20 @@ export async function scatterStone(
       // ground beside the track and the rises the plough went round.
       const { wear } = groundAt(field, x, y);
       const steep = slopeAt(field, x, y);
+      const inside = Math.min(
+        x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+      );
+      if (inside < 8) {
+        continue;
+      }
       if (wear < 0.24 && steep < 0.18 && dice(at, 2, 71) > 0.25) {
         continue;
       }
-      const size = perMetre * (0.10 + 0.16 * dice(at, 5, 73));
+      // <b>Fieldstone, not gravel.</b> The scan is a metre-and-a-bit boulder
+      // and a tenth of that is a pebble nobody can see from the board's own
+      // camera. Between two and five feet across is a stone you would take
+      // cover behind, which is the only reason a combat map has one.
+      const size = perMetre * (0.34 + 0.46 * dice(at, 5, 73));
       matrices.push(Matrix.Compose(
         new Vector3(size, size * (0.72 + 0.3 * dice(at, 7, 79)), size),
         Quaternion.FromEulerAngles(
@@ -180,11 +374,22 @@ export function raiseStanding(
   // verge, it will not stand on the track itself, and it will not stand on a
   // bank. What is left is a handful, in the places a handful would be.
   let planted = 0;
-  for (let at = 0; at < TREES * 6 && planted < TREES; at++) {
+  for (let at = 0; at < TREES * 22 && planted < TREES; at++) {
     const x = dice(at, 3, 11) * field.extentXHalfFeet;
     const y = dice(at, 7, 23) * field.extentYHalfFeet;
     const { wear, wet } = groundAt(field, x, y);
-    if (wear > 0.58 || slopeAt(field, x, y) > 0.42) {
+    // <b>A veto, not a weight.</b> The margin used to be one term of a sum, so
+    // a candidate with a strong drift behind it could still be planted on the
+    // board's rim — and a crown two dozen half-feet across then hangs over the
+    // edge with nothing under it. There is no weighting that makes that
+    // acceptable, so it is a refusal instead.
+    // Fifty-two, because a crown reaches a third of the tree's height out from
+    // its trunk and a lobe adds its own radius on top of that. Anything less
+    // and the leaves hang over the rim of the board.
+    const inside = Math.min(
+      x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+    );
+    if (inside < 52 || wear > 0.58 || slopeAt(field, x, y) > 0.42) {
       continue;
     }
     // Near the boundary, or near the track but off it, or the one in ten that
@@ -211,7 +416,10 @@ export function raiseStanding(
     const x = dice(at, 17, 41) * field.extentXHalfFeet;
     const y = dice(at, 19, 53) * field.extentYHalfFeet;
     const { wear } = groundAt(field, x, y);
-    if (wear > 0.62) {
+    const inside = Math.min(
+      x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+    );
+    if (inside < 10 || wear > 0.62) {
       continue;
     }
     const edge = margin(field, x, y);
@@ -303,71 +511,113 @@ export function raiseStanding(
 }
 
 /**
- * One tree: a tapering trunk and a dome of canopy cards.
+ * One tree: a trunk, limbs, and a lobe of foliage on the end of each.
  *
- * <p><b>The dome is the part that matters on this board.</b> The usual tree
- * billboard is two crossed cards, which is right for a camera standing on the
- * ground and wrong for one looking down — from overhead a crossed pair is a
- * visible X with the sky between its arms. Cards spread over a hemisphere and
- * tilted toward its surface read as a canopy from above *and* from the side,
- * which is what the board actually needs, and it is how a real game tree is
- * built anyway: leaf clusters hung on branches.
+ * <p><b>The first version was a ball of cards and it looked like Minecraft.</b>
+ * Every guide on drawing foliage says the same thing in the same order — start
+ * from the silhouette, and *carve secondary lobes so it is not a balloon* — and
+ * a sphere of clusters is precisely the balloon. It also floated: with no
+ * branches between the trunk and the crown, the canopy was a separate object
+ * hanging above a post.
+ *
+ * <p>So this follows the structure instead. The trunk forks; five limbs leave
+ * the fork at real branching angles and taper as they go; each limb ends in a
+ * lobe, and the lobes are different sizes at different heights, which is what
+ * gives a crown its lumpy outline. The cards fill the lobes rather than the
+ * crown, so the gaps between lobes stay gaps — and the gaps are the whole
+ * difference between a tree and a bush on a stick.
+ *
+ * <p>The limbs are drawn, not implied. They cost ten triangles each and they
+ * are what connects the thing.
  */
 function addTree(
   leaves: Build, bark: Build, canopy: readonly Cut[],
   x: number, y: number, ground: number, tall: number, lean: number,
   seed: number, wet: number,
 ): void {
-  const trunkTall = tall * 0.40;
-  const thick = tall * 0.026;
-  addTrunk(bark, x, y, ground, trunkTall, thick, lean);
+  const forkAt = tall * 0.42;
+  const thick = tall * 0.030;
+  const top: Vec = [x + lean * forkAt, ground + forkAt, y];
+  addLimb(bark, [x, ground, y], top, thick * 1.5, thick * 0.74);
 
-  // <b>Enough cards to be a mass.</b> Fifteen spread over a dome is fifteen
-  // rectangles with sky between them — the eye finds the cards, not the tree.
-  // The number that works is whatever makes them overlap: each card is a third
-  // of the canopy across and there are thirty of them, so no line of sight
-  // through the crown finds fewer than three.
-  // <b>Many small cards, not a few big ones.</b> Thirty cards each most of the
-  // crown across is thirty slabs you can count — and counting them is exactly
-  // what the eye does, because a clump cut-out drawn large is a solid green
-  // rectangle with leaves printed on it. At a third of the size and twice the
-  // number they overlap four or five deep everywhere, which is the difference
-  // between a canopy and a stack of boxes.
-  // <b>Many small cards, not a few big ones.</b> Thirty cards each most of the
-  // crown across is thirty slabs you can count — and counting them is exactly
-  // what the eye does, because a clump cut-out drawn large is a solid green
-  // rectangle with leaves printed on it. At a third of the size and twice the
-  // number they overlap four or five deep everywhere, which is the difference
-  // between a canopy and a stack of boxes.
-  const cards = 58 + Math.floor(dice(seed, 2, 5) * 20);
-  const reach = tall * 0.34;
-  // Where the crown's middle sits. A tree is not a disc on a stick: the canopy
-  // starts not far above the fork and is about as deep as it is wide, which is
-  // the whole difference between a tree and a parasol.
-  const middle = ground + trunkTall * 0.92 + reach * 0.62;
+  // <b>Five limbs, at angles a tree actually uses.</b> A broadleaf leaves its
+  // fork between twenty-five and fifty degrees off vertical; wider than that is
+  // a shrub and narrower is a poplar. They are not evenly spaced either — the
+  // golden angle plus a nudge, because four limbs at ninety degrees is a
+  // telegraph pole with arms.
+  const limbs = 4 + Math.floor(dice(seed, 3, 2) * 3);
+  const lobes: { at: Vec; size: number }[] = [];
+  for (let n = 0; n < limbs; n++) {
+    const around = n * 2.39996 + dice(seed, n, 8) * 0.7;
+    const out = 0.42 + 0.36 * dice(seed, n, 14);
+    const reach = tall * (0.30 + 0.16 * dice(seed, n, 22));
+    const end: Vec = [
+      top[0] + Math.cos(around) * out * reach,
+      top[1] + reach * (0.82 - out * 0.34),
+      top[2] + Math.sin(around) * out * reach,
+    ];
+    addLimb(bark, top, end, thick * 0.7, thick * 0.28);
+    lobes.push({ at: end, size: tall * (0.15 + 0.07 * dice(seed, n, 26)) });
+  }
+  // And one over the fork, so the crown closes above the trunk instead of
+  // leaving a hole straight down it from the board's own camera.
+  lobes.push({
+    at: [top[0], top[1] + tall * 0.30, top[2]],
+    size: tall * 0.17,
+  });
 
-  for (let n = 0; n < cards; n++) {
-    // A ball, filled rather than shelled. Spread around by the golden angle —
-    // the cheapest way to cover a sphere without the bands an even sweep
-    // leaves — and out from the middle by a cube root, which fills a volume
-    // evenly where a plain fraction piles everything at the rim.
-    const around = n * 2.39996 + dice(seed, n, 3) * 0.6;
-    const deep = Math.cbrt((n + 0.5) / cards) * (0.72 + 0.36 * dice(seed, n, 29));
-    const up = dice(seed, n, 61) * 2 - 1;
-    const ring = Math.sqrt(Math.max(0, 1 - up * up));
-    const cx = x + Math.cos(around) * ring * deep * reach;
-    const cy = y + Math.sin(around) * ring * deep * reach;
-    // Flattened a little: a crown is wider than it is tall, and the underside
-    // is the part a board camera never sees.
-    const cz = middle + up * deep * reach * 0.74;
-    const size = reach * (0.30 + 0.24 * dice(seed, n, 17));
-    // Facing out along the ball, so a card near the top presents itself to a
-    // camera above and one at the rim presents itself sideways.
-    addCanopyCard(
-      leaves, canopy[(seed * 3 + n) % canopy.length],
-      cx + lean * (cz - ground), cy, cz, size,
-      around, Math.max(0.05, up * 0.5 + 0.5), dice(seed, n, 41), wet,
-    );
+  for (let n = 0; n < lobes.length; n++) {
+    const lobe = lobes[n];
+    const cards = 10 + Math.floor(dice(seed, n, 31) * 6);
+    for (let c = 0; c < cards; c++) {
+      const around = c * 2.39996 + dice(seed, n * 7 + c, 4) * 0.8;
+      const deep = Math.cbrt((c + 0.5) / cards);
+      const up = dice(seed, n * 11 + c, 37) * 2 - 1;
+      const ring = Math.sqrt(Math.max(0, 1 - up * up));
+      addCanopyCard(
+        leaves, canopy[(seed * 5 + n * 3 + c) % canopy.length],
+        lobe.at[0] + Math.cos(around) * ring * deep * lobe.size,
+        lobe.at[2] + Math.sin(around) * ring * deep * lobe.size,
+        lobe.at[1] + up * deep * lobe.size * 0.8,
+        lobe.size * (0.78 + 0.44 * dice(seed, n * 13 + c, 17)),
+        around, Math.max(0.05, up * 0.5 + 0.5),
+        dice(seed, n * 17 + c, 41), wet,
+      );
+    }
+  }
+}
+
+/** A tapering limb between two points. Five sides is plenty at this size. */
+function addLimb(
+  build: Build, from: Vec, to: Vec, thickFrom: number, thickTo: number,
+): void {
+  const up = unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]);
+  // Any vector not along the limb will do to start the frame off.
+  const aside = Math.abs(up[1]) > 0.9 ? [1, 0, 0] as Vec : [0, 1, 0] as Vec;
+  const across = unit(cross(up, aside));
+  const through = cross(up, across);
+
+  const sides = 5;
+  const first = build.positions.length / 3;
+  for (const [end, size] of [[from, thickFrom], [to, thickTo]] as const) {
+    for (let side = 0; side <= sides; side++) {
+      const angle = (side / sides) * Math.PI * 2;
+      const ca = Math.cos(angle);
+      const sa = Math.sin(angle);
+      const nx = across[0] * ca + through[0] * sa;
+      const ny = across[1] * ca + through[1] * sa;
+      const nz = across[2] * ca + through[2] * sa;
+      build.positions.push(
+        end[0] + nx * size, end[1] + ny * size, end[2] + nz * size,
+      );
+      build.normals.push(nx, ny, nz);
+      build.uvs.push(side / sides, end === from ? 0 : 1.6);
+    }
+  }
+  for (let side = 0; side < sides; side++) {
+    const a = first + side;
+    const b = first + sides + 1 + side;
+    build.indices.push(a, b, a + 1, b, b + 1, a + 1);
   }
 }
 
@@ -453,36 +703,6 @@ function addCanopyCard(
     build.indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
   }
   void wet;
-}
-
-/** Four sides of a tapering trunk. Cheap, and nobody is under it. */
-function addTrunk(
-  build: Build, x: number, y: number, ground: number,
-  tall: number, thick: number, lean: number,
-): void {
-  const sides = 5;
-  const first = build.positions.length / 3;
-  for (let ring = 0; ring <= 1; ring++) {
-    const height = ring * tall;
-    // A trunk is thickest where it meets the ground and the flare is most of
-    // what stops it reading as a post stuck in a field.
-    const size = thick * (ring === 0 ? 1.45 : 0.62);
-    for (let side = 0; side <= sides; side++) {
-      const angle = (side / sides) * Math.PI * 2;
-      const nx = Math.cos(angle);
-      const nz = Math.sin(angle);
-      build.positions.push(
-        x + nx * size + lean * height, ground + height, y + nz * size,
-      );
-      build.normals.push(nx, 0.16, nz);
-      build.uvs.push(side / sides, height / (thick * 26));
-    }
-  }
-  for (let side = 0; side < sides; side++) {
-    const a = first + side;
-    const b = first + sides + 1 + side;
-    build.indices.push(a, b, a + 1, b, b + 1, a + 1);
-  }
 }
 
 type Vec = readonly [number, number, number];

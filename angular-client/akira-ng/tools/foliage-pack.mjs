@@ -77,8 +77,8 @@ const SPANS = 13;
  * build step against a scan.
  */
 const CLUMPS = [
-  { dir: 'LeafSet005_1K', stem: 'LeafSet005_1K-PNG', group: 'canopy', seeds: 3, leaves: 78 },
-  { dir: 'LeafSet016_1K', stem: 'LeafSet016_1K-PNG', group: 'canopy', seeds: 3, leaves: 78 },
+  { dir: 'LeafSet005_1K', stem: 'LeafSet005_1K-PNG', group: 'canopy', seeds: 4, leaves: 46 },
+  { dir: 'LeafSet016_1K', stem: 'LeafSet016_1K-PNG', group: 'canopy', seeds: 4, leaves: 46 },
 ];
 
 const SOURCES = [
@@ -209,22 +209,33 @@ const CLUMP = `async (colorB64, alphaB64, leaves, seed, size) => {
   cv.width = size; cv.height = size;
   const cx = cv.getContext('2d');
   cx.clearRect(0, 0, size, size);
+  // <b>A spray along a stem, not a disc.</b> A round clump of leaves is a
+  // pompom, and a canopy built from pompoms is a balloon with a texture on it —
+  // which is the outline every guide on painting foliage says to carve away
+  // from. Real foliage hangs off a branch: longer than it is deep, thickest
+  // near the stem, ragged at the far end. Three or four sprays overlapping give
+  // a lobe an edge the eye reads as leaves rather than as a circle.
+  const stem = (rand() - 0.5) * 0.7;
   for (let i = 0; i < leaves; i++) {
     const b = boxes[(rand() * boxes.length) | 0];
     const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
-    // Radial, and denser toward the middle: the square root keeps the clump
-    // round rather than piling every leaf on the centre.
-    const angle = rand() * Math.PI * 2;
-    const away = Math.sqrt(rand()) * size * 0.38;
-    const at = size * 0.5 + Math.cos(angle) * away;
-    const up = size * 0.5 + Math.sin(angle) * away * 0.78;
+    // Along the spray's own axis, thinning toward its tip, with the leaves
+    // hanging a little below it.
+    const run = rand();
+    const spread = (rand() - 0.5) * 2;
+    const thick = (1 - run * 0.55) * 0.30;
+    const ax = (run - 0.5) * 0.86;
+    const ay = spread * thick + run * stem;
+    const at = size * (0.5 + ax);
+    const up = size * (0.46 + ay);
+    const away = Math.hypot(ax, ay) * size;
     const scale = (size * 0.20 / Math.max(bw, bh)) * (0.55 + 0.55 * rand());
     cx.save();
     cx.translate(at, up);
     cx.rotate(rand() * Math.PI * 2);
     // Leaves at the back of a clump are in its shade, and a canopy with no
     // depth in it reads as a sticker whatever shape it is cut to.
-    const shade = 0.55 + 0.45 * (away / (size * 0.38));
+    const shade = 0.5 + 0.5 * Math.min(1, away / (size * 0.4));
     cx.globalAlpha = 1;
     cx.filter = 'brightness(' + (1.15 - shade * 0.45).toFixed(3) + ')';
     cx.drawImage(src, b.x0, b.y0, bw, bh,
@@ -242,8 +253,12 @@ const CLUMP = `async (colorB64, alphaB64, leaves, seed, size) => {
     for (let x = 0; x < size; x++) {
       const i = (y * size + x) * 4;
       if (!shot.data[i + 3]) continue;
-      const away = Math.hypot(x - mid, y - mid) / (size * 0.5);
-      const keep = away < 0.62 ? 1 : Math.max(0, 1 - (away - 0.62) / 0.34);
+      // Feathered along the spray rather than in a circle, so the ends fade
+      // and the middle stays solid.
+      const ax = Math.abs(x - mid) / (size * 0.5);
+      const ay = Math.abs(y - size * 0.46) / (size * 0.5);
+      const away = Math.max(ax * 0.86, ay * 1.9);
+      const keep = away < 0.66 ? 1 : Math.max(0, 1 - (away - 0.66) / 0.36);
       shot.data[i + 3] *= keep * keep;
     }
   }

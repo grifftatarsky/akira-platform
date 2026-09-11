@@ -138,6 +138,22 @@ Worth revisiting, and why they failed before:
 
 ---
 
+## Two ways this project measures itself wrong
+
+Both cost hours and both are in the tooling now, not in anyone's memory.
+
+**`board-shot.mjs` does not navigate.** It runs a script against whatever page
+Chrome already has open, so a screenshot taken straight after a rebuild is a
+picture of the *previous* build. Several rounds of tree tuning were judged
+against renders of code that was no longer running, which is how a rule that
+deleted six of seven trees read as "no change". **Always run `chrome-probe.mjs`
+first — it navigates — and shoot afterwards.**
+
+**`devbuildall.sh` leaves `dist/ooze` without an `index.html`.** It builds the
+federated remote, not the standalone app, so the static probe server 404s every
+page afterwards and every measurement comes back empty. Rebuild with
+`ng build ooze` before probing.
+
 ## Instruments
 
 Everything above was found with these, and two of them exist because a
