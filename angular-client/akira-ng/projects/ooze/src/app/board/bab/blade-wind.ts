@@ -72,21 +72,6 @@ export class BladeWind extends MaterialPluginBase {
    */
   droop = 0;
 
-  /**
-   * How far an edge-on plant is turned toward the camera, as a fraction.
-   *
-   * <p>A blade is a flat strip, and a flat strip seen along its edge is a line.
-   * Ghost of Tsushima calls the cure view-space thickening — the blade's
-   * vertices are pushed apart in the camera's own X so it keeps a readable
-   * width — and turning the strip about its own stem is the same thing said
-   * geometrically.
-   *
-   * <p>Never all the way. At one every plant faces the camera squarely, which
-   * is a wall of cards and reads worse than the slivers it replaced; the field
-   * also visibly swims when the camera turns. Half keeps the variety and closes
-   * the gaps.
-   */
-  face = 0.5;
 
   /**
    * The species' own height in half-feet, before the clump scales it.
@@ -139,7 +124,7 @@ export class BladeWind extends MaterialPluginBase {
     uniformBuffer.updateFloat4(
       'bladeTip', this.tip[0], this.tip[1], this.tip[2], this.floor,
     );
-    uniformBuffer.updateFloat4('bladeGround', this.ground, this.droop, this.face, 0);
+    uniformBuffer.updateFloat4('bladeGround', this.ground, this.droop, 0, 0);
     uniformBuffer.updateFloat4('bladeTall', Math.max(0.05, this.tall), 0, 0, 0);
   }
 
@@ -246,36 +231,20 @@ export class BladeWind extends MaterialPluginBase {
             rise * sink,
             positionUpdated.z + curve.x * dot(downwind, facing) + reach);
 
-          // <b>Turn an edge-on plant toward the camera.</b> A blade is a flat
-          // strip and a flat strip seen along its edge is a line — which is
-          // most of what "negative space" means in a field of them. Turning it
-          // about its own stem costs no geometry and closes the gap.
+          // <b>No turn toward the camera, and it used to be here.</b>
           //
-          // <p>The stem is the axis on purpose: a plant that rolled about any
-          // other would lift off the ground or lean out of its clump.
-          let stem = normalize(vertexInputs.world1.xyz);
-          let toEye = scene.vEyePosition.xyz - vertexInputs.world3.xyz;
-          // Only the part of the view direction that lies across the plant
-          // matters; looking straight down at a blade, there is nothing a turn
-          // about its stem can do and nothing that needs doing.
-          let flatEye = toEye - stem * dot(toEye, stem);
-          let sideways2 = length(flatEye);
-          if (sideways2 > 0.001) {
-            let want = cross(stem, flatEye / sideways2);
-            let has = normalize(vertexInputs.world0.xyz);
-            var turn = atan2(dot(cross(has, want), stem), dot(has, want));
-            // A strip and the same strip turned half a circle have the same
-            // silhouette, so there is always a short way round. Taking the long
-            // way is a plant spinning most of a turn to arrive where it started.
-            turn = turn - 3.14159265 * round(turn / 3.14159265);
-            let by = turn * uniforms.bladeGround.z;
-            let cb = cos(by);
-            let sb = sin(by);
-            positionUpdated = vec3f(
-              positionUpdated.x * cb - positionUpdated.z * sb,
-              positionUpdated.y,
-              positionUpdated.x * sb + positionUpdated.z * cb);
-          }
+          // <p>Each card was rolled about its own stem to face the viewer —
+          // Ghost of Tsushima's view-space thickening, which exists because a
+          // flat strip seen along its edge is a line and a field of lines is
+          // full of holes. It was the right fix for the plants that were here
+          // then: untextured slivers a few hundredths of a foot wide.
+          //
+          // <p>A scanned card is not a sliver. It is wide, it carries three
+          // blades in one image, and there are two of them crossed on every
+          // plant — so there is no edge-on case left to rescue. What the turn
+          // did instead was read the eye position, which means it moved when the
+          // camera moved: the whole field rotating slightly on every zoom, seen
+          // immediately by the person using it and by no screenshot I ever took.
         }
       `,
 

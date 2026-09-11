@@ -691,6 +691,16 @@ export function sowMeadow(
     (material as unknown as { _getReflectionTexture(): null })
       ._getReflectionTexture = () => null;
 
+    // <b>The meadow is not fogged, and the ground under it is.</b>
+    //
+    // <p>Fog measured 1.5 ms of a 7.1 ms field, which is more than the sun
+    // costs: it is a per-fragment term and the sward is several cards deep over
+    // every pixel from above, so it is paid once a layer. The terrain keeps it —
+    // one surface, one fragment a pixel, and the far edge of the board still
+    // needs to dissolve. What the grass loses is a wash it was being given on
+    // top of ground that already had it.
+    material.fogEnabled = false;
+
     const wind = new BladeWind(material);
     wind.tall = plant.tall;
     // <b>Gentler than it was.</b> The old strength leaned a blade most of its

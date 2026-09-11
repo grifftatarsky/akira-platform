@@ -249,13 +249,21 @@ export class Stage {
       this.ambient.groundColor = new Color3(0.3, 0.29, 0.26);
     }
 
-    // <b>Aerial perspective, which the board had none of.</b> The far end of a
-    // two-hundred-foot field is not the same colour as the near end, and fog is
-    // the cheapest depth cue in real-time rendering — one exponential and a
-    // colour. The colour is set with the clock, because fog that does not
-    // match the sky it is standing in front of reads as a grey wash.
-    this.scene.fogMode = Scene.FOGMODE_EXP2;
-    this.scene.fogDensity = 0.0004;
+    // <b>No fog on this board, and there was not much reason for any.</b>
+    //
+    // <p>It was doing two jobs: dissolving the far edge of the field, and
+    // hiding the seam where the sown window stopped. The window is gone — the
+    // sward runs to the board's own edge now — and the first job is worth less
+    // than it sounds, because this board is two hundred and twenty feet across
+    // and real aerial perspective over two hundred feet is nothing.
+    //
+    // <p>It also measured 1.5 ms of a 7.1 ms meadow, which is more than the sun
+    // costs. Fog is a per-fragment term and the sward is several cards deep over
+    // every pixel from directly above, so it is paid once a layer rather than
+    // once a pixel. Taking it off the meadow alone left the grass more saturated
+    // than the ground it stands on, visible as a rim round the board; taking it
+    // off everything is both cheaper and consistent.
+    this.scene.fogMode = Scene.FOGMODE_NONE;
 
     // Before anything else on the camera: TAA has to be the first post process
     // in the chain or it resolves an image that has already been graded.
@@ -450,27 +458,12 @@ export class Stage {
     this.scene.imageProcessingConfiguration.exposure =
       (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45);
 
-    // Fog is the sky at the horizon, so the far end of the field dissolves into
-    // the thing behind it rather than into a grey. Warmer and heavier at dusk,
-    // for the same reason the sky is: more air in the way.
+    // The fog colour is still kept with the clock even though nothing draws fog
+    // — the sky's own haze band reads it, and a colour that does not match the
+    // sky it sits under is the one thing worse than no haze at all.
     this.scene.fogColor = Color3.Lerp(
       new Color3(0.64, 0.72, 0.82), new Color3(0.58, 0.45, 0.37), dusk,
     );
-    // <b>Strong enough to be doing something.</b> It was 0.0008, and exponential-
-    // squared fog at that density is `exp(-(400 * 0.0008)^2)` at the board's far
-    // edge — 0.90, which is to say nothing at all. The far grass then sat at
-    // half the brightness of the near grass with nothing to lift it, and read
-    // as a dark band along the horizon. At 0.0018 the same far edge is 0.60 and
-    // the field recedes into the sky it is standing under, which is what aerial
-    // perspective is for. The near field is untouched: at thirty half-feet the
-    // factor is 0.997.
-    // <b>A third of what it was.</b> Fog was doing two jobs: dissolving the far
-    // edge of the board, and hiding the seam where the sown window stopped.
-    // There is no window any more — the sward runs to the board's own edge — so
-    // all that is left is the first job, and at the old density the whole field
-    // went grey from directly above, which is the camera this game is played
-    // from.
-    this.scene.fogDensity = 0.0004 + 0.0009 * dusk;
   }
 
   /** Frames the whole board. */
