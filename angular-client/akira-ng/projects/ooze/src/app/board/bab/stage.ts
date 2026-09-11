@@ -99,6 +99,8 @@ export class Stage {
    * interpolates it, so this is cheaper per fragment than the light it replaces.
    */
   private readonly skyProbe: ReflectionProbe;
+  /** Whether a spherical-harmonic readback is already queued for this frame. */
+  private recomputing = false;
   /**
    * Temporal anti-aliasing, on the still frame only.
    *
@@ -162,12 +164,25 @@ export class Stage {
     // is worth pulling one, is fewer casters or fewer cascades.
     this.shadows = new CascadedShadowGenerator(2048, this.sun);
     this.shadows.lambda = 0.9;
-    this.shadows.cascadeBlendPercentage = 0.05;
+    // <b>Wide enough to hide the cascade seam.</b> At a twentieth the boundary
+    // between two cascades is its own line across the ground, for the same
+    // reason and with the same tell — it moves when the camera does.
+    this.shadows.cascadeBlendPercentage = 0.15;
     this.shadows.stabilizeCascades = true;
-    // Four hundred half-feet, not nine hundred. Cascades are fitted across
-    // this range, so a range twice what anything casts across spends half its
-    // resolution on empty air.
-    this.shadows.shadowMaxZ = 400;
+    // <b>How far from the camera a surface may be and still be shadowed — and
+    // it has to reach the far edge of the board.</b>
+    //
+    // <p>This was four hundred, on the reasoning that cascades fitted across
+    // twice what anything casts across spend half their resolution on empty
+    // air. True, and it drew a line across the middle of the map: past four
+    // hundred there is no shadow term at all, so the far half of the board was
+    // lit differently from the near half, with a hard horizontal edge between
+    // them that slid up and down as the camera zoomed. Precisely the artifact
+    // that a still screenshot from one distance cannot show.
+    //
+    // <p>Set from the board in {@link frame} instead, so it covers whatever the
+    // camera can see of it however far back it stands.
+    this.shadows.shadowMaxZ = 1200;
     this.shadows.filteringQuality = CascadedShadowGenerator.QUALITY_MEDIUM;
     this.shadows.usePercentageCloserFiltering = true;
     // The terrain is the only caster and it never moves, so the bounding info
@@ -451,10 +466,22 @@ export class Stage {
     // guessing at it. The polynomial recompute is the load-bearing half — the
     // cube map's own pixels update on their own, and the diffuse irradiance
     // derived from them does not unless it is asked.
+    //
+    // <p><b>Coalesced to one a frame, because the hour slider fires on every
+    // pixel of a drag.</b> Recomputing the polynomial reads all six faces of
+    // the cube back to the CPU, and a PBR material is not ready while that read
+    // is outstanding — so dragging the clock dropped the terrain out of the
+    // frame, once per mouse move. The probe itself is cheap to re-render; it is
+    // the readback that is not, and one per frame is as often as it can
+    // possibly matter.
     this.skyProbe.cubeTexture.resetRefreshCounter();
-    this.scene.onAfterRenderObservable.addOnce(() => {
-      this.skyProbe.cubeTexture.forceSphericalPolynomialsRecompute();
-    });
+    if (!this.recomputing) {
+      this.recomputing = true;
+      this.scene.onAfterRenderObservable.addOnce(() => {
+        this.recomputing = false;
+        this.skyProbe.cubeTexture.forceSphericalPolynomialsRecompute();
+      });
+    }
     // <b>The hemisphere is the meadow's whole ambient now.</b> It used to be a
     // small fill under the sky probe, because the probe was lighting the field
     // as well. The meadow does not read the probe any more — it was 2.2 ms of a
@@ -483,6 +510,11 @@ export class Stage {
   frame(atX: number, atY: number, atZ: number, spanHalfFeet: number): void {
     this.camera.setTarget(new Vector3(atX, atZ, atY));
     this.camera.radius = spanHalfFeet * 1.15;
+    // The shadowed range has to reach the far corner from wherever the camera
+    // ends up, or the board is lit in two halves with a line between them.
+    // Twice the span covers standing back far enough to frame it and then
+    // looking across the whole thing.
+    this.shadows.shadowMaxZ = Math.max(400, spanHalfFeet * 2.6);
   }
 
   start(): void {

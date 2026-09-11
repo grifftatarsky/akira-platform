@@ -912,6 +912,10 @@ export function sowMeadow(
     },
     dispose(): void {
       for (const bed of beds) {
+        // <b>The material and its textures go with it.</b> `Mesh.dispose`
+        // leaves the material alone by default, which is right for a shared one
+        // and wrong for five built here and reachable from nowhere else.
+        bed.sown.mesh.material?.dispose();
         bed.sown.mesh.dispose();
         bed.tally.dispose();
         bed.matrices.dispose();
@@ -920,6 +924,8 @@ export function sowMeadow(
       }
       heightTexture.dispose();
       groundTexture.dispose();
+      // Nothing else owns the cut-out sheet; it was loaded for this meadow.
+      sheet.texture.dispose();
     },
   };
 }

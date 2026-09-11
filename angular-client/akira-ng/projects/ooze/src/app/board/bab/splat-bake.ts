@@ -318,7 +318,9 @@ export function bakeGround(
     scene.onBeforeRenderObservable.remove(ready);
   });
 
-  return { macro, relief, surface, sources: every };
+  // The field texture goes back with the rest: it is built here, it is bound
+  // to three bakes, and nothing else could reach it to dispose it.
+  return { macro, relief, surface, sources: [...every, source] };
 }
 
 export { BAKE_TEXELS_PER_HALF_FOOT };

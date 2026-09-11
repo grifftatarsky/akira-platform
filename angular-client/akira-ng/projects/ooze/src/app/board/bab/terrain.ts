@@ -248,6 +248,16 @@ function chunkMesh(
   const normals = new Float32Array(positions.length);
   VertexData.ComputeNormals(positions, indices, normals);
 
+  // <b>No tangents, and it was tried.</b> With a normal map and no tangent
+  // frame the fragment shader rebuilds a cotangent basis per pixel — four
+  // screen-space derivatives, two cross products and a normalise — and this
+  // mesh's uv is a planar projection of the board, so the tangent is analytic:
+  // the stage's x with the surface normal taken out of it. Supplying it as a
+  // vertex buffer produced a stream of WebGPU validation errors and a board
+  // that drew nothing. Not chased further, because the terrain is one fragment
+  // deep over every pixel and the meadow over it is several — this was the
+  // smallest of the savings on offer and the only one that broke the picture.
+
   const data = new VertexData();
   data.positions = positions;
   data.indices = indices;
