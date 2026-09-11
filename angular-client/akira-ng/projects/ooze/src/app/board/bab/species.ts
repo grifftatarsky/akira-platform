@@ -125,15 +125,17 @@ export const MEADOW: readonly Plant[] = [
   {
     id: 'seed',
     name: 'Yorkshire fog',
-    note: 'A panicle — a cluster of small spikelets on side branches, not a '
-      + 'lump on a stick. It stands a foot above everything else so the sward '
-      + 'has no flat ceiling, and it is the first thing to catch a low sun.',
-    share: 0.08,
+    note: 'A panicle — a dense cluster of small spikelets on side branches, '
+      + 'not a lump on a stick and not a starburst either: the real thing is '
+      + 'soft and pinkish and reads as a mass. It stands a foot above '
+      + 'everything else so the sward has no flat ceiling, and it is the first '
+      + 'thing to catch a low sun.',
+    share: 0.055,
     tall: 4.2, wide: 0.15, head: 0.42, segments: 4,
     widest: 0.2, fullness: 0.8, blunt: 0.04, notch: 0, fold: 0.4,
-    leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 11,
+    leaflets: 3, spread: 0.62, stem: 0, petals: 0, spikelets: 16,
     droop: 0.8, stiff: 1.5,
-    base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.74, 0.66, 0.56],
+    base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.55, 0.47, 0.47],
     veins: 0, sweep: 0,
     lit: 0.86, wearMax: 0.45, damp: 0,
   },
@@ -156,13 +158,15 @@ export const MEADOW: readonly Plant[] = [
   {
     id: 'plantain',
     name: 'Ribwort plantain',
-    note: 'A rosette of long, narrow, deeply ribbed leaves lying well out from '
-      + 'the centre. Five parallel veins running the length of the leaf are '
-      + 'what name it, and it grows where the grass has been trodden thin.',
+    note: 'A rosette of long, ribbed leaves. Semi-erect and gathered, not '
+      + 'splayed: flat rosettes are what it makes in short turf, and in a '
+      + 'meadow it stands up to compete. Five parallel veins running the '
+      + 'length of the leaf are what name it, and it grows where the grass has '
+      + 'been trodden thin.',
     share: 0.13,
-    tall: 2.1, wide: 0.26, head: 0, segments: 5,
+    tall: 2.1, wide: 0.31, head: 0, segments: 5,
     widest: 0.35, fullness: 0.95, blunt: 0.12, notch: 0, fold: 0.45,
-    leaflets: 6, spread: 0.62, stem: 0.05, petals: 0, spikelets: 0,
+    leaflets: 7, spread: 0.48, stem: 0.05, petals: 0, spikelets: 0,
     droop: 0.28, stiff: 0.3,
     base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
     veins: 5, sweep: 0.1,
@@ -177,7 +181,7 @@ export const MEADOW: readonly Plant[] = [
     share: 0.03,
     tall: 2.4, wide: 0.26, head: 0.34, segments: 3,
     widest: 0.3, fullness: 0.85, blunt: 0.08, notch: 0, fold: 0.35,
-    leaflets: 1, spread: 0, stem: 1.9, petals: 12, spikelets: 0,
+    leaflets: 5, spread: 0.8, stem: 1.9, petals: 12, spikelets: 0,
     droop: 0.22, stiff: 0.8,
     base: [0.16, 0.30, 0.10], tip: [0.30, 0.46, 0.16], bloom: [0.95, 0.94, 0.88],
     veins: 0, sweep: 0,
@@ -255,9 +259,13 @@ export function plantGeometry(plant: Plant): VertexData {
     addStem(build, plant, stalk);
   }
 
-  // A flowering or seeding stem carries a couple of leaves low down; a rosette
-  // is nothing but leaves.
-  const leaves = heads ? 2 : plant.leaflets;
+  // A flowering or seeding stem carries leaves low down; a rosette is nothing
+  // but leaves. Both counts come from the table now — two was hardcoded, and
+  // two slivers at the foot of a stem two and a half times their length is
+  // nine tenths empty air. An oxeye daisy grows from a basal rosette, and a
+  // plant that reads as a flower on a stick reads as a flower on a stick from
+  // every distance.
+  const leaves = plant.leaflets;
   const length = heads ? plant.tall * 0.42 : plant.tall - plant.stem;
   const from = heads ? plant.tall * 0.05 : plant.stem;
 
@@ -444,7 +452,10 @@ function addPanicle(build: Build, plant: Plant): void {
   for (let i = 0; i < plant.spikelets; i++) {
     const t = i / Math.max(1, plant.spikelets - 1);
     const around = i * 2.399963;
-    const out = plant.head * (0.35 + 0.65 * (1 - t));
+    // Not a straight taper: a panicle is widest a third of the way up and
+    // closes at both ends, which is what makes it read as one soft body rather
+    // than as spokes off a stick.
+    const out = plant.head * (0.3 + 0.7 * Math.sin(Math.PI * Math.pow(t, 0.7)));
     const ca = Math.cos(around);
     const sa = Math.sin(around);
     const rootY = bottom + run * t * 0.78;
@@ -452,7 +463,10 @@ function addPanicle(build: Build, plant: Plant): void {
     const first = build.positions.length / 3;
     for (let row = 0; row < 3; row++) {
       const along = row / 2;
-      const fat = Math.sin(Math.PI * Math.pow(along, 0.55)) * plant.wide * 0.45;
+      // Wider than the slivers they were, and then pulled back: at nearly twice
+      // this the panicles became the loudest thing in the field, a mass of pale
+      // feathers drowning the grass they are supposed to stand a foot above.
+      const fat = Math.sin(Math.PI * Math.pow(along, 0.55)) * plant.wide * 0.58;
       for (const side of [-1, 1]) {
         build.positions.push(
           ca * out * along - sa * side * fat,
@@ -543,6 +557,30 @@ function push(build: Build, at: Vec, normal: Vec, u: number, v: number): void {
   build.positions.push(at[0], at[1], at[2]);
   build.normals.push(normal[0], normal[1], normal[2]);
   build.uvs.push(u, v);
+}
+
+/**
+ * The colour of the sward, averaged across the table.
+ *
+ * <p>What the ground under a meadow actually is: not soil, but the underside of
+ * a sward seen between blades. The terrain's baked material is photographs of
+ * dirt and turf, and where the meadow grows it has to agree with the plants
+ * standing in it — otherwise the edge of the sown window is a visible line
+ * between two different greens, and the horizon reads as a dark band.
+ *
+ * <p>Weighted toward the tip because that is the half of a plant seen from
+ * above, and by share because a field is mostly grass.
+ */
+export function swardColor(plants: readonly Plant[] = MEADOW): [number, number, number] {
+  const total = plants.reduce((sum, plant) => sum + plant.share, 0);
+  const mixed: [number, number, number] = [0, 0, 0];
+  for (const plant of plants) {
+    const weight = plant.share / total;
+    for (let channel = 0; channel < 3; channel++) {
+      mixed[channel] += weight * (plant.base[channel] * 0.42 + plant.tip[channel] * 0.58);
+    }
+  }
+  return mixed;
 }
 
 /** Triangles in one plant, for the sidebar to be honest about cost. */

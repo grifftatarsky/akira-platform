@@ -6,6 +6,7 @@ import { Vector4 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { SplatGround } from '../board-assets';
 import type { GroundField } from '../ground-field';
+import { swardColor } from './species';
 // Side-effect, and the second time this exact trap has been hit: without the
 // scene component a `ProceduralTexture` is never added to the scene's render
 // list, so it is never drawn. It still reports `isReady`, its effect still
@@ -66,6 +67,8 @@ uniform reach: vec4f;    // feetC, wearLo, wearHi, unused
 uniform tintA: vec4f;
 uniform tintB: vec4f;
 uniform tintC: vec4f;
+// The sward's own colour, and how much of the ground it covers where it grows.
+uniform sward: vec4f;
 
 // Stochastic tiling, in the triangle-grid form: three taps at hashed offsets,
 // weighted by where the point falls in its triangle. A photograph tiled
@@ -145,6 +148,18 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   // scattering that lightens dry dirt stops happening.
   color = mix(color, color * 0.55, wet * 0.8);
 
+  // <b>Where the meadow grows, the ground is mostly not ground.</b> It is the
+  // underside of a sward seen between blades, and it has to be the colour the
+  // plants standing in it are. Without this the edge of the sown window is a
+  // line on the horizon between two different greens — the geometry stops and
+  // bare photographed dirt begins — which is the one place a camera-following
+  // window gives itself away.
+  //
+  // <p>Driven by the same wear that decides whether a plant grows there at all,
+  // so the road keeps its bare track and its verge without a second mask.
+  let covered = (1.0 - smoothstep(0.40, 0.82, wear)) * uniforms.sward.w;
+  color = mix(color, uniforms.sward.rgb * (0.86 + 0.28 * drift), covered);
+
   fragmentOutputs.color = vec4f(color, 1.0);
 }
 `;
@@ -210,6 +225,11 @@ export function bakeGround(
       new Vector4(tint[0], tint[1], tint[2], 1),
     );
   });
+  // Not all the way to the plants' colour: some earth shows between blades even
+  // in a thick sward, and a ground that matched them exactly would read as a
+  // painted plane under a field rather than as the floor of one.
+  const sward = swardColor();
+  macro.setVector4('sward', new Vector4(sward[0], sward[1], sward[2], 0.72));
 
   // <b>Bake once every source has arrived, and poll for it.</b>
   //

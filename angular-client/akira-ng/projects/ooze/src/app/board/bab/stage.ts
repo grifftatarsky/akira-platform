@@ -210,7 +210,7 @@ export class Stage {
     // colour. The colour is set with the clock, because fog that does not
     // match the sky it is standing in front of reads as a grey wash.
     this.scene.fogMode = Scene.FOGMODE_EXP2;
-    this.scene.fogDensity = 0.0009;
+    this.scene.fogDensity = 0.0018;
 
     const image = this.scene.imageProcessingConfiguration;
     image.toneMappingEnabled = true;
@@ -374,7 +374,15 @@ export class Stage {
     this.scene.fogColor = Color3.Lerp(
       new Color3(0.64, 0.72, 0.82), new Color3(0.58, 0.45, 0.37), dusk,
     );
-    this.scene.fogDensity = 0.0008 + 0.0009 * dusk;
+    // <b>Strong enough to be doing something.</b> It was 0.0008, and exponential-
+    // squared fog at that density is `exp(-(400 * 0.0008)^2)` at the board's far
+    // edge — 0.90, which is to say nothing at all. The far grass then sat at
+    // half the brightness of the near grass with nothing to lift it, and read
+    // as a dark band along the horizon. At 0.0018 the same far edge is 0.60 and
+    // the field recedes into the sky it is standing under, which is what aerial
+    // perspective is for. The near field is untouched: at thirty half-feet the
+    // factor is 0.997.
+    this.scene.fogDensity = 0.0018 + 0.0016 * dusk;
   }
 
   /** Frames the whole board. */

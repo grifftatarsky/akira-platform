@@ -222,7 +222,17 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // already in its geometry, so what is left here is how big this particular
   // one is — and a uniform scale keeps the matrix a rotation as far as a normal
   // is concerned.
-  let grow = clumpTall * (0.74 + 0.52 * rand(seed + 2u)) * alive;
+  // <b>Fade the sward out at the window's rim.</b> The window is a hard square
+  // and the plants inside it stopped dead at its edge, which drew a dark line
+  // along the horizon wherever the camera could see past it. The ground beyond
+  // is already tinted to the sward's own colour, so a plant that shrinks to
+  // nothing over the last few cells hands off to the terrain invisibly.
+  let toEdge = min(
+    min(f32(cx), f32(wide2 - 1u - cx)),
+    min(f32(cy), f32(wide2 - 1u - cy)));
+  let rim = clamp(toEdge / 7.0, 0.0, 1.0);
+
+  let grow = clumpTall * (0.74 + 0.52 * rand(seed + 2u)) * alive * rim;
   let tall = grow;
   let wide = grow;
 
