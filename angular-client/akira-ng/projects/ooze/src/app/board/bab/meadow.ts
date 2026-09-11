@@ -75,7 +75,8 @@ struct Params {
   b: vec4f,   // tall, wide, wearMax, droop
   c: vec4f,   // damp preference, spare, spare, spare
   d: vec4f,   // plants per cell, cells east, lattice pitch, cells north
-  e: vec4f,   // spare
+  e: vec4f,   // my index, how many species, my share, how far I may crowd
+  kinds: array<vec4f, 8>,   // per species: share, drift frequency, clumping
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -97,6 +98,39 @@ fn hashU(seed: u32) -> u32 {
 
 fn rand(seed: u32) -> f32 {
   return f32(hashU(seed) & 0xffffffu) / 16777216.0;
+}
+
+fn hash2f(p: vec2f) -> f32 {
+  let q = fract(p * vec2f(0.1031, 0.1030));
+  let r = q + dot(q, q.yx + 33.33);
+  return fract((r.x + r.y) * r.x);
+}
+
+/**
+ * Value noise, smoothed. One octave and no more: a drift is a slow change in
+ * the odds across tens of feet, and octaves on top of that are detail nobody
+ * reads at the scale a drift lives at.
+ */
+fn vnoise(p: vec2f) -> f32 {
+  let i = floor(p);
+  let f = p - i;
+  let w = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash2f(i), hash2f(i + vec2f(1.0, 0.0)), w.x),
+    mix(hash2f(i + vec2f(0.0, 1.0)), hash2f(i + vec2f(1.0, 1.0)), w.x), w.y);
+}
+
+/**
+ * One species' drift field at a point.
+ *
+ * <p>Stretched away from its middle, because value noise piles up around a half
+ * and a field that never reaches either end cannot make a species absent.
+ */
+fn driftAt(where2: vec2f, kind: u32) -> f32 {
+  let k = params.kinds[kind];
+  let salt = f32(kind);
+  let raw = vnoise(where2 * k.y + vec2f(salt * 37.3, salt * 91.7));
+  return clamp((raw - 0.5) * 1.9 + 0.5, 0.0, 1.0);
 }
 
 @compute @workgroup_size(64)
@@ -247,6 +281,45 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   alive *= clamp(1.0 + damp * (wet - 0.35) * 1.6, 0.15, 1.0);
   alive *= step(0.02, alive);
 
+  // <b>Species drift; they do not mix evenly.</b>
+  //
+  // <p>Taking each plant from the table by its share puts one daisy in every
+  // twentieth spot, everywhere, and a thing that is evenly everywhere is a
+  // texture rather than a population. Every species carries its own slow field
+  // instead, and this asks how much more or less of itself this spot is worth
+  // than its average — its own weight over the whole mixture's, against the
+  // share it would have had if nothing drifted.
+  //
+  // <p><b>The normalisation across species is the half that matters.</b>
+  // Thickening a species on its own field alone makes five independent
+  // scatters that happen to be lumpy. Dividing by the total is what makes them
+  // trade: where the daisies come in, the grass between them thins, which is
+  // what a drift actually is — a shift in the odds, not a change of surface.
+  // Taking the strongest species outright was tried in the renderer this came
+  // from and gave solid mats: white sheets laid over the field instead of
+  // daisies standing in it.
+  let kinds = max(1u, u32(params.e.y));
+  var total = 0.0;
+  var mine = 0.0;
+  for (var k = 0u; k < kinds; k++) {
+    let entry = params.kinds[k];
+    // The raised field's mean is one over clumping-plus-one, so multiplying it
+    // back keeps a species' average weight equal to its share however hard it
+    // clumps — otherwise turning the clumping up would quietly delete it.
+    let weight = entry.x * pow(driftAt(where2, k), entry.z) * (entry.z + 1.0);
+    total += weight;
+    if (k == u32(params.e.x)) {
+      mine = weight;
+    }
+  }
+  let share = max(0.0001, params.e.z);
+  let crowd = max(1.0, params.e.w);
+  // Slots were handed out at a multiple of this species share so a drift has
+  // room to thicken rather than only thin; the surplus is culled back out here.
+  let relative = select(0.0, (mine / total) / share, total > 0.0);
+  alive *= step(rand(seed + 9u), clamp(relative, 0.0, crowd) / crowd);
+  alive *= step(0.02, alive);
+
   // <b>Everything scales by alive, not just the height.</b> Scaling only
   // the height leaves a plant that failed the wear test as a flat quad of full
   // width lying on the ground with a zeroed column in its matrix — and a
@@ -392,13 +465,52 @@ export function sowMeadow(
     readonly compute: ComputeShader;
     readonly cap: number;
     readonly offset: number;
+    /** Its row in the species table the drift weighting reads. */
+    readonly kind: number;
   }
+
+  /**
+   * The lattice: how many cells across the board, and how big one is.
+   *
+   * <p>Sized by the rarest species. Plants are laid down as a whole number per
+   * cell, so a species that is three per cent of the sward needs the cell count
+   * to be under its own share of the budget or it cannot be represented at all
+   * — round its slots up to one and there are as many daisies as there is
+   * grass. That fixes the cell at about sixteen inches, which gives the grass
+   * something like twenty blades in each: enough that a cell reads as a tuft
+   * rather than as a grid.
+   */
+  const rarest = Math.min(...plants.map(plant => plant.share)) / total;
+  const pitch = Math.sqrt(
+    (field.extentXHalfFeet * field.extentYHalfFeet) / (MAX_PLANTS * rarest));
+  const eastCells = Math.max(1, Math.ceil(field.extentXHalfFeet / pitch));
+  const northCells = Math.max(1, Math.ceil(field.extentYHalfFeet / pitch));
+  const cells = eastCells * northCells;
 
   const beds: Bed[] = [];
   let seedOffset = 0;
 
+  // The whole mixture, as the compute pass reads it: one vec4 a species,
+  // holding its share of the meadow, how big its drifts are, and how hard it
+  // gathers into them. Every bed gets the same table, because a species cannot
+  // know how much of a spot it is worth without knowing what else wants it.
+  const kinds = new Float32Array(32);
+  plants.forEach((plant, at) => {
+    kinds[at * 4 + 0] = plant.share / total;
+    kinds[at * 4 + 1] = plant.patch;
+    kinds[at * 4 + 2] = plant.clumping;
+  });
+
   for (const plant of plants) {
-    const cap = Math.max(64, Math.round((MAX_PLANTS * plant.share) / total));
+    // <b>A whole number of slots over the whole lattice.</b> The buffer used
+    // to be sized from the share alone while the slots were multiplied by the
+    // crowd — so the dispatch was clamped to the buffer and simply stopped part
+    // way down the lattice, leaving the last third of the board with nothing
+    // growing on it. A bald quarter of a field is not subtle and it took a
+    // read-back of the matrices to see it was arithmetic rather than the drift.
+    const wanted = (MAX_PLANTS * plant.share * plant.crowd) / total;
+    const slotsFull = Math.max(1, Math.round(wanted / cells));
+    const cap = slotsFull * cells;
 
     const mesh = new Mesh(`meadow-${plant.id}`, scene);
     // <b>One geometry, at full detail, at every distance.</b> There was a
@@ -522,6 +634,7 @@ export function sowMeadow(
     params.addUniform('c', 4);
     params.addUniform('d', 4);
     params.addUniform('e', 4);
+    params.addUniform('kinds', 4, 8);
 
     const compute = new ComputeShader(`sow-${plant.id}`, engine, { computeSource: SOW }, {
       bindingsMapping: {
@@ -541,6 +654,7 @@ export function sowMeadow(
     beds.push({
       sown: { plant, mesh, wind, matrices, tints, count: cap },
       matrices, tints, params, compute, cap, offset: seedOffset,
+      kind: beds.length,
     });
     seedOffset += cap;
   }
@@ -548,23 +662,6 @@ export function sowMeadow(
   let ran = false;
   let density = 0.5;
 
-  /**
-   * The lattice: how many cells across the board, and how big one is.
-   *
-   * <p>Sized by the rarest species. Plants are laid down as a whole number per
-   * cell, so a species that is three per cent of the sward needs the cell count
-   * to be under its own share of the budget or it cannot be represented at all
-   * — round its slots up to one and there are as many daisies as there is
-   * grass. That fixes the cell at about sixteen inches, which gives the grass
-   * something like twenty blades in each: enough that a cell reads as a tuft
-   * rather than as a grid.
-   */
-  const rarest = Math.min(...plants.map(plant => plant.share)) / total;
-  const pitch = Math.sqrt(
-    (field.extentXHalfFeet * field.extentYHalfFeet) / (MAX_PLANTS * rarest));
-  const eastCells = Math.max(1, Math.ceil(field.extentXHalfFeet / pitch));
-  const northCells = Math.max(1, Math.ceil(field.extentYHalfFeet / pitch));
-  const cells = eastCells * northCells;
 
   const sow = (): void => {
     let all = true;
@@ -584,7 +681,11 @@ export function sowMeadow(
       );
       bed.params.updateFloat4('c', bed.sown.plant.damp, 0, 0, 0);
       bed.params.updateFloat4('d', slots, eastCells, pitch, northCells);
-      bed.params.updateFloat4('e', 0, 0, 0, 0);
+      bed.params.updateFloat4(
+        'e', bed.kind, plants.length, bed.sown.plant.share / total,
+        bed.sown.plant.crowd,
+      );
+      bed.params.updateFloatArray('kinds', kinds);
       bed.params.update();
       all = bed.compute.dispatch(Math.ceil(Math.max(1, count) / 64)) && all;
     }

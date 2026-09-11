@@ -127,6 +127,41 @@ export interface Plant {
    */
   readonly lit: number;
 
+  /**
+   * How big this species' drifts are, in repeats per half-foot, and how hard
+   * it gathers into them.
+   *
+   * <p><b>A meadow is not a mixture, it is a mosaic.</b> Picking each plant
+   * from the table by share puts one daisy in every twentieth spot everywhere,
+   * and a thing that is evenly everywhere is a texture rather than a
+   * population — which is exactly how the field read. Every species carries its
+   * own slow field instead, and where its field is high it thickens and where
+   * it is low it thins. The patchiness *is* the biodiversity.
+   *
+   * <p>`clumping` is the exponent that field is raised to. One is a gentle
+   * bias; four is a species that is either there in a drift or not there at
+   * all, which is what a stand of oxeye daisies actually looks like from a
+   * distance.
+   */
+  readonly patch: number;
+  readonly clumping: number;
+  /**
+   * How much more than its average share it is allowed to reach.
+   *
+   * <p>A drift has to be able to thicken, not only thin, and a species can only
+   * thicken if instances were set aside for it — so its slots are multiplied by
+   * this and the surplus is culled back out wherever its field is low.
+   *
+   * <p><b>It is not free and it is not worth much to the grass.</b> A culled
+   * instance is still submitted and still costs its setup, so every point of
+   * crowd is instances drawn for nothing. The flowers get the most of it, being
+   * a twentieth of the meadow — three times a twentieth is cheap, and they are
+   * the species whose drifts anybody reads. Grass gets none: it is the filler,
+   * and what its drift has to do is thin where something else is winning, which
+   * needs no surplus at all.
+   */
+  readonly crowd: number;
+
   /** The cards it is built from. */
   readonly cards: readonly CardSpec[];
   /** Height of the bare stalk under a head, in half-feet. Nought for none. */
@@ -146,7 +181,7 @@ export const MEADOW: readonly Plant[] = [
     note: 'The mass of it. Widest low down and running out to a long point, '
       + 'with a crease along the midrib that catches the sun on one side only '
       + '— which is why a field of it glitters rather than sitting flat.',
-    share: 0.34,
+    share: 0.42,
     tall: 3.0, wide: 0.34, head: 0, segments: 4,
     widest: 0.22, fullness: 0.85, blunt: 0.04, notch: 0, fold: 0.62,
     leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 0,
@@ -155,6 +190,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
     // A spray of three blades in one scan, with a single blade crossing it.
     // Two cards rather than five: the scan already has the blades in it, and a
+    patch: 0.012, clumping: 1.0, crowd: 1.0,
     // card carrying three costs what one does.
     cards: [
       { group: 'spray', count: 1, tall: 3.0, at: 0, out: 0, lean: 0.12, rows: 4, taper: 1 },
@@ -171,7 +207,7 @@ export const MEADOW: readonly Plant[] = [
       + 'soft and pinkish and reads as a mass. It stands a foot above '
       + 'everything else so the sward has no flat ceiling, and it is the first '
       + 'thing to catch a low sun.',
-    share: 0.07,
+    share: 0.06,
     tall: 4.2, wide: 0.15, head: 0.42, segments: 4,
     widest: 0.2, fullness: 0.8, blunt: 0.04, notch: 0, fold: 0.4,
     leaflets: 3, spread: 0.62, stem: 0, petals: 0, spikelets: 16,
@@ -179,6 +215,7 @@ export const MEADOW: readonly Plant[] = [
     base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.55, 0.47, 0.47],
     veins: 0, sweep: 0,
     // Rank grass standing above the sward: two long blades and a spray leaning
+    patch: 0.022, clumping: 3.0, crowd: 2.4,
     // out of them, on a stalk.
     cards: [
       { group: 'blade', count: 1, tall: 3.6, at: 0, out: 0.06, lean: 0.30, rows: 3, taper: 1 },
@@ -194,8 +231,8 @@ export const MEADOW: readonly Plant[] = [
       + 'stem and tilted out from it. The notch is the whole recognition — '
       + 'without it a clover leaf is a spade, and a spade is a weed nobody can '
       + 'name.',
-    share: 0.24,
-    tall: 1.5, wide: 0.52, head: 0, segments: 6,
+    share: 0.21,
+    tall: 0.95, wide: 0.52, head: 0, segments: 6,
     widest: 0.62, fullness: 1.05, blunt: 0.74, notch: 0.15, fold: 0.28,
     leaflets: 3, spread: 0.8, stem: 0.85, petals: 0, spikelets: 0,
     droop: 0.12, stiff: 0.35,
@@ -203,9 +240,10 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
     // <b>One card is the whole plant.</b> The scan is a trefoil on its own
     // stem, which is the entire thing a clover is, and the seventy-six
+    patch: 0.017, clumping: 2.0, crowd: 1.3,
     // triangles it replaces were three modelled leaflets trying to say it.
     cards: [
-      { group: 'clover', count: 1, tall: 1.5, at: 0, out: 0, lean: 0.30, rows: 2, taper: 1 },
+      { group: 'clover', count: 1, tall: 0.95, at: 0, out: 0, lean: 0.26, rows: 2, taper: 1 },
     ],
     stemTall: 0,
     lit: 0.64, wearMax: 0.78, damp: 0.5,
@@ -218,7 +256,7 @@ export const MEADOW: readonly Plant[] = [
       + 'meadow it stands up to compete. Five parallel veins running the '
       + 'length of the leaf are what name it, and it grows where the grass has '
       + 'been trodden thin.',
-    share: 0.24,
+    share: 0.21,
     tall: 2.1, wide: 0.31, head: 0, segments: 5,
     widest: 0.35, fullness: 0.95, blunt: 0.12, notch: 0, fold: 0.45,
     leaflets: 7, spread: 0.48, stem: 0.05, petals: 0, spikelets: 0,
@@ -226,6 +264,7 @@ export const MEADOW: readonly Plant[] = [
     base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
     veins: 5, sweep: 0.1,
     // A rosette pressed almost flat, which is how a plantain survives being
+    patch: 0.024, clumping: 2.0, crowd: 1.3,
     // walked on and why it is the plant on the path rather than beside it.
     cards: [
       { group: 'rosette', count: 5, tall: 2.0, at: 0.04, out: 0.05, lean: 0.98, rows: 1, taper: 0.35 },
@@ -239,7 +278,7 @@ export const MEADOW: readonly Plant[] = [
     note: 'A real head: twelve white ray florets around a yellow disc, on a '
       + 'thin stem. Rare on purpose — scattered white reads as flowers, evenly '
       + 'spread white reads as litter.',
-    share: 0.06,
+    share: 0.05,
     tall: 2.4, wide: 0.26, head: 0.34, segments: 3,
     widest: 0.3, fullness: 0.85, blunt: 0.08, notch: 0, fold: 0.35,
     leaflets: 5, spread: 0.8, stem: 1.9, petals: 12, spikelets: 0,
@@ -247,6 +286,7 @@ export const MEADOW: readonly Plant[] = [
     base: [0.16, 0.30, 0.10], tip: [0.30, 0.46, 0.16], bloom: [0.95, 0.94, 0.88],
     veins: 0, sweep: 0,
     // A head on a stalk over a basal rosette. The head lies flat: this board's
+    patch: 0.03, clumping: 4.0, crowd: 3.0,
     // camera looks down at it, and an oxeye daisy holds its face to the sky.
     cards: [
       { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 1, taper: 0.35 },
