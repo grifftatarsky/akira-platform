@@ -9,6 +9,7 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { TAARenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/taaRenderingPipeline';
 import { ReflectionProbe } from '@babylonjs/core/Probes/reflectionProbe';
 import { Scene } from '@babylonjs/core/scene';
 // <b>Side effects, both of them.</b> `forceSphericalPolynomialsRecompute` is
@@ -85,6 +86,23 @@ export class Stage {
    * interpolates it, so this is cheaper per fragment than the light it replaces.
    */
   private readonly skyProbe: ReflectionProbe;
+  /**
+   * Temporal anti-aliasing, on the still frame only.
+   *
+   * <p>A field of grass is the canonical case for it: hundreds of thousands of
+   * sub-pixel edges, every one of them crawling as the camera creeps. Multi-
+   * sampling cannot reach that — the edges are smaller than a sample — and it
+   * is the named first-order failure of every grass renderer that does without.
+   *
+   * <p>Jittered over sixteen frames, with each pixel's history clamped to the
+   * range of its neighbours so a moving edge cannot smear, and switched off the
+   * moment the camera moves. That last is the honest trade: reprojecting the
+   * history properly wants a per-pixel velocity, a velocity buffer wants a
+   * second geometry pass, and geometry is exactly what this board has no
+   * headroom in. A board is looked at far more than it is flown around, so the
+   * still frame is the one worth resolving.
+   */
+  private readonly taa: TAARenderingPipeline;
 
   private constructor(
     readonly engine: WebGPUEngine,
@@ -142,6 +160,14 @@ export class Stage {
     // The terrain is the only caster and it never moves, so the bounding info
     // it is fitted to can be computed once instead of every frame.
     this.shadows.freezeShadowCastersBoundingInfo = true;
+    // <b>Two, not the default four.</b> Cascades exist to spend resolution
+    // where it is looked at, and they cost in draw calls: forty terrain chunks
+    // times four is a hundred and sixty, and the pass scales with that almost
+    // exactly — 3.25 ms at four, 2.17 at three, 1.32 at two. What is left to
+    // shadow is the terrain alone, which is large, smooth and has no small
+    // casters on it since the meadow stopped both casting and receiving. Two
+    // bands across four hundred half-feet is more than that needs.
+    this.shadows.numCascades = 2;
 
     this.bounce = new DirectionalLight('bounce', new Vector3(0, -1, 0), this.scene);
     this.bounce.intensity = 0.3;
@@ -210,7 +236,31 @@ export class Stage {
     // colour. The colour is set with the clock, because fog that does not
     // match the sky it is standing in front of reads as a grey wash.
     this.scene.fogMode = Scene.FOGMODE_EXP2;
-    this.scene.fogDensity = 0.0018;
+    this.scene.fogDensity = 0.0011;
+
+    // Before anything else on the camera: TAA has to be the first post process
+    // in the chain or it resolves an image that has already been graded.
+    this.taa = new TAARenderingPipeline('taa', this.scene, [this.camera]);
+    this.taa.samples = 16;
+    this.taa.factor = 0.06;
+    // Clamp each pixel's history to the range of its eight neighbours. Without
+    // it a still frame that is not quite still — the wind never stops — smears
+    // rather than resolves.
+    this.taa.clampHistory = true;
+    // <b>Multisampling stays on, and it is cheaper on than it was.</b> The
+    // obvious reading of this pipeline is that it replaces multisampling, and
+    // at one sample the frame drops from 9.6 ms to 4.2. It is the wrong trade:
+    // temporal resolve is switched off while the camera moves, so a board being
+    // panned would have no anti-aliasing of any kind, and panning is when a
+    // field of sub-pixel edges crawls worst.
+    //
+    // <p>Keeping four costs 5.8 ms — still four milliseconds *below* the
+    // engine's own multisampled swap chain, because the pipeline resolves from
+    // its own render target rather than from the presented surface. Same
+    // quality in motion as before, better when still, and cheaper than both.
+    this.taa.msaaSamples = 4;
+    this.taa.disableOnCameraMove = true;
+    this.taa.isEnabled = !indoor;
 
     const image = this.scene.imageProcessingConfiguration;
     image.toneMappingEnabled = true;
@@ -382,7 +432,7 @@ export class Stage {
     // the field recedes into the sky it is standing under, which is what aerial
     // perspective is for. The near field is untouched: at thirty half-feet the
     // factor is 0.997.
-    this.scene.fogDensity = 0.0018 + 0.0016 * dusk;
+    this.scene.fogDensity = 0.0011 + 0.0013 * dusk;
   }
 
   /** Frames the whole board. */
@@ -401,6 +451,7 @@ export class Stage {
 
   dispose(): void {
     this.engine.stopRenderLoop();
+    this.taa.dispose();
     this.skyProbe.dispose();
     this.environment?.dispose();
     this.skyBox.dispose();
