@@ -150,11 +150,36 @@ Three things follow, and they invalidate the Tier 2 plan as written:
 2. **Thinning while widening to keep coverage is neutral by construction.** If
    the same ground is covered, the same pixels are shaded. The saving in the
    literature comes from reduced overdraw, and overdraw is not the cost here.
-3. **The only lever is drawing fewer instances**, which means real compaction:
-   the compute pass writes survivors to the front of the buffer with an atomic
-   counter and the draw takes its instance count from the GPU. Babylon supports
-   `draw_indirect` on WebGPU. That is the actual Tier 2, and it is a bigger
-   piece of work than a batch of settings.
+3. **The only lever is drawing fewer instances.** Not compacting them —
+   *spending* them where they can be seen.
+
+### What actually worked: a window that follows the camera
+
+Compaction with `draw_indirect` was the obvious answer and it is not the
+cheapest one. The meadow was sowing six hundred thousand plants across the whole
+two-hundred-and-twenty-foot board whether the camera was pointed at them or not.
+It now sows **two hundred and sixty thousand into a square window centred on
+what the camera is looking at**, sized from how far back it is standing.
+
+The lattice is fixed in the world and the window slides over it. A plant's
+identity hashes from its cell and its slot in that cell, never from its index,
+so moving the camera changes *which* cells are grown and never *what* grows in
+one — which is the whole trick. Hash from the index and the meadow reshuffles
+every time the camera moves an inch.
+
+Two things fall out of it for free. The window's cell size scales with camera
+distance, so the field thins as you pull back — a level-of-detail ladder with no
+second mesh and no cross-fade. And because the window is clamped to the board's
+own span, a camera framing the whole thing still covers all of it.
+
+| View | Before | After |
+|---|---|---|
+| Mid-range (radius 150) | 25.6 ms, 37 fps | **11.9 ms, 68 fps** |
+| Standing in the field | — | 11.6 ms |
+| Whole board | — | 7.8 ms |
+
+Under the 16.7 ms budget at every camera, at full density, with fewer plants in
+the buffer and a *denser* field underfoot than before.
 
 ### What the harness learned, which cost more than the finding
 
