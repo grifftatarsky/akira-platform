@@ -222,12 +222,13 @@ export function bakeGround(
   const width = Math.min(BAKE_LIMIT, Math.round(widthFeet * scale));
   const height = Math.min(BAKE_LIMIT, Math.round(heightFeet * scale));
 
-  // <b>Three sets of scans, and two of them are data.</b> A colour map is a
-  // photograph and goes through sRGB on the way in; a normal map and a packed
-  // occlusion-roughness-metalness map are numbers that happen to be stored in
-  // an image, and decoding them as if they were a photograph bends every normal
-  // and lifts every roughness. It is the same mistake that made the leaves
-  // black, and it is invisible: the picture looks plausible and is wrong.
+  // <b>Three sets of scans, and two of them are data.</b> The `gammaSpace`
+  // flags below are belt and braces rather than a fix: nothing decodes a
+  // texture on load unless it was created with `useSRGBBuffer`, which none of
+  // these are, and the bake shader reads raw texels either way. They are set
+  // because the flag is what a later reader will look at to answer "is this a
+  // photograph or a number", and because the one time this project got that
+  // question wrong it spent a week believing the black leaves were shadows.
   const load = (path: string, data: boolean): Texture => {
     const texture = new Texture(assetUrl(path), scene, false, false);
     texture.wrapU = Texture.WRAP_ADDRESSMODE;

@@ -127,7 +127,6 @@ export function buildTerrain(
   // No specular from a dirt road worth the name. Left at the default it reads
   // as wet tarmac the moment the sun gets low.
   material.specularIntensity = 0.15;
-  material.ambientColor = new Color3(1, 1, 1);
   // There is no underside of a hillside worth drawing, but the skirt is seen
   // edge-on at the board's rim and a hole there reads as a bug.
   material.backFaceCulling = false;
@@ -160,9 +159,15 @@ export function buildTerrain(
         field, material, scene, x0, y0, x1, y1, `sward-${cx}-${cy}`, true,
       );
       proxy.layerMask = SHADOW_ONLY_LAYER;
-      // Nothing samples this and nothing lights it. It exists to occupy space
-      // in a depth buffer.
-      proxy.material = null;
+      // <b>It keeps the terrain's material, and nulling it deleted the whole
+      // feature.</b> Nothing samples this mesh and nothing lights it — the
+      // shadow pass draws it with its own depth effect — so a null material
+      // looked like honesty. It is not: `RenderingGroup.dispatch` returns
+      // immediately on a null material, and so does the shadow generator, and a
+      // default material is only substituted when `StandardMaterial` has been
+      // imported, which this board never does. So these forty chunks were
+      // built, uploaded, culled and never drawn, and the field cast nothing on
+      // the road for as long as the proxy has existed.
       swardProxy.push(proxy);
     }
   }

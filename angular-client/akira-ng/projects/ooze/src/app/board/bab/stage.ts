@@ -32,7 +32,6 @@ import '@babylonjs/core/Materials/Textures/baseTexture.polynomial';
 // roots, and the compute pass already knows how thick each clump is — so that
 // is where it is computed, for nothing.
 import { SkyMaterial } from '@babylonjs/materials/sky/skyMaterial';
-import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 import type { BoardLook } from '../board-assets';
 import { eyeExposure, sunPosition, sunlight } from '../sun-position';
 import { assetUrl } from './assets';
@@ -297,13 +296,13 @@ export class Stage {
     // multisampled or it is not. Twenty-four milliseconds is not a price worth
     // paying for edges, with a temporal resolve already in the chain to do it.
     this.taa.msaaSamples = 1;
-    // <b>And it keeps resolving while the camera moves.</b> Switching off in
-    // motion was defensible when multisampling was underneath to catch it.
-    // Nothing is underneath now, and a board being panned is exactly when a
-    // field of sub-pixel edges crawls worst. `clampHistory` is what makes this
-    // safe: a reprojected pixel that disagrees with its neighbours is thrown
-    // away rather than smeared.
-    this.taa.disableOnCameraMove = false;
+    // <b>It stops resolving while the camera moves, and leaving it on was a
+    // trade that did not exist.</b> The flag only gates the blend factor — the
+    // sub-pixel jitter is separately switched off whenever the camera has
+    // moved, and there is no velocity buffer. So running it through motion
+    // blended eighty-four per cent history with no new samples and no
+    // reprojection: a ghost trail bought for no anti-aliasing at all.
+    this.taa.disableOnCameraMove = true;
     this.taa.isEnabled = !indoor;
 
     const image = this.scene.imageProcessingConfiguration;
@@ -325,7 +324,15 @@ export class Stage {
     indoor = false,
   ): Promise<Stage> {
     const engine = new WebGPUEngine(canvas, {
-      antialias: true,
+      // <b>No multisampling on the main pass, and asking for it was the same
+      // twenty-four milliseconds arriving by the back door.</b> `antialias`
+      // sets `_mainPassSampleCount` to four, which allocates a four-sample
+      // colour target and a four-sample depth target at the full canvas — at
+      // 3472 by 1632 that is about ninety megabytes each — and resolves them
+      // every frame. With the temporal pipeline installed the scene is never
+      // drawn there: it goes into the pipeline's own target, and the only thing
+      // that touches the main pass is one full-screen blit with no edges in it.
+      antialias: false,
       stencil: false,
       // The one number the old renderer had to fight for. Nothing here caps it
       // below the display's own, because nothing here is fill-bound any more.
@@ -464,9 +471,9 @@ export class Stage {
     this.scene.imageProcessingConfiguration.exposure =
       (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45);
 
-    // The fog colour is still kept with the clock even though nothing draws fog
-    // — the sky's own haze band reads it, and a colour that does not match the
-    // sky it sits under is the one thing worse than no haze at all.
+    // Kept with the clock although nothing reads it today — `SkyMaterial`
+    // gates its own fog on `fogMode`, which is NONE. It is two lerps a tick and
+    // it is the value anything that wants aerial perspective later would want.
     this.scene.fogColor = Color3.Lerp(
       new Color3(0.64, 0.72, 0.82), new Color3(0.58, 0.45, 0.37), dusk,
     );

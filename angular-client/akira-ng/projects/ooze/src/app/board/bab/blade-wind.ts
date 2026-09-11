@@ -91,15 +91,14 @@ export class BladeWind extends MaterialPluginBase {
   }
 
   /**
-   * <p>Without this the plugin is refused outright — "not compatible with the
-   * shader language of the material". Answering only for WGSL is not enough
-   * either: the manager asks at construction, before the material has settled
-   * which language it will compile in. So this accepts the question and
-   * {@link getCustomCode} declines to emit anything but WGSL, which is the
-   * same guarantee made one step later.
+   * <p>Answering yes to everything was wrong, on a premise that was wrong: the
+   * material settles its shader language inside its own constructor, when it
+   * builds its uniform buffer, so by the time the plugin manager asks it is
+   * already WGSL. Narrowing costs nothing and turns a future silent "the grass
+   * stopped bending" into a refusal at construction.
    */
-  override isCompatible(): boolean {
-    return true;
+  override isCompatible(language: ShaderLanguage): boolean {
+    return language === ShaderLanguage.WGSL;
   }
 
   override prepareDefines(defines: Record<string, unknown>): void {

@@ -641,8 +641,6 @@ export function sowMeadow(
     // off both sides shade from the same upward normal, which is how a leaf
     // scatters anyway.
     material.twoSidedLighting = false;
-    material.albedoColor = new Color3(plant.base[0], plant.base[1], plant.base[2]);
-    material.specularIntensity = 1;
     // <b>The sheet of scanned cut-outs.</b> One texture for every species, so
     // the meadow is five draws of one material rather than five materials — and
     // so a plant can mix sources, which a daisy does: a scanned flower head over
@@ -673,8 +671,14 @@ export function sowMeadow(
     // the one Angelo Pesce calls the difference between grass and dark grass —
     // that low sun comes through a leaf at all.
     material.subSurface.isTranslucencyEnabled = true;
-    material.subSurface.minimumThickness = 0.1;
-    material.subSurface.maximumThickness = 0.6;
+    // <b>Only the difference reaches the shader.</b> Babylon binds
+    // `vThicknessParam` as (minimum, maximum - minimum) and the branch that
+    // reads the minimum exists only when a thickness texture does — without
+    // one the shader takes `vThicknessParam.y` outright. So a minimum of 0.1
+    // and a maximum of 0.6 was a flat thickness of 0.5, five times what it
+    // read as.
+    material.subSurface.minimumThickness = 0;
+    material.subSurface.maximumThickness = 0.1;
     material.subSurface.translucencyIntensity = 0.55;
     material.subSurface.tintColor = new Color3(
       plant.tip[0] * 1.5 + 0.1, plant.tip[1] * 1.35 + 0.1, plant.tip[2] * 0.9,
@@ -855,7 +859,26 @@ export function sowMeadow(
         // is created by the engine when the mesh is first drawn — there is no
         // draw context before that, and nothing to hand the compute pass.
         if (!bed.wired) {
-          const args = indirectArgs(bed.sown.mesh);
+          // <b>Named for the camera's pass, not whichever pass ran last.</b>
+          // A draw wrapper is kept per render-pass id and `_getDrawWrapper`
+          // defaults to the engine's *current* one — and this runs before the
+          // scene has set it, so it reads a leftover. It happens to be right
+          // today and would latch onto a shadow pass or a picker the moment
+          // this board grows one.
+          const context = drawContext(
+            bed.sown.mesh, scene.activeCamera?.renderPassId);
+          if (context?.indirectDrawBuffer) {
+            // <b>And ask for it, which is the whole of the feature.</b> Babylon
+            // creates the argument buffer for any instanced mesh and then only
+            // reads it out of compatibility mode — `useInstancing` deliberately
+            // restores the compat flag it just set. So the buffer existed, the
+            // compute pass filled it, and the draw ignored it and used the
+            // CPU's count instead: the compaction measured as neutral because
+            // it was never once applied. The setter is the documented hook,
+            // and its own comment says so.
+            context.enableIndirectDraw = true;
+          }
+          const args = context?.indirectDrawBuffer;
           if (args) {
             bed.publish.setStorageBuffer('draws', new WebGPUDataBuffer(args, 20));
             bed.wired = true;
@@ -910,11 +933,16 @@ export function sowMeadow(
  * once the mesh has been drawn: the draw wrapper is keyed on the render pass,
  * and there is no pass until something renders.
  */
-function indirectArgs(mesh: Mesh): GPUBuffer | undefined {
+interface DrawContext {
+  indirectDrawBuffer?: GPUBuffer;
+  enableIndirectDraw: boolean;
+}
+
+function drawContext(mesh: Mesh, pass?: number): DrawContext | undefined {
   const sub = mesh.subMeshes?.[0] as unknown as {
-    _getDrawWrapper?: () => { drawContext?: { indirectDrawBuffer?: GPUBuffer } } | undefined;
+    _getDrawWrapper?: (passId?: number) => { drawContext?: DrawContext } | undefined;
   } | undefined;
-  return sub?._getDrawWrapper?.()?.drawContext?.indirectDrawBuffer;
+  return sub?._getDrawWrapper?.(pass)?.drawContext;
 }
 
 /**
