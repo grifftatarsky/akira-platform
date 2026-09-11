@@ -244,8 +244,8 @@ export class Stage {
       // and neutral: what it is still good for is keeping the underside of a
       // sward off zero, which an environment map alone does not do because the
       // grass does not occlude itself in it.
-      this.ambient.intensity = 0.13;
-      this.ambient.diffuse = new Color3(0.55, 0.6, 0.68);
+      this.ambient.intensity = 0.3;
+      this.ambient.diffuse = new Color3(0.62, 0.7, 0.84);
       this.ambient.groundColor = new Color3(0.3, 0.29, 0.26);
     }
 
@@ -434,10 +434,12 @@ export class Stage {
     this.scene.onAfterRenderObservable.addOnce(() => {
       this.skyProbe.cubeTexture.forceSphericalPolynomialsRecompute();
     });
-    // All that is left of the hemisphere is a small neutral fill that keeps the
-    // bottom of a sward off zero. It dims with the sun and does not change hue,
-    // because the hue is the sky's job.
-    this.ambient.intensity = 0.06 + 0.09 * Math.max(0, up);
+    // <b>The hemisphere is the meadow's whole ambient now.</b> It used to be a
+    // small fill under the sky probe, because the probe was lighting the field
+    // as well. The meadow does not read the probe any more — it was 2.2 ms of a
+    // 7.1 ms field for a term sitting at 0.14 — so what the sky was contributing
+    // has to come from here instead. It still dims with the sun.
+    this.ambient.intensity = 0.12 + 0.2 * Math.max(0, up);
 
     // <b>Adaptation, but only part of it.</b> `eyeExposure` returns the full
     // ratio an eye would settle on — about 2.7x at half past five — and

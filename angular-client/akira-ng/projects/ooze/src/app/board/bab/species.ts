@@ -42,7 +42,13 @@ export interface CardSpec {
   readonly lean: number;
   /** Rows along the card. Only worth having where the wind bends it. */
   readonly rows: number;
-  /** Width at the root as a fraction of full width. One for a blade. */
+  /**
+   * Width at the root as a fraction of full width.
+   *
+   * <p>One for everything now: a scanned leaf tapers to its own stalk, and the
+   * silhouette the card is fitted to already says exactly where. A second taper
+   * on top of that pinches the plant somewhere it does not narrow.
+   */
   readonly taper: number;
   /** Lies in the horizontal plane instead, for a flower seen from above. */
   readonly flat?: boolean;
@@ -193,8 +199,8 @@ export const MEADOW: readonly Plant[] = [
     patch: 0.012, clumping: 1.0, crowd: 1.0,
     // card carrying three costs what one does.
     cards: [
-      { group: 'spray', count: 1, tall: 3.0, at: 0, out: 0, lean: 0.12, rows: 4, taper: 1 },
-      { group: 'blade', count: 1, tall: 2.6, at: 0, out: 0.05, lean: 0.34, rows: 3, taper: 1 },
+      { group: 'spray', count: 1, tall: 3.0, at: 0, out: 0, lean: 0.12, rows: 6, taper: 1 },
+      { group: 'blade', count: 1, tall: 2.6, at: 0, out: 0.05, lean: 0.34, rows: 4, taper: 1 },
     ],
     stemTall: 0,
     lit: 0.9, wearMax: 0.62, damp: 0,
@@ -219,7 +225,7 @@ export const MEADOW: readonly Plant[] = [
     // out of them, on a stalk.
     cards: [
       { group: 'blade', count: 1, tall: 3.6, at: 0, out: 0.06, lean: 0.30, rows: 3, taper: 1 },
-      { group: 'spray', count: 1, tall: 4.2, at: 0.2, out: 0, lean: 0.22, rows: 4, taper: 1 },
+      { group: 'spray', count: 1, tall: 4.2, at: 0.2, out: 0, lean: 0.22, rows: 6, taper: 1 },
     ],
     stemTall: 2.4,
     lit: 0.86, wearMax: 0.45, damp: 0,
@@ -267,7 +273,7 @@ export const MEADOW: readonly Plant[] = [
     patch: 0.024, clumping: 2.0, crowd: 1.3,
     // walked on and why it is the plant on the path rather than beside it.
     cards: [
-      { group: 'rosette', count: 5, tall: 2.0, at: 0.04, out: 0.05, lean: 0.98, rows: 1, taper: 0.35 },
+      { group: 'rosette', count: 5, tall: 2.0, at: 0.04, out: 0.05, lean: 0.98, rows: 2, taper: 1 },
     ],
     stemTall: 0,
     lit: 0.68, wearMax: 0.92, damp: -0.3,
@@ -289,7 +295,7 @@ export const MEADOW: readonly Plant[] = [
     patch: 0.03, clumping: 4.0, crowd: 3.0,
     // camera looks down at it, and an oxeye daisy holds its face to the sky.
     cards: [
-      { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 1, taper: 0.35 },
+      { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 2, taper: 1 },
       { group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0, lean: 0, rows: 1, taper: 1, flat: true },
     ],
     stemTall: 2.4,

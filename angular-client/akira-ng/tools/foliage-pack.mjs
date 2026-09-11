@@ -32,6 +32,23 @@ const SHEET = 1024;
 const LONGEST = 232;
 
 /**
+ * How many heights the silhouette's width is recorded at.
+ *
+ * <p><b>This is the whole point of the tool now.</b> A card is a quad and a
+ * quad is a bounding box, and a scanned grass blade fills about a fifth of its
+ * box — so four fifths of every fragment that card produces is shaded and then
+ * thrown away by the alpha test, which is measured to be the entire remaining
+ * cost of this meadow.
+ *
+ * <p>The geometry is already rows of two vertices. Moving those two vertices to
+ * where the leaf actually starts and stops at that height turns the box into a
+ * fitted strip for no extra vertices at all — the card gets narrower, not more
+ * complicated. Thirteen samples is finer than any card is subdivided, so the
+ * geometry interpolates between them rather than the other way round.
+ */
+const SPANS = 13;
+
+/**
  * Where the cut-outs come from, and what each group is called.
  *
  * <p>ambientCG splits colour and opacity into two files; OpenGameArt's clover
@@ -96,7 +113,7 @@ const call = async (fn, args) => {
   return JSON.parse(value);
 };
 
-const CUT = `async (colorB64, alphaB64, longest) => {
+const CUT = `async (colorB64, alphaB64, longest, spans_count) => {
   const load = b => new Promise((ok, no) => {
     const i = new Image();
     i.onload = () => ok(i); i.onerror = () => no(new Error('decode'));
@@ -202,6 +219,32 @@ const CUT = `async (colorB64, alphaB64, longest) => {
   }
   boxes.sort((a, b) => (a.y0 - b.y0) || (a.x0 - b.x0));
 
+  // Where the silhouette starts and stops at each of a few heights, as a
+  // fraction of the cut-out's own width. Measured over a band rather than a
+  // single scanline, because one row through a serrated leaf can fall in a
+  // notch and pull the edge in across the whole card.
+  const spansOf = (b) => {
+    const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+    const spans = [];
+    for (let i = 0; i < spans_count; i++) {
+      const centre = b.y0 + (bh * i) / (spans_count - 1);
+      const from = Math.max(b.y0, Math.floor(centre - bh / (spans_count * 2)));
+      const to = Math.min(b.y1 - 1, Math.ceil(centre + bh / (spans_count * 2)));
+      let lo = w, hi = -1;
+      for (let y = from; y <= to; y++) {
+        for (let x = b.x0; x < b.x1; x++) {
+          if (!solid[y * w + x]) continue;
+          if (x < lo) lo = x;
+          if (x > hi) hi = x;
+        }
+      }
+      spans.push(hi < lo
+        ? [0.5, 0.5]
+        : [(lo - b.x0) / bw, (hi + 1 - b.x0) / bw]);
+    }
+    return spans;
+  };
+
   ctx.putImageData(new ImageData(out, w, h), 0, 0);
   const crops = boxes.map(b => {
     const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
@@ -212,7 +255,14 @@ const CUT = `async (colorB64, alphaB64, longest) => {
     const cx = cc.getContext('2d');
     cx.imageSmoothingQuality = 'high';
     cx.drawImage(cv, b.x0, b.y0, bw, bh, 0, 0, cw, ch);
-    return { w: cw, h: ch, aspect: +(bw / bh).toFixed(4), png: cc.toDataURL('image/png').split(',')[1] };
+    // Bottom of the image first, because a card is built from its root up and
+    // the root is the bottom of the scan.
+    const spans = spansOf(b).reverse()
+      .map(([l, r]) => [+l.toFixed(4), +r.toFixed(4)]);
+    return {
+      w: cw, h: ch, aspect: +(bw / bh).toFixed(4), spans,
+      png: cc.toDataURL('image/png').split(',')[1],
+    };
   });
   return JSON.stringify(crops);
 }`;
@@ -240,7 +290,7 @@ const PACK = `(cropsJson, sheet) => {
       placed[i] = {
         u0: +(x / sheet).toFixed(6), v0: +(y / sheet).toFixed(6),
         u1: +((x + c.w) / sheet).toFixed(6), v1: +((y + c.h) / sheet).toFixed(6),
-        aspect: c.aspect,
+        aspect: c.aspect, spans: c.spans,
       };
       x += c.w + pad;
       if (c.h > shelf) shelf = c.h;
@@ -263,7 +313,7 @@ for (const src of SOURCES) {
     }];
   for (const job of jobs) {
     if (!existsSync(job.color)) { console.error(`missing ${job.color}`); process.exit(1); }
-    const crops = await call(CUT, [b64(job.color), job.opacity ? b64(job.opacity) : '', LONGEST]);
+    const crops = await call(CUT, [b64(job.color), job.opacity ? b64(job.opacity) : '', LONGEST, SPANS]);
     for (const crop of crops) {
       const name = src.group({ u0: 0, v0: 0, u1: crop.aspect, v1: 1 });
       (groups[name] ??= []).push(all.length);

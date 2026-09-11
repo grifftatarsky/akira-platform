@@ -669,6 +669,28 @@ export function sowMeadow(
       plant.tip[0] * 1.5 + 0.1, plant.tip[1] * 1.35 + 0.1, plant.tip[2] * 0.9,
     );
 
+    // <b>No image-based lighting on the meadow, and it is 2.2 ms of a 7.1 ms
+    // field.</b>
+    //
+    // <p>The sky probe lights this board through `scene.environmentTexture`, and
+    // a PBR material with no reflection of its own falls back to it — so every
+    // fragment of every card runs the whole irradiance-and-reflection path for
+    // an ambient term sitting at 0.14. Measured from directly above, where the
+    // sward covers the screen and is several cards deep over every pixel, that
+    // costs more than the sun, the bounce light, the hemisphere and the
+    // specular highlight put together.
+    //
+    // <p>There is no flag for it. `environmentIntensity = 0` changes a uniform
+    // and saves nothing, because the code still runs; the fallback is in
+    // `_getReflectionTexture`, and the honest way to opt one material out is to
+    // answer that question differently for this one. Done before the first
+    // compile, so the define is simply never set.
+    //
+    // <p>What replaces it is the hemisphere, which is what an overcast sky
+    // actually is and costs 0.26 ms for the whole field.
+    (material as unknown as { _getReflectionTexture(): null })
+      ._getReflectionTexture = () => null;
+
     const wind = new BladeWind(material);
     wind.tall = plant.tall;
     // <b>Gentler than it was.</b> The old strength leaned a blade most of its

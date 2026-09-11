@@ -39,6 +39,21 @@ export interface Cut {
   readonly v1: number;
   /** Width over height of the original scan, so a card is never stretched. */
   readonly aspect: number;
+  /**
+   * Where the silhouette starts and stops at each of thirteen heights, root
+   * first, as fractions of the cut-out's own width.
+   *
+   * <p><b>This is what stops a card being a bounding box.</b> Alpha testing
+   * disables early-Z, so every fragment inside a card's quad is shaded and only
+   * then thrown away by the cutout — and a scanned grass spray fills a fifth of
+   * its box, so four fifths of its fragments are pure waste. Measured, that
+   * waste is the entire remaining cost of this meadow.
+   *
+   * <p>The card is already rows of two vertices. Moving those two to where the
+   * leaf actually begins and ends at that height fits the strip to the plant for
+   * no extra vertices at all.
+   */
+  readonly spans: readonly (readonly [number, number])[];
 }
 
 export interface FoliageSheet {
@@ -150,7 +165,6 @@ function addCard(
   // A little variety in size, fixed per card index rather than random.
   const vary = 1 + Math.sin(index * 5.17 + spec.tall) * 0.12;
   const tall = spec.tall * vary;
-  const half = (wide * vary) / 2;
 
   const ca = Math.cos(around);
   const sa = Math.sin(around);
@@ -171,24 +185,25 @@ function addCard(
   for (let row = 0; row <= rows; row++) {
     const t = row / rows;
     const along = tall * t;
-    // A card tapers to its root if it is a leaf on a stalk, and keeps its width
-    // if it is a blade rising straight out of the ground.
-    const width = half * (spec.taper + (1 - spec.taper) * t);
-    for (const side of [-1, 1] as const) {
+    const edge = spanAt(cut, t);
+    for (const side of [0, 1] as const) {
+      // The silhouette's own edge at this height, as an offset from the middle
+      // of the cut-out — so the quad narrows where the plant does.
+      const off = (edge[side] - 0.5) * wide * vary;
       build.positions.push(
-        root[0] + up[0] * along + across[0] * width * side,
-        root[1] + up[1] * along + across[1] * width * side,
-        root[2] + up[2] * along + across[2] * width * side,
+        root[0] + up[0] * along + across[0] * off,
+        root[1] + up[1] * along + across[1] * off,
+        root[2] + up[2] * along + across[2] * off,
       );
       // <b>The two edges fan apart.</b> A card with one normal across it is a
       // flat surface and lights like one — every plant in a clump catching the
       // sun at exactly the same moment. Splaying the edge normals away from the
       // face gives a card the reading of something slightly cupped, for no
       // vertices at all.
-      const fanned = add(face, scale(across, EDGE_FAN * side));
+      const fanned = add(face, scale(across, EDGE_FAN * (side === 0 ? -1 : 1)));
       build.normals.push(...lift(fanned));
       build.uvs.push(
-        cut.u0 + (cut.u1 - cut.u0) * (side < 0 ? 0 : 1),
+        cut.u0 + (cut.u1 - cut.u0) * edge[side],
         cut.v1 + (cut.v0 - cut.v1) * t,
       );
     }
@@ -231,6 +246,28 @@ function addStem(build: Build, plant: Plant, sheet: FoliageSheet): void {
     }
     build.indices.push(first, first + 1, first + 2, first + 1, first + 3, first + 2);
   }
+}
+
+/**
+ * The silhouette's left and right edge at a height up the card.
+ *
+ * <p>Read between the recorded heights rather than snapped to one, so a card
+ * subdivided into three rows and a card subdivided into eight both follow the
+ * same outline instead of two different staircases of it.
+ */
+function spanAt(cut: Cut, t: number): readonly [number, number] {
+  const spans = cut.spans;
+  if (!spans?.length) {
+    return [0, 1];
+  }
+  const at = Math.min(spans.length - 1, Math.max(0, t * (spans.length - 1)));
+  const low = Math.floor(at);
+  const high = Math.min(spans.length - 1, low + 1);
+  const mix = at - low;
+  return [
+    spans[low][0] + (spans[high][0] - spans[low][0]) * mix,
+    spans[low][1] + (spans[high][1] - spans[low][1]) * mix,
+  ];
 }
 
 type Vec = readonly [number, number, number];
