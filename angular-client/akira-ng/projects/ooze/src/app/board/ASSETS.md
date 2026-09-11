@@ -187,3 +187,41 @@ preserving those relative paths, and the loader will resolve them. Poly Haven
 refuses requests with no `User-Agent`. **Check the `.bin` size before committing
 anything** — that is the one number the asset page does not show you, and it is
 the one that matters.
+
+## Foliage
+
+The meadow's plants are photographed cut-outs on cards, not modelled geometry.
+`public/assets/board/foliage/foliage.png` is one sheet of 24 of them, composed
+by `tools/foliage-pack.mjs` from these, all **CC0**:
+
+| Source | Licence | What it gives |
+|---|---|---|
+| [ambientCG Foliage006](https://ambientcg.com/view?id=Foliage006) | **CC0** | 7 single grass blades and 2 multi-blade sprays, scanned. |
+| [ambientCG LeafSet020](https://ambientcg.com/view?id=LeafSet020) | **CC0** | 5 dandelion leaves — the plantain's rosette and the daisy's basal leaves. |
+| [ambientCG FlowerSet001](https://ambientcg.com/view?id=FlowerSet001) | **CC0** | 6 oxeye daisy heads. |
+| [OpenGameArt — White Clover Cutouts](https://opengameart.org/content/clover-cutouts-improved-and-expanded) | **CC0** | 3 whole trefoils on their stems, plus a flower head. Remixed from CC0 OpenGameArt and Wikimedia sources. |
+
+**`Foliage003` is the one you will want and it does not work.** Its four grass
+stems with seed heads are exactly the Yorkshire fog, and they lie across the
+sheet at forty degrees — so their axis-aligned bounding boxes overlap heavily and
+a card cropped to one carries pieces of its neighbours. Cropping cut-outs that
+are not upright needs a rotated fit, which is a different tool.
+
+**Colour has to be bled outward before opacity is attached.** ambientCG splits
+colour and opacity into separate files, and outside the cut-out the colour map
+is white — nothing authored it, because nothing was meant to read it. A bilinear
+sample near the silhouette mixes that white in, and every leaf gets a pale halo
+that is invisible in the source files and obvious on a card. The packer dilates
+the colour ten rounds into the transparent region first. A PNG that already
+carries alpha needs the same treatment for the same reason, with black instead
+of white.
+
+**Cards are cut out, not blended.** A quarter of a million overlapping
+transparent quads has no correct draw order; a cutout is a discard, needs none,
+and writes depth like anything else. The cost moves from triangles to fragments —
+alpha testing disables early-Z, so a card's whole quad is shaded and then thrown
+away. That makes card *area* the thing to watch, and not card count.
+
+**Poly Haven's vegetation is still unusable** for the reason recorded above:
+`pine_tree_01` is a 948 MB geometry buffer. Scans on cards are how a browser
+gets photographic plants at all.

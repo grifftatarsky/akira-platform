@@ -20,6 +20,34 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
  * nobody is close enough to read.
  */
 
+/**
+ * One kind of card on a plant, and where its copies sit.
+ *
+ * <p>A plant is a handful of these. The scan on the card states the leaf's
+ * shape, so what is left to say is how many, how big, and at what angle — which
+ * is the arrangement, and arrangement is what distinguishes a rosette flat on a
+ * path from a tuft standing up in long grass.
+ */
+export interface CardSpec {
+  /** Which group of cut-outs on the sheet. */
+  readonly group: string;
+  readonly count: number;
+  /** Length up the card's own axis, in half-feet. Width follows the scan. */
+  readonly tall: number;
+  /** Height above the root where the card starts, in half-feet. */
+  readonly at: number;
+  /** How far the card's root sits off the plant's axis, in half-feet. */
+  readonly out: number;
+  /** Radians from vertical. Nought stands up; a rosette is near a right angle. */
+  readonly lean: number;
+  /** Rows along the card. Only worth having where the wind bends it. */
+  readonly rows: number;
+  /** Width at the root as a fraction of full width. One for a blade. */
+  readonly taper: number;
+  /** Lies in the horizontal plane instead, for a flower seen from above. */
+  readonly flat?: boolean;
+}
+
 export interface Plant {
   readonly id: string;
   readonly name: string;
@@ -99,6 +127,11 @@ export interface Plant {
    */
   readonly lit: number;
 
+  /** The cards it is built from. */
+  readonly cards: readonly CardSpec[];
+  /** Height of the bare stalk under a head, in half-feet. Nought for none. */
+  readonly stemTall: number;
+
   /** Will not grow where the ground is more worn than this. 0 lush, 1 bare. */
   readonly wearMax: number;
   /** Prefers damp (1), dry (-1), or does not mind (0). */
@@ -113,13 +146,21 @@ export const MEADOW: readonly Plant[] = [
     note: 'The mass of it. Widest low down and running out to a long point, '
       + 'with a crease along the midrib that catches the sun on one side only '
       + '— which is why a field of it glitters rather than sitting flat.',
-    share: 0.55,
+    share: 0.34,
     tall: 3.0, wide: 0.34, head: 0, segments: 4,
     widest: 0.22, fullness: 0.85, blunt: 0.04, notch: 0, fold: 0.62,
     leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 0,
     droop: 0.42, stiff: 1,
     base: [0.13, 0.30, 0.08], tip: [0.44, 0.63, 0.21], bloom: [0, 0, 0],
     veins: 0, sweep: 0,
+    // A spray of three blades in one scan, with a single blade crossing it.
+    // Two cards rather than five: the scan already has the blades in it, and a
+    // card carrying three costs what one does.
+    cards: [
+      { group: 'spray', count: 1, tall: 3.0, at: 0, out: 0, lean: 0.12, rows: 4, taper: 1 },
+      { group: 'blade', count: 1, tall: 2.6, at: 0, out: 0.05, lean: 0.34, rows: 3, taper: 1 },
+    ],
+    stemTall: 0,
     lit: 0.9, wearMax: 0.62, damp: 0,
   },
   {
@@ -130,13 +171,20 @@ export const MEADOW: readonly Plant[] = [
       + 'soft and pinkish and reads as a mass. It stands a foot above '
       + 'everything else so the sward has no flat ceiling, and it is the first '
       + 'thing to catch a low sun.',
-    share: 0.055,
+    share: 0.07,
     tall: 4.2, wide: 0.15, head: 0.42, segments: 4,
     widest: 0.2, fullness: 0.8, blunt: 0.04, notch: 0, fold: 0.4,
     leaflets: 3, spread: 0.62, stem: 0, petals: 0, spikelets: 16,
     droop: 0.8, stiff: 1.5,
     base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.55, 0.47, 0.47],
     veins: 0, sweep: 0,
+    // Rank grass standing above the sward: two long blades and a spray leaning
+    // out of them, on a stalk.
+    cards: [
+      { group: 'blade', count: 1, tall: 3.6, at: 0, out: 0.06, lean: 0.30, rows: 3, taper: 1 },
+      { group: 'spray', count: 1, tall: 4.2, at: 0.2, out: 0, lean: 0.22, rows: 4, taper: 1 },
+    ],
+    stemTall: 2.4,
     lit: 0.86, wearMax: 0.45, damp: 0,
   },
   {
@@ -146,13 +194,20 @@ export const MEADOW: readonly Plant[] = [
       + 'stem and tilted out from it. The notch is the whole recognition — '
       + 'without it a clover leaf is a spade, and a spade is a weed nobody can '
       + 'name.',
-    share: 0.18,
+    share: 0.24,
     tall: 1.5, wide: 0.52, head: 0, segments: 6,
     widest: 0.62, fullness: 1.05, blunt: 0.74, notch: 0.15, fold: 0.28,
     leaflets: 3, spread: 0.8, stem: 0.85, petals: 0, spikelets: 0,
     droop: 0.12, stiff: 0.35,
     base: [0.10, 0.26, 0.09], tip: [0.26, 0.50, 0.19], bloom: [0, 0, 0],
     veins: 0, sweep: 0,
+    // <b>One card is the whole plant.</b> The scan is a trefoil on its own
+    // stem, which is the entire thing a clover is, and the seventy-six
+    // triangles it replaces were three modelled leaflets trying to say it.
+    cards: [
+      { group: 'clover', count: 1, tall: 1.5, at: 0, out: 0, lean: 0.30, rows: 2, taper: 1 },
+    ],
+    stemTall: 0,
     lit: 0.64, wearMax: 0.78, damp: 0.5,
   },
   {
@@ -163,13 +218,19 @@ export const MEADOW: readonly Plant[] = [
       + 'meadow it stands up to compete. Five parallel veins running the '
       + 'length of the leaf are what name it, and it grows where the grass has '
       + 'been trodden thin.',
-    share: 0.13,
+    share: 0.24,
     tall: 2.1, wide: 0.31, head: 0, segments: 5,
     widest: 0.35, fullness: 0.95, blunt: 0.12, notch: 0, fold: 0.45,
     leaflets: 7, spread: 0.48, stem: 0.05, petals: 0, spikelets: 0,
     droop: 0.28, stiff: 0.3,
     base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
     veins: 5, sweep: 0.1,
+    // A rosette pressed almost flat, which is how a plantain survives being
+    // walked on and why it is the plant on the path rather than beside it.
+    cards: [
+      { group: 'rosette', count: 5, tall: 2.0, at: 0.04, out: 0.05, lean: 0.98, rows: 1, taper: 0.35 },
+    ],
+    stemTall: 0,
     lit: 0.68, wearMax: 0.92, damp: -0.3,
   },
   {
@@ -178,13 +239,20 @@ export const MEADOW: readonly Plant[] = [
     note: 'A real head: twelve white ray florets around a yellow disc, on a '
       + 'thin stem. Rare on purpose — scattered white reads as flowers, evenly '
       + 'spread white reads as litter.',
-    share: 0.03,
+    share: 0.06,
     tall: 2.4, wide: 0.26, head: 0.34, segments: 3,
     widest: 0.3, fullness: 0.85, blunt: 0.08, notch: 0, fold: 0.35,
     leaflets: 5, spread: 0.8, stem: 1.9, petals: 12, spikelets: 0,
     droop: 0.22, stiff: 0.8,
     base: [0.16, 0.30, 0.10], tip: [0.30, 0.46, 0.16], bloom: [0.95, 0.94, 0.88],
     veins: 0, sweep: 0,
+    // A head on a stalk over a basal rosette. The head lies flat: this board's
+    // camera looks down at it, and an oxeye daisy holds its face to the sky.
+    cards: [
+      { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 1, taper: 0.35 },
+      { group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0, lean: 0, rows: 1, taper: 1, flat: true },
+    ],
+    stemTall: 2.4,
     lit: 0.72, wearMax: 0.5, damp: 0,
   },
 ];

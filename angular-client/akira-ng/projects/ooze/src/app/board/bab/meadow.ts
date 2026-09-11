@@ -4,7 +4,6 @@ import { ComputeShader } from '@babylonjs/core/Compute/computeShader';
 import { Constants } from '@babylonjs/core/Engines/constants';
 import type { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
-import type { ProceduralTexture } from '@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture';
 import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer';
@@ -14,8 +13,8 @@ import type { Scene } from '@babylonjs/core/scene';
 import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
-import { leafTexture, leafThickness } from './leaf-texture';
-import { type Plant, MEADOW, plantGeometry } from './species';
+import { cardGeometry, type FoliageSheet } from './foliage-cards';
+import { type Plant, MEADOW } from './species';
 import { fieldTexture } from './splat-bake';
 
 /**
@@ -40,8 +39,14 @@ import { fieldTexture } from './splat-bake';
  *
  * <p>Spread evenly over the board, at one density, at every zoom. The slider
  * scales how many of them draw.
+ *
+ * <p><b>Fewer than it was, because a plant is more than it was.</b> A modelled
+ * plant was one leaf shape; a card carries the scan of three or four blades at
+ * once, so the same number of instances is three or four times the sward. Six
+ * hundred thousand of them was a mat you could not see the ground through, and
+ * it cost what that implies.
  */
-const MAX_PLANTS = 600_000;
+const MAX_PLANTS = 340_000;
 
 /**
  * The lattice every plant stands on covers the whole board, and nothing about
@@ -362,13 +367,13 @@ export interface Meadow {
 }
 
 export function sowMeadow(
-  field: GroundField, scene: Scene, plants: readonly Plant[] = MEADOW,
+  field: GroundField, scene: Scene, sheet: FoliageSheet,
+  plants: readonly Plant[] = MEADOW,
 ): Meadow {
   const engine = scene.getEngine() as WebGPUEngine;
   const heightTexture = heightsAsTexture(field, scene);
   const groundTexture = fieldTexture(field, scene);
   const total = plants.reduce((sum, plant) => sum + plant.share, 0);
-  const leaves: ProceduralTexture[] = [];
 
   // Read as well as write: without it `StorageBuffer.read` never resolves —
   // it does not fail, it simply hangs, and it takes the page's GPU context
@@ -400,7 +405,7 @@ export function sowMeadow(
     // ladder here that coarsened plants as the camera pulled back. On a board
     // that is looked at from above it coarsened the plants in the middle of the
     // shot, which is the only place anybody is looking.
-    plantGeometry(plant).applyToMesh(mesh);
+    cardGeometry(plant, sheet).applyToMesh(mesh);
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.useVertexColors = true;
     // <b>The meadow does not receive shadows either.</b> It did, and the shadow
@@ -442,50 +447,51 @@ export function sowMeadow(
     material.twoSidedLighting = false;
     material.albedoColor = new Color3(plant.base[0], plant.base[1], plant.base[2]);
     material.specularIntensity = 1;
-    // <b>The leaf's own surface</b>, baked once: veins, a paler midrib,
-    // mottling and a dried edge. It also keeps the uv attribute alive, which
-    // the wind plugin needs for the height up the plant — without a texture
-    // Babylon does not declare it and the shader will not parse.
-    const leaf = leafTexture(plant, scene);
-    leaves.push(leaf);
-    material.albedoTexture = leaf;
-    material.useAlphaFromAlbedoTexture = false;
-    material.transparencyMode = PBRMaterial.MATERIAL_OPAQUE;
-    // The albedo now carries the colour, so the material's own tint would
-    // double it.
+    // <b>The sheet of scanned cut-outs.</b> One texture for every species, so
+    // the meadow is five draws of one material rather than five materials — and
+    // so a plant can mix sources, which a daisy does: a scanned flower head over
+    // scanned basal leaves, out of two different packs.
+    material.albedoTexture = sheet.texture;
     material.albedoColor = new Color3(1, 1, 1);
-    // <b>Translucency, now reading a thickness map instead of guessing.</b>
-    //
-    // <p>It was enabled before and it was uniform: every point of every leaf
-    // equally translucent, which is the same as none of it being translucent,
-    // because the whole effect lives in the variation. A leaf is thin at its
-    // edge and its tip where the light comes straight through, and thick along
-    // the rib where it does not. `leaf-texture.ts` was already computing that
-    // and writing it into the albedo's alpha, where nothing could read it —
-    // Babylon's subsurface wants thickness in a texture's red channel.
-    //
-    // <p>This is the term Angelo Pesce calls the difference between grass and
-    // dark grass: "without it, the grass looks way too dark, even with GI".
+
+    // <b>Cut out, not blended.</b> A card is mostly empty and the emptiness has
+    // to disappear rather than be sorted: a quarter of a million overlapping
+    // transparent quads has no correct draw order, and alpha blending them would
+    // cost a sort that cannot be done and still look wrong. A cutout is a
+    // discard, needs no order, and writes depth like anything else.
+    material.useAlphaFromAlbedoTexture = true;
+    material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
+    // Low, because the bleed in the packer means the colour just outside the
+    // silhouette is the leaf's own — so a generous cutoff keeps the fringe of
+    // half-covered texels that reads as a soft edge, instead of the stair-step a
+    // high one gives.
+    material.alphaCutOff = 0.28;
+    // <b>Both faces lit from the same normal.</b> A card has one side and is
+    // seen from both; flipping the normal on the back points it at the ground,
+    // and a normal under the horizon takes the hemispheric light's brown.
+    material.twoSidedLighting = false;
+
+    // <b>Translucency, flat across the card.</b> It used to read a thickness
+    // map baked beside the procedural leaf, which is gone with the leaf. A scan
+    // carries its own thin edges in the colour, and the term that matters is
+    // the one Angelo Pesce calls the difference between grass and dark grass —
+    // that low sun comes through a leaf at all.
     material.subSurface.isTranslucencyEnabled = true;
-    const thickness = leafThickness(plant, scene);
-    leaves.push(thickness);
-    material.subSurface.thicknessTexture = thickness;
-    // Only thickness is in that texture. With the mask flag on, Babylon would
-    // read the green and blue channels as refraction and translucency
-    // intensities — and this bake writes thickness into all three.
-    material.subSurface.useMaskFromThicknessTexture = false;
-    material.subSurface.minimumThickness = 0.05;
-    material.subSurface.maximumThickness = 1.1;
-    // Measured references put leaf translucency at 0.1-0.3 and *yellowish*. The
-    // 0.85 that was here is three times that, and a flat green tint for every
-    // species besides: a daisy's petal does not transmit clover green.
+    material.subSurface.minimumThickness = 0.1;
+    material.subSurface.maximumThickness = 0.6;
     material.subSurface.translucencyIntensity = 0.55;
     material.subSurface.tintColor = new Color3(
       plant.tip[0] * 1.5 + 0.1, plant.tip[1] * 1.35 + 0.1, plant.tip[2] * 0.9,
     );
 
     const wind = new BladeWind(material);
-    wind.strength = 1.35 * plant.stiff;
+    wind.tall = plant.tall;
+    // <b>Gentler than it was.</b> The old strength leaned a blade most of its
+    // own height downwind, which on a field of cards reads as a combed carpet —
+    // every plant agreeing, because they all read the same gust field. The
+    // variation between neighbours is the thing that makes wind look like wind,
+    // and it lives in the gust's own noise rather than in the amplitude.
+    wind.strength = 0.62 * plant.stiff;
     // The root-to-tip colour lives in the leaf texture now, so the plugin is
     // left with the part a texture cannot know: how much light reaches the
     // bottom of a sward, which depends on what is standing above it.
@@ -617,7 +623,6 @@ export function sowMeadow(
       }
       heightTexture.dispose();
       groundTexture.dispose();
-      leaves.forEach(leaf => leaf.dispose());
     },
   };
 }

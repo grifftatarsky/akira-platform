@@ -88,6 +88,14 @@ export class BladeWind extends MaterialPluginBase {
    */
   face = 0.5;
 
+  /**
+   * The species' own height in half-feet, before the clump scales it.
+   *
+   * <p>Only to turn a vertex's height into a fraction of the plant. That used
+   * to be a uv channel; the uv points into the foliage sheet now.
+   */
+  tall = 1;
+
   constructor(material: Material) {
     super(material, 'BladeWind', 200, { BLADE_WIND: true });
     this._enable(true);
@@ -119,6 +127,7 @@ export class BladeWind extends MaterialPluginBase {
         { name: 'bladeWind', size: 4, type: 'vec4' },
         { name: 'bladeTip', size: 4, type: 'vec4' },
         { name: 'bladeGround', size: 4, type: 'vec4' },
+        { name: 'bladeTall', size: 4, type: 'vec4' },
       ],
     };
   }
@@ -131,6 +140,7 @@ export class BladeWind extends MaterialPluginBase {
       'bladeTip', this.tip[0], this.tip[1], this.tip[2], this.floor,
     );
     uniformBuffer.updateFloat4('bladeGround', this.ground, this.droop, this.face, 0);
+    uniformBuffer.updateFloat4('bladeTall', Math.max(0.05, this.tall), 0, 0, 0);
   }
 
   override getCustomCode(
@@ -152,8 +162,15 @@ export class BladeWind extends MaterialPluginBase {
       // <p>`bladeAlong` is deliberately declared outside the braces: the hooks
       // are separate injection sites in one function, so this is how the
       // shading block below sees it.
+      //
+      // <b>Height up the plant, from the vertex's own Y.</b> It used to come
+      // from `uv.y`, which the generated meshes laid out as nought to one along
+      // a leaf. The uv points into the foliage sheet now — a card has to say
+      // which cut-out it is showing, and that is the only channel a material
+      // samples albedo from — so the height is divided out of the position
+      // instead, against the species' own height carried in the uniform.
       CUSTOM_VERTEX_UPDATE_POSITION: `
-        var bladeAlong = vertexInputs.uv.y;
+        var bladeAlong = clamp(positionUpdated.y / uniforms.bladeTall.x, 0.0, 1.0);
         {
           let root = vertexInputs.world3.xyz;
 

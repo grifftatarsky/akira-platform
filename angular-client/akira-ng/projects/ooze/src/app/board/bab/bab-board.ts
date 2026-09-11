@@ -10,6 +10,7 @@ import { groundField } from '../ground-field';
 import { ROAD_NAME, roadMap } from '../road-level';
 import { clockLabel } from '../sun-position';
 import { assetUrl } from './assets';
+import { loadFoliage } from './foliage-cards';
 import { type Meadow, sowMeadow } from './meadow';
 import { PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -262,7 +263,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       this.terrain.swardProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
       const built = Math.round(performance.now() - started);
 
-      this.meadow = sowMeadow(field, stage.scene);
+      this.meadow = sowMeadow(field, stage.scene, await loadFoliage(stage.scene));
       // <b>The meadow does not cast shadows.</b> Six hundred thousand blades
       // rendered again into every shadow cascade is the most expensive thing
       // on the board, and it is paid whenever the camera moves — because that

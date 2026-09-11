@@ -7,12 +7,12 @@ import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { PBRMaterial } from '@babylonjs/core/Materials/PBR/pbrMaterial';
-import { leafTexture } from './leaf-texture';
+import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
-import { type Plant, plantGeometry } from './species';
+import type { Plant } from './species';
 
 /**
  * One plant, on a turntable, big enough to argue with.
@@ -43,6 +43,7 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
   private engine: WebGPUEngine | null = null;
   private scene: Scene | null = null;
   private mesh: Mesh | null = null;
+  private sheet: FoliageSheet | null = null;
   private gone = false;
 
   constructor() {
@@ -50,8 +51,8 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     // camera survive; only the geometry and its colours are replaced.
     effect(() => {
       const plant = this.plant();
-      if (this.scene) {
-        this.model(plant);
+      if (this.scene && this.sheet) {
+        this.model(plant, this.sheet);
       }
     });
   }
@@ -95,7 +96,13 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     sky.diffuse = new Color3(0.7, 0.78, 0.92);
     sky.groundColor = new Color3(0.34, 0.31, 0.26);
 
-    this.model(this.plant());
+    const sheet = await loadFoliage(scene);
+    if (this.gone) {
+      engine.dispose();
+      return;
+    }
+    this.sheet = sheet;
+    this.model(this.plant(), sheet);
     // Turning slowly, because a silhouette is the thing being judged and a
     // still one only shows you a single angle of it.
     scene.onBeforeRenderObservable.add(() => {
@@ -104,14 +111,14 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     engine.runRenderLoop(() => scene.render());
   }
 
-  private model(plant: Plant): void {
+  private model(plant: Plant, sheet: FoliageSheet): void {
     const scene = this.scene;
     if (!scene) {
       return;
     }
     this.mesh?.dispose();
     const mesh = new Mesh('plant', scene);
-    plantGeometry(plant).applyToMesh(mesh);
+    cardGeometry(plant, sheet).applyToMesh(mesh);
     // The geometry already carries the plant's proportions, so this only
     // normalises for the frame — a daisy and a clover are both worth looking
     // at rather than one filling it.
@@ -120,9 +127,10 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
 
     const material = new PBRMaterial('plant', scene);
     material.albedoColor = new Color3(1, 1, 1);
-    material.albedoTexture = leafTexture(plant, scene);
-    material.useAlphaFromAlbedoTexture = false;
-    material.transparencyMode = PBRMaterial.MATERIAL_OPAQUE;
+    material.albedoTexture = sheet.texture;
+    material.useAlphaFromAlbedoTexture = true;
+    material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
+    material.alphaCutOff = 0.28;
     material.metallic = 0;
     // The same value the meadow uses, because this is what the meadow will
     // look like and a preview that flatters is worse than no preview.
