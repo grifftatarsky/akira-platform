@@ -69,6 +69,13 @@ uniform tintB: vec4f;
 uniform tintC: vec4f;
 // The sward's own colour, and how much of the ground it covers where it grows.
 uniform sward: vec4f;
+// <b>Nought bakes colour, one bakes the surface normal, two bakes occlusion,
+// roughness and metalness.</b> One shader for all three, because the blend is
+// the same question every time — how worn is the ground here, and therefore
+// which of three scans is it made of — and three shaders would be three places
+// for that answer to drift apart. What changes is only what happens after the
+// blend: a tint and a sward overlay belong to colour and to nothing else.
+uniform bakeWhat: vec4f;
 
 // Stochastic tiling, in the triangle-grid form: three taps at hashed offsets,
 // weighted by where the point falls in its triangle. A photograph tiled
@@ -134,11 +141,19 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   // Repeats per axis, from feet-per-repeat and the board's real extent — a
   // single scalar would stretch the material on a board that is not square.
   let world = uv * uniforms.sizing.xy;
-  let cA = shuffled(layerA, layerASampler, world / (uniforms.sizing.z * 2.0)) * uniforms.tintA.rgb;
-  let cB = shuffled(layerB, layerBSampler, world / (uniforms.sizing.w * 2.0)) * uniforms.tintB.rgb;
-  let cC = shuffled(layerC, layerCSampler, world / (uniforms.reach.x * 2.0)) * uniforms.tintC.rgb;
+  let rA = shuffled(layerA, layerASampler, world / (uniforms.sizing.z * 2.0));
+  let rB = shuffled(layerB, layerBSampler, world / (uniforms.sizing.w * 2.0));
+  let rC = shuffled(layerC, layerCSampler, world / (uniforms.reach.x * 2.0));
 
-  var color = cA * wA + cB * wB + cC * wC;
+  // <b>Untinted, for the two bakes that are not colour.</b> A tint is a
+  // statement about what this dirt looks like; multiplying it into a normal
+  // rotates the surface and multiplying it into a roughness makes the road
+  // shinier than the verge for no reason at all.
+  let blended = rA * wA + rB * wB + rC * wC;
+
+  var color = rA * uniforms.tintA.rgb * wA
+    + rB * uniforms.tintB.rgb * wB
+    + rC * uniforms.tintC.rgb * wC;
 
   // The slow field across the board, so a tiling material stops reading as one
   // material. Small, and multiplicative, so it cannot invent a colour.
@@ -160,7 +175,16 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let covered = (1.0 - smoothstep(0.40, 0.82, wear)) * uniforms.sward.w;
   color = mix(color, uniforms.sward.rgb * (0.86 + 0.28 * drift), covered);
 
-  fragmentOutputs.color = vec4f(color, 1.0);
+  // A normal has to come back out of the texture's nought-to-one range, be
+  // blended as a direction, and go back in. Averaging three scans' encoded
+  // bytes and calling it a normal gives something shorter than unit length,
+  // which reads as a flattened surface exactly where two layers meet — the
+  // verge, which is the one place on this board anybody looks closely.
+  let asNormal = normalize(blended * 2.0 - 1.0) * 0.5 + 0.5;
+  fragmentOutputs.color = vec4f(
+    select(select(color, blended, uniforms.bakeWhat.x > 1.5), asNormal,
+      abs(uniforms.bakeWhat.x - 1.0) < 0.5),
+    1.0);
 }
 `;
 
@@ -183,7 +207,12 @@ export function fieldTexture(field: GroundField, scene: Scene): RawTexture {
  */
 export function bakeGround(
   ground: SplatGround, field: GroundField, scene: Scene,
-): { macro: ProceduralTexture; sources: Texture[] } {
+): {
+  macro: ProceduralTexture;
+  relief: ProceduralTexture;
+  surface: ProceduralTexture;
+  sources: Texture[];
+} {
   const widthFeet = field.extentXHalfFeet;
   const heightFeet = field.extentYHalfFeet;
   const scale = Math.min(
@@ -193,43 +222,71 @@ export function bakeGround(
   const width = Math.min(BAKE_LIMIT, Math.round(widthFeet * scale));
   const height = Math.min(BAKE_LIMIT, Math.round(heightFeet * scale));
 
-  const sources = ground.layers.map(layer => {
-    const texture = new Texture(assetUrl(layer.color), scene, false, false);
+  // <b>Three sets of scans, and two of them are data.</b> A colour map is a
+  // photograph and goes through sRGB on the way in; a normal map and a packed
+  // occlusion-roughness-metalness map are numbers that happen to be stored in
+  // an image, and decoding them as if they were a photograph bends every normal
+  // and lifts every roughness. It is the same mistake that made the leaves
+  // black, and it is invisible: the picture looks plausible and is wrong.
+  const load = (path: string, data: boolean): Texture => {
+    const texture = new Texture(assetUrl(path), scene, false, false);
     texture.wrapU = Texture.WRAP_ADDRESSMODE;
     texture.wrapV = Texture.WRAP_ADDRESSMODE;
+    if (data) {
+      texture.gammaSpace = false;
+    }
     return texture;
-  });
+  };
+  const sources = ground.layers.map(layer => load(layer.color, false));
+  const normals = ground.layers.map(layer => load(layer.normal, true));
+  const arms = ground.layers.map(layer => load(layer.arm, true));
 
   const source = fieldTexture(field, scene);
 
-  const macro = new ProceduralTexture(
-    'groundMacro', { width, height }, { fragmentSource: BAKE_SHADER }, scene,
-    { shaderLanguage: ShaderLanguage.WGSL, generateMipMaps: true },
-  );
-  macro.refreshRate = 0;
-  macro.wrapU = Texture.CLAMP_ADDRESSMODE;
-  macro.wrapV = Texture.CLAMP_ADDRESSMODE;
-  macro.setTexture('field', source);
-  sources.forEach((texture, index) => {
-    macro.setTexture(['layerA', 'layerB', 'layerC'][index], texture);
-  });
-
-  macro.setVector4('sizing', new Vector4(
-    widthFeet, heightFeet, ground.layers[0].feet, ground.layers[1].feet,
-  ));
-  macro.setVector4('reach', new Vector4(ground.layers[2].feet, 0.12, 0.55, 0));
-  ground.layers.forEach((layer, index) => {
-    const tint = layer.tint ?? [1, 1, 1];
-    macro.setVector4(
-      ['tintA', 'tintB', 'tintC'][index],
-      new Vector4(tint[0], tint[1], tint[2], 1),
+  const bake = (name: string, layers: Texture[], what: number): ProceduralTexture => {
+    const made = new ProceduralTexture(
+      name, { width, height }, { fragmentSource: BAKE_SHADER }, scene,
+      { shaderLanguage: ShaderLanguage.WGSL, generateMipMaps: true },
     );
-  });
+    made.refreshRate = 0;
+    made.wrapU = Texture.CLAMP_ADDRESSMODE;
+    made.wrapV = Texture.CLAMP_ADDRESSMODE;
+    if (what > 0) {
+      made.gammaSpace = false;
+    }
+    made.setTexture('field', source);
+    layers.forEach((texture, index) => {
+      made.setTexture(['layerA', 'layerB', 'layerC'][index], texture);
+    });
+    made.setVector4('bakeWhat', new Vector4(what, 0, 0, 0));
+    return made;
+  };
+
+  const macro = bake('groundMacro', sources, 0);
+  // The board's own relief, and its own gloss. Both were on disk and unread:
+  // the ground was one flat albedo at a fixed roughness, which is why a road
+  // with ruts in it read as a brown stripe painted on a plane.
+  const relief = bake('groundRelief', normals, 1);
+  const surface = bake('groundSurface', arms, 2);
+
   // Not all the way to the plants' colour: some earth shows between blades even
   // in a thick sward, and a ground that matched them exactly would read as a
   // painted plane under a field rather than as the floor of one.
   const sward = swardColor();
-  macro.setVector4('sward', new Vector4(sward[0], sward[1], sward[2], 0.72));
+  for (const made of [macro, relief, surface]) {
+    made.setVector4('sizing', new Vector4(
+      widthFeet, heightFeet, ground.layers[0].feet, ground.layers[1].feet,
+    ));
+    made.setVector4('reach', new Vector4(ground.layers[2].feet, 0.12, 0.55, 0));
+    ground.layers.forEach((layer, index) => {
+      const tint = layer.tint ?? [1, 1, 1];
+      made.setVector4(
+        ['tintA', 'tintB', 'tintC'][index],
+        new Vector4(tint[0], tint[1], tint[2], 1),
+      );
+    });
+    made.setVector4('sward', new Vector4(sward[0], sward[1], sward[2], 0.72));
+  }
 
   // <b>Bake once every source has arrived, and poll for it.</b>
   //
@@ -245,8 +302,9 @@ export function bakeGround(
   // load observables, and the field is a `RawTexture` built from an array that
   // never loads anything and so never fires one. The callback simply never
   // came. Polling `isReady` is duller and cannot miss.
+  const every = [...sources, ...normals, ...arms];
   const ready = scene.onBeforeRenderObservable.add(() => {
-    if (!sources.every(texture => texture.isReady())) {
+    if (!every.every(texture => texture.isReady())) {
       return;
     }
     // Reset the counter rather than calling `render()`. On WebGPU the commands
@@ -254,10 +312,12 @@ export function bakeGround(
     // `beginFrame`/`endFrame` is never submitted; letting the scene draw it on
     // its own next frame is the difference between a bake and nothing at all.
     macro.resetRefreshCounter();
+    relief.resetRefreshCounter();
+    surface.resetRefreshCounter();
     scene.onBeforeRenderObservable.remove(ready);
   });
 
-  return { macro, sources };
+  return { macro, relief, surface, sources: every };
 }
 
 export { BAKE_TEXELS_PER_HALF_FOOT };

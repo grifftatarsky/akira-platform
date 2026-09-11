@@ -269,7 +269,13 @@ export class Stage {
     // in the chain or it resolves an image that has already been graded.
     this.taa = new TAARenderingPipeline('taa', this.scene, [this.camera]);
     this.taa.samples = 16;
-    this.taa.factor = 0.06;
+    // <b>Sharper than it was, at the cost of some crawl.</b> `factor` is how
+    // much of the new frame lands in the image, so 0.06 was a sixteen-frame
+    // rolling average — and Babylon's temporal resolve reprojects with the
+    // camera matrix alone, with no velocity buffer. Every blade on this board
+    // moves in its own vertex shader from the wind, so every blade reprojects
+    // to the wrong place and smears. Raising it shortens the tail.
+    this.taa.factor = 0.16;
     // Clamp each pixel's history to the range of its eight neighbours. Without
     // it a still frame that is not quite still — the wind never stops — smears
     // rather than resolves.

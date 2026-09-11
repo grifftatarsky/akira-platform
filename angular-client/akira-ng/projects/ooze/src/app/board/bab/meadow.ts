@@ -471,9 +471,23 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // multiply and a channel that was being written as 1.0 and ignored.
   let enclosed = clamp(clumpTall * alive * 0.78, 0.0, 1.0);
 
-  let lift = 0.84 + 0.26 * clumpTone + 0.12 * drift + 0.08 * rand(seed + 7u);
-  let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u);
-  let deep = 0.90 + 0.22 * rand(clumpSeed + 22u);
+  // <b>A drift changes the colour of a stand, not only what is standing in
+  // it.</b> The fields already decide where each species thickens; a bank of
+  // grass that is winning is also a bank of grass that is greener, because it
+  // is the same soil and the same water that made it win. Sampling this
+  // species' own field again for hue costs one noise lookup and turns five
+  // scattered populations into five that read as places.
+  //
+  // <p>Two directions from one number, deliberately: where it is high the
+  // sward goes deeper and bluer, where it is low it goes yellow and dry. That
+  // is the axis a real July field varies along — not brightness, which is what
+  // one scalar per clump was giving and what made the whole board read as one
+  // green under uneven light.
+  let vigour = driftAt(where2, u32(params.e.x));
+  let lift = 0.84 + 0.26 * clumpTone + 0.12 * drift + 0.08 * rand(seed + 7u)
+    + 0.10 * (vigour - 0.5);
+  let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u) - 0.30 * (vigour - 0.5);
+  let deep = 0.90 + 0.22 * rand(clumpSeed + 22u) + 0.26 * (vigour - 0.5);
   tints[at / 4u] = vec4f(
     lift * yellow, lift * deep, lift * (0.80 + 0.24 * drift), enclosed);
 }

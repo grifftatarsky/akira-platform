@@ -96,12 +96,34 @@ export function toStage(x: number, y: number, z: number): [number, number, numbe
 export function buildTerrain(
   ground: SplatGround, field: GroundField, scene: Scene,
 ): Terrain {
-  const { macro, sources } = bakeGround(ground, field, scene);
+  const { macro, relief, surface, sources } = bakeGround(ground, field, scene);
 
   const material = new PBRMaterial('ground', scene);
   material.albedoTexture = macro;
+
+  // <b>The ground has relief and gloss of its own now, and it always did on
+  // disk.</b> Every Poly Haven layer ships a normal map and a packed
+  // occlusion-roughness-metalness map beside its colour, and this material read
+  // neither: one flat albedo at a fixed roughness of 0.92. That is why a road
+  // with ruts cut into it read as a brown stripe painted on a plane — the ruts
+  // were in the photograph and nothing in the lighting knew about them.
+  //
+  // <p>Both are baked through the same splat blend as the colour, so the road's
+  // clods, the verge's stones and the turf agree about where they stop.
+  material.bumpTexture = relief;
+  // Poly Haven's normals are OpenGL convention, which is the one Babylon reads
+  // without inverting. The file names say so — `nor_gl`.
+  material.invertNormalMapY = false;
+  material.bumpTexture.level = 0.85;
+
+  material.metallicTexture = surface;
+  material.useAmbientOcclusionFromMetallicTextureRed = true;
+  material.useRoughnessFromMetallicTextureGreen = true;
+  material.useMetallnessFromMetallicTextureBlue = true;
   material.metallic = 0;
-  material.roughness = 0.92;
+  // A multiplier on what the map says now, rather than the whole answer. Wet
+  // clay and dry turf are not the same gloss and never were.
+  material.roughness = 1;
   // No specular from a dirt road worth the name. Left at the default it reads
   // as wet tarmac the moment the sun gets low.
   material.specularIntensity = 0.15;
@@ -156,6 +178,8 @@ export function buildTerrain(
       macro.dispose();
       sources.forEach(texture => texture.dispose());
       detail.dispose();
+      relief.dispose();
+      surface.dispose();
     },
   };
 }
