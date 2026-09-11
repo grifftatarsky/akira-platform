@@ -10,7 +10,10 @@ import { groundField } from '../ground-field';
 import { ROAD_NAME, roadMap } from '../road-level';
 import { clockLabel } from '../sun-position';
 import { assetUrl } from './assets';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import '@babylonjs/loaders/glTF/2.0';
 import { loadFoliage } from './foliage-cards';
+import { type Standing, raiseStanding, scatterStone } from './standing';
 import { type Meadow, sowMeadow } from './meadow';
 import { PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -208,6 +211,8 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   private stage: Stage | null = null;
   private stats: Stats | null = null;
   private meadow: Meadow | null = null;
+  private standing: Standing | null = null;
+  private stones: Mesh[] = [];
   private ticker = 0;
   private gone = false;
   private terrain: Terrain | null = null;
@@ -263,7 +268,20 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       this.terrain.swardProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
       const built = Math.round(performance.now() - started);
 
-      this.meadow = sowMeadow(field, stage.scene, await loadFoliage(stage.scene));
+      const sheet = await loadFoliage(stage.scene);
+      this.meadow = sowMeadow(field, stage.scene, sheet);
+      // <b>What stands above the sward.</b> A dozen trees on three tenths of a
+      // hectare, which is the open end of wood pasture, plus scrub where the
+      // grass is not cut. They cast: a tree's shadow is the one shadow on this
+      // board large enough for two cascades to resolve, and from overhead the
+      // dark patch under a tree is most of what says a tree is there.
+      this.standing = raiseStanding(field, sheet, stage.scene);
+      this.standing.meshes.forEach(mesh => stage.shadows.addShadowCaster(mesh));
+      // Fieldstone, as real geometry: the one thing on this board a downloaded
+      // model is the right answer for, because a boulder is three megabytes
+      // where a tree is sixty.
+      this.stones = await scatterStone(field, stage.scene);
+      this.stones.forEach(stone => stage.shadows.addShadowCaster(stone));
       // <b>The meadow does not cast shadows.</b> Six hundred thousand blades
       // rendered again into every shadow cascade is the most expensive thing
       // on the board, and it is paid whenever the camera moves — because that
@@ -436,6 +454,8 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     window.clearInterval(this.ticker);
     this.stats?.dispose();
     this.observer?.disconnect();
+    this.stones.forEach(stone => stone.dispose());
+    this.standing?.dispose();
     this.meadow?.dispose();
     this.terrain?.dispose();
     this.stage?.dispose();

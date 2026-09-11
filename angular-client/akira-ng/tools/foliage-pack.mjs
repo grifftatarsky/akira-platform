@@ -28,8 +28,8 @@ const [srcDir, outDir] = process.argv.slice(2);
 if (!srcDir || !outDir) { console.error('usage: foliage-pack.mjs <srcDir> <outDir>'); process.exit(1); }
 
 /** The sheet, and how large one cut-out is allowed to be stored. */
-const SHEET = 1024;
-const LONGEST = 232;
+const SHEET = 2048;
+const LONGEST = 300;
 
 /**
  * How many heights the silhouette's width is recorded at.
@@ -61,6 +61,26 @@ const SPANS = 13;
  * Cropping cut-outs that are not upright needs a rotated fit, which is a
  * different tool. The seed heads are built from the blade sheet's sprays.
  */
+/**
+ * Cut-outs that are composed rather than cropped.
+ *
+ * <p><b>A tree canopy cannot be built from single leaves.</b> Scanned sets give
+ * one leaf at a time, and a card carrying one leaf means several hundred cards a
+ * tree, which is a tree that costs more than the meadow it stands in. What a
+ * canopy card wants is a *clump* — twenty leaves at assorted angles filling one
+ * cut-out — and nothing CC0 ships one.
+ *
+ * <p>So it is composed here: the leaves of a set are scattered, rotated and
+ * scaled into one sheet, and the result is cropped and measured like any other
+ * cut-out. Three seeds give three clumps, so the trees on a board are not all
+ * the same tree. It is the same trick a foliage artist does by hand, done by a
+ * build step against a scan.
+ */
+const CLUMPS = [
+  { dir: 'LeafSet005_1K', stem: 'LeafSet005_1K-PNG', group: 'canopy', seeds: 3, leaves: 78 },
+  { dir: 'LeafSet016_1K', stem: 'LeafSet016_1K-PNG', group: 'canopy', seeds: 3, leaves: 78 },
+];
+
 const SOURCES = [
   {
     dir: 'acg/Foliage006_1K', stem: 'Foliage006_1K-PNG',
@@ -112,6 +132,124 @@ const call = async (fn, args) => {
   }
   return JSON.parse(value);
 };
+
+
+const CLUMP = `async (colorB64, alphaB64, leaves, seed, size) => {
+  const load = b => new Promise((ok, no) => {
+    const i = new Image();
+    i.onload = () => ok(i); i.onerror = () => no(new Error('decode'));
+    i.src = 'data:image/png;base64,' + b;
+  });
+  const colorImg = await load(colorB64);
+  const alphaImg = alphaB64 ? await load(alphaB64) : null;
+  const w = colorImg.naturalWidth, h = colorImg.naturalHeight;
+
+  // Compose the source once, with its opacity attached, so a leaf can be
+  // drawn from it by rectangle.
+  const src = document.createElement('canvas');
+  src.width = w; src.height = h;
+  const sx = src.getContext('2d', { willReadFrequently: true });
+  sx.drawImage(colorImg, 0, 0);
+  const colour = sx.getImageData(0, 0, w, h);
+  let op = null;
+  if (alphaImg) {
+    sx.clearRect(0, 0, w, h);
+    sx.drawImage(alphaImg, 0, 0, w, h);
+    op = sx.getImageData(0, 0, w, h);
+  }
+  const n = w * h;
+  const flat = new Uint8ClampedArray(n * 4);
+  const solid = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = op ? op.data[i * 4] : colour.data[i * 4 + 3];
+    solid[i] = a > 24 ? 1 : 0;
+    flat[i * 4] = colour.data[i * 4];
+    flat[i * 4 + 1] = colour.data[i * 4 + 1];
+    flat[i * 4 + 2] = colour.data[i * 4 + 2];
+    flat[i * 4 + 3] = a;
+  }
+  sx.putImageData(new ImageData(flat, w, h), 0, 0);
+
+  // Where each leaf is, by flooding the opaque pixels.
+  const seen = new Uint8Array(n);
+  const boxes = [];
+  const stack = new Int32Array(n);
+  for (let start = 0; start < n; start++) {
+    if (!solid[start] || seen[start]) continue;
+    let top = 0; stack[top++] = start; seen[start] = 1;
+    let x0 = w, y0 = h, x1 = 0, y1 = 0, count = 0;
+    while (top) {
+      const i = stack[--top];
+      const x = i % w, y = (i / w) | 0;
+      count++;
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const j = ny * w + nx;
+        if (solid[j] && !seen[j]) { seen[j] = 1; stack[top++] = j; }
+      }
+    }
+    if (count > n / 2000) boxes.push({ x0, y0, x1: x1 + 1, y1: y1 + 1 });
+  }
+  if (!boxes.length) return JSON.stringify({ error: 'no leaves' });
+
+  // Scatter them into a clump. A fixed hash rather than Math.random, so the
+  // sheet is the same every build — it is an asset, not a simulation.
+  let state = seed * 2654435761 >>> 0;
+  const rand = () => {
+    state ^= state << 13; state >>>= 0;
+    state ^= state >> 17;
+    state ^= state << 5; state >>>= 0;
+    return state / 4294967296;
+  };
+
+  const cv = document.createElement('canvas');
+  cv.width = size; cv.height = size;
+  const cx = cv.getContext('2d');
+  cx.clearRect(0, 0, size, size);
+  for (let i = 0; i < leaves; i++) {
+    const b = boxes[(rand() * boxes.length) | 0];
+    const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+    // Radial, and denser toward the middle: the square root keeps the clump
+    // round rather than piling every leaf on the centre.
+    const angle = rand() * Math.PI * 2;
+    const away = Math.sqrt(rand()) * size * 0.38;
+    const at = size * 0.5 + Math.cos(angle) * away;
+    const up = size * 0.5 + Math.sin(angle) * away * 0.78;
+    const scale = (size * 0.20 / Math.max(bw, bh)) * (0.55 + 0.55 * rand());
+    cx.save();
+    cx.translate(at, up);
+    cx.rotate(rand() * Math.PI * 2);
+    // Leaves at the back of a clump are in its shade, and a canopy with no
+    // depth in it reads as a sticker whatever shape it is cut to.
+    const shade = 0.55 + 0.45 * (away / (size * 0.38));
+    cx.globalAlpha = 1;
+    cx.filter = 'brightness(' + (1.15 - shade * 0.45).toFixed(3) + ')';
+    cx.drawImage(src, b.x0, b.y0, bw, bh,
+      -bw * scale / 2, -bh * scale / 2, bw * scale, bh * scale);
+    cx.restore();
+  }
+  // <b>Feather the clump's rim.</b> A cluster with a hard edge is a slab
+  // whatever is printed on it, and a canopy built from slabs is a pile of
+  // boxes — which is exactly what thirty of them looked like. Fading the alpha
+  // over the outer third lets one card dissolve into the next, so the crown
+  // reads as one mass with depth in it rather than as its own construction.
+  const shot = cx.getImageData(0, 0, size, size);
+  const mid = size / 2;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      if (!shot.data[i + 3]) continue;
+      const away = Math.hypot(x - mid, y - mid) / (size * 0.5);
+      const keep = away < 0.62 ? 1 : Math.max(0, 1 - (away - 0.62) / 0.34);
+      shot.data[i + 3] *= keep * keep;
+    }
+  }
+  cx.putImageData(shot, 0, 0);
+  return JSON.stringify({ png: cv.toDataURL('image/png').split(',')[1] });
+}`;
 
 const CUT = `async (colorB64, alphaB64, longest, spans_count) => {
   const load = b => new Promise((ok, no) => {
@@ -321,6 +459,27 @@ for (const src of SOURCES) {
     }
     console.log(`${job.color.split('/').pop()}: ${crops.length}`);
   }
+}
+
+// The composed clumps go through the same cropping and measuring as anything
+// cut from a scan — they are just a scan this tool made.
+for (const clump of CLUMPS) {
+  const stem = clump.stem;
+  const color = join(srcDir, 'acg', clump.dir, `${stem}_Color.png`);
+  const opacity = join(srcDir, 'acg', clump.dir, `${stem}_Opacity.png`);
+  if (!existsSync(color)) { console.error(`missing ${color}`); process.exit(1); }
+  for (let seed = 1; seed <= clump.seeds; seed++) {
+    const made = await call(CLUMP, [
+      b64(color), existsSync(opacity) ? b64(opacity) : '', clump.leaves, seed, 512,
+    ]);
+    if (made.error) { console.error(clump.dir, made.error); process.exit(1); }
+    const crops = await call(CUT, [made.png, '', LONGEST, SPANS]);
+    for (const crop of crops) {
+      (groups[clump.group] ??= []).push(all.length);
+      all.push(crop);
+    }
+  }
+  console.log(`${clump.group} from ${clump.dir}: ${clump.seeds}`);
 }
 
 const packed = await call(PACK, [JSON.stringify(all), SHEET]);

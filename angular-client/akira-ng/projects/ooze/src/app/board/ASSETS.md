@@ -225,3 +225,37 @@ away. That makes card *area* the thing to watch, and not card count.
 **Poly Haven's vegetation is still unusable** for the reason recorded above:
 `pine_tree_01` is a 948 MB geometry buffer. Scans on cards are how a browser
 gets photographic plants at all.
+
+## What stands above the sward
+
+**Trees are built; stone is downloaded.** Poly Haven's vegetation is still
+unusable at any resolution and the numbers are worth writing down, because they
+are the whole reason for the split:
+
+| model | geometry | textures |
+|---|---|---|
+| `tree_small_02` | **95 MB** | 5.9 MB |
+| `island_tree_01` | **61 MB** | 5.6 MB |
+| `searsia_burchellii` | **33 MB** | 1.3 MB |
+| `namaqualand_boulder_02` | 2.3 MB | 2.8 MB |
+| `tree_stump_01` | 1.0 MB | 3.0 MB |
+
+So `namaqualand_boulder_02` and `_04` are vendored under
+`public/assets/board/models/` as glTF — **CC0**, scattered as thin instances —
+and the trees are cards, like the plants.
+
+**A tree canopy needs a clump, and nothing CC0 ships one.** Scanned leaf sets
+give one leaf at a time, and a card carrying one leaf means several hundred
+cards a tree. So `tools/foliage-pack.mjs` composes them: seventy-eight leaves
+from [LeafSet005](https://ambientcg.com/view?id=LeafSet005) (elm) and
+[LeafSet016](https://ambientcg.com/view?id=LeafSet016) (oak), scattered, rotated
+and scaled into one sheet, shaded by radius, with the rim's alpha feathered.
+Three seeds each, so the trees on a board are not the same tree. It is what a
+foliage artist does by hand, done by a build step against a scan.
+
+**The feathering is load-bearing.** A clump with a hard edge is a slab whatever
+is printed on it, and thirty slabs is a pile of boxes rather than a tree. Fading
+the alpha over the outer third lets one card dissolve into the next.
+
+Bark is [bark_brown_02](https://polyhaven.com/a/bark_brown_02) at 1k, colour,
+normal and ARM — **CC0**.
