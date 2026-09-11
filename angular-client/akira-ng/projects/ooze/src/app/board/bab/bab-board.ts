@@ -256,6 +256,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       // unwritten map and returns nothing but shadow, which looks exactly like
       // a sun that has gone out.
       this.terrain.chunks.forEach(chunk => stage.shadows.addShadowCaster(chunk));
+      // And the sward, as a proxy the camera never sees. The meadow itself
+      // stays out of the shadow map — it is the most expensive thing that could
+      // go in one — but the field it makes still has to fall across the road.
+      this.terrain.swardProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
       const built = Math.round(performance.now() - started);
 
       this.meadow = sowMeadow(field, stage.scene);

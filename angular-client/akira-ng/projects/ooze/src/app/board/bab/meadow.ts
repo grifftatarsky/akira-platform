@@ -162,15 +162,21 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let seed = (u32(i32(gx) + 16384) * 2654435761u)
     ^ (u32(i32(gy) + 16384) * 2246822519u)
     ^ ((slot + u32(params.a.w)) * 3266489917u);
-  // <b>Jitter inside the cell, not across it.</b> A point placed anywhere in
-  // its cell is white noise with a grid drawn round it: neighbouring cells put
-  // plants shoulder to shoulder as often as they leave a gap, and the gaps are
-  // what the eye finds. Keeping the jitter to six tenths of a cell about its
-  // middle is the cheap approximation of blue noise — Casey Muratori's number,
-  // from working the same problem for scattered vegetation — and it buys an
-  // even sward without a Poisson sampler or anything stored.
-  let inCell = (vec2f(rand(seed), rand(seed + 1u)) - 0.5) * 0.6 + 0.5;
-  let where2 = vec2f(gx, gy) * span + inCell * span;
+  // <b>Jitter inside the cell, and stagger every other row.</b>
+  //
+  // <p>A point placed anywhere in its cell is white noise with a grid drawn
+  // round it: neighbours land shoulder to shoulder as often as they leave a
+  // gap, and the gaps are what the eye finds. Holding the jitter to a fraction
+  // of a cell fixes that and trades it for the opposite fault — the lattice
+  // itself starts to show, as rows running away across the field.
+  //
+  // <p>Offsetting alternate rows by half a cell is what breaks it. The lattice
+  // becomes triangular rather than square, which has no rows to see down, and
+  // it is the same packing a hexagonal grid gives for nothing: every point has
+  // six neighbours at one distance instead of four near ones and four far.
+  let stagger = f32(u32(abs(gy)) & 1u) * 0.5;
+  let inCell = (vec2f(rand(seed), rand(seed + 1u)) - 0.5) * 0.88 + 0.5;
+  let where2 = vec2f(gx + stagger, gy) * span + inCell * span;
 
   // Off the board: the window is square and the board is not, and near an edge
   // most of the window hangs over nothing. Zeroed rather than skipped, because

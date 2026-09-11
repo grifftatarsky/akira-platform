@@ -6,7 +6,7 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import type { Scene } from '@babylonjs/core/scene';
 import '@babylonjs/core/Materials/material.detailMapConfiguration';
 import type { SplatGround } from '../board-assets';
-import { type GroundField, heightAt } from '../ground-field';
+import { type GroundField, groundAt, heightAt } from '../ground-field';
 import { assetUrl } from './assets';
 import { bakeGround } from './splat-bake';
 
@@ -34,8 +34,52 @@ const CHUNK_HALF_FEET = 60;
 
 export interface Terrain {
   readonly chunks: Mesh[];
+  /**
+   * The sward, as something the shadow map can see.
+   *
+   * <p>The meadow casts no shadow: six hundred thousand blades rendered again
+   * into every cascade is the most expensive thing a board like this can do,
+   * and no shipping game does it. What *Ghost of Tsushima* does instead is
+   * raise the terrain to grass height in the shadow pass, so the field casts a
+   * soft aggregate shadow without a single blade entering the map. These are
+   * that: the same chunks, lifted by how tall the sward stands at each point,
+   * drawn only into the cascades and never by the camera.
+   *
+   * <p>What it buys is the road. Under the sward the shadow falls on ground
+   * that is hidden by grass anyway; on the bare track beside it, at any sun low
+   * enough to matter, a foot and a half of dense meadow throws a real shadow —
+   * and until now the road was lit as though the field beside it were painted
+   * on.
+   */
+  readonly swardProxy: Mesh[];
   readonly material: PBRMaterial;
   dispose(): void;
+}
+
+/**
+ * Half-feet the sward stands, for the shadow it casts.
+ *
+ * <p>Under the tallest plants and over the shortest: the shadow comes from the
+ * bulk of a sward rather than from the seed heads standing above it, and a
+ * proxy at the height of the tips would put the road in shadow a stride too
+ * early.
+ */
+const SWARD_HALF_FEET = 2.3;
+
+/**
+ * The layer the shadow proxy lives on.
+ *
+ * <p>A render target given an explicit render list does not check `layerMask`,
+ * and the shadow map is given one — so a mesh on a layer the camera does not
+ * look at is still drawn into every cascade. That is the whole mechanism: no
+ * second material, no visibility flag the shadow pass would also honour.
+ */
+const SHADOW_ONLY_LAYER = 0x20000000;
+
+/** The same smoothstep the ground's bake uses, so the two edges agree. */
+function smoothTo(value: number, from: number, to: number): number {
+  const t = Math.max(0, Math.min(1, (value - from) / (to - from)));
+  return t * t * (3 - 2 * t);
 }
 
 /**
@@ -80,6 +124,7 @@ export function buildTerrain(
   material.detailMap.roughnessBlendLevel = 0.3;
 
   const chunks: Mesh[] = [];
+  const swardProxy: Mesh[] = [];
   const across = Math.ceil(field.extentXHalfFeet / CHUNK_HALF_FEET);
   const along = Math.ceil(field.extentYHalfFeet / CHUNK_HALF_FEET);
   for (let cy = 0; cy < along; cy++) {
@@ -89,14 +134,24 @@ export function buildTerrain(
       const x1 = Math.min(field.extentXHalfFeet, x0 + CHUNK_HALF_FEET);
       const y1 = Math.min(field.extentYHalfFeet, y0 + CHUNK_HALF_FEET);
       chunks.push(chunkMesh(field, material, scene, x0, y0, x1, y1, `ground-${cx}-${cy}`));
+      const proxy = chunkMesh(
+        field, material, scene, x0, y0, x1, y1, `sward-${cx}-${cy}`, true,
+      );
+      proxy.layerMask = SHADOW_ONLY_LAYER;
+      // Nothing samples this and nothing lights it. It exists to occupy space
+      // in a depth buffer.
+      proxy.material = null;
+      swardProxy.push(proxy);
     }
   }
 
   return {
     chunks,
+    swardProxy,
     material,
     dispose(): void {
       chunks.forEach(chunk => chunk.dispose());
+      swardProxy.forEach(chunk => chunk.dispose());
       material.dispose();
       macro.dispose();
       sources.forEach(texture => texture.dispose());
@@ -108,6 +163,7 @@ export function buildTerrain(
 function chunkMesh(
   field: GroundField, material: PBRMaterial, scene: Scene,
   x0: number, y0: number, x1: number, y1: number, name: string,
+  sward = false,
 ): Mesh {
   // One vertex past the far edge, so neighbouring chunks share their seam
   // vertices exactly and no crack opens between them.
@@ -121,7 +177,14 @@ function chunkMesh(
     for (let col = 0; col < cols; col++) {
       const x = x0 + ((x1 - x0) * col) / (cols - 1 || 1);
       const y = y0 + ((y1 - y0) * row) / (rows - 1 || 1);
-      const z = heightAt(field, x, y);
+      // The sward proxy stands on the same ground, lifted by how much meadow
+      // is growing there. The taper matches the one the ground's own colour
+      // uses, so the shadow stops exactly where the grass does and the road
+      // casts nothing onto itself.
+      const lift = sward
+        ? SWARD_HALF_FEET * (1 - smoothTo(groundAt(field, x, y).wear, 0.40, 0.82))
+        : 0;
+      const z = heightAt(field, x, y) + lift;
       const at = (row * cols + col) * 3;
       const [sx, sy, sz] = toStage(x, y, z);
       positions[at] = sx;
