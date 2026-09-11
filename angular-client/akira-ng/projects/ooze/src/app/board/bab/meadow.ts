@@ -377,9 +377,34 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // facing direction projected onto the ground plane, over completes it, and a
   // cross product supplies the third axis, so the matrix stays a rotation and a
   // normal transformed by it stays a normal.
+  // <b>The sward has its own relief, and without it the field has no light in
+  // it from above.</b>
+  //
+  // <p>Every plant is built on the ground's normal, which is the right thing
+  // and has one consequence nobody notices until the camera is overhead: on
+  // level ground every plant on the board shares one normal, so the sun lights
+  // the entire meadow identically and a hundred acres read as a single flat
+  // green. Contrast in the tone curve hides it; it does not fix it, because
+  // there is nothing there to be in contrast with.
+  //
+  // <p>A real sward is not level. It rises and falls a hand's width every few
+  // paces — tussocks, hollows, the drag of the last thing that walked through —
+  // and that relief is what the light picks out from above. So a slow field,
+  // finer than the terrain's and coarser than a clump's, tilts the axis every
+  // plant grows on. Neighbours agree on it, because they read the same field,
+  // which is what makes it read as ground rather than as noise; and it tilts
+  // the whole frame rather than only the shading normal, so the tufts lean into
+  // their hollows and the silhouette gets the same relief the lighting does.
+  let swept = 0.055;
+  let here = vnoise(where2 * swept);
+  let eastward = vnoise((where2 + vec2f(1.4, 0.0)) * swept);
+  let northward = vnoise((where2 + vec2f(0.0, 1.4)) * swept);
+  let relief = vec3f(here - eastward, 0.0, here - northward) * 2.6;
+  let swardN = normalize(groundN + relief);
+
   let flatAcross = vec3f(cf, 0.0, -sf);
-  let acrossDir = normalize(flatAcross - groundN * dot(flatAcross, groundN));
-  let upDir = groundN;
+  let acrossDir = normalize(flatAcross - swardN * dot(flatAcross, swardN));
+  let upDir = swardN;
   let across = acrossDir * wide;
   let up = upDir * tall;
   let through = cross(acrossDir, upDir) * wide;
