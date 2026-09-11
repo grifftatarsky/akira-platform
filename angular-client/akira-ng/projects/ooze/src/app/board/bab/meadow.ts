@@ -607,23 +607,20 @@ export function sowMeadow(
     cardGeometry(plant, sheet).applyToMesh(mesh);
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.useVertexColors = true;
-    // <b>The meadow does not receive shadows either.</b> It did, and the shadow
-    // map it was reading contains the terrain and nothing else — so six hundred
-    // thousand blades standing up to two feet above the depth that map recorded
-    // were each asking whether the *ground* under them was lit. Every one of the
-    // three standard biases fails on that: a constant one has to cover a
-    // two-foot vertical spread, a slope-scaled one is derived from a receiver
-    // whose slope is vertical, and a normal-offset one needs a real geometric
-    // normal where every normal in `species.ts` is deliberate fiction.
+    // <b>The meadow does not receive shadows, and it was tried again.</b>
     //
-    // <p>Nobody shadow-maps grass. Fortnite never put it in the map and used
-    // screen-space contact shadows instead; Unity's own guidance is that
-    // contact shadows alone are a sufficient substitute for grass; *Ghost of
-    // Tsushima* raises the terrain to grass height and writes it dithered. This
-    // is the cheapest of those — it *removes* a texture fetch and a filtering
-    // loop from the most-invoked fragment shader on the board — and what it
-    // gives up is grass darkening under a rise, which the bounce light and the
-    // root-to-tip ramp were already doing more of than the map was.
+    // <p>The original reason was that the shadow map held only terrain at ground
+    // level, so every blade standing two feet above that depth asked whether the
+    // ground under it was lit, which it always was. That reason is gone — the
+    // map holds the sward proxy now, the terrain raised to the height the grass
+    // reaches — so it was worth another measurement.
+    //
+    // <p>It costs 3.3 ms of a 12.9 ms frame and it brings acne: a proxy surface
+    // sitting at the same height as the blades standing on it is exactly the
+    // configuration a depth bias cannot win, and at a low sun the field fills
+    // with faint diagonal banding. Two cascades over four hundred units cannot
+    // resolve a blade of grass, and a proxy fine enough to try would be a
+    // second field in the shadow map.
     mesh.receiveShadows = false;
 
     const material = new PBRMaterial(`plant-${plant.id}`, scene);
