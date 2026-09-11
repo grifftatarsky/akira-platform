@@ -1,4 +1,5 @@
 import { Buffer, VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { WebGPUDataBuffer } from '@babylonjs/core/Meshes/WebGPU/webgpuDataBuffer';
 import { StorageBuffer } from '@babylonjs/core/Buffers/storageBuffer';
 import { ComputeShader } from '@babylonjs/core/Compute/computeShader';
 import { Constants } from '@babylonjs/core/Engines/constants';
@@ -69,6 +70,29 @@ const MAX_PLANTS = 340_000;
 const CLUMP = 11;
 
 
+/**
+ * Copies a species' surviving count into its draw's own instance count.
+ *
+ * <p>One thread, every frame. <b>Every frame, because the engine writes that
+ * field too.</b> Babylon already draws an instanced mesh indirectly and fills
+ * the argument buffer from the CPU with the mesh's instance count; it skips the
+ * write when the count has not changed, which is almost always, but it does
+ * write on the first draw of a context and on any change. Publishing from a
+ * one-thread dispatch is cheaper than reasoning about when that happens.
+ *
+ * <p>The layout is WebGPU's own: index count, instance count, first index,
+ * base vertex, first instance. Only the second word belongs to us.
+ */
+const PUBLISH = `
+@group(0) @binding(0) var<storage, read_write> tally: array<u32>;
+@group(0) @binding(1) var<storage, read_write> draws: array<u32>;
+
+@compute @workgroup_size(1)
+fn main() {
+  draws[1] = tally[0];
+}
+`;
+
 const SOW = `
 struct Params {
   a: vec4f,   // extentX, extentY, count, seed offset
@@ -84,6 +108,9 @@ struct Params {
 @group(0) @binding(2) var<storage, read_write> tints: array<vec4f>;
 @group(0) @binding(3) var groundField: texture_2d<f32>;
 @group(0) @binding(4) var heights: texture_2d<f32>;
+// How many of this species survived. One counter, incremented once per plant
+// that is actually going to be drawn.
+@group(0) @binding(5) var<storage, read_write> tally: array<atomic<u32>>;
 
 // An integer hash, not a sine. Sine hashes band visibly at large coordinates
 // because they are sampling a smooth function, and a meadow is exactly the
@@ -183,16 +210,10 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let where2 = vec2f(gx + stagger, gy) * span + inCell * span;
 
   // Past the last row, or past the board's own edge after the stagger and the
-  // jitter. Zeroed rather than skipped, because this instance is drawn either
-  // way and a stale matrix would leave a plant standing in mid-air.
+  // jitter. Simply not counted: nothing downstream will look at this slot,
+  // because the draw's instance count comes from the tally below.
   if (cy >= northCells || where2.x < 0.0 || where2.y < 0.0
       || where2.x >= extent.x || where2.y >= extent.y) {
-    let off = index * 4u;
-    matrices[off + 0u] = vec4f(0.0);
-    matrices[off + 1u] = vec4f(0.0);
-    matrices[off + 2u] = vec4f(0.0);
-    matrices[off + 3u] = vec4f(0.0, 0.0, 0.0, 1.0);
-    tints[index] = vec4f(0.0);
     return;
   }
 
@@ -318,7 +339,9 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // room to thicken rather than only thin; the surplus is culled back out here.
   let relative = select(0.0, (mine / total) / share, total > 0.0);
   alive *= step(rand(seed + 9u), clamp(relative, 0.0, crowd) / crowd);
-  alive *= step(0.02, alive);
+  if (alive < 0.02) {
+    return;
+  }
 
   // <b>Everything scales by alive, not just the height.</b> Scaling only
   // the height leaves a plant that failed the wear test as a flat quad of full
@@ -409,7 +432,21 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let up = upDir * tall;
   let through = cross(acrossDir, upDir) * wide;
 
-  let at = index * 4u;
+  // <b>Compacted, so what is drawn is what survived.</b>
+  //
+  // <p>A species is given more slots than its share so its drift has room to
+  // thicken, and most of that surplus loses. Those losers used to be written as
+  // a zeroed matrix and submitted anyway — a degenerate instance costs no
+  // fragments but still costs its setup, and at four hundred thousand of them
+  // that is a bill for plants nobody can see. So a survivor takes the next free
+  // slot from a counter instead, the survivors end up in a contiguous prefix of
+  // the buffer, and the draw's instance count is read from that counter on the
+  // GPU rather than handed down from the CPU.
+  //
+  // <p>The order they land in is whatever the scheduler gives, which is fine:
+  // every plant's identity comes from the lattice cell it grew in, never from
+  // where it sits in the buffer.
+  let at = atomicAdd(&tally[0], 1u) * 4u;
   matrices[at + 0u] = vec4f(across, 0.0);
   matrices[at + 1u] = vec4f(up, 0.0);
   matrices[at + 2u] = vec4f(through, 0.0);
@@ -437,7 +474,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let lift = 0.84 + 0.26 * clumpTone + 0.12 * drift + 0.08 * rand(seed + 7u);
   let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u);
   let deep = 0.90 + 0.22 * rand(clumpSeed + 22u);
-  tints[index] = vec4f(
+  tints[at / 4u] = vec4f(
     lift * yellow, lift * deep, lift * (0.80 + 0.24 * drift), enclosed);
 }
 `;
@@ -449,6 +486,9 @@ export interface Sown {
   /** The compute-written instance matrices, so a probe can read them back. */
   readonly matrices: StorageBuffer;
   readonly tints: StorageBuffer;
+  /** How many survived the drift, written by the compute pass. */
+  readonly tally: StorageBuffer;
+  /** Slots dispatched. What is drawn is the tally, not this. */
   count: number;
 }
 
@@ -488,6 +528,14 @@ export function sowMeadow(
     readonly tints: StorageBuffer;
     readonly params: UniformBuffer;
     readonly compute: ComputeShader;
+    /** How many of this species survived the drift, written by the sowing. */
+    readonly tally: StorageBuffer;
+    /** Copies that count into the draw's instance count, on the GPU. */
+    readonly publish: ComputeShader;
+    /** Whether the draw's own argument buffer has been handed to `publish`. */
+    wired: boolean;
+    /** Frames left to re-publish the count for. See `step`. */
+    announce: number;
     readonly cap: number;
     readonly offset: number;
     /** Its row in the species table the drift weighting reads. */
@@ -661,6 +709,15 @@ export function sowMeadow(
     params.addUniform('e', 4);
     params.addUniform('kinds', 4, 8);
 
+    // Four bytes, and they have to be readable back so the probe can say how
+    // many plants are actually standing.
+    const tally = new StorageBuffer(
+      engine, 4,
+      Constants.BUFFER_CREATIONFLAG_STORAGE
+      | Constants.BUFFER_CREATIONFLAG_WRITE
+      | Constants.BUFFER_CREATIONFLAG_READ,
+    );
+
     const compute = new ComputeShader(`sow-${plant.id}`, engine, { computeSource: SOW }, {
       bindingsMapping: {
         params: { group: 0, binding: 0 },
@@ -668,6 +725,7 @@ export function sowMeadow(
         tints: { group: 0, binding: 2 },
         groundField: { group: 0, binding: 3 },
         heights: { group: 0, binding: 4 },
+        tally: { group: 0, binding: 5 },
       },
     });
     compute.setUniformBuffer('params', params);
@@ -675,11 +733,18 @@ export function sowMeadow(
     compute.setStorageBuffer('tints', tints);
     compute.setTexture('groundField', groundTexture, false);
     compute.setTexture('heights', heightTexture, false);
+    compute.setStorageBuffer('tally', tally);
+
+    const publish = new ComputeShader(
+      `publish-${plant.id}`, engine, { computeSource: PUBLISH },
+      { bindingsMapping: { tally: { group: 0, binding: 0 }, draws: { group: 0, binding: 1 } } },
+    );
+    publish.setStorageBuffer('tally', tally);
 
     beds.push({
-      sown: { plant, mesh, wind, matrices, tints, count: cap },
+      sown: { plant, mesh, wind, matrices, tints, tally, count: cap },
       matrices, tints, params, compute, cap, offset: seedOffset,
-      kind: beds.length,
+      kind: beds.length, tally, publish, wired: false, announce: 0,
     });
     seedOffset += cap;
   }
@@ -697,7 +762,17 @@ export function sowMeadow(
       const slots = Math.max(1, Math.floor((bed.cap * density) / cells));
       const count = Math.min(bed.cap, slots * cells);
       bed.sown.count = count;
-      bed.sown.mesh.forcedInstanceCount = count;
+      // <b>The mesh is told its ceiling, not its count.</b> Babylon writes the
+      // instance count into the draw's argument buffer from here, and skips the
+      // write whenever the number has not changed — so a constant ceiling means
+      // it writes once and the GPU's own count, published below, is what stands
+      // from then on. Handing it the real count would have the CPU and the
+      // compute pass fighting over the same four bytes every frame.
+      bed.sown.mesh.forcedInstanceCount = bed.cap;
+      // Nothing has survived yet this sowing, and the new count has to be
+      // announced to the draw once the dispatch below has produced it.
+      bed.tally.update(new Uint32Array([0]));
+      bed.announce = 3;
       bed.params.updateFloat4(
         'a', field.extentXHalfFeet, field.extentYHalfFeet, count, bed.offset,
       );
@@ -733,6 +808,35 @@ export function sowMeadow(
     step(seconds: number): void {
       for (const bed of beds) {
         bed.sown.wind.time = seconds;
+        // <b>Wired on the first frame it can be.</b> The draw's argument buffer
+        // is created by the engine when the mesh is first drawn — there is no
+        // draw context before that, and nothing to hand the compute pass.
+        if (!bed.wired) {
+          const args = indirectArgs(bed.sown.mesh);
+          if (args) {
+            bed.publish.setStorageBuffer('draws', new WebGPUDataBuffer(args, 20));
+            bed.wired = true;
+            bed.announce = 3;
+          }
+        }
+        // <b>Only after a sowing, and then only for a frame or two.</b>
+        //
+        // <p>This ran every frame, and it cost more than the half of the
+        // meadow it was saving: five compute dispatches a frame is five pass
+        // begins, five pipeline binds and five barriers, which measured 1.2 ms
+        // against 1.4 ms of instances removed. A whole optimisation, net
+        // negative, and only a wall clock would ever have said so.
+        //
+        // <p>It does not need to run every frame. The engine writes the
+        // instance count into the argument buffer on a draw context's first
+        // draw and then skips the write while the count it is asked for does
+        // not change — and the count it is asked for is the mesh's fixed
+        // ceiling. So a handful of frames after each sowing is enough to be
+        // sure ours is the last word, and after that nobody touches it.
+        if (bed.wired && bed.announce > 0) {
+          bed.publish.dispatch(1);
+          bed.announce--;
+        }
       }
       if (!ran) {
         // A compute effect compiles asynchronously and `dispatch` returns
@@ -743,6 +847,7 @@ export function sowMeadow(
     dispose(): void {
       for (const bed of beds) {
         bed.sown.mesh.dispose();
+        bed.tally.dispose();
         bed.matrices.dispose();
         bed.tints.dispose();
         bed.params.dispose();
@@ -751,6 +856,22 @@ export function sowMeadow(
       groundTexture.dispose();
     },
   };
+}
+
+/**
+ * The buffer WebGPU reads a draw's arguments out of, for this mesh.
+ *
+ * <p>Babylon already draws every instanced mesh indirectly — it creates this
+ * buffer with the draw context and fills it from the CPU. Reaching into it is
+ * what lets the compute pass own the instance count instead, and it only exists
+ * once the mesh has been drawn: the draw wrapper is keyed on the render pass,
+ * and there is no pass until something renders.
+ */
+function indirectArgs(mesh: Mesh): GPUBuffer | undefined {
+  const sub = mesh.subMeshes?.[0] as unknown as {
+    _getDrawWrapper?: () => { drawContext?: { indirectDrawBuffer?: GPUBuffer } } | undefined;
+  } | undefined;
+  return sub?._getDrawWrapper?.()?.drawContext?.indirectDrawBuffer;
 }
 
 /**

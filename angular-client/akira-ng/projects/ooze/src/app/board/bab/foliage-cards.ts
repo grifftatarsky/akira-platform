@@ -1,6 +1,7 @@
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { Scene } from '@babylonjs/core/scene';
+import { assetUrl } from './assets';
 import type { CardSpec, Plant } from './species';
 
 /**
@@ -48,14 +49,17 @@ export interface FoliageSheet {
 /**
  * Loads the sheet and its cut-out table.
  *
- * <p>Resolved against `import.meta.url` rather than the page: served on its
- * own this remote sits at the root and inside the host it sits under
- * `/remotes/ooze/`, and nginx answers a miss with index.html at 200 rather than
- * a 404 — so a wrong path here is not an error, it is a texture made of HTML.
+ * <p><b>Through `assetUrl`, and counting the directories by hand is the trap.</b>
+ * This resolved its own base with four `..` segments and it worked in the built
+ * bundle by accident — the chunk sits at the remote's root there, so climbing
+ * past it clamps and lands on the right path anyway. Under the dev server the
+ * module is served from its source path, four levels up is somewhere in the
+ * workspace, and the miss comes back as index.html at 200 with a content type of
+ * text/html. `JSON.parse` then reports an unexpected `<`, which is the board
+ * saying it has been handed a web page and not one word about which file.
  */
 export async function loadFoliage(scene: Scene): Promise<FoliageSheet> {
-  const base = new URL('../../../../assets/board/foliage/', import.meta.url);
-  const table = await (await fetch(new URL('foliage.json', base))).json() as {
+  const table = await (await fetch(assetUrl('assets/board/foliage/foliage.json'))).json() as {
     groups: Record<string, Cut[]>;
   };
   // <b>`invertY` is a constructor argument and cannot be set afterwards.</b>
@@ -63,7 +67,7 @@ export async function loadFoliage(scene: Scene): Promise<FoliageSheet> {
   // file is laid out — so the sampler has to agree rather than flipping, and
   // the flag has to be passed in at load or the sheet reads upside down.
   const texture = new Texture(
-    new URL('foliage.png', base).href, scene, false, false,
+    assetUrl('assets/board/foliage/foliage.png'), scene, false, false,
     Texture.TRILINEAR_SAMPLINGMODE,
   );
   // A card is a long thin sliver seen at a glancing angle most of the time, and
