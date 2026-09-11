@@ -1,14 +1,51 @@
 # The meadow: what is wrong with it and what to do
 
-Ten passes of research, each one written down before the next started and each
-one told to attack what the last concluded. The log of all ten is at the bottom,
-because a report that shows only its final answer hides the two useful things:
-which ideas did not survive, and why.
+Ten passes of research, then a rebuild, then a second round of measurement that
+overturned most of the first. The dive log is at the bottom, because a report
+that shows only its final answer hides the two useful things: which ideas did not
+survive, and why.
 
-**Nothing here has been verified against this renderer.** Dive 10's whole finding
-is that the other nine produced confident causal claims and measured none of
-them, so the plan below is ordered by *how cheap each item is to falsify*, and
-the first item is a measurement rather than a fix.
+**Everything above the dive log is measured. Nothing in it is predicted.** The
+history of this document is a history of confident causal claims that turned out
+to be wrong, including several of mine that survived for weeks because the
+instrument agreed with them.
+
+---
+
+## How this board is worked on
+
+These are the standing rules. They are here because every one of them was learned
+by breaking it.
+
+**The whole board is the shot.** This is a combat simulator, not a walk through
+a meadow. The vast majority of the time the camera is pulled back with all 220 by
+150 feet of ground in frame. Any optimisation that trades the wide view for the
+close one is backwards, and any optimisation whose benefit is concentrated in a
+close-up is worth almost nothing — measured, the top-down view is the *expensive*
+one and the close view is already cheap.
+
+**No level of detail, and no thinning.** There was a geometry ladder that
+coarsened plants with distance and a sown window that followed the camera. On a
+board looked at from above, both of them degrade the middle of the shot, which is
+the only place anyone is looking. There are none now: one lattice over the whole
+board, fixed at load, one geometry per species at full detail. The camera is not
+an input to placement — which is also why the grass no longer crawls across the
+map when you zoom.
+
+**Measure before diagnosing, and measure the right thing.** Every confident
+guess about this renderer has been wrong. Worse, for most of its life the
+instrument was wrong too: `gpuTimeInFrameForMainPass` times the pass that
+presents to the swap chain, and with a temporal-AA pipeline installed that pass
+is a full-screen blit. Every frame cost quoted in the first half of this document
+is the cost of that blit. **Wall clock between presents is the only honest
+number**, and 8.3 ms of it is this display's 120 Hz refresh, so anything that
+reaches 8.3 is at the cap and not at its cost.
+
+**Visual changes are reviewed by a person, not by me.** Screenshots go to the
+user and the user decides whether it looks right. A frame time that improved and
+a field that looks worse is a regression.
+
+**Nothing is called done by the person who built it.**
 
 ---
 
@@ -741,3 +778,98 @@ One more thing all nine missed: nothing checks the **camera**. A wide FOV at a
 low angle stretches the near field and flattens the far one, which is one of the
 named causes of "the render looks wrong and I cannot say why".
 
+
+
+---
+
+# Phase 4 — where the time is now, and what is left
+
+Measured after the card rebuild, wall clock between presents, 100% density.
+**8.3 ms is this display's refresh**, so a number at 8.3 is at the cap.
+
+| camera | frame | of which the meadow |
+|---|---|---|
+| whole board, top-down | 15.5 ms | **7.2** |
+| standing in the field | 12.4 ms | 4.1 |
+
+Take the meadow away at either camera and the frame sits at 8.3 — the cap. So
+the meadow is the entire controllable cost of this board, and **the top-down view
+costs nearly twice what the close one does**, which is the opposite of what every
+grass paper assumes.
+
+Per species, by taking each away:
+
+| species | plants drawn | top-down | close |
+|---|---|---|---|
+| grass | 97,739 | **3.3 ms** | 3.4 ms |
+| plantain | 35,082 | **2.5 ms** | 1.1 ms |
+| clover | 46,600 | 1.1 ms | 0.9 ms |
+| daisy | 12,456 | 1.1 ms | 0.7 ms |
+| seed | 15,204 | 0.9 ms | 0.9 ms |
+
+Plantain more than doubles from above, and it is the one species built as a flat
+rosette: five leaf cards lying almost in the ground plane, presenting their whole
+area to a camera directly overhead. Everything else stands up and is seen
+edge-on.
+
+## It is fragments, and it is not shading
+
+Three measurements, all at both cameras:
+
+- **Quarter the pixels** — 12.4/15.5 becomes 8.4/8.3. Both hit the cap. The
+  entire cost is fragments.
+- **Switch off the most expensive term in the material** (subsurface
+  translucency) — saves 0.3 ms close, 0.7 ms from above. So it is not what a
+  fragment costs to shade.
+- Therefore it is **how many fragments there are**, and since the cards are
+  mostly empty, most of them are shaded and then thrown away. Alpha testing
+  disables early-Z: a card's whole quad is rasterised and shaded before the
+  cutout discards it.
+
+## Frustum culling will not pay, and here is why
+
+It was the obvious next item and it is dead. Three independent measurements say
+the same thing:
+
+1. **Draw-indirect compaction removed 52% of instances — 434,232 slots down to
+   207,081 drawn — and the frame did not move.** 12.6/16.1/16.3/13.7 ms against
+   12.7/16.0/15.5/13.2 at four cameras. A degenerate instance produces no
+   fragments and costs very nearly nothing.
+2. **The camera where culling would remove the most is already the fastest.**
+   Standing in the field, roughly 85% of the board is off-screen — and that view
+   costs 12.4 ms against the top-down view's 15.5, where culling would remove
+   nothing at all. Off-screen plants are already free; the rasteriser clips them.
+3. **Re-sowing every frame costs 3.3 ms** on its own, so folding a frustum test
+   into the existing pass would lose more than it could ever save. A separate
+   per-frame cull pass avoids that, but per-frame compute in this engine measures
+   about 0.24 ms a dispatch — five species is 1.2 ms before any work — which was
+   found the hard way when publishing the instance count every frame cost more
+   than the instances it was removing.
+
+Culling removes instances. This board is not paying for instances.
+
+## What is left, in order of measured value
+
+1. **Fit the card to the silhouette.** Every card is the axis-aligned bounding
+   box of a scan, and a scanned grass blade fills perhaps a fifth of its box.
+   Four fifths of every grass fragment is shaded and discarded. A quad fitted to
+   the silhouette — or a six-vertex shape, which is still nothing next to 3.1M
+   triangles — removes those fragments directly and changes nothing about how
+   the field looks. This is the whole of the remaining win and it costs no
+   quality.
+2. **The plantain's rosette.** Five flat cards per plant, seen face-on from the
+   board's own camera. Fewer, larger leaves would present the same silhouette for
+   less area.
+3. **Then stop.** At 15.5 ms with 8.3 of it being the display, there is about
+   7 ms of real cost left in the whole board.
+
+## What is deliberately not being done
+
+- **A z-prepass.** It cuts overdraw, and overdraw is not measured to be the
+  problem — card *area* is. It also adds a second geometry pass.
+- **Screen-space occlusion.** Wants depth and normals in a prepass, which is the
+  same second pass by another name, and the occlusion a sward actually has is
+  neighbours shading roots, which the compute pass already knows and writes into
+  the instance colour.
+- **Level of detail and distance thinning.** See the standing rules.
+- **Frustum culling.** See above.
