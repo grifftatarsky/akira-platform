@@ -15,6 +15,16 @@ import '@babylonjs/loaders/glTF/2.0';
 import { loadFoliage } from './foliage-cards';
 import { plantScans, scatterStone } from './standing';
 
+/** A date, as a person would say it. */
+function dayLabel(day: number): string {
+  const at = new Date(Date.UTC(2026, 0, 1));
+  at.setUTCDate(day);
+  const month = at.toLocaleString('en', { month: 'short', timeZone: 'UTC' });
+  const date = at.getUTCDate();
+  const part = date <= 10 ? 'early' : date <= 20 ? 'mid' : 'late';
+  return `${part} ${month}`;
+}
+
 /** One switchable piece of the board. */
 type Part = 'meadow' | 'trees' | 'stones' | 'shadows' | 'taa' | 'relief'
   | 'sky' | 'grade' | 'bloom';
@@ -60,6 +70,12 @@ import { type Terrain, buildTerrain } from './terrain';
             [value]="density()" (input)="setDensity($any($event.target).valueAsNumber)"
             class="w-32" />
           <span class="tabular-nums">{{ density() }}%</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <span>Season</span>
+          <input type="range" min="1" max="365" step="1" [value]="day()"
+            (input)="setDay(+$any($event.target).value)" class="w-36" />
+          <span class="tabular-nums w-16">{{ dayLabel() }}</span>
         </label>
         <span class="tabular-nums text-fg-subtle">{{ status() }}</span>
         <button type="button" (click)="inspect()"
@@ -253,6 +269,34 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   ];
 
   protected readonly on = signal<Partial<Record<Part, boolean>>>({});
+
+  protected readonly day = signal(196);
+  protected readonly dayLabel = signal('mid Jul');
+
+  /**
+   * Moves the board through the year.
+   *
+   * <p>It drives three things that are really one thing: where the sun rises
+   * and how high it gets, how green the sward is, and whether anything is in
+   * flower. A map builder that can only make midsummer can only make one map.
+   */
+  protected setDay(day: number): void {
+    this.day.set(day);
+    this.dayLabel.set(dayLabel(day));
+    this.stage?.setDay(day);
+    // <b>Two curves, not one.</b> Green peaks in late spring and decays through
+    // a dry August before the frosts take it; bloom is a narrow window around
+    // midsummer and nothing outside it. A single seasonal scalar gives a field
+    // that is greenest exactly when it is most in flower, which is a month
+    // wrong in both directions.
+    const year = (day - 1) / 365;
+    const green = Math.max(0.12, Math.min(1,
+      0.5 - 0.52 * Math.cos((year - 0.04) * Math.PI * 2)));
+    const bloom = Math.max(0, Math.min(1,
+      1 - Math.abs(day - 172) / 52));
+    this.meadow?.setSeason(green, bloom);
+    this.stage?.setSeasonTint(green);
+  }
 
   /**
    * Switches one piece of the board off and leaves the rest alone.

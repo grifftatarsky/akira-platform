@@ -97,7 +97,7 @@ const SOW = `
 struct Params {
   a: vec4f,   // extentX, extentY, count, seed offset
   b: vec4f,   // tall, wide, wearMax, droop
-  c: vec4f,   // damp preference, spare, spare, spare
+  c: vec4f,   // damp preference, how green the year is, how much is in flower, spare
   d: vec4f,   // plants per cell, cells east, lattice pitch, cells north
   e: vec4f,   // my index, how many species, my share, how far I may crowd
   kinds: array<vec4f, 8>,   // per species: share, drift frequency, clumping
@@ -294,6 +294,12 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // same way every position on this board does.
   let groundN = normalize(vec3f(-slope.x, 1.0, -slope.y));
 
+  // <b>How far through the year the field is, declared here because WGSL will
+  // not read a value before it is written and the sward's height asks for it
+  // before its colour does.</b> One number: the thing that makes grass yellow
+  // is the same thing that stops it growing.
+  let green = params.c.y;
+
   // Worn ground has less on it, and each species gives up at its own point —
   // plantain lives on a trodden verge where meadow grass has already gone.
   var alive = 1.0 - smoothstep(params.b.z - 0.2, params.b.z, wear);
@@ -339,6 +345,14 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // room to thicken rather than only thin; the surplus is culled back out here.
   let relative = select(0.0, (mine / total) / share, total > 0.0);
   alive *= step(rand(seed + 9u), clamp(relative, 0.0, crowd) / crowd);
+  // <b>Flowers keep their own calendar.</b> An oxeye daisy is out for about six
+  // weeks and absent the rest of the year, and a field that has daisies in
+  // March is a field nobody believes. Grass does not do this — it goes brown,
+  // it does not go away — so only the species that carry a bloom are asked.
+  alive *= mix(1.0, params.c.z, params.b.w);
+  // And the sward is shorter out of season, which is most of what a mown or a
+  // frosted field looks like from above.
+  alive *= 0.72 + 0.28 * green;
   if (alive < 0.02) {
     return;
   }
@@ -484,10 +498,19 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // one scalar per clump was giving and what made the whole board read as one
   // green under uneven light.
   let vigour = driftAt(where2, u32(params.e.x));
+  // <b>And the year on top of the drift.</b> A meadow is not one colour in
+  // July and another in October — it is the same mosaic with the whole of it
+  // moved along an axis, green and blue in the spring flush, yellow and dry by
+  // the end of the summer, and grey-fawn once it has been frosted. The drift
+  // decides which stand is ahead of which; the season decides where they all
+  // are. One number, because they are not independent: the thing that makes
+  // grass yellow is the same thing that stops it growing.
   let lift = 0.84 + 0.26 * clumpTone + 0.12 * drift + 0.08 * rand(seed + 7u)
-    + 0.10 * (vigour - 0.5);
-  let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u) - 0.30 * (vigour - 0.5);
-  let deep = 0.90 + 0.22 * rand(clumpSeed + 22u) + 0.26 * (vigour - 0.5);
+    + 0.10 * (vigour - 0.5) - 0.16 * (1.0 - green);
+  let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u) - 0.30 * (vigour - 0.5)
+    + 0.46 * (1.0 - green);
+  let deep = 0.90 + 0.22 * rand(clumpSeed + 22u) + 0.26 * (vigour - 0.5)
+    - 0.30 * (1.0 - green);
   tints[at / 4u] = vec4f(
     lift * yellow, lift * deep, lift * (0.80 + 0.24 * drift), enclosed);
 }
@@ -510,6 +533,11 @@ export interface Meadow {
   readonly sown: readonly Sown[];
   /** How many plants are drawn, as a fraction of the buffers. */
   setDensity(fraction: number): void;
+  /**
+   * Where in the year the field is: how green it is, and how much of it is in
+   * flower.
+   */
+  setSeason(green: number, bloom: number): void;
   /** Moves the wind. Cheap: one uniform, no dispatch. */
   step(seconds: number): void;
   /** Whether the last sowing actually ran. */
@@ -798,6 +826,8 @@ export function sowMeadow(
 
   let ran = false;
   let density = 0.5;
+  let green = 1;
+  let bloom = 1;
 
 
   const sow = (): void => {
@@ -824,9 +854,13 @@ export function sowMeadow(
         'a', field.extentXHalfFeet, field.extentYHalfFeet, count, bed.offset,
       );
       bed.params.updateFloat4(
-        'b', 1, 1, bed.sown.plant.wearMax, bed.sown.plant.droop,
+        'b', 1, 1, bed.sown.plant.wearMax,
+        // Whether this species answers to the flowering season at all.
+        bed.sown.plant.blooms ? 1 : 0,
       );
-      bed.params.updateFloat4('c', bed.sown.plant.damp, 0, 0, 0);
+      bed.params.updateFloat4(
+        'c', bed.sown.plant.damp, green, bloom, 0,
+      );
       bed.params.updateFloat4('d', slots, eastCells, pitch, northCells);
       bed.params.updateFloat4(
         'e', bed.kind, plants.length, bed.sown.plant.share / total,
@@ -844,6 +878,11 @@ export function sowMeadow(
     sown: beds.map(bed => bed.sown),
     plants: MAX_PLANTS,
     get ran(): boolean { return ran; },
+    setSeason(howGreen: number, howBloomed: number): void {
+      green = Math.max(0, Math.min(1, howGreen));
+      bloom = Math.max(0, Math.min(1, howBloomed));
+      sow();
+    },
     setDensity(fraction: number): void {
       density = Math.max(0, Math.min(1, fraction));
       // Re-sows. The compute pass writes exactly `count` matrices and the rest

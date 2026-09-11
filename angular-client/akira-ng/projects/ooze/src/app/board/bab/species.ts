@@ -116,6 +116,14 @@ export interface Plant {
   readonly tip: readonly [number, number, number];
   /** Ray florets, where there are any. */
   readonly bloom: readonly [number, number, number];
+  /**
+   * Whether this species keeps a flowering calendar.
+   *
+   * <p>An oxeye daisy is out for about six weeks and absent the rest of the
+   * year; grass goes brown but does not go away. So only what carries a bloom
+   * is asked about the season, and the sward stays a sward in March.
+   */
+  readonly blooms: boolean;
 
   /** Veins across the leaf, and how far they sweep toward the tip. */
   readonly veins: number;
@@ -196,6 +204,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
     // A spray of three blades in one scan, with a single blade crossing it.
     // Two cards rather than five: the scan already has the blades in it, and a
+    blooms: false,
     patch: 0.012, clumping: 1.0, crowd: 1.0,
     // card carrying three costs what one does.
     cards: [
@@ -221,6 +230,7 @@ export const MEADOW: readonly Plant[] = [
     base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.55, 0.47, 0.47],
     veins: 0, sweep: 0,
     // Rank grass standing above the sward: two long blades and a spray leaning
+    blooms: false,
     patch: 0.022, clumping: 3.0, crowd: 2.4,
     // out of them, on a stalk.
     cards: [
@@ -246,6 +256,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
     // <b>One card is the whole plant.</b> The scan is a trefoil on its own
     // stem, which is the entire thing a clover is, and the seventy-six
+    blooms: false,
     patch: 0.017, clumping: 2.0, crowd: 1.3,
     // triangles it replaces were three modelled leaflets trying to say it.
     cards: [
@@ -270,6 +281,7 @@ export const MEADOW: readonly Plant[] = [
     base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
     veins: 5, sweep: 0.1,
     // A rosette pressed almost flat, which is how a plantain survives being
+    blooms: false,
     patch: 0.024, clumping: 2.0, crowd: 1.3,
     // walked on and why it is the plant on the path rather than beside it.
     cards: [
@@ -292,6 +304,7 @@ export const MEADOW: readonly Plant[] = [
     base: [0.16, 0.30, 0.10], tip: [0.30, 0.46, 0.16], bloom: [0.95, 0.94, 0.88],
     veins: 0, sweep: 0,
     // A head on a stalk over a basal rosette. The head lies flat: this board's
+    blooms: true,
     patch: 0.03, clumping: 4.0, crowd: 3.0,
     // camera looks down at it, and an oxeye daisy holds its face to the sky.
     cards: [

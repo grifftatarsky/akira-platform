@@ -120,6 +120,8 @@ export class Stage {
    */
   private readonly taa: TAARenderingPipeline;
   private bloom: DefaultRenderingPipeline | null = null;
+  private day = 196;
+  private hour = 13;
 
   private constructor(
     readonly engine: WebGPUEngine,
@@ -454,12 +456,25 @@ export class Stage {
    * settle on. One number in, a whole time of day out — which is the reason
    * that file survived the port unchanged.
    */
+  /**
+   * Moves the board through the year.
+   *
+   * <p>Only the sun's own arithmetic lives here: where it rises, how high it
+   * gets at noon, how long the day is. What the field does about it is the
+   * meadow's business.
+   */
+  setDay(day: number): void {
+    this.day = Math.max(1, Math.min(365, Math.round(day)));
+    this.setClock(this.hour);
+  }
+
   setClock(hour: number): void {
+    this.hour = hour;
     if (this.indoor) {
       return;
     }
     const { elevation, azimuth } = sunPosition(
-      hour, this.look.latitude ?? 37.5, this.look.dayOfYear ?? 196,
+      hour, this.look.latitude ?? 37.5, this.day,
     );
     const flat = Math.cos(elevation * RAD);
     // Board axes: x east, y north, z up. Bearings run clockwise from north.
@@ -611,6 +626,32 @@ export class Stage {
   setBloom(on: boolean): void {
     if (this.bloom) {
       this.bloom.bloomEnabled = on;
+    }
+  }
+
+  /**
+   * Moves everything that is not the sward along with the year.
+   *
+   * <p>The meadow browns itself in its own compute pass, and a board where only
+   * the grass knows what month it is looks worse than one where nothing does:
+   * green blades over summer-green ground under summer-green trees, all
+   * disagreeing. The ground and the scanned plants are photographs and cannot
+   * be re-shot, so they are tinted — a fawn multiply, which is what a dry
+   * season does to everything anyway.
+   */
+  setSeasonTint(green: number): void {
+    const dry = 1 - Math.max(0, Math.min(1, green));
+    const tint = new Color3(
+      1 + dry * 0.10, 1 - dry * 0.10, 1 - dry * 0.34,
+    );
+    for (const mesh of this.scene.meshes) {
+      if (!/^ground-|^scan-/.test(mesh.name)) {
+        continue;
+      }
+      const material = mesh.material as unknown as { albedoColor?: Color3 } | null;
+      if (material?.albedoColor) {
+        material.albedoColor = tint;
+      }
     }
   }
 
