@@ -75,6 +75,8 @@ These are not open questions. Each was tried and each has a number.
 | **Per-frame compute** | **~0.24 ms a dispatch** | Five species is 1.2 ms before doing any work. Batch or do not dispatch. |
 | **Fitting cards to the silhouette** | neutral | Kept — it is free and honest — but discarded fragments are cheap, because the cutout runs before the lighting. |
 | **Level of detail, thinning** | — | See the rules. |
+| **Volumetric light scattering** | **+7.2 ms** | Looked like the exception — it renders occluders into a fifth-resolution buffer, not the whole scene. It is not: installed and drawing nothing at noon, the frame went 15.7 to 22.9. It also floods white rather than throwing shafts, because the sky box is not an object for rays to come from. |
+| **A cheaper meadow material** | ceiling **2.0 ms** | Unlit is only 2.0 ms below the real thing now that image-based lighting and fog are gone; those were the gap the old 3 ms estimate measured. None of PBR's own cheap switches move it either. |
 
 **The pattern:** anything that adds a second pass over the meadow loses, and
 anything that removes instances gains nothing. What this board pays for is
@@ -86,15 +88,14 @@ Worth revisiting, and why they failed before:
 
 - **Bloom and the default pipeline.** Never tried. A low sun over a field wants
   it, and it is post-process cost on a board with 4 ms spare.
-- **Volumetric light scattering.** `volumetricLightScatteringPostProcess` ships
-  with Babylon. It renders occluders into a small buffer rather than a full
-  prepass, so the objection above may not apply — it needs measuring, not
-  assuming.
-- **A cheaper meadow material.** The one idea that attacks the measured cost
-  directly. The meadow runs full PBR; it needs the sun, one bounce, a
-  hemisphere, a cutout and translucency, and nothing else. Unlit costs 2.78 ms
-  against 7.26 — so a purpose-built material has roughly 3 ms in it, and the
-  risk is entirely to how it looks.
+- ~~**A cheaper meadow material.**~~ **Re-measured and no longer worth it.** The
+  3 ms this claimed came from unlit costing 2.78 against 7.26 — and that gap was
+  image-based lighting and fog, both of which have since been removed. Measured
+  again with them gone: the meadow costs 4.7 ms and *unlit* costs 2.0 less, so
+  2.0 ms is the absolute ceiling and a material that still lights anything would
+  see less. None of PBR's own cheaper switches move it either — energy
+  conservation, the correlated visibility term, physical light falloff,
+  translucency and the specular highlight together measured inside the noise.
 - **Alpha-to-coverage** (`engine.alphaToCoverage` is a deep import, like the
   multi-render one that blocked SSAO for weeks). Would let the cards blend at
   their edges without sorting. Unmeasured.
@@ -121,7 +122,8 @@ Worth revisiting, and why they failed before:
 
 5. **A cheaper meadow material.** ~3 ms, and the only remaining item with a real
    number behind it.
-6. **Bloom**, measured. Then volumetric scattering, measured.
+6. ~~**Bloom**~~ — done, 1.2 ms at a quarter resolution, on its own switch.
+   Volumetric scattering measured and refused; see the table.
 7. **A detail normal on the terrain.** The macro normal bake covers low
    frequency — ruts and clods — at 4 texels per half-foot. Up close the ground
    is still smooth. Babylon's `detailMap` blends a tiled normal over the bump

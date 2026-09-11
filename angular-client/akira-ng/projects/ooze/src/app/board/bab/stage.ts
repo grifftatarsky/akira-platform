@@ -347,6 +347,21 @@ export class Stage {
       // the same blur — at half it measured 1.8 ms, which is more than the sun
       // costs, for an effect that only appears at dusk.
       this.bloom.bloomScale = 0.25;
+
+      // <b>No god rays, and they were tried.</b> Every screen-space effect
+      // refused on this board was refused for needing the scene rendered a
+      // second time, and this one looked like the exception: it renders
+      // *occluders* into a fifth-resolution buffer with a black material, not
+      // the whole scene. It is not the exception. Installed and doing nothing —
+      // noon, sun off screen — the frame went from 15.7 ms to 22.9. The pass
+      // runs whatever the sun is doing.
+      //
+      // <p>And it did not look right either. With the sky box as the light's
+      // stand-in the whole frame floods white rather than throwing shafts,
+      // because the occluder is the thing the rays are supposed to come *from*
+      // and the sky is not an object. Making it work would want a small bright
+      // quad at the sun's position, which is another mesh and another 7 ms
+      // question.
     }
 
     const image = this.scene.imageProcessingConfiguration;
