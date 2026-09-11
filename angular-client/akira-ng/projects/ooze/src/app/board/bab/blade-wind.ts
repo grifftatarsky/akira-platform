@@ -37,6 +37,33 @@ export class BladeWind extends MaterialPluginBase {
   tip: [number, number, number] = [1.2, 1.18, 0.98];
   floor = 0.28;
 
+  /**
+   * How far the shading normal is pulled onto the ground's own normal.
+   *
+   * <p>One for a blade of grass, which is what Breath of the Wild does — it
+   * copies the terrain's normal outright, and a field shaded that way reads as
+   * one surface with texture on it rather than as ten thousand separately lit
+   * slivers. Less for anything with a real leaf, because a clover leaflet *is*
+   * a surface and should be allowed to catch the light as one.
+   *
+   * <p>It also has to stay above about 0.6. Below that a leaf whose own normal
+   * points at the ground can still drag the blend under the horizon, and a
+   * normal under the horizon takes the hemispheric light's brown, which is the
+   * black that has been eating this field since the beginning.
+   */
+  ground = 0.8;
+
+  /**
+   * How far the tip reaches sideways under the plant's own weight, in the
+   * plant's own units.
+   *
+   * <p>This was a tilt of the whole instance matrix. It is a bend now, for two
+   * reasons: a stem bends along its length rather than hinging at its root, and
+   * a tilted matrix no longer has the ground's normal in its up column — which
+   * is the thing {@link ground} needs it to have.
+   */
+  droop = 0;
+
   constructor(material: Material) {
     super(material, 'BladeWind', 200, { BLADE_WIND: true });
     this._enable(true);
@@ -67,6 +94,7 @@ export class BladeWind extends MaterialPluginBase {
       ubo: [
         { name: 'bladeWind', size: 4, type: 'vec4' },
         { name: 'bladeTip', size: 4, type: 'vec4' },
+        { name: 'bladeGround', size: 4, type: 'vec4' },
       ],
     };
   }
@@ -78,6 +106,7 @@ export class BladeWind extends MaterialPluginBase {
     uniformBuffer.updateFloat4(
       'bladeTip', this.tip[0], this.tip[1], this.tip[2], this.floor,
     );
+    uniformBuffer.updateFloat4('bladeGround', this.ground, this.droop, 0, 0);
   }
 
   override getCustomCode(
@@ -136,11 +165,31 @@ export class BladeWind extends MaterialPluginBase {
           // leaflets carry their own direction in their local coordinates, and
           // overwriting Y folds them flat into the stem. Pushing downwind and
           // shortening by the same curve bends a blade and a leaflet alike.
+          // <b>The plant's own droop, in its own facing direction.</b> The
+          // wind bends it downwind; this bends it the way it happens to be
+          // leaning, which is what stops a field looking combed. Squared along
+          // the length, because a stem bends most where it is thinnest.
+          //
+          // <p>The dice is a stable hash of where this plant is rooted, so one
+          // plant droops the same amount every frame and its neighbour does
+          // not. Hashed from the world position rather than an index because
+          // the vertex stage has no index, and from nothing that changes with
+          // the frame or the field would boil.
+          let root2 = floor(vertexInputs.world3.xz * 8.0);
+          var hashed = (u32(abs(root2.x) + 4096.0) * 73856093u)
+            ^ (u32(abs(root2.y) + 4096.0) * 19349663u);
+          hashed ^= hashed >> 13u;
+          hashed *= 0x5bd1e995u;
+          hashed ^= hashed >> 15u;
+          let dice = f32(hashed & 0xffffffu) / 16777216.0;
+          let bend = uniforms.bladeGround.y * (0.35 + 0.65 * dice)
+            * positionUpdated.y * bladeAlong;
+
           let sink = 1.0 - over * over * 0.18 * bladeAlong;
           positionUpdated = vec3f(
             positionUpdated.x + curve.x * dot(downwind, sideways),
-            positionUpdated.y * sink,
-            positionUpdated.z + curve.x * dot(downwind, facing));
+            positionUpdated.y * sink * (1.0 - 0.16 * bend * bend),
+            positionUpdated.z + curve.x * dot(downwind, facing) + bend);
         }
       `,
 
@@ -150,18 +199,37 @@ export class BladeWind extends MaterialPluginBase {
       // difference between a field and a green carpet.
       CUSTOM_VERTEX_MAIN_END: `
         {
-          // <b>Hold the world normal above the horizon.</b> The geometry's own
-          // normals are already lifted, but that is done in the plant's local
-          // space and the instance matrix then leans the whole plant by up to
-          // a quarter turn — which carries a normal set twenty degrees up to
-          // several degrees down. A normal pointing at the ground takes the
-          // hemispheric light's ground colour, a dark brown that reads as
-          // black, and it does so whether the sun is up or not.
+          // <b>Shade by the ground, not by the leaf.</b>
           //
-          // <p>Clamping here rather than in the geometry is the only place it
-          // is exact, because here the lean has already happened.
-          var lit = vertexOutputs.vNormalW;
-          lit.y = max(lit.y, 0.22);
+          // <p>What was here was a clamp: hold the world normal above the
+          // horizon, because a normal pointing at the ground takes the
+          // hemispheric light's brown and reads as black. It worked and it was
+          // a symptom's treatment — the normals it was rescuing are authored
+          // fiction, fanned across each leaf and floored in the geometry, and
+          // no clamp makes fiction true.
+          //
+          // <p>The ground's normal is not fiction. It is carried per instance
+          // from the compute pass, it cannot point below the horizon on a
+          // heightfield, and blending onto it is what makes a field read as one
+          // lit surface instead of ten thousand separately lit slivers.
+          // <b>Straight out of the instance matrix.</b> The compute pass builds
+          // each plant's frame on the ground's normal and no longer tilts it,
+          // so the up column *is* that normal, scaled by the plant's height.
+          // Which means this costs nothing to carry — no extra attribute, no
+          // extra buffer, no name to keep in step between two files.
+          let carried = vertexInputs.world1.xyz;
+          // Guard the length: a culled instance writes a zero matrix, and
+          // normalising a zero vector is NaN — which spreads through the whole
+          // lighting term rather than making one plant look wrong.
+          let ground = select(
+            vec3f(0.0, 1.0, 0.0), normalize(carried), dot(carried, carried) > 0.0001);
+          let leafN = normalize(vertexOutputs.vNormalW);
+          var lit = normalize(mix(leafN, ground, uniforms.bladeGround.x));
+          // A backstop, an order of magnitude gentler than the clamp it
+          // replaces. At any sane blend the ground already holds the normal up;
+          // this only catches a leaf standing on ground steep enough to lean
+          // past it.
+          lit.y = max(lit.y, 0.08);
           vertexOutputs.vNormalW = normalize(lit);
         }
         {

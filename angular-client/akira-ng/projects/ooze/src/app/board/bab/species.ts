@@ -87,6 +87,18 @@ export interface Plant {
   readonly veins: number;
   readonly sweep: number;
 
+  /**
+   * How much of this plant's shading comes from the ground's normal rather than
+   * its own surface.
+   *
+   * <p>Near one for a blade of grass, which has no surface worth lighting and
+   * every reason to agree with the field around it; lower for a clover, whose
+   * leaflets are broad enough to read as surfaces and should catch the sun as
+   * ones. Must stay above about 0.6 or a leaf facing down can still drag the
+   * blended normal under the horizon.
+   */
+  readonly lit: number;
+
   /** Will not grow where the ground is more worn than this. 0 lush, 1 bare. */
   readonly wearMax: number;
   /** Prefers damp (1), dry (-1), or does not mind (0). */
@@ -108,7 +120,7 @@ export const MEADOW: readonly Plant[] = [
     droop: 0.42, stiff: 1,
     base: [0.13, 0.30, 0.08], tip: [0.44, 0.63, 0.21], bloom: [0, 0, 0],
     veins: 0, sweep: 0,
-    wearMax: 0.62, damp: 0,
+    lit: 0.9, wearMax: 0.62, damp: 0,
   },
   {
     id: 'seed',
@@ -123,7 +135,7 @@ export const MEADOW: readonly Plant[] = [
     droop: 0.8, stiff: 1.5,
     base: [0.20, 0.30, 0.10], tip: [0.62, 0.56, 0.38], bloom: [0.74, 0.66, 0.56],
     veins: 0, sweep: 0,
-    wearMax: 0.45, damp: 0,
+    lit: 0.86, wearMax: 0.45, damp: 0,
   },
   {
     id: 'clover',
@@ -139,7 +151,7 @@ export const MEADOW: readonly Plant[] = [
     droop: 0.12, stiff: 0.35,
     base: [0.10, 0.26, 0.09], tip: [0.26, 0.50, 0.19], bloom: [0, 0, 0],
     veins: 0, sweep: 0,
-    wearMax: 0.78, damp: 0.5,
+    lit: 0.64, wearMax: 0.78, damp: 0.5,
   },
   {
     id: 'plantain',
@@ -154,7 +166,7 @@ export const MEADOW: readonly Plant[] = [
     droop: 0.28, stiff: 0.3,
     base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
     veins: 5, sweep: 0.1,
-    wearMax: 0.92, damp: -0.3,
+    lit: 0.68, wearMax: 0.92, damp: -0.3,
   },
   {
     id: 'daisy',
@@ -169,7 +181,7 @@ export const MEADOW: readonly Plant[] = [
     droop: 0.22, stiff: 0.8,
     base: [0.16, 0.30, 0.10], tip: [0.30, 0.46, 0.16], bloom: [0.95, 0.94, 0.88],
     veins: 0, sweep: 0,
-    wearMax: 0.5, damp: 0,
+    lit: 0.72, wearMax: 0.5, damp: 0,
   },
 ];
 
@@ -191,9 +203,22 @@ interface Build {
 
 type Vec = readonly [number, number, number];
 
-/** How hard a leaf's normal is held above the horizon, and its hard floor. */
-const LEAF_LIFT = 0.42;
-const LEAF_FLOOR = 0.3;
+/**
+ * How hard a leaf's normal is tilted toward the sky, and its hard floor.
+ *
+ * <p><b>Both much gentler than they were</b> — 0.42 and 0.30 before. They were
+ * that strong because this was the only thing standing between a downward leaf
+ * normal and the hemispheric light's brown, and holding every normal up that
+ * hard is why a clover leaf and a grass blade shaded almost identically: the
+ * lift swamped the shape.
+ *
+ * <p>The ground's own normal does that job now, carried per instance and
+ * blended in the vertex shader, so what is left here is only the part that was
+ * ever legitimate: a leaf is thin and scatters from both faces, so erring
+ * slightly skyward errs the way the real thing does.
+ */
+const LEAF_LIFT = 0.18;
+const LEAF_FLOOR = 0.02;
 
 /**
  * One plant, at true size in half-feet, rooted at the origin.

@@ -9,7 +9,13 @@ import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
+import { ReflectionProbe } from '@babylonjs/core/Probes/reflectionProbe';
 import { Scene } from '@babylonjs/core/scene';
+// <b>Side effects, both of them.</b> `forceSphericalPolynomialsRecompute` is
+// patched onto `BaseTexture` by a separate module, and a probe that renders a
+// new sky without it hands the PBR materials the *first* sky's irradiance
+// forever — the specular moves with the sun and the diffuse does not.
+import '@babylonjs/core/Materials/Textures/baseTexture.polynomial';
 import { SkyMaterial } from '@babylonjs/materials/sky/skyMaterial';
 import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 import type { BoardLook } from '../board-assets';
@@ -60,6 +66,25 @@ export class Stage {
   private readonly sky: SkyMaterial;
   private readonly skyBox: Mesh;
   private environment: HDRCubeTexture | null = null;
+  /**
+   * The sky, captured as the thing that lights the scene.
+   *
+   * <p>There were three separate opinions about what colour the sky was: this
+   * `SkyMaterial`, which is a real atmosphere driven by turbidity and moves
+   * correctly with the sun; a `HemisphericLight` with a hardcoded blue over a
+   * hardcoded brown, hand-lerped toward orange by a dusk curve written to
+   * imitate what the atmosphere was already computing; and an HDR photograph of
+   * somebody else's sky at somebody else's time of day. The grass was lit by the
+   * second and third while standing under the first, which is why no amount of
+   * retuning the dusk curve ever made evening look right.
+   *
+   * <p>One opinion now. The probe renders the sky box into a cube map whenever
+   * the clock moves, and that cube map is the scene's environment — so the
+   * ambient light, the sky's own colour and the fog all come from the same
+   * atmosphere. Babylon computes IBL irradiance in the vertex shader and
+   * interpolates it, so this is cheaper per fragment than the light it replaces.
+   */
+  private readonly skyProbe: ReflectionProbe;
 
   private constructor(
     readonly engine: WebGPUEngine,
@@ -151,6 +176,34 @@ export class Stage {
     this.skyBox.infiniteDistance = true;
     this.skyBox.setEnabled(!indoor);
 
+    // 128 a face, float, linear. Float because a sky has a sun in it and the
+    // sun is far brighter than white — clamped to eight bits the whole dome
+    // flattens to one pale blue and the light it casts loses its direction.
+    // Linear because everything downstream of it is.
+    this.skyProbe = new ReflectionProbe('sky-probe', 128, this.scene, true, true, true);
+    this.skyProbe.renderList?.push(this.skyBox);
+    // Rendered on demand rather than every frame: the sky only changes when the
+    // clock does, and `setClock` asks for it then.
+    this.skyProbe.refreshRate = 0;
+    if (!indoor) {
+      this.scene.environmentTexture = this.skyProbe.cubeTexture;
+      // <b>A quarter, not all of it.</b> Direct sun is roughly a hundred
+      // thousand lux and the sky's own diffuse contribution roughly twenty, so
+      // a sky lighting a field at full strength is four or five times its real
+      // share — and it shows, because light arriving from every direction at
+      // once has no shape. At 1.0 the meadow went pale mint and lost its
+      // contrast; at a quarter it is deep green with the hill's form still in
+      // it, which is both the better picture and the more nearly correct one.
+      this.scene.environmentIntensity = 0.25;
+      // The hemisphere is a fill under the sky now, not a stand-in for it. Low
+      // and neutral: what it is still good for is keeping the underside of a
+      // sward off zero, which an environment map alone does not do because the
+      // grass does not occlude itself in it.
+      this.ambient.intensity = 0.18;
+      this.ambient.diffuse = new Color3(0.55, 0.6, 0.68);
+      this.ambient.groundColor = new Color3(0.3, 0.29, 0.26);
+    }
+
     // <b>Aerial perspective, which the board had none of.</b> The far end of a
     // two-hundred-foot field is not the same colour as the near end, and fog is
     // the cheapest depth cue in real-time rendering — one exponential and a
@@ -221,6 +274,12 @@ export class Stage {
    * photograph, so the board is lit by the sky it is standing under.
    */
   private loadEnvironment(url: string): void {
+    // <b>Outdoors this is not used.</b> The sky probe is the environment there,
+    // because a photograph of one sky cannot agree with an atmosphere that
+    // moves. It stays for the indoor boards, which have no sky to capture.
+    if (!this.indoor) {
+      return;
+    }
     const resolved = assetUrl(url);
     this.environment = new HDRCubeTexture(resolved, this.scene, 128);
     this.scene.environmentTexture = this.environment;
@@ -285,17 +344,20 @@ export class Stage {
     this.sky.luminance = 1 - 0.4 * dusk;
     this.sky.mieDirectionalG = 0.8 - 0.1 * dusk;
 
-    // The ambient stands in for the whole sky, so it cannot stay the same cool
-    // blue all evening — at six the sky over a field *is* the warm half of the
-    // light, and a blue fill under an orange sun is what made the grass read
-    // as midday green at half past five.
-    this.ambient.diffuse = Color3.Lerp(
-      new Color3(0.62, 0.72, 0.9), new Color3(0.55, 0.42, 0.36), dusk,
-    );
-    this.ambient.groundColor = Color3.Lerp(
-      new Color3(0.28, 0.26, 0.2), new Color3(0.16, 0.12, 0.1), dusk,
-    );
-    this.ambient.intensity = (0.3 + 0.45 * Math.max(0, up)) * (1 - 0.5 * dusk);
+    // <b>The sky is re-captured, and the ambient is not hand-lerped any more.</b>
+    // Whatever the atmosphere above now looks like is what lights the field:
+    // warm at dusk because the sky is warm at dusk, without a curve here
+    // guessing at it. The polynomial recompute is the load-bearing half — the
+    // cube map's own pixels update on their own, and the diffuse irradiance
+    // derived from them does not unless it is asked.
+    this.skyProbe.cubeTexture.resetRefreshCounter();
+    this.scene.onAfterRenderObservable.addOnce(() => {
+      this.skyProbe.cubeTexture.forceSphericalPolynomialsRecompute();
+    });
+    // All that is left of the hemisphere is a small neutral fill that keeps the
+    // bottom of a sward off zero. It dims with the sun and does not change hue,
+    // because the hue is the sky's job.
+    this.ambient.intensity = 0.1 + 0.12 * Math.max(0, up);
 
     // <b>Adaptation, but only part of it.</b> `eyeExposure` returns the full
     // ratio an eye would settle on — about 2.7x at half past five — and
@@ -331,6 +393,7 @@ export class Stage {
 
   dispose(): void {
     this.engine.stopRenderLoop();
+    this.skyProbe.dispose();
     this.environment?.dispose();
     this.skyBox.dispose();
     this.sky.dispose();

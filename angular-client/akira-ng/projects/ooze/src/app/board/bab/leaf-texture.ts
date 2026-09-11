@@ -33,6 +33,9 @@ uniform base: vec4f;      // rgb, and where the leaf band ends
 uniform tip: vec4f;       // rgb, and how hard the vein pattern reads
 uniform bloom: vec4f;     // rgb of the ray florets, and where they start
 uniform ribs: vec4f;      // vein count, sweep, mottle, dryness
+// Nought bakes the leaf's colour; one bakes its thickness into every channel.
+// One shader for both so the two can never disagree about where a vein is.
+uniform bakeThickness: f32;
 
 fn hash2(p: vec2f) -> f32 {
   let q = fract(p * vec2f(0.1031, 0.1030));
@@ -97,13 +100,35 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let thickness = clamp(
     0.22 + 0.7 * (1.0 - fromRib) * (1.0 - up * 0.55) + rib * 0.25, 0.0, 1.0);
 
-  fragmentOutputs.color = vec4f(colour, thickness);
+  // <b>Thickness goes out as a colour when asked for.</b> Babylon's subsurface
+  // reads thickness from a texture's *red* channel, remapped between the
+  // material's minimum and maximum — it cannot read it out of an albedo map's
+  // alpha, which is where this used to put it and where nothing ever read it.
+  // Baking it from this same shader rather than a second one is what guarantees
+  // the thickness agrees with the colour about where the rib is.
+  // A select rather than an early return: Babylon wraps this body, so a bare
+  // return here is "returned 'void', expected 'FragmentOutputs'".
+  fragmentOutputs.color = select(
+    vec4f(colour, thickness),
+    vec4f(thickness, thickness, thickness, 1.0),
+    uniforms.bakeThickness > 0.5);
 }
 `;
 
 /** Texels across a leaf and along it. Small: it is looked at from ten feet. */
 const WIDE = 128;
 const LONG = 256;
+
+/**
+ * And smaller again for thickness.
+ *
+ * <p>Thickness is a smooth function of where you are on the leaf — near the rib
+ * or near the edge, near the root or near the tip — with none of the mottle or
+ * vein detail that makes the colour map want resolution. A quarter of the size
+ * in each direction is indistinguishable and costs a sixteenth of the memory.
+ */
+const THICK_WIDE = 32;
+const THICK_LONG = 64;
 
 /**
  * Bakes one plant's leaf surface.
@@ -113,18 +138,7 @@ const LONG = 256;
  * outside one is never submitted.
  */
 export function leafTexture(plant: Plant, scene: Scene): ProceduralTexture {
-  const texture = new ProceduralTexture(
-    `leaf-${plant.id}`, { width: WIDE, height: LONG },
-    { fragmentSource: LEAF }, scene,
-    { shaderLanguage: ShaderLanguage.WGSL, generateMipMaps: true },
-  );
-  texture.refreshRate = 0;
-  // <b>The alpha is data, not opacity.</b> Left flagged as alpha, Babylon takes
-  // the material into its transparent path: blended, depth-sorted and drawn
-  // back to front, which on six hundred thousand plants is both wrong to look
-  // at and enormously more expensive — 29 ms against 8. It is thickness for
-  // the translucency to read, and nothing else.
-  texture.hasAlpha = false;
+  const texture = bake(plant, scene, `leaf-${plant.id}`, WIDE, LONG, 0);
   // <b>These are linear albedo, not picked colours.</b> Babylon assumes every
   // colour texture is gamma-encoded and puts it through sRGB-to-linear in the
   // PBR shader, and the shader above writes the species table straight out —
@@ -139,6 +153,47 @@ export function leafTexture(plant: Plant, scene: Scene): ProceduralTexture {
   // signature, and it is there with the sun off and every normal pointing at
   // the sky.
   texture.gammaSpace = false;
+  return texture;
+}
+
+/**
+ * The same leaf's thickness, where the material's translucency can read it.
+ *
+ * <p>Thin at the edge and the tip where light comes straight through, thick
+ * along the rib where it does not. Without it every leaf is uniformly
+ * translucent, which is the same as none of them being translucent: the effect
+ * lives entirely in the variation.
+ */
+export function leafThickness(plant: Plant, scene: Scene): ProceduralTexture {
+  const texture = bake(plant, scene, `thick-${plant.id}`, THICK_WIDE, THICK_LONG, 1);
+  // Data, not colour. Flagged gamma it would be run through sRGB-to-linear and
+  // every leaf would read as thinner than it is, most of all near the edges.
+  texture.gammaSpace = false;
+  return texture;
+}
+
+/**
+ * Bakes one plant's surface.
+ *
+ * <p>Rendered by the scene on its next frame rather than by an explicit call:
+ * on WebGPU the commands go into a frame's encoder, so a render started
+ * outside one is never submitted.
+ */
+function bake(
+  plant: Plant, scene: Scene, name: string,
+  wide: number, long: number, thickness: number,
+): ProceduralTexture {
+  const texture = new ProceduralTexture(
+    name, { width: wide, height: long },
+    { fragmentSource: LEAF }, scene,
+    { shaderLanguage: ShaderLanguage.WGSL, generateMipMaps: true },
+  );
+  texture.refreshRate = 0;
+  // <b>The alpha is data, not opacity.</b> Left flagged as alpha, Babylon takes
+  // the material into its transparent path: blended, depth-sorted and drawn
+  // back to front, which on six hundred thousand plants is both wrong to look
+  // at and enormously more expensive — 29 ms against 8.
+  texture.hasAlpha = false;
   texture.wrapU = Texture.CLAMP_ADDRESSMODE;
   texture.wrapV = Texture.CLAMP_ADDRESSMODE;
 
@@ -154,5 +209,6 @@ export function leafTexture(plant: Plant, scene: Scene): ProceduralTexture {
   texture.setVector4('ribs', new Vector4(
     plant.veins, plant.sweep, 0.17, plant.id === 'grass' ? 0.5 : 0.28,
   ));
+  texture.setFloat('bakeThickness', thickness);
   return texture;
 }

@@ -14,7 +14,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
-import { leafTexture } from './leaf-texture';
+import { leafTexture, leafThickness } from './leaf-texture';
 import { type Plant, MEADOW, plantGeometry } from './species';
 import { fieldTexture } from './splat-bake';
 
@@ -59,6 +59,7 @@ const CELLS_ACROSS = 96;
 
 /** Half-feet across a clump. About a stride. */
 const CLUMP = 11;
+
 
 const SOW = `
 struct Params {
@@ -176,6 +177,31 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let hTexel = vec2i(clamp(where2 / extent, vec2f(0.0), vec2f(1.0)) * (hSize - 1.0));
   let ground_z = textureLoad(heights, hTexel, 0).r;
 
+  // <b>The ground's own normal, sampled a texel either side.</b>
+  //
+  // <p>Not computed analytically: the height field is what the terrain mesh was
+  // built from, so reading it the same way is the only thing that guarantees a
+  // plant agrees with the ground it is standing on.
+  //
+  // <p>This is the normal the plant is shaded by, which is the part that
+  // matters. Breath of the Wild copies the terrain's normal straight onto its
+  // grass, and Black Ops 4 rotates blade normals by it and falls back to pure
+  // terrain normals at distance — two teams arriving there separately. What it
+  // replaces here is a hand-tuned fan that lifted every leaf normal toward the
+  // sky and then floored it, because a normal pointing at the ground takes the
+  // hemispheric light's brown and reads as black. A normal that came from the
+  // ground cannot point at it.
+  let limit = vec2i(hSize) - vec2i(1);
+  let hx0 = textureLoad(heights, clamp(hTexel + vec2i(-1, 0), vec2i(0), limit), 0).r;
+  let hx1 = textureLoad(heights, clamp(hTexel + vec2i(1, 0), vec2i(0), limit), 0).r;
+  let hy0 = textureLoad(heights, clamp(hTexel + vec2i(0, -1), vec2i(0), limit), 0).r;
+  let hy1 = textureLoad(heights, clamp(hTexel + vec2i(0, 1), vec2i(0), limit), 0).r;
+  let perTexel = extent / hSize;
+  let slope = vec2f((hx1 - hx0) / (2.0 * perTexel.x), (hy1 - hy0) / (2.0 * perTexel.y));
+  // Board is x-east, y-north, z-up; the stage is y-up, so the normal swaps the
+  // same way every position on this board does.
+  let groundN = normalize(vec3f(-slope.x, 1.0, -slope.y));
+
   // Worn ground has less on it, and each species gives up at its own point —
   // plantain lives on a trodden verge where meadow grass has already gone.
   var alive = 1.0 - smoothstep(params.b.z - 0.2, params.b.z, wear);
@@ -211,11 +237,13 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let cf = cos(facing);
   let sf = sin(facing);
 
-  // Its own droop, and nothing to do with the wind — that bends the plant
-  // along its length in the vertex shader.
-  let lean = params.b.w * (0.25 + 0.75 * rand(seed + 6u));
-  let cl = cos(lean);
-  let sl = sin(lean);
+  // <b>No lean in the matrix.</b> A plant's droop used to be a rigid tilt of
+  // the whole instance, which is both wrong — a stem bends, it does not hinge
+  // at the root — and expensive in a way that is not obvious: a tilted up
+  // column is no longer the ground's normal, and the ground's normal is the
+  // one thing the shading wants. Droop is a bend along the blade's length in
+  // the vertex shader now, where the wind already bends it, and the matrix is
+  // left standing square on the hill.
 
   // <b>Columns of the world matrix, and they have to be orthogonal.</b>
   //
@@ -232,8 +260,16 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // perpendicular, so their cross is the third axis of a true rotation. The
   // normals no longer need the matrix to lie for them — the geometry biases
   // them upward itself.
-  let acrossDir = vec3f(cf, 0.0, -sf);
-  let upDir = vec3f(sf * sl, cl, cf * sl);
+  // <b>Built on the ground's normal rather than on world up.</b> A plant grows
+  // perpendicular to what it is rooted in, so on a slope the whole tuft should
+  // lean with the hill — and the lean it has of its own is measured from there,
+  // not from vertical. The frame is orthonormal by construction: across is the
+  // facing direction projected onto the ground plane, over completes it, and a
+  // cross product supplies the third axis, so the matrix stays a rotation and a
+  // normal transformed by it stays a normal.
+  let flatAcross = vec3f(cf, 0.0, -sf);
+  let acrossDir = normalize(flatAcross - groundN * dot(flatAcross, groundN));
+  let upDir = groundN;
   let across = acrossDir * wide;
   let up = upDir * tall;
   let through = cross(acrossDir, upDir) * wide;
@@ -376,14 +412,35 @@ export function sowMeadow(
     // The albedo now carries the colour, so the material's own tint would
     // double it.
     material.albedoColor = new Color3(1, 1, 1);
-    // Translucency, in the box: the Crysis approximation the old renderer
-    // spelled out by hand, except supported and interacting correctly with
-    // everything else the material does.
+    // <b>Translucency, now reading a thickness map instead of guessing.</b>
+    //
+    // <p>It was enabled before and it was uniform: every point of every leaf
+    // equally translucent, which is the same as none of it being translucent,
+    // because the whole effect lives in the variation. A leaf is thin at its
+    // edge and its tip where the light comes straight through, and thick along
+    // the rib where it does not. `leaf-texture.ts` was already computing that
+    // and writing it into the albedo's alpha, where nothing could read it —
+    // Babylon's subsurface wants thickness in a texture's red channel.
+    //
+    // <p>This is the term Angelo Pesce calls the difference between grass and
+    // dark grass: "without it, the grass looks way too dark, even with GI".
     material.subSurface.isTranslucencyEnabled = true;
-    material.subSurface.translucencyIntensity = 0.85;
-    material.subSurface.minimumThickness = 0.1;
-    material.subSurface.maximumThickness = 0.6;
-    material.subSurface.tintColor = new Color3(0.42, 0.72, 0.24);
+    const thickness = leafThickness(plant, scene);
+    leaves.push(thickness);
+    material.subSurface.thicknessTexture = thickness;
+    // Only thickness is in that texture. With the mask flag on, Babylon would
+    // read the green and blue channels as refraction and translucency
+    // intensities — and this bake writes thickness into all three.
+    material.subSurface.useMaskFromThicknessTexture = false;
+    material.subSurface.minimumThickness = 0.05;
+    material.subSurface.maximumThickness = 1.1;
+    // Measured references put leaf translucency at 0.1-0.3 and *yellowish*. The
+    // 0.85 that was here is three times that, and a flat green tint for every
+    // species besides: a daisy's petal does not transmit clover green.
+    material.subSurface.translucencyIntensity = 0.55;
+    material.subSurface.tintColor = new Color3(
+      plant.tip[0] * 1.5 + 0.1, plant.tip[1] * 1.35 + 0.1, plant.tip[2] * 0.9,
+    );
 
     const wind = new BladeWind(material);
     wind.strength = 1.35 * plant.stiff;
@@ -392,6 +449,12 @@ export function sowMeadow(
     // bottom of a sward, which depends on what is standing above it.
     wind.tip = [1, 1, 1];
     wind.floor = 0.34;
+    wind.ground = plant.lit;
+    // Droop moved out of the instance matrix and into the blade's own bend, so
+    // the matrix can keep the ground's normal in its up column. As a lateral
+    // reach at the tip rather than an angle, because that is what the bend
+    // wants.
+    wind.droop = Math.tan(plant.droop);
     mesh.material = material;
 
     const matrices = new StorageBuffer(engine, cap * 16 * 4, flags, `${plant.id}-m`);

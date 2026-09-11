@@ -68,9 +68,22 @@ if (script && script !== 'null') {
 }
 
 if (process.env.SHOW_LOGS) {
-  const want = logs.filter(l => /error|warn|invalid|shader|wgsl|exception/i.test(l));
-  console.error('--- console (' + logs.length + ' lines, ' + want.length + ' interesting) ---');
-  want.slice(0, Number(process.env.SHOW_LOGS) || 12).forEach(l => console.error(l));
+  // <b>The root cause, not the cascade.</b> One bad shader produces hundreds of
+  // "invalid pipeline due to a previous error" lines, and the one line that
+  // names the actual fault is the first of them. Pulling the parse errors out
+  // first is the difference between reading forty lines of noise and reading
+  // "mixing '*' and '^' requires parenthesis".
+  const root = logs.filter(l => /Error while parsing|error:|Unable to compile|exception|ReferenceError|TypeError/i.test(l));
+  const seen = new Set();
+  const unique = root.filter(l => {
+    const key = l.replace(/\[Frame \d+\]|\(\d+\)|\[\d+\|\d+\]/g, '');
+    if (seen.has(key)) { return false; }
+    seen.add(key);
+    return true;
+  });
+  console.error(`--- console: ${logs.length} lines, ${unique.length} distinct faults ---`);
+  if (!unique.length) { console.error('(no shader or script faults)'); }
+  unique.slice(0, Number(process.env.SHOW_LOGS) || 12).forEach(l => console.error(l.trim()));
 }
 
 if (shot) {
