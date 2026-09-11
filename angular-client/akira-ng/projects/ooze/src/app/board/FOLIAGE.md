@@ -208,6 +208,88 @@ failures were silent:
 
 ---
 
+## What was built, and what the measurements said
+
+Everything below was measured on the road board at full density, mid-range
+camera, in real Chrome.
+
+| | GPU | fps |
+|---|---|---|
+| Before any of it | 35.1 ms | 27 |
+| Tier 1 — colour space, tone mapper, bounce, fog, no shadow receive | 25.6 ms | 37 |
+| A window that follows the camera | 11.9 ms | 68 |
+| Ground normals, sky as IBL, translucency | 12.0 ms | 67 |
+| Silhouettes, sward tint, real fog | 12.5 ms | 65 |
+| A level of detail on the window's cells | 9.6 ms | 80 |
+| TAA, two cascades | **5.7 ms** | **77** |
+
+**Six times faster, and it looks better at every step.** The budget is 16.7 ms.
+
+### The three measurements that decided everything
+
+*It is not fragment-bound.* Quartering the resolution saved 16%; halving the
+plants saved 46%. That killed the report's loudest conclusion — the quad-overdraw
+argument from dives 2, 3 and 7, agreed on by four independent sources — and with
+it the plan to widen blades for speed and to cull in the vertex shader. A culled
+plant collapsed to a point still costs its vertex invocation and its primitive
+setup, which is the whole bill; built, measured, saved nothing, reverted.
+
+*It is triangles times instances, not instances.* Dropping the plantain — 27,648
+plants at 144 triangles — costs 3.07 ms. Dropping the grass — 147,456 at 16 —
+costs 1.20. Five times the plants for a third of the cost. That is what made a
+level-of-detail ladder worth building, and it is banded on the sown window's own
+cell size, because that is already the measure of how large a plant is on screen.
+
+*Multisampling was costing more than the whole post chain.* The temporal pipeline
+resolves from its own render target rather than the presented surface, so four
+samples through it cost 5.8 ms where the engine's multisampled swap chain cost
+9.6. Better when still, identical in motion, cheaper than both.
+
+### What was refused, and why
+
+- **Compaction with `draw_indirect`** was the obvious answer to instance count
+  and not the cheapest one. Sowing into a window that follows the camera spends
+  every instance where it can be seen and needs no indirect machinery.
+- **A z-prepass** reduces overdraw, and overdraw is not the cost here. It would
+  add a second geometry pass — the one thing there is no headroom in — to save
+  something already measured at 16%.
+- **Screen-space ambient occlusion** wants depth and normals in a multiple
+  render target, which is a geometry prepass by another name. It also simply did
+  not work: `createMultipleRenderTarget is not a function` with deep imports,
+  and past that a stream of WebGPU validation errors with the meadow no longer
+  drawing. The occlusion that matters in a sward is a plant's neighbours shading
+  its roots, and the compute pass already knows how thick each clump is.
+- **TAA with velocity reprojection** wants a velocity buffer, which wants a
+  geometry pass. Resolve on the still frame only, and a board is looked at far
+  more than it is flown around.
+
+### The harness, which cost more than any of it
+
+Every failure this session was silent. The tools that now catch them:
+
+- `tools/wgsl-lint.mjs` — a name shadowing a WGSL builtin, two `let`s with one
+  name, `*` mixed with `^` unparenthesised, and a backtick inside a shader
+  comment. It finds shader blocks by their delimiters rather than by matching
+  balanced backticks, because the stray backtick is the fault being hunted and
+  it breaks any regex that assumes the pair is balanced — which is how the first
+  version missed the sixth occurrence of the bug it exists to catch.
+- `tools/chrome-probe.mjs` now collects the browser console and prints the root
+  cause instead of the cascade; one bad shader produces hundreds of "invalid
+  pipeline due to a previous error" lines and exactly one that names the fault.
+  It also emulates focus, because Chrome stops `requestAnimationFrame` for an
+  occluded window and Babylon's render loop *is* `requestAnimationFrame`.
+- `tools/board-shot.mjs` copies the live canvas into a 2D canvas with
+  `drawImage`. It rendered into its own render target first, which worked and
+  lied by omission: a render target is not the camera, so nothing in the
+  camera's post-process chain reached it, and every screenshot showed the frame
+  *before* the half of the pipeline being worked on.
+- `tools/board-check.sh` builds, serves and measures in one step — and kills any
+  dev server first, every time, because building into `dist` while `ng serve`
+  watches it poisons the bundle with `ngDevMode is not defined` and takes every
+  micro-frontend down with it.
+
+---
+
 ## Dive log
 
 **Dive 1 — shadows and the Tsushima baseline.** Established that no shipping

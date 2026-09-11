@@ -326,10 +326,24 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // the difference is mostly in how much yellow is in it. One scalar per clump
   // gives a field that varies in exposure; three give one that varies in
   // season, which is what a real sward does from one square yard to the next.
+  // <b>How enclosed this plant is, for the root shading to read.</b> A blade
+  // in the middle of a thick clump has a foot of its neighbours over it and is
+  // dark at the base; one standing alone on a worn verge is lit all the way
+  // down. That is the ambient occlusion a sward actually has, and the compute
+  // pass already knows both halves of it — how tall the clump grew, and how
+  // much of the plant survived the wear test.
+  //
+  // <p>Screen-space occlusion would need depth and normals in a prepass, which
+  // is a second geometry pass over a quarter of a million instances, and
+  // geometry is measurably the only thing this board is short of. This costs a
+  // multiply and a channel that was being written as 1.0 and ignored.
+  let enclosed = clamp(clumpTall * alive * 0.78, 0.0, 1.0);
+
   let lift = 0.84 + 0.26 * clumpTone + 0.12 * drift + 0.08 * rand(seed + 7u);
   let yellow = 0.88 + 0.34 * rand(clumpSeed + 21u);
   let deep = 0.90 + 0.22 * rand(clumpSeed + 22u);
-  tints[index] = vec4f(lift * yellow, lift * deep, lift * (0.80 + 0.24 * drift), 1.0);
+  tints[index] = vec4f(
+    lift * yellow, lift * deep, lift * (0.80 + 0.24 * drift), enclosed);
 }
 `;
 

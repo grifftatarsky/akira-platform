@@ -280,7 +280,15 @@ export class BladeWind extends MaterialPluginBase {
           vertexOutputs.vNormalW = normalize(lit);
         }
         {
-          let shade = mix(uniforms.bladeTip.w, 1.0,
+          // <b>The root shading deepens with how enclosed the plant is.</b> The
+          // compute pass writes that into the instance colour's fourth channel,
+          // which was being set to one and ignored: a plant in a thick clump
+          // has its neighbours over it and goes dark at the base, one on a worn
+          // verge is lit all the way down. Ambient occlusion where a sward
+          // actually has it, for a multiply.
+          let enclosed = vertexInputs.color.a;
+          let floorHere = mix(1.0, uniforms.bladeTip.w, enclosed);
+          let shade = mix(floorHere, 1.0,
             bladeAlong * bladeAlong * 0.55 + bladeAlong * 0.45);
           // Per species, because a daisy's tip is white and a plantain's is
           // the same green as its root. One ramp cannot serve both.

@@ -1,12 +1,19 @@
-// Screenshot the board by rendering it into an offscreen target and reading
-// the pixels back.
+// Screenshot the board by copying its live canvas into a 2D canvas.
 //
 // `Page.captureScreenshot` cannot see a WebGPU canvas when the Chrome window is
 // behind something else — not with `fromSurface`, not without it — so it comes
 // back with the page chrome drawn and the canvas a clean white rectangle, which
-// reads exactly like a renderer that has stopped working. This route never
-// touches the compositor: Babylon renders the scene into a render target we
-// own, hands the bytes back, and a 2D canvas turns them into a PNG.
+// reads exactly like a renderer that has stopped working.
+//
+// The first way round that rendered the scene into a render target of our own
+// and read the pixels back. It worked and it lied by omission: a render target
+// is not the camera, so nothing in the camera's post-process chain reaches it —
+// no tone mapping, no temporal anti-aliasing, no ambient occlusion. Every
+// screenshot showed the frame *before* the half of the pipeline that was being
+// worked on.
+//
+// `drawImage` from the WebGPU canvas into a 2D one gives the composited frame,
+// post-processes and all, and never asks the compositor for anything.
 //
 // Usage: node tools/board-shot.mjs <out.png> ["<setup js>"]
 import { writeFileSync } from 'node:fs';
@@ -15,7 +22,6 @@ const PORT = process.env.CDP_PORT || 9333;
 const out = process.argv[2];
 const setup = process.argv[3] || '';
 const width = Number(process.env.SHOT_W || 960);
-const height = Number(process.env.SHOT_H || 460);
 
 const targets = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
 const page = targets.find(t => t.type === 'page');
@@ -47,28 +53,18 @@ const body = `(async () => {
   if (!b) return 'NO_BOARD';
   ${setup}
   await wait(2500);
-  const s = b.stage.scene;
-  // The shadow map is a RenderTargetTexture, and its constructor is the only
-  // handle on that class here: deep imports mean there is no global BABYLON.
-  const RTT = b.stage.shadows.getShadowMap().constructor;
-  const rtt = new RTT('probe-shot', { width: ${width}, height: ${height} }, s, false);
-  rtt.renderList = null;
-  rtt.activeCamera = s.activeCamera;
-  s.customRenderTargets.push(rtt);
-  await wait(1600);
-  const px = await rtt.readPixels();
-  s.customRenderTargets.splice(s.customRenderTargets.indexOf(rtt), 1);
-  rtt.dispose();
+  const e = b.stage.scene.getEngine();
+  const src = e.getRenderingCanvas();
   const cv = document.createElement('canvas');
-  cv.width = ${width}; cv.height = ${height};
+  // Keep the canvas's own aspect so nothing is squashed.
+  cv.width = ${width};
+  cv.height = Math.round(${width} * src.height / src.width);
   const ctx = cv.getContext('2d');
-  const img = ctx.createImageData(${width}, ${height});
-  for (let y = 0; y < ${height}; y++) {
-    const src = (${height} - 1 - y) * ${width} * 4, dst = y * ${width} * 4;
-    for (let i = 0; i < ${width} * 4; i++) img.data[dst + i] = px[src + i];
-    for (let x = 0; x < ${width}; x++) img.data[dst + x * 4 + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
+  // <b>Two frames, then draw.</b> The first request lands mid-frame; the second
+  // guarantees a complete presented image to copy. Without it the copy can
+  // catch a half-drawn frame, which reads as a torn screenshot.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  ctx.drawImage(src, 0, 0, cv.width, cv.height);
   return cv.toDataURL('image/png');
 })()`;
 

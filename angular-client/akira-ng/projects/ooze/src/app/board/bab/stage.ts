@@ -17,6 +17,20 @@ import { Scene } from '@babylonjs/core/scene';
 // new sky without it hands the PBR materials the *first* sky's irradiance
 // forever — the specular moves with the sun and the diffuse does not.
 import '@babylonjs/core/Materials/Textures/baseTexture.polynomial';
+// <b>Screen-space ambient occlusion was tried here and taken out again.</b>
+// `SSAO2RenderingPipeline` wants depth and normals in a multiple render target,
+// which with deep imports is not on the engine at all — "createMultipleRenderTarget
+// is not a function", thrown from inside the render loop on the first frame.
+// Importing the extension got past that and into a stream of WebGPU validation
+// errors with the meadow no longer drawing, which is a geometry prepass over a
+// quarter of a million instanced plants meeting a path that was never asked to
+// carry them.
+//
+// <p>It was the wrong instrument anyway. A prepass is a second geometry pass,
+// and geometry is measurably the only thing this board is short of. The
+// occlusion that matters in a sward is a plant's own neighbours shading its
+// roots, and the compute pass already knows how thick each clump is — so that
+// is where it is computed, for nothing.
 import { SkyMaterial } from '@babylonjs/materials/sky/skyMaterial';
 import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 import type { BoardLook } from '../board-assets';
