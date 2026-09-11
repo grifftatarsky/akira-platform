@@ -234,12 +234,17 @@ export class Stage {
       // once has no shape. At 1.0 the meadow went pale mint and lost its
       // contrast; at a quarter it is deep green with the hill's form still in
       // it, which is both the better picture and the more nearly correct one.
-      this.scene.environmentIntensity = 0.25;
+      //
+      // <p>Lower again now the plants are photographs. A scan already carries
+      // the light it was shot under; lighting it a second time from every
+      // direction at once is what was taking the green out of the field and
+      // leaving it grey from above.
+      this.scene.environmentIntensity = 0.14;
       // The hemisphere is a fill under the sky now, not a stand-in for it. Low
       // and neutral: what it is still good for is keeping the underside of a
       // sward off zero, which an environment map alone does not do because the
       // grass does not occlude itself in it.
-      this.ambient.intensity = 0.18;
+      this.ambient.intensity = 0.13;
       this.ambient.diffuse = new Color3(0.55, 0.6, 0.68);
       this.ambient.groundColor = new Color3(0.3, 0.29, 0.26);
     }
@@ -250,7 +255,7 @@ export class Stage {
     // colour. The colour is set with the clock, because fog that does not
     // match the sky it is standing in front of reads as a grey wash.
     this.scene.fogMode = Scene.FOGMODE_EXP2;
-    this.scene.fogDensity = 0.0011;
+    this.scene.fogDensity = 0.0004;
 
     // Before anything else on the camera: TAA has to be the first post process
     // in the chain or it resolves an image that has already been graded.
@@ -432,7 +437,7 @@ export class Stage {
     // All that is left of the hemisphere is a small neutral fill that keeps the
     // bottom of a sward off zero. It dims with the sun and does not change hue,
     // because the hue is the sky's job.
-    this.ambient.intensity = 0.1 + 0.12 * Math.max(0, up);
+    this.ambient.intensity = 0.06 + 0.09 * Math.max(0, up);
 
     // <b>Adaptation, but only part of it.</b> `eyeExposure` returns the full
     // ratio an eye would settle on — about 2.7x at half past five — and
@@ -457,7 +462,13 @@ export class Stage {
     // the field recedes into the sky it is standing under, which is what aerial
     // perspective is for. The near field is untouched: at thirty half-feet the
     // factor is 0.997.
-    this.scene.fogDensity = 0.0011 + 0.0013 * dusk;
+    // <b>A third of what it was.</b> Fog was doing two jobs: dissolving the far
+    // edge of the board, and hiding the seam where the sown window stopped.
+    // There is no window any more — the sward runs to the board's own edge — so
+    // all that is left is the first job, and at the old density the whole field
+    // went grey from directly above, which is the camera this game is played
+    // from.
+    this.scene.fogDensity = 0.0004 + 0.0009 * dusk;
   }
 
   /** Frames the whole board. */

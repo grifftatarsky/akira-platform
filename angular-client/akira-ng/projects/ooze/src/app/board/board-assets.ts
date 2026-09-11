@@ -487,7 +487,7 @@ export const FIELD_THEME: BoardTheme = {
   // north-north-east. Bright, barely graded, and almost no vignette — a summer
   // afternoon is not a mood, it is an absence of one.
   look: {
-    exposure: 1.15,
+    exposure: 1.22,
     ambient: 0.22,
     // Mid-July, about the latitude of Richmond. One in the afternoon to start,
     // and the board's clock moves it from there.
@@ -495,7 +495,13 @@ export const FIELD_THEME: BoardTheme = {
     dayOfYear: 196,
     hour: 13,
     saturation: 1.08,
-    contrast: 1.02,
+    // <b>Contrast, because this board is looked at from above.</b> Straight
+    // down a meadow is all tips and no shade: every surface faces the same
+    // light, so nothing in the picture separates from anything else and the
+    // whole field reads as one grey-green mat. A tenth of contrast is the right
+    // number for a scene with its own shadows in shot; this one has almost
+    // none, and the tone curve is where that has to come back.
+    contrast: 1.4,
     vignette: 0.1,
     // A little pollen in the air and no more. At the dungeon's density, white
     // specks over a lit meadow read as dirt on the lens.
