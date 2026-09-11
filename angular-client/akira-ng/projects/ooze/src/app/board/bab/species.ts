@@ -244,7 +244,23 @@ const LEAF_FLOOR = 0.02;
  * a fraction of the plant's own: what the wind shader reads to bend it, and
  * what the leaf texture reads to know whether it is drawing leaf or flower.
  */
-export function plantGeometry(plant: Plant): VertexData {
+export function plantGeometry(plant: Plant, detail = 1): VertexData {
+  // <b>Detail is rows, not parts.</b> A level of detail that drops leaflets
+  // changes the silhouette, and silhouette is the one thing that still reads at
+  // the distance where detail stops mattering. What it drops instead is the
+  // subdivision along a leaf, the ray florets around a disc and the spikelets
+  // in a panicle — the things a plant has more of than anyone can count.
+  const coarse: Plant = detail >= 1 ? plant : {
+    ...plant,
+    segments: Math.max(1, Math.round(plant.segments * detail)),
+    petals: plant.petals > 0 ? Math.max(5, Math.round(plant.petals * detail)) : 0,
+    spikelets: plant.spikelets > 0
+      ? Math.max(3, Math.round(plant.spikelets * detail)) : 0,
+  };
+  return fullGeometry(coarse);
+}
+
+function fullGeometry(plant: Plant): VertexData {
   const build: Build = { positions: [], normals: [], uvs: [], indices: [] };
   const heads = plant.petals > 0 || plant.spikelets > 0;
 
@@ -586,7 +602,11 @@ export function swardColor(plants: readonly Plant[] = MEADOW): [number, number, 
 /** Triangles in one plant, for the sidebar to be honest about cost. */
 export function plantTriangles(plant: Plant): number {
   const heads = plant.petals > 0 || plant.spikelets > 0;
-  const leaves = heads ? 2 : plant.leaflets;
+  // Every plant's leaf count comes from the table. This said two for anything
+  // with a head, which stopped being true when the daisy grew a basal rosette,
+  // and a sidebar that under-reports the most expensive thing on the board is
+  // worse than one that reports nothing.
+  const leaves = plant.leaflets;
   return leaves * plant.segments * 4
     + ((heads ? plant.tall : plant.stem) > 0.02 ? 4 : 0)
     + plant.spikelets * 4

@@ -15,6 +15,7 @@ import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
 import { leafTexture, leafThickness } from './leaf-texture';
+import type { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { type Plant, MEADOW, plantGeometry } from './species';
 import { fieldTexture } from './splat-bake';
 
@@ -56,6 +57,27 @@ const MAX_PLANTS = 260_000;
  * and its population is what does not.
  */
 const CELLS_ACROSS = 96;
+
+/**
+ * The detail levels each species is built at, and the cell size each takes over.
+ *
+ * <p>Measured, this meadow costs by triangles times instances, not by instances
+ * alone: dropping the plantain takes 3.07 ms for twenty-seven thousand plants at
+ * a hundred and forty-four triangles, while dropping the grass takes 1.20 ms for
+ * a hundred and forty-seven thousand at sixteen. Five times the plants for a
+ * third of the cost. So the lever is triangles per plant, and the place to pull
+ * it is where nobody can see them.
+ *
+ * <p>Banded on the window's cell size rather than on a per-plant distance,
+ * because the window's cells grow with how far the camera is standing back —
+ * which means cell size already *is* the measure of how large a plant is on
+ * screen, and one number picks the level for the whole field.
+ */
+const LEVELS: readonly { readonly detail: number; readonly upToCell: number }[] = [
+  { detail: 1, upToCell: 1.1 },
+  { detail: 0.6, upToCell: 2.6 },
+  { detail: 0.34, upToCell: Number.POSITIVE_INFINITY },
+];
 
 /** Half-feet across a clump. About a stride. */
 const CLUMP = 11;
@@ -140,7 +162,15 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let seed = (u32(i32(gx) + 16384) * 2654435761u)
     ^ (u32(i32(gy) + 16384) * 2246822519u)
     ^ ((slot + u32(params.a.w)) * 3266489917u);
-  let where2 = vec2f(gx * span + rand(seed) * span, gy * span + rand(seed + 1u) * span);
+  // <b>Jitter inside the cell, not across it.</b> A point placed anywhere in
+  // its cell is white noise with a grid drawn round it: neighbouring cells put
+  // plants shoulder to shoulder as often as they leave a gap, and the gaps are
+  // what the eye finds. Keeping the jitter to six tenths of a cell about its
+  // middle is the cheap approximation of blue noise — Casey Muratori's number,
+  // from working the same problem for scattered vegetation — and it buys an
+  // even sward without a Poisson sampler or anything stored.
+  let inCell = (vec2f(rand(seed), rand(seed + 1u)) - 0.5) * 0.6 + 0.5;
+  let where2 = vec2f(gx, gy) * span + inCell * span;
 
   // Off the board: the window is square and the board is not, and near an edge
   // most of the window hangs over nothing. Zeroed rather than skipped, because
@@ -359,6 +389,9 @@ export function sowMeadow(
     readonly compute: ComputeShader;
     readonly cap: number;
     readonly offset: number;
+    /** One built geometry per entry in {@link LEVELS}. */
+    readonly levels: VertexData[];
+    level: number;
   }
 
   const beds: Bed[] = [];
@@ -368,7 +401,10 @@ export function sowMeadow(
     const cap = Math.max(64, Math.round((MAX_PLANTS * plant.share) / total));
 
     const mesh = new Mesh(`meadow-${plant.id}`, scene);
-    plantGeometry(plant).applyToMesh(mesh);
+    // Every level built once at load. Rebuilding one on a zoom would be twenty
+    // milliseconds of main thread at exactly the moment the camera is moving.
+    const levels = LEVELS.map(level => plantGeometry(plant, level.detail));
+    levels[0].applyToMesh(mesh);
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.useVertexColors = true;
     // <b>The meadow does not receive shadows either.</b> It did, and the shadow
@@ -501,6 +537,7 @@ export function sowMeadow(
     beds.push({
       sown: { plant, mesh, wind, matrices, tints, count: cap },
       matrices, tints, params, compute, cap, offset: seedOffset,
+      levels, level: 0,
     });
     seedOffset += cap;
   }
@@ -527,6 +564,33 @@ export function sowMeadow(
    */
   const window = (radius: number): number =>
     Math.min(Math.max(radius * 2.4, 70), board * 1.55) / CELLS_ACROSS;
+
+  /**
+   * Swaps each species onto the level of detail its cell size calls for.
+   *
+   * <p><b>`applyToMesh` leaves the instance attributes alone</b>, which is what
+   * makes this a swap rather than a rebuild: it writes positions, normals, uvs
+   * and indices, and the per-instance world columns and colour live under
+   * different attribute names entirely. Rebinding them here would work too and
+   * would be four allocations a zoom for nothing.
+   */
+  const detail = (): void => {
+    const current = beds[0]?.level ?? 0;
+    // <b>Hysteresis, so a camera parked on a boundary cannot thrash.</b> Going
+    // coarser needs the cell to pass the threshold; coming back needs it to
+    // fall a tenth below the *previous* band's. Without the margin, a hand
+    // resting on a trackpad rebuilds five meshes every frame.
+    const want = LEVELS.findIndex((level, at) =>
+      step <= level.upToCell * (at < current ? 0.9 : 1));
+    const level = want < 0 ? LEVELS.length - 1 : want;
+    for (const bed of beds) {
+      if (bed.level === level) {
+        continue;
+      }
+      bed.level = level;
+      bed.levels[level].applyToMesh(bed.sown.mesh);
+    }
+  };
 
   const sow = (): void => {
     let all = true;
@@ -574,6 +638,7 @@ export function sowMeadow(
       step = next;
       originX = atX - (CELLS_ACROSS * step) / 2;
       originY = atY - (CELLS_ACROSS * step) / 2;
+      detail();
       sow();
     },
     setDensity(fraction: number): void {
