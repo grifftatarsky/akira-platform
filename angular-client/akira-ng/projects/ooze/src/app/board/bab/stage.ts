@@ -506,6 +506,71 @@ export class Stage {
     );
   }
 
+  /**
+   * The switches the board's toggle row throws.
+   *
+   * <p>Each is the smallest change that makes one piece of work stop happening,
+   * so it can be judged against the same frame a second earlier. They are here
+   * rather than in the component because every one of them is a fact about the
+   * stage that the component has no business knowing.
+   */
+  setShadows(on: boolean): void {
+    // The shadow map is sampled by whatever receives it; emptying the render
+    // list is not enough, because an unwritten map reads as all shadow. The
+    // generator's own switch is.
+    this.shadows.getShadowMap()!.renderList!.forEach(mesh => {
+      mesh.receiveShadows = false;
+    });
+    this.sun.shadowEnabled = on;
+    this.terrainReceives(on);
+  }
+
+  private terrainReceives(on: boolean): void {
+    this.shadows.getShadowMap()?.renderList?.forEach(mesh => {
+      mesh.receiveShadows = on && mesh.layerMask !== 0x20000000;
+    });
+  }
+
+  setResolve(on: boolean): void {
+    this.taa.isEnabled = on && !this.indoor;
+  }
+
+  setRelief(on: boolean): void {
+    // Normal and roughness maps on the ground. Both live on the terrain's own
+    // material, which is whatever the first chunk is wearing.
+    for (const mesh of this.scene.meshes) {
+      const material = mesh.material as unknown as {
+        bumpTexture?: unknown; metallicTexture?: unknown;
+        _relief?: unknown; _surface?: unknown;
+        markAsDirty?: (flag: number) => void;
+      } | null;
+      if (!material || !mesh.name.startsWith('ground-')) {
+        continue;
+      }
+      if (on) {
+        material.bumpTexture = material._relief ?? material.bumpTexture;
+        material.metallicTexture = material._surface ?? material.metallicTexture;
+      } else {
+        material._relief ??= material.bumpTexture;
+        material._surface ??= material.metallicTexture;
+        material.bumpTexture = null;
+        material.metallicTexture = null;
+      }
+    }
+  }
+
+  setSkyLight(on: boolean): void {
+    this.scene.environmentTexture = on && !this.indoor
+      ? this.skyProbe.cubeTexture : null;
+  }
+
+  setGrade(on: boolean): void {
+    const image = this.scene.imageProcessingConfiguration;
+    image.toneMappingEnabled = on;
+    image.contrast = on ? (this.look.contrast ?? 1) : 1;
+    image.vignetteEnabled = on && (this.look.vignette ?? 0) > 0;
+  }
+
   /** Frames the whole board. */
   frame(atX: number, atY: number, atZ: number, spanHalfFeet: number): void {
     this.camera.setTarget(new Vector3(atX, atZ, atY));

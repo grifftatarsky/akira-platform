@@ -14,6 +14,10 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
 import { loadFoliage } from './foliage-cards';
 import { plantScans, scatterStone } from './standing';
+
+/** One switchable piece of the board. */
+type Part = 'meadow' | 'trees' | 'stones' | 'shadows' | 'taa' | 'relief'
+  | 'sky' | 'grade';
 import { type Meadow, sowMeadow } from './meadow';
 import { PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -62,6 +66,20 @@ import { type Terrain, buildTerrain } from './terrain';
           class="rounded border border-rule px-2 py-0.5 hover:border-accent">
           Inspector
         </button>
+      </div>
+
+      <!-- <b>One switch per piece of work, so each can be judged on its own.</b>
+           Every one of these was argued about from a screenshot with everything
+           else switched on, which is how three of them shipped wrong. -->
+      <div class="flex flex-wrap items-center gap-3 font-mono text-[0.65rem] text-fg-subtle">
+        <span class="uppercase tracking-widest">show</span>
+        @for (part of parts; track part.key) {
+          <label class="flex items-center gap-1" [title]="part.note">
+            <input type="checkbox" [checked]="on()[part.key] !== false"
+              (change)="toggle(part.key, $any($event.target).checked)" />
+            {{ part.label }}
+          </label>
+        }
       </div>
 
       <div class="flex flex-wrap items-center gap-3 font-mono text-[0.65rem] text-fg-subtle">
@@ -212,6 +230,71 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   private stats: Stats | null = null;
   private meadow: Meadow | null = null;
   private stones: Mesh[] = [];
+
+  /**
+   * The switches, and what each one is for.
+   *
+   * <p><b>Every piece of work on this board was judged with everything else
+   * switched on.</b> That is how a shadow range drew a line across the map for
+   * a week, how a temporal resolve shipped unverified, and how the trees were
+   * tuned three times against a render of the previous build. A toggle per piece
+   * is what makes "is this better" a question anybody can answer.
+   */
+  protected readonly parts: readonly { key: Part; label: string; note: string }[] = [
+    { key: 'meadow', label: 'sward', note: 'The grass, clover, plantain and daisies.' },
+    { key: 'trees', label: 'trees', note: 'Scanned trees and scrub.' },
+    { key: 'stones', label: 'stone', note: 'Scanned fieldstone.' },
+    { key: 'shadows', label: 'shadows', note: 'The sun\'s cascaded shadow map.' },
+    { key: 'taa', label: 'temporal aa', note: 'The temporal resolve. Off is sharper and crawls.' },
+    { key: 'relief', label: 'ground relief', note: 'The terrain normal and roughness maps.' },
+    { key: 'sky', label: 'sky light', note: 'Image-based light from the sky probe.' },
+    { key: 'grade', label: 'grade', note: 'Tone mapping, contrast and exposure.' },
+  ];
+
+  protected readonly on = signal<Partial<Record<Part, boolean>>>({});
+
+  /**
+   * Switches one piece of the board off and leaves the rest alone.
+   *
+   * <p>Each case is the smallest thing that makes that piece stop happening,
+   * rather than a rebuild — so the switch can be thrown while looking at the
+   * board and the answer arrives in the same second.
+   */
+  protected toggle(part: Part, want: boolean): void {
+    this.on.update(was => ({ ...was, [part]: want }));
+    const stage = this.stage;
+    if (!stage) {
+      return;
+    }
+    switch (part) {
+      case 'meadow':
+        this.meadow?.sown.forEach(sown => sown.mesh.setEnabled(want));
+        break;
+      case 'trees':
+        this.stones.filter(mesh => mesh.name.startsWith('scan-'))
+          .forEach(mesh => mesh.setEnabled(want));
+        break;
+      case 'stones':
+        this.stones.filter(mesh => mesh.name.startsWith('stone-'))
+          .forEach(mesh => mesh.setEnabled(want));
+        break;
+      case 'shadows':
+        stage.setShadows(want);
+        break;
+      case 'taa':
+        stage.setResolve(want);
+        break;
+      case 'relief':
+        stage.setRelief(want);
+        break;
+      case 'sky':
+        stage.setSkyLight(want);
+        break;
+      case 'grade':
+        stage.setGrade(want);
+        break;
+    }
+  }
   private ticker = 0;
   private gone = false;
   private terrain: Terrain | null = null;
