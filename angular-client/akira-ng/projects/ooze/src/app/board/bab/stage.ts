@@ -261,19 +261,30 @@ export class Stage {
     // it a still frame that is not quite still — the wind never stops — smears
     // rather than resolves.
     this.taa.clampHistory = true;
-    // <b>Multisampling stays on, and it is cheaper on than it was.</b> The
-    // obvious reading of this pipeline is that it replaces multisampling, and
-    // at one sample the frame drops from 9.6 ms to 4.2. It is the wrong trade:
-    // temporal resolve is switched off while the camera moves, so a board being
-    // panned would have no anti-aliasing of any kind, and panning is when a
-    // field of sub-pixel edges crawls worst.
+    // <b>No multisampling. It was three quarters of the frame.</b>
     //
-    // <p>Keeping four costs 5.8 ms — still four milliseconds *below* the
-    // engine's own multisampled swap chain, because the pipeline resolves from
-    // its own render target rather than from the presented surface. Same
-    // quality in motion as before, better when still, and cheaper than both.
-    this.taa.msaaSamples = 4;
-    this.taa.disableOnCameraMove = true;
+    // <p>This said the opposite for a while, on a measurement that was reading
+    // the wrong counter: `gpuTimeInFrameForMainPass` times the pass that
+    // presents to the swap chain, and with this pipeline installed that pass is
+    // the temporal resolve — a full-screen blit. The scene itself is drawn into
+    // the pipeline's own render target, in a pass that counter never sees. So
+    // every "the frame costs 5.8 ms" in this renderer's history was the cost of
+    // the blit, and the number that matters was never being read.
+    //
+    // <p>Read honestly — wall clock between presents — four samples at this
+    // board's 3472 x 1632 is 32.5 ms a frame and one sample is 8.3, which is
+    // the display's own 120 Hz and therefore an upper bound rather than a cost.
+    // Two samples measured identical to four, so the choice is not a dial: it is
+    // multisampled or it is not. Twenty-four milliseconds is not a price worth
+    // paying for edges, with a temporal resolve already in the chain to do it.
+    this.taa.msaaSamples = 1;
+    // <b>And it keeps resolving while the camera moves.</b> Switching off in
+    // motion was defensible when multisampling was underneath to catch it.
+    // Nothing is underneath now, and a board being panned is exactly when a
+    // field of sub-pixel edges crawls worst. `clampHistory` is what makes this
+    // safe: a reprojected pixel that disagrees with its neighbours is thrown
+    // away rather than smeared.
+    this.taa.disableOnCameraMove = false;
     this.taa.isEnabled = !indoor;
 
     const image = this.scene.imageProcessingConfiguration;

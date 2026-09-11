@@ -15,7 +15,6 @@ import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
 import { leafTexture, leafThickness } from './leaf-texture';
-import type { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { type Plant, MEADOW, plantGeometry } from './species';
 import { fieldTexture } from './splat-bake';
 
@@ -39,46 +38,28 @@ import { fieldTexture } from './splat-bake';
 /**
  * Plants in the buffers, across all species. Density scales how many draw.
  *
- * <p>Was six hundred thousand, scattered over the whole board whether the
- * camera could see them or not. Now they are all spent inside a window that
- * follows the camera, so a smaller number buys a denser field — a quarter of a
- * million here is thicker underfoot than six hundred thousand was, and costs
- * well under half as much, because this meadow is billed by the instance.
+ * <p>Spread evenly over the board, at one density, at every zoom. The slider
+ * scales how many of them draw.
  */
-const MAX_PLANTS = 260_000;
+const MAX_PLANTS = 600_000;
 
 /**
- * Cells on a side of the sown window.
+ * The lattice every plant stands on covers the whole board, and nothing about
+ * it depends on the camera.
  *
- * <p>The one number that trades resolution against plants-per-cell. Ninety-six
- * squared is a little over nine thousand cells, which leaves the grass about
- * fifteen blades in each — enough that a cell reads as a tuft rather than as a
- * grid, at every zoom, because the cell's *size* is what changes with distance
- * and its population is what does not.
+ * <p><b>This is a combat board, not a walk through a meadow.</b> Zoomed out,
+ * the whole field is in shot and every square foot of it has to be grassed;
+ * there is no off-screen to hide thinning in. A window that followed the
+ * camera, cells that grew with distance, and a geometry ladder that swapped
+ * plants for sticks were all answers to a question this board does not ask.
+ * They also had a fault that no frame time would ever have shown: the cell size
+ * varied continuously with the camera, a plant's identity hashes from its cell,
+ * so every zoom reshuffled the entire field and the grass crawled across the
+ * map.
+ *
+ * <p>So: one pitch, fixed at load, spanning the board. The camera cannot move
+ * a plant because the camera is not an input.
  */
-const CELLS_ACROSS = 96;
-
-/**
- * The detail levels each species is built at, and the cell size each takes over.
- *
- * <p>Measured, this meadow costs by triangles times instances, not by instances
- * alone: dropping the plantain takes 3.07 ms for twenty-seven thousand plants at
- * a hundred and forty-four triangles, while dropping the grass takes 1.20 ms for
- * a hundred and forty-seven thousand at sixteen. Five times the plants for a
- * third of the cost. So the lever is triangles per plant, and the place to pull
- * it is where nobody can see them.
- *
- * <p>Banded on the window's cell size rather than on a per-plant distance,
- * because the window's cells grow with how far the camera is standing back —
- * which means cell size already *is* the measure of how large a plant is on
- * screen, and one number picks the level for the whole field.
- */
-const LEVELS: readonly { readonly detail: number; readonly upToCell: number }[] = [
-  { detail: 1, upToCell: 1.1 },
-  { detail: 0.6, upToCell: 2.6 },
-  { detail: 0.34, upToCell: Number.POSITIVE_INFINITY },
-];
-
 /** Half-feet across a clump. About a stride. */
 const CLUMP = 11;
 
@@ -88,8 +69,8 @@ struct Params {
   a: vec4f,   // extentX, extentY, count, seed offset
   b: vec4f,   // tall, wide, wearMax, droop
   c: vec4f,   // damp preference, spare, spare, spare
-  d: vec4f,   // plants per cell, cells across the window, cell size, spare
-  e: vec4f,   // where the window starts, in board half-feet
+  d: vec4f,   // plants per cell, cells east, lattice pitch, cells north
+  e: vec4f,   // spare
 };
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -120,41 +101,25 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
   let extent = params.a.xy;
 
-  // <b>Sown into a window that follows the camera, not across the whole board.</b>
+  // <b>One lattice, spanning the board, fixed at load.</b>
   //
-  // <p>Measured, this meadow costs by the instance and barely by the pixel:
-  // quartering the resolution saved 16%, halving the plants saved 46%. So the
-  // bill is vertex shading and primitive setup on a million small triangles,
-  // and the only way to reduce it is to submit fewer instances — not to make
-  // them cheaper, and not to collapse them in the vertex shader, which was
-  // tried and saved nothing because a degenerate triangle still costs its
-  // setup.
-  //
-  // <p>So every instance is spent where it can be seen. The window is a square
-  // of cells centred on what the camera is looking at, sized from how far away
-  // it is: standing in the field the cells are a hand's width across, and
-  // framing the whole board they are wide enough to cover it — which thins the
-  // field with distance for free, and is the level-of-detail ladder without a
-  // second mesh.
-  //
-  // <p><b>The lattice is fixed in the world and the window slides over it.</b>
-  // A plant's identity hashes from its cell and its slot in that cell, never
-  // from its index, so moving the camera changes which cells are grown and
-  // never what grows in one. Hash from the index instead and the whole meadow
-  // reshuffles every time the camera moves an inch.
+  // <p>A plant's identity hashes from the cell it grows in and its slot in
+  // that cell, never from its index — so the same cell always grows the same
+  // plant, and a re-sow for a density change rewrites the field identically
+  // except for the plants it adds or takes away.
   let slots = max(1u, u32(params.d.x));
-  let wide2 = max(1u, u32(params.d.y));
+  let eastCells = max(1u, u32(params.d.y));
+  let northCells = max(1u, u32(params.d.w));
   // Named neither step nor cell. WGSL has a step() builtin that this shader
   // calls further down, and shadowing it turns that call into "cannot use
   // 'let step' as call target"; cell is taken by the clump code below.
-  let span = max(0.05, params.d.z);
+  let span = max(0.01, params.d.z);
   let slot = index % slots;
   let cellIndex = index / slots;
-  let cx = cellIndex % wide2;
-  let cy = cellIndex / wide2;
-
-  let gx = floor(params.e.x / span) + f32(cx);
-  let gy = floor(params.e.y / span) + f32(cy);
+  let cx = cellIndex % eastCells;
+  let cy = cellIndex / eastCells;
+  let gx = f32(cx);
+  let gy = f32(cy);
 
   // Parentheses required: WGSL refuses to mix '*' and '^' without them, and it
   // refuses by failing to parse the whole vertex stage — silently, with a
@@ -178,11 +143,10 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let inCell = (vec2f(rand(seed), rand(seed + 1u)) - 0.5) * 0.88 + 0.5;
   let where2 = vec2f(gx + stagger, gy) * span + inCell * span;
 
-  // Off the board: the window is square and the board is not, and near an edge
-  // most of the window hangs over nothing. Zeroed rather than skipped, because
-  // this instance is drawn either way and stale matrices would leave the last
-  // camera's grass standing in mid-air.
-  if (cy >= wide2 || where2.x < 0.0 || where2.y < 0.0
+  // Past the last row, or past the board's own edge after the stagger and the
+  // jitter. Zeroed rather than skipped, because this instance is drawn either
+  // way and a stale matrix would leave a plant standing in mid-air.
+  if (cy >= northCells || where2.x < 0.0 || where2.y < 0.0
       || where2.x >= extent.x || where2.y >= extent.y) {
     let off = index * 4u;
     matrices[off + 0u] = vec4f(0.0);
@@ -193,12 +157,44 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     return;
   }
 
-  // The clump this plant belongs to, and where its middle is. Everything the
-  // clump decides is hashed from the cell, so neighbours agree without
-  // anything being stored.
-  let cell = floor(where2 / ${CLUMP.toFixed(1)});
-  let clumpSeed = u32(cell.x + 977.0) * 3557u + u32(cell.y + 977.0) * 6151u;
-  let middle = (cell + vec2f(rand(clumpSeed + 11u), rand(clumpSeed + 12u))) * ${CLUMP.toFixed(1)};
+  // <b>The clump this plant belongs to — the nearest seed point, not the cell
+  // it happens to fall in.</b>
+  //
+  // <p>Keying the clump on the square cell is the same thing as painting the
+  // field in squares: the clump decides height and colour, so every eleven
+  // half-feet the whole sward changes tone along a straight line, and from
+  // directly above — which is this board's camera — it reads as a chequerboard
+  // laid over the grass. It is the single most visible artifact on the board at
+  // full zoom-out and it is not subtle once seen.
+  //
+  // <p>So the cells only hold seed points, one jittered inside each, and a
+  // plant belongs to whichever seed is nearest. That is a Voronoi diagram: the
+  // boundaries are irregular polygons that meet at angles the eye does not
+  // recognise as a grid. Nine cells is the whole search, because a seed jittered
+  // within its own cell can never be nearer than one two cells away.
+  //
+  // <p>Everything the clump decides is hashed from that cell, so neighbours
+  // agree on it without anything being stored.
+  let home = floor(where2 / ${CLUMP.toFixed(1)});
+  var nearest = 1e9;
+  var clumpCell = home;
+  var middle = where2;
+  for (var j = -1; j <= 1; j++) {
+    for (var i = -1; i <= 1; i++) {
+      let near = home + vec2f(f32(i), f32(j));
+      let seedOf = u32(near.x + 977.0) * 3557u + u32(near.y + 977.0) * 6151u;
+      let at2 = (near + vec2f(rand(seedOf + 11u), rand(seedOf + 12u)))
+        * ${CLUMP.toFixed(1)};
+      let away = where2 - at2;
+      let far2 = dot(away, away);
+      if (far2 < nearest) {
+        nearest = far2;
+        clumpCell = near;
+        middle = at2;
+      }
+    }
+  }
+  let clumpSeed = u32(clumpCell.x + 977.0) * 3557u + u32(clumpCell.y + 977.0) * 6151u;
   let clumpTall = 0.62 + 0.76 * rand(clumpSeed);
   let clumpTone = rand(clumpSeed + 7u);
 
@@ -258,17 +254,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   // already in its geometry, so what is left here is how big this particular
   // one is — and a uniform scale keeps the matrix a rotation as far as a normal
   // is concerned.
-  // <b>Fade the sward out at the window's rim.</b> The window is a hard square
-  // and the plants inside it stopped dead at its edge, which drew a dark line
-  // along the horizon wherever the camera could see past it. The ground beyond
-  // is already tinted to the sward's own colour, so a plant that shrinks to
-  // nothing over the last few cells hands off to the terrain invisibly.
-  let toEdge = min(
-    min(f32(cx), f32(wide2 - 1u - cx)),
-    min(f32(cy), f32(wide2 - 1u - cy)));
-  let rim = clamp(toEdge / 7.0, 0.0, 1.0);
-
-  let grow = clumpTall * (0.74 + 0.52 * rand(seed + 2u)) * alive * rim;
+  let grow = clumpTall * (0.74 + 0.52 * rand(seed + 2u)) * alive;
   let tall = grow;
   let wide = grow;
 
@@ -369,14 +355,6 @@ export interface Meadow {
   setDensity(fraction: number): void;
   /** Moves the wind. Cheap: one uniform, no dispatch. */
   step(seconds: number): void;
-  /**
-   * Points the sown window at what the camera is looking at.
-   *
-   * <p>Cheap to call every frame: it re-sows only when the window would
-   * actually land somewhere else, which is when the camera has crossed a cell
-   * or changed its zoom enough to want different-sized ones.
-   */
-  setView(atX: number, atY: number, radius: number): void;
   /** Whether the last sowing actually ran. */
   readonly ran: boolean;
   readonly plants: number;
@@ -409,9 +387,6 @@ export function sowMeadow(
     readonly compute: ComputeShader;
     readonly cap: number;
     readonly offset: number;
-    /** One built geometry per entry in {@link LEVELS}. */
-    readonly levels: VertexData[];
-    level: number;
   }
 
   const beds: Bed[] = [];
@@ -421,10 +396,11 @@ export function sowMeadow(
     const cap = Math.max(64, Math.round((MAX_PLANTS * plant.share) / total));
 
     const mesh = new Mesh(`meadow-${plant.id}`, scene);
-    // Every level built once at load. Rebuilding one on a zoom would be twenty
-    // milliseconds of main thread at exactly the moment the camera is moving.
-    const levels = LEVELS.map(level => plantGeometry(plant, level.detail));
-    levels[0].applyToMesh(mesh);
+    // <b>One geometry, at full detail, at every distance.</b> There was a
+    // ladder here that coarsened plants as the camera pulled back. On a board
+    // that is looked at from above it coarsened the plants in the middle of the
+    // shot, which is the only place anybody is looking.
+    plantGeometry(plant).applyToMesh(mesh);
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.useVertexColors = true;
     // <b>The meadow does not receive shadows either.</b> It did, and the shadow
@@ -520,7 +496,9 @@ export function sowMeadow(
     // the matrix can keep the ground's normal in its up column. As a lateral
     // reach at the tip rather than an angle, because that is what the bend
     // wants.
-    wind.droop = Math.tan(plant.droop);
+    // Radians of curve per unit of stem, so the tip has turned through the
+    // species' own droop angle whatever height it grew to.
+    wind.droop = plant.droop / plant.tall;
     mesh.material = material;
 
     const matrices = new StorageBuffer(engine, cap * 16 * 4, flags, `${plant.id}-m`);
@@ -557,64 +535,33 @@ export function sowMeadow(
     beds.push({
       sown: { plant, mesh, wind, matrices, tints, count: cap },
       matrices, tints, params, compute, cap, offset: seedOffset,
-      levels, level: 0,
     });
     seedOffset += cap;
   }
 
   let ran = false;
   let density = 0.5;
-  // Where the window sits and how coarse it is. Set on the first sowing and
-  // whenever the camera has moved far enough to be worth re-sowing for.
-  let step = 4;
-  let originX = 0;
-  let originY = 0;
-  let sownAt = { x: Number.NaN, y: Number.NaN, step: 0 };
-
-  const board = Math.max(field.extentXHalfFeet, field.extentYHalfFeet);
 
   /**
-   * Sizes the window from how far the camera is standing back.
+   * The lattice: how many cells across the board, and how big one is.
    *
-   * <p>`radius * 2.4` is roughly the ground a camera at that distance can see
-   * with this field of view. The floor keeps a close camera from sowing a
-   * window smaller than the ground it is standing on; the ceiling stops a
-   * pulled-back camera from spending cells on ocean, since past the board's own
-   * span there is nothing more to cover.
+   * <p>Sized by the rarest species. Plants are laid down as a whole number per
+   * cell, so a species that is three per cent of the sward needs the cell count
+   * to be under its own share of the budget or it cannot be represented at all
+   * — round its slots up to one and there are as many daisies as there is
+   * grass. That fixes the cell at about sixteen inches, which gives the grass
+   * something like twenty blades in each: enough that a cell reads as a tuft
+   * rather than as a grid.
    */
-  const window = (radius: number): number =>
-    Math.min(Math.max(radius * 2.4, 70), board * 1.55) / CELLS_ACROSS;
-
-  /**
-   * Swaps each species onto the level of detail its cell size calls for.
-   *
-   * <p><b>`applyToMesh` leaves the instance attributes alone</b>, which is what
-   * makes this a swap rather than a rebuild: it writes positions, normals, uvs
-   * and indices, and the per-instance world columns and colour live under
-   * different attribute names entirely. Rebinding them here would work too and
-   * would be four allocations a zoom for nothing.
-   */
-  const detail = (): void => {
-    const current = beds[0]?.level ?? 0;
-    // <b>Hysteresis, so a camera parked on a boundary cannot thrash.</b> Going
-    // coarser needs the cell to pass the threshold; coming back needs it to
-    // fall a tenth below the *previous* band's. Without the margin, a hand
-    // resting on a trackpad rebuilds five meshes every frame.
-    const want = LEVELS.findIndex((level, at) =>
-      step <= level.upToCell * (at < current ? 0.9 : 1));
-    const level = want < 0 ? LEVELS.length - 1 : want;
-    for (const bed of beds) {
-      if (bed.level === level) {
-        continue;
-      }
-      bed.level = level;
-      bed.levels[level].applyToMesh(bed.sown.mesh);
-    }
-  };
+  const rarest = Math.min(...plants.map(plant => plant.share)) / total;
+  const pitch = Math.sqrt(
+    (field.extentXHalfFeet * field.extentYHalfFeet) / (MAX_PLANTS * rarest));
+  const eastCells = Math.max(1, Math.ceil(field.extentXHalfFeet / pitch));
+  const northCells = Math.max(1, Math.ceil(field.extentYHalfFeet / pitch));
+  const cells = eastCells * northCells;
 
   const sow = (): void => {
     let all = true;
-    const cells = CELLS_ACROSS * CELLS_ACROSS;
     for (const bed of beds) {
       // Density scales the plants per cell rather than the plant count, so
       // thinning is uniform across the window instead of emptying the cells
@@ -630,13 +577,12 @@ export function sowMeadow(
         'b', 1, 1, bed.sown.plant.wearMax, bed.sown.plant.droop,
       );
       bed.params.updateFloat4('c', bed.sown.plant.damp, 0, 0, 0);
-      bed.params.updateFloat4('d', slots, CELLS_ACROSS, step, 0);
-      bed.params.updateFloat4('e', originX, originY, 0, 0);
+      bed.params.updateFloat4('d', slots, eastCells, pitch, northCells);
+      bed.params.updateFloat4('e', 0, 0, 0, 0);
       bed.params.update();
       all = bed.compute.dispatch(Math.ceil(Math.max(1, count) / 64)) && all;
     }
     ran = all;
-    sownAt = { x: originX, y: originY, step };
   };
   sow();
 
@@ -644,23 +590,6 @@ export function sowMeadow(
     sown: beds.map(bed => bed.sown),
     plants: MAX_PLANTS,
     get ran(): boolean { return ran; },
-    setView(atX: number, atY: number, radius: number): void {
-      const next = window(radius);
-      // A cell is the unit the lattice is quantised to, so moving less than one
-      // changes nothing about where anything grows. The zoom test is
-      // proportional because a five per cent change in cell size is invisible
-      // and re-sowing for it every frame during a pinch is not.
-      const moved = Math.abs(atX - sownAt.x) > step || Math.abs(atY - sownAt.y) > step;
-      const zoomed = Math.abs(next - sownAt.step) > sownAt.step * 0.08;
-      if (!moved && !zoomed && ran) {
-        return;
-      }
-      step = next;
-      originX = atX - (CELLS_ACROSS * step) / 2;
-      originY = atY - (CELLS_ACROSS * step) / 2;
-      detail();
-      sow();
-    },
     setDensity(fraction: number): void {
       density = Math.max(0, Math.min(1, fraction));
       // Re-sows. The compute pass writes exactly `count` matrices and the rest

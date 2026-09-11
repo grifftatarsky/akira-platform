@@ -54,13 +54,21 @@ export class BladeWind extends MaterialPluginBase {
   ground = 0.8;
 
   /**
-   * How far the tip reaches sideways under the plant's own weight, in the
-   * plant's own units.
+   * How sharply the stem curves under its own weight: radians of turn per unit
+   * of length, so a stem of height `h` has bent through `droop * h` at its tip.
    *
    * <p>This was a tilt of the whole instance matrix. It is a bend now, for two
    * reasons: a stem bends along its length rather than hinging at its root, and
    * a tilted matrix no longer has the ground's normal in its up column — which
    * is the thing {@link ground} needs it to have.
+   *
+   * <p><b>A curvature and not a slope.</b> It was the tangent of the lean, used
+   * to shear the blade sideways, with a hand-fitted term taking height back off
+   * so the sheared blade did not stretch. That term was quadratic in a quantity
+   * measured in half-feet, so on the one plant tall enough to matter — the
+   * Yorkshire fog, at four and a bit — it went past one, turned the height
+   * negative, and stood the whole species upside down under the meadow. Nothing
+   * hand-fitted replaces it: the arc below is exact.
    */
   droop = 0;
 
@@ -198,14 +206,28 @@ export class BladeWind extends MaterialPluginBase {
           hashed *= 0x5bd1e995u;
           hashed ^= hashed >> 15u;
           let dice = f32(hashed & 0xffffffu) / 16777216.0;
-          let bend = uniforms.bladeGround.y * (0.35 + 0.65 * dice)
-            * positionUpdated.y * bladeAlong;
+          //
+          // <p><b>A circular arc, integrated, not a shear with a correction.</b>
+          // Let the stem turn at a constant curl of c radians per unit of its
+          // own length; then the point an arc-length s up it sits at
+          // sin(c*s)/c along the stem and (1 - cos(c*s))/c out from it. That is
+          // exact, it preserves length by construction, and it cannot invert —
+          // which the shear it replaces could and did, standing the tall grass
+          // upside down beneath the field.
+          let curl = uniforms.bladeGround.y * (0.35 + 0.65 * dice);
+          let arc = positionUpdated.y;
+          // Short of a right angle at the tip. Nothing here asks for more, and
+          // past it a leaf starts passing back through the plant's own stem.
+          let turned = clamp(curl * arc, -1.5, 1.5);
+          let straight = curl < 0.0001;
+          let rise = select(sin(turned) / curl, arc, straight);
+          let reach = select((1.0 - cos(turned)) / curl, 0.0, straight);
 
           let sink = 1.0 - over * over * 0.18 * bladeAlong;
           positionUpdated = vec3f(
             positionUpdated.x + curve.x * dot(downwind, sideways),
-            positionUpdated.y * sink * (1.0 - 0.16 * bend * bend),
-            positionUpdated.z + curve.x * dot(downwind, facing) + bend);
+            rise * sink,
+            positionUpdated.z + curve.x * dot(downwind, facing) + reach);
 
           // <b>Turn an edge-on plant toward the camera.</b> A blade is a flat
           // strip and a flat strip seen along its edge is a line — which is

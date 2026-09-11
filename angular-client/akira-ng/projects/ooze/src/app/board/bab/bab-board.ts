@@ -276,11 +276,6 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       // GPU does not notice, and nothing touches the main thread.
       stage.scene.onBeforeRenderObservable.add(() => {
         this.meadow?.step(performance.now() / 1000);
-        // The sown window follows the camera. `setView` is a no-op unless the
-        // window would land somewhere else, so this is a couple of comparisons
-        // a frame and a compute dispatch only when the view has really moved.
-        const view = stage.camera;
-        this.meadow?.setView(view.target.x, view.target.z, view.radius);
       });
 
       stage.frame(
