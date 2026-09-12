@@ -50,12 +50,6 @@ export interface Standing {
  */
 const TREES = 7;
 const SCRUB = 54;
-/**
- * <b>A dozen, not two dozen.</b> Twenty-six was a scree slope. A grazed field
- * with a cart track through it turns out a stone at a time over years, and what
- * you see is a handful along the verge and a couple the plough went round.
- */
-const STONES = 11;
 
 /** Half-feet. A hedgerow oak in a Virginia field, give or take. */
 const TREE_TALL = 64;
@@ -139,14 +133,16 @@ function groundUnder(
 }
 
 /**
- * Named plants out of one scan, each merged and rebased, ready to scatter.
+ * Named subjects out of one scan file, each merged and rebased, ready to
+ * scatter.
  *
- * <p>A scan is often several plants captured together, and each plant is
- * several primitives because bark, leaves and twigs are separate materials.
- * The index this takes is a *plant*, and every primitive of that plant comes
- * with it — which is the whole correction this function exists to make.
+ * <p>A scan is often several subjects captured together — seven shrubs, six
+ * mossy rocks — and each subject can be several primitives, because bark,
+ * leaves and twigs are separate materials. The index this takes is a
+ * *subject*, and every primitive of that subject comes with it, which is the
+ * whole correction this function exists to make.
  */
-async function loadPlants(
+async function loadScans(
   name: string, scene: Scene, wanted: readonly number[],
 ): Promise<Map<number, Mesh>> {
   const box = await LoadAssetContainerAsync(
@@ -315,7 +311,7 @@ export async function plantScans(
   }
   const loaded = new Map<string, Map<number, Mesh>>();
   for (const [name, plants] of wanted) {
-    loaded.set(name, await loadPlants(name, scene, plants));
+    loaded.set(name, await loadScans(name, scene, plants));
   }
 
   const out: Mesh[] = [];
@@ -406,138 +402,150 @@ export async function plantScans(
 /**
  * Fieldstone, as real geometry rather than cards.
  *
- * <p><b>The one place a downloaded model is the right answer.</b> Poly Haven's
- * vegetation is enormous — its pine is a 948 MB geometry buffer — but a boulder
- * is two or three megabytes.
+ * <p><b>A short table of one-offs, not a count and a scatter.</b> Eleven copies
+ * of the same boulder reads as eleven copies of the same boulder however they
+ * are rotated and scaled, and two dozen of them reads as a scree slope. A
+ * grazed field with a cart track through it has a couple of stones sitting in
+ * the open grass and a few more turned out along the verge — so that is what
+ * this is: seven stones, seven different rocks, placed one at a time.
  *
- * <p>Scattered as thin instances off one mesh: two dozen rocks is one draw, and
- * a rock has no reason to be its own object until something stands behind it.
- *
- * <p><b>Both kinds are placed in one pass, and that is the point.</b> Placed a
- * kind at a time there is nothing to stop the second kind landing on top of the
- * first, and nothing did: the board shipped with two boulders sitting against
- * each other in the middle of the track, the same size and near enough the same
- * rotation to read as one stone drawn twice.
+ * <p>Variety is nearly free here, because `rock_moss_set_01` is six separate
+ * mossy rocks in one three-megabyte file at six thousand vertices each. The
+ * Karoo boulders that were doing all the work are desert scans and read orange
+ * under a Virginia sun; one of them stays for the colour break.
  */
 export async function scatterStone(
   field: GroundField, scene: Scene,
 ): Promise<Mesh[]> {
-  const names = ['namaqualand_boulder_02', 'namaqualand_boulder_04'];
-  const rocks: Mesh[] = [];
-  for (let kind = 0; kind < names.length; kind++) {
-    const name = names[kind];
-    const box = await LoadAssetContainerAsync(
-      assetUrl(`assets/board/models/${name}/${name}.gltf`), scene,
-    );
-    const rock = box.meshes.find(mesh => mesh.getTotalVertices() > 0) as Mesh | undefined;
-    if (!rock) {
-      box.dispose();
-      continue;
-    }
-    box.removeAllFromScene();
-    rock.name = `stone-${kind}`;
-    scene.addMesh(rock);
-    // <b>Off its parent, and its own transform baked in.</b> A glTF arrives
-    // under a `__root__` node carrying the handedness flip, and a thin
-    // instance's matrix is composed against whatever the mesh's own world
-    // matrix already is — so left attached, two dozen boulders were placed
-    // through that root's rotation and scale and landed in a line beside the
-    // board, floating at nothing.
-    rock.setParent(null);
-    rock.bakeCurrentTransformIntoVertices();
-    rock.position.setAll(0);
-    rock.rotationQuaternion = null;
-    rock.rotation.setAll(0);
-    rock.scaling.setAll(1);
-    rock.computeWorldMatrix(true);
-    if (rock.material) {
-      scene.addMaterial(rock.material);
-    }
-    rocks.push(rock);
-  }
-  if (!rocks.length) {
-    return [];
-  }
+  const kinds: {
+    readonly name: string;
+    /** Which rock of a multi-rock scan. */
+    readonly rock?: number;
+    /**
+     * <b>Half-feet standing proud, not half-feet across.</b> Sized by width,
+     * these scans disappear: `rock_moss_set_01`'s rocks are slabs about twice
+     * as wide as they are tall, so asking for a four-foot stone got one under
+     * two feet high — and the sward is over two feet. Seven boulders went in
+     * and two could be seen. Height is the dimension that decides whether a
+     * stone is on this map at all, so height is what the table states.
+     */
+    readonly tall: number;
+    /** Out in the open grass, or turned out along the track's verge. */
+    readonly open: boolean;
+  }[] = [
+    { name: 'boulder_01', tall: 9, open: true },
+    { name: 'rock_moss_set_01', rock: 3, tall: 8, open: true },
+    { name: 'namaqualand_boulder_04', tall: 7, open: false },
+    // The sward stands about four half-feet, so anything under five is a stone
+    // in the grass rather than a stone on the map. Measured proud of the
+    // ground, these four come out between five and five and a half.
+    { name: 'rock_moss_set_01', rock: 0, tall: 7, open: false },
+    { name: 'rock_moss_set_01', rock: 4, tall: 7, open: false },
+    { name: 'rock_moss_set_01', rock: 2, tall: 6, open: false },
+    { name: 'rock_moss_set_01', rock: 5, tall: 6, open: false },
+  ];
 
-  // glTF is Y-up and so is the stage, so nothing to swap — but the scan's own
-  // scale is metres and this board counts half-feet.
-  const perMetre = 6.56;
-  const placed: { x: number; y: number; reach: number }[] = [];
-  const perKind: Matrix[][] = rocks.map(() => []);
-  // The count is a promise the same way the trees' is: the weighted preference
-  // gets most of the attempts, and after that only the hard vetoes apply.
-  const tries = STONES * 40;
-  for (let at = 0; at < tries && placed.length < STONES; at++) {
-    const insist = at > tries * 0.7;
-    const x = dice(at, 29, 61) * field.extentXHalfFeet;
-    const y = dice(at, 31, 67) * field.extentYHalfFeet;
-    const inside = Math.min(
-      x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
-    );
-    if (inside < 10) {
-      continue;
-    }
-    const { wear } = groundAt(field, x, y);
-    const steep = slopeAt(field, x, y);
-    // <b>Beside the track, not in it.</b> The rule this replaces *preferred*
-    // worn ground, which put boulders in the ruts of a road that carts use —
-    // and a cart road with a three-foot stone in the middle of it is a road
-    // nobody drove down. What a used track actually collects is stone along
-    // its verge, turned out by the wheels, which is the band just outside it.
-    if (wear > 0.56) {
-      continue;
-    }
-    // <b>Fieldstone, not gravel.</b> The scan is a metre-and-a-bit boulder and
-    // a tenth of that is a pebble nobody can see from the board's own camera.
-    // Between two and six feet across is a stone you would take cover behind,
-    // which is the only reason a combat map has one. Spread wider than it was,
-    // because two neighbours of the same size read as a copy-paste.
-    const size = perMetre * (0.24 + 0.7 * dice(at, 5, 73));
-    const reach = size * 0.75;
-    if (placed.some(other => {
-      const dx = other.x - x;
-      const dy = other.y - y;
-      const apart = other.reach + reach + 6;
-      return dx * dx + dy * dy < apart * apart;
-    })) {
-      continue;
-    }
-    const verge = wear > 0.14 && wear < 0.5 ? 1 : 0;
-    // Stone shows where the soil is thin, which on this board is the rises the
-    // plough went round.
-    const thin = Math.min(1, steep / 0.3);
-    const drift = noise(x * 0.02 + 5.1, y * 0.02 - 8.4);
-    if (!insist && verge * 0.5 + thin * 0.5 + drift * 0.4 < 0.5) {
-      continue;
-    }
-    const kind = dice(at, 3, 101) < 0.5 ? 0 : rocks.length - 1;
-    placed.push({ x, y, reach });
-    perKind[kind].push(Matrix.Compose(
-      new Vector3(size, size * (0.66 + 0.42 * dice(at, 7, 79)), size),
-      Quaternion.FromEulerAngles(
-        (dice(at, 11, 83) - 0.5) * 0.4,
-        dice(at, 13, 89) * 6.2831853,
-        (dice(at, 17, 97) - 0.5) * 0.4,
-      ),
-      // Sunk a little, so a boulder sits in the ground rather than on it.
-      new Vector3(x, groundUnder(field, x, y, reach * 0.5) - size * 0.28, y),
-    ));
+  const wanted = new Map<string, number[]>();
+  for (const kind of kinds) {
+    const list = wanted.get(kind.name) ?? [];
+    list.push(kind.rock ?? 0);
+    wanted.set(kind.name, list);
+  }
+  const loaded = new Map<string, Map<number, Mesh>>();
+  for (const [name, rocks] of wanted) {
+    loaded.set(name, await loadScans(name, scene, rocks));
   }
 
   const out: Mesh[] = [];
-  rocks.forEach((rock, kind) => {
-    const matrices = perKind[kind];
-    if (!matrices.length) {
-      rock.dispose();
-      return;
+  const placed: { x: number; y: number; reach: number }[] = [];
+  for (let kind = 0; kind < kinds.length; kind++) {
+    const want = kinds[kind];
+    const rock = loaded.get(want.name)?.get(want.rock ?? 0);
+    if (!rock) {
+      continue;
     }
-    const packed = new Float32Array(matrices.length * 16);
-    matrices.forEach((matrix, at) => matrix.copyToArray(packed, at * 16));
+    rock.name = `stone-${want.name}-${want.rock ?? 0}`;
+    rock.refreshBoundingInfo();
+    const box = rock.getBoundingInfo().boundingBox;
+    const own = Math.max(0.001, box.maximum.y - box.minimum.y);
+    const aspect = Math.max(
+      box.maximum.x - box.minimum.x, box.maximum.z - box.minimum.z,
+    ) / own;
+
+    // One stone a kind, so the loop is looking for the one spot that suits it
+    // rather than filling a quota. The last quarter of the attempts drops the
+    // preference and keeps only the vetoes, the same as the trees.
+    const tries = 300;
+    let sat: Matrix | null = null;
+    for (let at = 0; at < tries && !sat; at++) {
+      const insist = at > tries * 0.75;
+      const x = dice(at, 29 + kind * 7, 61 + kind * 13) * field.extentXHalfFeet;
+      const y = dice(at, 31 + kind * 5, 67 + kind * 11) * field.extentYHalfFeet;
+      const inside = Math.min(
+        x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+      );
+      if (inside < 14) {
+        continue;
+      }
+      const { wear } = groundAt(field, x, y);
+      // <b>Beside the track, never in it.</b> The rule this replaces
+      // *preferred* worn ground, which put boulders in the ruts of a road that
+      // carts use — and a cart road with a four-foot stone in the middle of it
+      // is a road nobody drove down.
+      if (wear > 0.5) {
+        continue;
+      }
+      const size = (want.tall / own) * (0.86 + 0.28 * dice(at, 5, 73 + kind));
+      const reach = want.tall * aspect * 0.5;
+      if (placed.some(other => {
+        const dx = other.x - x;
+        const dy = other.y - y;
+        const apart = other.reach + reach + 26;
+        return dx * dx + dy * dy < apart * apart;
+      })) {
+        continue;
+      }
+      if (!insist) {
+        // A stone in the open wants ground the plough went round, which on
+        // this board is the rises; one on the verge wants the band just
+        // outside the ruts.
+        const fits = want.open
+          ? Math.min(1, slopeAt(field, x, y) / 0.26) * 0.7
+            + (wear < 0.12 ? 0.3 : 0)
+          : (wear > 0.16 && wear < 0.46 ? 0.8 : 0);
+        if (fits + noise(x * 0.02 + 5.1 + kind, y * 0.02 - 8.4) * 0.4 < 0.55) {
+          continue;
+        }
+      }
+      placed.push({ x, y, reach });
+      sat = Matrix.Compose(
+        new Vector3(size, size * (0.78 + 0.34 * dice(at, 7, 79 + kind)), size),
+        Quaternion.FromEulerAngles(
+          (dice(at, 11, 83) - 0.5) * 0.4,
+          dice(at, 13, 89 + kind) * 6.2831853,
+          (dice(at, 17, 97) - 0.5) * 0.4,
+        ),
+        // Sunk a tenth of its own height, so a boulder sits in the ground
+        // rather than on it. `groundUnder` is already the lowest point under
+        // the footprint, so this is the whole of the burial and it wants to be
+        // small — a slab that is only two feet tall to begin with has no depth
+        // to spare.
+        new Vector3(
+          x, groundUnder(field, x, y, reach * 0.5) - want.tall * 0.1, y,
+        ),
+      );
+    }
+    if (!sat) {
+      rock.dispose();
+      continue;
+    }
+    const packed = new Float32Array(16);
+    sat.copyToArray(packed, 0);
     rock.thinInstanceSetBuffer('matrix', packed, 16);
     rock.receiveShadows = true;
     rock.alwaysSelectAsActiveMesh = true;
     out.push(rock);
-  });
+  }
   return out;
 }
 
