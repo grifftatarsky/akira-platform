@@ -114,7 +114,9 @@ function addCard(
   const ca = Math.cos(around);
   const sa = Math.sin(around);
 
-  const lean = spec.flat ? Math.PI / 2 : spec.lean;
+  const lean = spec.flat
+    ? Math.PI / 2
+    : spec.lean * (0.3 + 1.4 * fract(index * 0.6180339887));
   const cl = Math.cos(lean);
   const sl = Math.sin(lean);
   const across: Vec = [ca, 0, -sa];
@@ -237,6 +239,10 @@ function addStem(build: Build, plant: Plant, sheet: FoliageSheet): void {
     }
     build.indices.push(first, first + 1, first + 2, first + 1, first + 3, first + 2);
   }
+}
+
+function fract(x: number): number {
+  return x - Math.floor(x);
 }
 
 function stalkTop(cut: Cut): number {
