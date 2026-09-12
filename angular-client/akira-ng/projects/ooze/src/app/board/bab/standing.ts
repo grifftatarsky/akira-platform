@@ -142,7 +142,7 @@ function groundUnder(
  * *subject*, and every primitive of that subject comes with it, which is the
  * whole correction this function exists to make.
  */
-async function loadScans(
+export async function loadScans(
   name: string, scene: Scene, wanted: readonly number[],
 ): Promise<Map<number, Mesh>> {
   const box = await LoadAssetContainerAsync(
@@ -262,21 +262,27 @@ async function loadScans(
  * low-poly that would sit beside photographed grass looking like a different
  * game. This board is not deployed; it downloads once and instances after.
  */
-export async function plantScans(
-  field: GroundField, scene: Scene,
-): Promise<Mesh[]> {
-  const kinds: {
-    readonly name: string;
-    readonly count: number;
-    /** Half-feet the scan measures, so it can be fitted to the board's scale. */
-    readonly tall: number;
-    readonly inside: number;
-    readonly wearMax: number;
-    /** How strongly it wants the field's margin over its middle. */
-    readonly edge: number;
-    /** Which *plant* of a multi-plant scan to take, not which primitive. */
-    readonly plant?: number;
-  }[] = [
+export interface ScanKind {
+  readonly name: string;
+  readonly count: number;
+  /** Half-feet the scan measures, so it can be fitted to the board's scale. */
+  readonly tall: number;
+  readonly inside: number;
+  readonly wearMax: number;
+  /** How strongly it wants the field's margin over its middle. */
+  readonly edge: number;
+  /** Which *plant* of a multi-plant scan to take, not which primitive. */
+  readonly plant?: number;
+  /** What to call it in the asset panel. */
+  readonly label: string;
+}
+
+/**
+ * What stands on this board, as data rather than as a literal inside the
+ * function that plants it — so the asset panel can show exactly the things the
+ * board is made of instead of a second list that drifts from this one.
+ */
+export const STANDING: readonly ScanKind[] = [
     // <b>Near enough the size they were photographed at, which they were not
     // before.</b> These are small plants: `island_tree_02` is 3.4 m tall and
     // the biggest `searsia_lucida` in its seven-plant scan is 2.3 m. Asking for
@@ -294,11 +300,16 @@ export async function plantScans(
     // <p>Counts are still a budget. A photographic tree is eight hundred
     // thousand vertices, and the way to get a field's real number back is
     // impostors, which is in the plan rather than in this file.
-    { name: 'island_tree_02', count: 3, tall: 38, inside: 46, wearMax: 0.58, edge: 0.8 },
-    { name: 'searsia_lucida', count: 4, tall: 16, inside: 20, wearMax: 0.6, edge: 0.7, plant: 0 },
-    { name: 'searsia_lucida', count: 5, tall: 11, inside: 14, wearMax: 0.66, edge: 0.5, plant: 2 },
-    { name: 'searsia_lucida', count: 6, tall: 7, inside: 12, wearMax: 0.7, edge: 0.45, plant: 4 },
+    { name: 'island_tree_02', count: 3, tall: 38, inside: 46, wearMax: 0.58, edge: 0.8, label: 'Island tree' },
+    { name: 'searsia_lucida', count: 4, tall: 16, inside: 20, wearMax: 0.6, edge: 0.7, plant: 0, label: 'Searsia, tall bush' },
+    { name: 'searsia_lucida', count: 5, tall: 11, inside: 14, wearMax: 0.66, edge: 0.5, plant: 2, label: 'Searsia, bush' },
+    { name: 'searsia_lucida', count: 6, tall: 7, inside: 12, wearMax: 0.7, edge: 0.45, plant: 4, label: 'Searsia, low scrub' },
   ];
+
+export async function plantScans(
+  field: GroundField, scene: Scene,
+): Promise<Mesh[]> {
+  const kinds = STANDING;
 
   // One load a file, however many plants are wanted out of it. Parsing an
   // eighteen-megabyte buffer three times to take three bushes out of it is
@@ -414,13 +425,10 @@ export async function plantScans(
  * Karoo boulders that were doing all the work are desert scans and read orange
  * under a Virginia sun; one of them stays for the colour break.
  */
-export async function scatterStone(
-  field: GroundField, scene: Scene,
-): Promise<Mesh[]> {
-  const kinds: {
-    readonly name: string;
-    /** Which rock of a multi-rock scan. */
-    readonly rock?: number;
+export interface StoneKind {
+  readonly name: string;
+  /** Which rock of a multi-rock scan. */
+  readonly rock?: number;
     /**
      * <b>Half-feet standing proud, not half-feet across.</b> Sized by width,
      * these scans disappear: `rock_moss_set_01`'s rocks are slabs about twice
@@ -429,21 +437,31 @@ export async function scatterStone(
      * and two could be seen. Height is the dimension that decides whether a
      * stone is on this map at all, so height is what the table states.
      */
-    readonly tall: number;
-    /** Out in the open grass, or turned out along the track's verge. */
-    readonly open: boolean;
-  }[] = [
-    { name: 'boulder_01', tall: 9, open: true },
-    { name: 'rock_moss_set_01', rock: 3, tall: 8, open: true },
-    { name: 'namaqualand_boulder_04', tall: 7, open: false },
+  readonly tall: number;
+  /** Out in the open grass, or turned out along the track's verge. */
+  readonly open: boolean;
+  /** What to call it in the asset panel. */
+  readonly label: string;
+}
+
+/** The stones this board is made of, for the same reason as {@link STANDING}. */
+export const FIELDSTONE: readonly StoneKind[] = [
+    { name: 'boulder_01', tall: 9, open: true, label: 'Lichen boulder' },
+    { name: 'rock_moss_set_01', rock: 3, tall: 8, open: true, label: 'Mossy rock, tall' },
+    { name: 'namaqualand_boulder_04', tall: 7, open: false, label: 'Karoo boulder' },
     // The sward stands about four half-feet, so anything under five is a stone
     // in the grass rather than a stone on the map. Measured proud of the
     // ground, these four come out between five and five and a half.
-    { name: 'rock_moss_set_01', rock: 0, tall: 7, open: false },
-    { name: 'rock_moss_set_01', rock: 4, tall: 7, open: false },
-    { name: 'rock_moss_set_01', rock: 2, tall: 6, open: false },
-    { name: 'rock_moss_set_01', rock: 5, tall: 6, open: false },
-  ];
+    { name: 'rock_moss_set_01', rock: 0, tall: 7, open: false, label: 'Mossy slab' },
+    { name: 'rock_moss_set_01', rock: 4, tall: 7, open: false, label: 'Mossy rock, broad' },
+    { name: 'rock_moss_set_01', rock: 2, tall: 6, open: false, label: 'Mossy rock, small' },
+    { name: 'rock_moss_set_01', rock: 5, tall: 6, open: false, label: 'Mossy rock, flat' },
+];
+
+export async function scatterStone(
+  field: GroundField, scene: Scene,
+): Promise<Mesh[]> {
+  const kinds = FIELDSTONE;
 
   const wanted = new Map<string, number[]>();
   for (const kind of kinds) {

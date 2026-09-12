@@ -13,7 +13,7 @@ import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
 import { loadFoliage } from './foliage-cards';
-import { plantScans, scatterStone } from './standing';
+import { FIELDSTONE, STANDING, plantScans, scatterStone } from './standing';
 
 /**
  * A remembered boolean, defaulting when this browser refuses storage.
@@ -52,7 +52,7 @@ function dayLabel(day: number): string {
 type Part = 'meadow' | 'trees' | 'stones' | 'shadows' | 'taa' | 'relief'
   | 'sky' | 'grade' | 'bloom';
 import { type Meadow, sowMeadow } from './meadow';
-import { PlantPreview } from './plant-preview';
+import { type Asset, PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
 import { type Slice, splitFrame } from './split-frame';
 import { Stage } from './stage';
@@ -267,7 +267,7 @@ import { type Terrain, buildTerrain } from './terrain';
                white hyphen seen from low down and perfect from above — and a
                turntable passes through both too fast to notice. -->
           <div class="h-72 shrink-0 border-b border-rule p-2">
-            <ooze-plant-preview [plant]="chosen()" [angle]="angle()" [spin]="spin()" />
+            <ooze-plant-preview [asset]="chosen()" [angle]="angle()" [spin]="spin()" />
           </div>
           <div class="flex shrink-0 flex-wrap items-center gap-1 border-b border-rule px-2 py-1.5 font-mono text-[0.65rem]">
             @for (where of angles; track where.key) {
@@ -285,51 +285,103 @@ import { type Terrain, buildTerrain } from './terrain';
           </div>
 
           <div class="min-h-0 flex-1 overflow-y-auto p-3">
-            <p class="font-mono text-[0.6rem] text-fg-subtle">
-              {{ chosen().tall / 2 | number:'1.1-1' }} ft tall ·
-              {{ triangles(chosen()) }} tris ·
-              {{ share(chosen()) }}% of the sward ·
-              {{ drawn(chosen()) | number }} drawn
-            </p>
-            <!-- Every card the plant is made of, because the number that is
-                 usually wrong is the row count: a card is a quad strip, so two
-                 rows can only ever be a trapezoid and a round leaf collapses.
-                 Under three is flagged. -->
-            <table class="mt-2 w-full font-mono text-[0.6rem] text-fg-subtle">
-              <thead class="text-fg-whisper">
-                <tr class="text-left">
-                  <th class="font-normal">card</th><th class="font-normal">n</th>
-                  <th class="font-normal">tall</th><th class="font-normal">lean</th>
-                  <th class="font-normal">rows</th><th class="font-normal">lies</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (card of chosen().cards; track $index) {
-                  <tr>
-                    <td class="text-fg">{{ card.group }}</td>
-                    <td class="tabular-nums">{{ card.count }}</td>
-                    <td class="tabular-nums">{{ card.tall }}</td>
-                    <td class="tabular-nums">{{ card.flat ? '90°' : (card.lean * 57.3 | number:'1.0-0') + '°' }}</td>
-                    <td class="tabular-nums" [class.text-danger]="card.rows < 3">{{ card.rows }}</td>
-                    <td>{{ card.flat ? 'flat' : '' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-            <p class="mt-2 text-xs leading-relaxed text-fg-muted">{{ chosen().note }}</p>
+            @if (chosen(); as pick) {
+              @if (pick.kind === 'plant') {
+                <p class="font-mono text-[0.6rem] text-fg-subtle">
+                  {{ pick.plant.tall / 2 | number:'1.1-1' }} ft tall ·
+                  {{ triangles(pick.plant) }} tris ·
+                  {{ share(pick.plant) }}% of the sward ·
+                  {{ drawn(pick.plant) | number }} drawn
+                </p>
+                <!-- Every card the plant is made of, because the number that is
+                     usually wrong is the row count: a card is a quad strip, so
+                     two rows can only ever be a trapezoid and a round leaf
+                     collapses. Under three is flagged. -->
+                <table class="mt-2 w-full font-mono text-[0.6rem] text-fg-subtle">
+                  <thead class="text-fg-whisper">
+                    <tr class="text-left">
+                      <th class="font-normal">card</th><th class="font-normal">n</th>
+                      <th class="font-normal">tall</th><th class="font-normal">lean</th>
+                      <th class="font-normal">rows</th><th class="font-normal">how</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (card of pick.plant.cards; track $index) {
+                      <tr>
+                        <td class="text-fg">{{ card.group }}</td>
+                        <td class="tabular-nums">{{ card.count }}</td>
+                        <td class="tabular-nums">{{ card.tall }}</td>
+                        <td class="tabular-nums">{{ card.flat ? '90' : (card.lean * 57.3 | number:'1.0-0') }}</td>
+                        <td class="tabular-nums" [class.text-danger]="card.rows < 3">{{ card.rows }}</td>
+                        <td>{{ card.flat ? 'flat ' : '' }}{{ card.trimStalk ? 'trim ' : '' }}{{ card.cross !== undefined ? 'cross' : '' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+                <p class="mt-2 text-xs leading-relaxed text-fg-muted">{{ pick.plant.note }}</p>
+              } @else {
+                <p class="font-mono text-[0.6rem] text-fg-subtle">
+                  {{ pick.name }} · part {{ pick.part }} · scanned glTF
+                </p>
+                <p class="mt-2 text-xs leading-relaxed text-fg-muted">
+                  Photogrammetry from Poly Haven, CC0. Used near the size it was
+                  captured at — leaf density falls with the cube of the scale,
+                  so a shrub blown up to tree height comes out see-through.
+                </p>
+              }
+            }
 
-            <ul class="mt-3 flex flex-col gap-1">
+            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">sward</p>
+            <ul class="mt-1 flex flex-col gap-1">
               @for (plant of species; track plant.id) {
                 <li>
-                  <button type="button" (click)="chosen.set(plant)"
+                  <button type="button" (click)="pickPlant(plant)"
                     class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
-                    [class.border-accent]="chosen().id === plant.id"
-                    [class.text-fg]="chosen().id === plant.id"
-                    [class.border-rule]="chosen().id !== plant.id"
-                    [class.text-fg-muted]="chosen().id !== plant.id">
+                    [class.border-accent]="isPlant(plant)"
+                    [class.text-fg]="isPlant(plant)"
+                    [class.border-rule]="!isPlant(plant)"
+                    [class.text-fg-muted]="!isPlant(plant)">
                     <span class="font-medium">{{ plant.name }}</span>
                     <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
                       {{ share(plant) }}%
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+
+            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">standing</p>
+            <ul class="mt-1 flex flex-col gap-1">
+              @for (kind of standing; track $index) {
+                <li>
+                  <button type="button" (click)="pickScan(kind.name, kind.plant ?? 0)"
+                    class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
+                    [class.border-accent]="isScan(kind.name, kind.plant ?? 0)"
+                    [class.text-fg]="isScan(kind.name, kind.plant ?? 0)"
+                    [class.border-rule]="!isScan(kind.name, kind.plant ?? 0)"
+                    [class.text-fg-muted]="!isScan(kind.name, kind.plant ?? 0)">
+                    <span class="font-medium">{{ kind.label }}</span>
+                    <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
+                      &times;{{ kind.count }} · {{ kind.tall / 2 | number:'1.0-1' }} ft
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+
+            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">fieldstone</p>
+            <ul class="mt-1 flex flex-col gap-1">
+              @for (kind of fieldstone; track $index) {
+                <li>
+                  <button type="button" (click)="pickScan(kind.name, kind.rock ?? 0)"
+                    class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
+                    [class.border-accent]="isScan(kind.name, kind.rock ?? 0)"
+                    [class.text-fg]="isScan(kind.name, kind.rock ?? 0)"
+                    [class.border-rule]="!isScan(kind.name, kind.rock ?? 0)"
+                    [class.text-fg-muted]="!isScan(kind.name, kind.rock ?? 0)">
+                    <span class="font-medium">{{ kind.label }}</span>
+                    <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
+                      {{ kind.tall / 2 | number:'1.0-1' }} ft {{ kind.open ? 'grass' : 'verge' }}
                     </span>
                   </button>
                 </li>
@@ -379,7 +431,27 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     { key: 'side', label: 'side', note: 'Level with the plant, for its height and its stem.' },
   ];
   protected readonly species = MEADOW;
-  protected readonly chosen = signal<Plant>(MEADOW[0]);
+  protected readonly chosen = signal<Asset>({ kind: 'plant', plant: MEADOW[0] });
+  protected readonly standing = STANDING;
+  protected readonly fieldstone = FIELDSTONE;
+
+  protected pickPlant(plant: Plant): void {
+    this.chosen.set({ kind: 'plant', plant });
+  }
+
+  protected pickScan(name: string, part: number): void {
+    this.chosen.set({ kind: 'scan', name, part });
+  }
+
+  protected isPlant(plant: Plant): boolean {
+    const pick = this.chosen();
+    return pick.kind === 'plant' && pick.plant.id === plant.id;
+  }
+
+  protected isScan(name: string, part: number): boolean {
+    const pick = this.chosen();
+    return pick.kind === 'scan' && pick.name === name && pick.part === part;
+  }
   protected readonly fault = signal<string | null>(null);
   /**
    * The two diagnostics the report asked for before any fix.

@@ -13,6 +13,19 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Scene } from '@babylonjs/core/scene';
 import type { Plant } from './species';
+import { loadScans } from './standing';
+
+/**
+ * Anything the board is made of that is worth looking at on its own.
+ *
+ * <p>A plant is built here from the cut-out sheet; a scan is the same glTF the
+ * board instances, loaded into this panel's own scene. Both go through one
+ * viewer because the questions are the same ones — what shape is it, and what
+ * does it look like from the angle the board is actually played at.
+ */
+export type Asset =
+  | { readonly kind: 'plant'; readonly plant: Plant }
+  | { readonly kind: 'scan'; readonly name: string; readonly part: number };
 
 /**
  * One plant, on a turntable, big enough to argue with.
@@ -37,7 +50,7 @@ import type { Plant } from './species';
 })
 export class PlantPreview implements AfterViewInit, OnDestroy {
 
-  readonly plant = input.required<Plant>();
+  readonly asset = input.required<Asset>();
   /**
    * Where to stand.
    *
@@ -62,9 +75,9 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     // Rebuilds the model when the chosen plant changes. The scene, engine and
     // camera survive; only the geometry and its colours are replaced.
     effect(() => {
-      const plant = this.plant();
+      const asset = this.asset();
       if (this.scene && this.sheet) {
-        this.model(plant, this.sheet);
+        void this.model(asset, this.sheet);
       }
     });
     effect(() => {
@@ -134,7 +147,7 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
       return;
     }
     this.sheet = sheet;
-    this.model(this.plant(), sheet);
+    void this.model(this.asset(), sheet);
     // Turning slowly, because a silhouette is the thing being judged and a
     // still one only shows you a single angle of it.
     scene.onBeforeRenderObservable.add(() => {
@@ -145,12 +158,32 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     engine.runRenderLoop(() => scene.render());
   }
 
-  private model(plant: Plant, sheet: FoliageSheet): void {
+  private async model(asset: Asset, sheet: FoliageSheet): Promise<void> {
     const scene = this.scene;
     if (!scene) {
       return;
     }
     this.mesh?.dispose();
+    this.mesh = null;
+    if (asset.kind === 'scan') {
+      // <b>Loaded into this panel's own scene, not borrowed from the board's.</b>
+      // An engine owns its buffers, so a mesh cannot cross between the two. The
+      // file is already in the browser's cache from the board, so the second
+      // parse is the whole of the cost and it happens once a selection.
+      const loaded = await loadScans(asset.name, scene, [asset.part]);
+      const one = loaded.get(asset.part);
+      if (!one || this.gone) {
+        one?.dispose();
+        return;
+      }
+      one.refreshBoundingInfo();
+      const box = one.getBoundingInfo().boundingBox;
+      const own = Math.max(0.001, box.maximum.y - box.minimum.y);
+      one.scaling.setAll(1 / own);
+      this.mesh = one;
+      return;
+    }
+    const plant = asset.plant;
     const mesh = new Mesh('plant', scene);
     cardGeometry(plant, sheet).applyToMesh(mesh);
     // The geometry already carries the plant's proportions, so this only

@@ -64,6 +64,22 @@ export interface CardSpec {
    * crossed pair and there is always a face toward the camera. Two triangles.
    */
   readonly cross?: number;
+  /**
+   * Cut the photographed stalk off the bottom of the cut-out.
+   *
+   * <p>A scan of a clover is a trefoil on its own petiole. Carried whole on one
+   * quad, the leaf cannot be laid flat without laying its stalk flat with it —
+   * so the leaf was leaned instead, which is a rotation standing in for a mesh
+   * and looks wrong from every angle but one. Trim the stalk and the leaf is
+   * free; the mesh draws a real petiole under it.
+   */
+  readonly trimStalk?: boolean;
+  /**
+   * Shift the card back along its own axis by this fraction of its length, so
+   * the picture straddles its root rather than growing out of it. A half for a
+   * flower head, a little for a leaf that meets its stalk near one edge.
+   */
+  readonly centred?: number;
 }
 
 export interface Plant {
@@ -266,20 +282,24 @@ export const MEADOW: readonly Plant[] = [
     droop: 0.12, stiff: 0.35,
     base: [0.10, 0.26, 0.09], tip: [0.26, 0.50, 0.19], bloom: [0, 0, 0],
     veins: 0, sweep: 0,
-    // <b>One card is the whole plant.</b> The scan is a trefoil on its own
-    // stem, which is the entire thing a clover is, and the seventy-six
+    // <b>A petiole the mesh draws, because the card no longer carries one.</b>
     blooms: false,
     patch: 0.017, clumping: 2.0, crowd: 1.3,
-    // triangles it replaces were three modelled leaflets trying to say it.
     cards: [
-      // <b>Held out, not held up.</b> At fifteen degrees off vertical the
-      // trefoil stood on its edge, which is the one thing a white clover leaf
-      // never does — it sits out flat on top of its petiole where the light
-      // is. It also meant the board's own camera, which looks down, saw the
-      // thinnest part of nearly a quarter of the sward.
-      { group: 'clover', count: 1, tall: 0.95, at: 0, out: 0, lean: 0.95, rows: 2, taper: 1 },
+      // <b>Flat, on a petiole, which is what a clover leaf is.</b> Leaning the
+      // card was a rotation standing in for a mesh: the scan has the petiole
+      // photographed into it, so the leaf could not lie down without its stalk
+      // lying down too, and every angle but one looked wrong. The stalk is
+      // trimmed off the cut now and the mesh draws a real one, so the trefoil
+      // sits out flat on top of it where the light is — which also means the
+      // board's own camera stops looking at the thin edge of a fifth of the
+      // sward.
+      {
+        group: 'clover', count: 1, tall: 0.52, at: 0.58, out: 0,
+        lean: 0, rows: 2, taper: 1, flat: true, trimStalk: true, centred: 0.24,
+      },
     ],
-    stemTall: 0,
+    stemTall: 0.58,
     lit: 0.64, wearMax: 0.78, damp: 0.5,
   },
   {
@@ -332,7 +352,10 @@ export const MEADOW: readonly Plant[] = [
       // sliver lit by a normal pointing away. Seventy-two degrees over and
       // thirty-one over, turned a right angle apart, means one of the two is
       // always presenting its face and neither is ever edge-on.
-      { group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0, lean: 1.25, rows: 1, taper: 1, cross: 0.55 },
+      {
+        group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0,
+        lean: 1.25, rows: 1, taper: 1, cross: 0.55, centred: 0.5,
+      },
     ],
     stemTall: 2.4,
     lit: 0.72, wearMax: 0.5, damp: 0,

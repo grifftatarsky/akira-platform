@@ -190,15 +190,36 @@ function addCard(
   const face: Vec = cross(across, up);
 
   const rows = Math.max(1, spec.rows);
-  const root: Vec = [sa * spec.out, spec.at, ca * spec.out];
+  // <b>The photographed stalk, cut off.</b> A scan of a clover is a trefoil
+  // *on its own petiole*, and a card carrying the whole of it has the leaf's
+  // stalk baked into the same flat quad — so the leaf can only ever sit at
+  // whatever angle its stalk is at. Leaning the card was a rotation standing
+  // in for a mesh. Trimming the stalk off the bottom of the cut leaves the
+  // leaf free to lie flat on a petiole the mesh draws under it.
+  const base = spec.trimStalk ? stalkTop(cut) : 0;
+  // <b>A head straddles its stem; a leaf grows out of one.</b> Rooted at `at`
+  // and grown upward, two crossed cards at different leans put their middles
+  // in different places and read as two flowers side by side — which is what
+  // the daisy looked like. Shifting the card back along its own axis puts the
+  // picture's middle on the stem instead of its bottom edge.
+  const sink = tall * (spec.centred ?? 0);
+  const root: Vec = [
+    sa * spec.out - up[0] * sink,
+    spec.at - up[1] * sink,
+    ca * spec.out - up[2] * sink,
+  ];
   const first = build.positions.length / 3;
 
   for (let row = 0; row <= rows; row++) {
     const t = row / rows;
     const along = tall * t;
+    // Where this row sits in the *cut*, which is no longer where it sits on
+    // the card once the stalk has been trimmed off the bottom.
+    const s = base + (1 - base) * t;
+    const step = ((1 - base) * 0.5) / rows;
     // Half a row either side, so consecutive quads between them cover the
     // whole outline with nothing falling down the gap.
-    const edge = spanOver(cut, t - 0.5 / rows, t + 0.5 / rows);
+    const edge = spanOver(cut, s - step, s + step);
     for (const side of [0, 1] as const) {
       // The silhouette's own edge at this height, as an offset from the middle
       // of the cut-out — so the quad narrows where the plant does.
@@ -217,7 +238,7 @@ function addCard(
       build.normals.push(...lift(fanned));
       build.uvs.push(
         cut.u0 + (cut.u1 - cut.u0) * edge[side],
-        cut.v1 + (cut.v0 - cut.v1) * t,
+        cut.v1 + (cut.v0 - cut.v1) * s,
       );
     }
   }
@@ -289,6 +310,30 @@ function addStem(build: Build, plant: Plant, sheet: FoliageSheet): void {
  * covers the cut-out whatever the row count, so `rows` goes back to meaning
  * what it should: how much the card can bend, not what shape it is.
  */
+/**
+ * Where the photographed stalk ends and the leaf begins, as a fraction of the
+ * cut's length.
+ *
+ * <p>Read from the silhouette rather than authored, because it differs from one
+ * cut to the next — of the three clover scans one has a long petiole, one a
+ * short one and one almost none. A stalk is the run of rows at the bottom
+ * narrower than a third of the cut's width; the first row wider than that is
+ * the leaf.
+ */
+function stalkTop(cut: Cut): number {
+  const spans = cut.spans;
+  if (!spans?.length) {
+    return 0;
+  }
+  for (let at = 0; at < spans.length; at++) {
+    if (spans[at][1] - spans[at][0] >= 0.3) {
+      // Back off one sample, so the leaf's own join to the stalk survives.
+      return Math.max(0, at - 1) / (spans.length - 1);
+    }
+  }
+  return 0;
+}
+
 function spanOver(cut: Cut, from: number, to: number): readonly [number, number] {
   const spans = cut.spans;
   if (!spans?.length) {
