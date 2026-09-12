@@ -13,7 +13,9 @@ import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
 import { loadFoliage } from './foliage-cards';
-import { FIELDSTONE, STANDING, plantScans, scatterStone } from './standing';
+import {
+  FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora, scatterStone,
+} from './standing';
 
 /**
  * A remembered boolean, defaulting when this browser refuses storage.
@@ -369,6 +371,27 @@ import { type Terrain, buildTerrain } from './terrain';
               }
             </ul>
 
+            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">
+              flowers &amp; broadleaf
+            </p>
+            <ul class="mt-1 flex flex-col gap-1">
+              @for (kind of floraScans; track $index) {
+                <li>
+                  <button type="button" (click)="pickScan(kind.name, kind.part)"
+                    class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
+                    [class.border-accent]="isScan(kind.name, kind.part)"
+                    [class.text-fg]="isScan(kind.name, kind.part)"
+                    [class.border-rule]="!isScan(kind.name, kind.part)"
+                    [class.text-fg-muted]="!isScan(kind.name, kind.part)">
+                    <span class="font-medium">{{ kind.label }}</span>
+                    <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
+                      &times;{{ kind.count }} · {{ kind.tall / 2 | number:'1.0-1' }} ft
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+
             <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">fieldstone</p>
             <ul class="mt-1 flex flex-col gap-1">
               @for (kind of fieldstone; track $index) {
@@ -406,7 +429,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly clock = signal(clockLabel(13));
   protected readonly status = signal('starting…');
   protected readonly cost = signal<FrameCost | null>(null);
-  protected readonly density = signal(50);
+  protected readonly density = signal(100);
   /** Collapsed by default, like the dice roller: it is a critique tool. */
   protected readonly flora = signal(false);
   /**
@@ -434,6 +457,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly chosen = signal<Asset>({ kind: 'plant', plant: MEADOW[0] });
   protected readonly standing = STANDING;
   protected readonly fieldstone = FIELDSTONE;
+  protected readonly floraScans = GROUND_FLORA;
 
   protected pickPlant(plant: Plant): void {
     this.chosen.set({ kind: 'plant', plant });
@@ -474,6 +498,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   private stats: Stats | null = null;
   private meadow: Meadow | null = null;
   private stones: Mesh[] = [];
+  private groundFlora: Mesh[] = [];
 
   /**
    * The switches, and what each one is for.
@@ -549,6 +574,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     switch (part) {
       case 'meadow':
         this.meadow?.sown.forEach(sown => sown.mesh.setEnabled(want));
+        this.groundFlora.forEach(mesh => mesh.setEnabled(want));
         break;
       case 'trees':
         this.stones.filter(mesh => mesh.name.startsWith('scan-'))
@@ -646,6 +672,14 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         ...await scatterStone(field, stage.scene),
       ];
       this.stones.forEach(stone => stage.shadows.addShadowCaster(stone));
+      // <b>The ground flora neither casts nor receives, and putting it in the
+      // list above turned every one of them black.</b> A celandine is a foot
+      // across. Four cascades covering a two-hundred-foot board put it well
+      // under one shadow texel, so every leaf shadowed itself against its own
+      // depth — textbook acne, and on something that small acne is not a
+      // stripe, it is the whole plant. The sward beside it does not cast or
+      // receive for the same reason and has never wanted to.
+      this.groundFlora = await scatterFlora(field, stage.scene);
       // <b>The meadow does not cast shadows.</b> Six hundred thousand blades
       // rendered again into every shadow cascade is the most expensive thing
       // on the board, and it is paid whenever the camera moves — because that

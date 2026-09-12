@@ -444,6 +444,193 @@ export interface StoneKind {
   readonly label: string;
 }
 
+/**
+ * Scanned plants that are candidates for the sward, for looking at.
+ *
+ * <p><b>The trees are photogrammetry and the sward is flat photographs, and
+ * that is the whole reason one looks better than the other.</b> Poly Haven has
+ * scanned plants as well as scanned trees — five separate clumps in
+ * `grass_medium_02`, five flowering plants in `celandine_01` — and the cheapest
+ * of them is a complete little plant in 442 triangles, which is affordable at
+ * the share a flower takes. Grass is not: a scanned tuft is 700 to 2500
+ * triangles and there are eighty-eight thousand of them.
+ *
+ * <p>Listed here so they can be judged in the asset panel before anything is
+ * planted with them.
+ */
+export interface FloraKind {
+  readonly name: string;
+  readonly part: number;
+  readonly label: string;
+  /** How many to scatter over the whole board. */
+  readonly count: number;
+  /** Half-feet tall, so a scan can be fitted to the sward it stands in. */
+  readonly tall: number;
+  /** How tightly it gathers into drifts: 0 is even, 1 is patches only. */
+  readonly drift: number;
+  /** Ground this plant will not stand on, as worn-ness from 0 to 1. */
+  readonly wearMax: number;
+}
+
+/**
+ * The broadleaf plants and flowers of the sward, as scans.
+ *
+ * <p><b>Counts are deliberately low.</b> A meadow is grass; what makes it read
+ * as a real place is a scatter of other things through it, not a carpet of
+ * them. About three thousand plants over thirty-three thousand square feet is
+ * one every eleven — two to a five-foot square, which is what a grazed field
+ * with wildflowers in it actually looks like from above.
+ *
+ * <p>And counts are a budget for the same reason the trees' are: these are real
+ * geometry. A celandine is 442 to 622 triangles and a flowering dandelion is
+ * 3180, against the two triangles a card costs — which is exactly why the grass
+ * stays cards. Eighty-eight thousand scanned tufts is not a thing any renderer
+ * does; three thousand scanned flowers is nothing.
+ */
+export const GROUND_FLORA: readonly FloraKind[] = [
+  // The flower. A real scanned dandelion with a real flower on a real stalk,
+  // which is the thing a card was never going to be.
+  {
+    name: 'dandelion_01', part: 2, label: 'Dandelion, in flower',
+    count: 240, tall: 3.2, drift: 0.72, wearMax: 0.34,
+  },
+  {
+    name: 'dandelion_01', part: 4, label: 'Dandelion, small',
+    count: 420, tall: 2.1, drift: 0.6, wearMax: 0.46,
+  },
+  // The low broadleaf through the turf, where the clover was. Celandine's
+  // rounded leaves in a flat rosette are the same reading at the same height.
+  {
+    name: 'celandine_01', part: 0, label: 'Celandine, spreading',
+    count: 620, tall: 2.4, drift: 0.55, wearMax: 0.38,
+  },
+  {
+    name: 'celandine_01', part: 1, label: 'Celandine',
+    count: 760, tall: 2.0, drift: 0.5, wearMax: 0.42,
+  },
+  {
+    name: 'celandine_01', part: 4, label: 'Celandine, small',
+    count: 980, tall: 1.6, drift: 0.42, wearMax: 0.5,
+  },
+];
+
+/**
+ * Scatters the ground flora as thin instances, in drifts.
+ *
+ * <p>A jittered lattice rather than the trees' try-and-reject loop: at these
+ * counts a rule that refuses most candidates would spend a long time refusing,
+ * and what a low plant wants is not a rare good spot but a general preference.
+ * The drift is slow noise, so a species gathers into patches a few paces across
+ * and leaves gaps between them — which is how wildflowers grow and is the one
+ * thing that stops a scatter reading as a texture.
+ */
+/** Every material on a mesh, whether it wears one or a multi-material. */
+function materialsOf(mesh: Mesh): PBRMaterial[] {
+  const worn = mesh.material as unknown as {
+    subMaterials?: (PBRMaterial | null)[];
+  } | null;
+  const list: unknown[] = worn?.subMaterials ?? [mesh.material];
+  return list.filter((one): one is PBRMaterial =>
+    !!one && typeof one === 'object' && 'subSurface' in one);
+}
+
+export async function scatterFlora(
+  field: GroundField, scene: Scene,
+): Promise<Mesh[]> {
+  const wanted = new Map<string, number[]>();
+  for (const kind of GROUND_FLORA) {
+    const list = wanted.get(kind.name) ?? [];
+    list.push(kind.part);
+    wanted.set(kind.name, list);
+  }
+  const loaded = new Map<string, Map<number, Mesh>>();
+  for (const [name, parts] of wanted) {
+    loaded.set(name, await loadScans(name, scene, parts));
+  }
+
+  const out: Mesh[] = [];
+  for (let kind = 0; kind < GROUND_FLORA.length; kind++) {
+    const want = GROUND_FLORA[kind];
+    const plant = loaded.get(want.name)?.get(want.part);
+    if (!plant) {
+      continue;
+    }
+    plant.name = `flora-${want.name}-${want.part}`;
+    // <b>Alpha test, not alpha blend, and the scan asks for blend.</b>
+    // `celandine_01` ships `alphaMode: BLEND`, which is right for one plant on
+    // a turntable and wrong for two and a half thousand of them standing inside
+    // a field of grass: a blended mesh does not write depth, so every leaf
+    // sorts against every blade and the plants read as black scraggle. Alpha
+    // testing is what the sward itself uses and what dense vegetation wants.
+    for (const material of materialsOf(plant)) {
+      material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
+      material.alphaCutOff = 0.4;
+      material.needDepthPrePass = false;
+      material.backFaceCulling = false;
+      material.twoSidedLighting = true;
+    }
+    plant.refreshBoundingInfo();
+    const box = plant.getBoundingInfo().boundingBox;
+    const own = Math.max(0.001, box.maximum.y - box.minimum.y);
+
+    // A lattice loose enough that the rule can refuse most of it and still
+    // reach the count.
+    const cells = want.count * 3;
+    const across = Math.max(1, Math.round(Math.sqrt(
+      (cells * field.extentXHalfFeet) / field.extentYHalfFeet)));
+    const along = Math.max(1, Math.ceil(cells / across));
+    const matrices: Matrix[] = [];
+    for (let at = 0; at < across * along && matrices.length < want.count; at++) {
+      const cx = at % across;
+      const cy = Math.floor(at / across);
+      const x = ((cx + 0.5 + (dice(at, 3, 17 + kind) - 0.5) * 0.9) / across)
+        * field.extentXHalfFeet;
+      const y = ((cy + 0.5 + (dice(at, 5, 23 + kind) - 0.5) * 0.9) / along)
+        * field.extentYHalfFeet;
+      const inside = Math.min(
+        x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+      );
+      if (inside < 4) {
+        continue;
+      }
+      const { wear } = groundAt(field, x, y);
+      if (wear > want.wearMax || slopeAt(field, x, y) > 0.5) {
+        continue;
+      }
+      // Slow noise, one field per species, so the drifts of one do not sit on
+      // the drifts of another.
+      const patch = noise(
+        x * 0.028 + 11.3 + kind * 17, y * 0.028 - 7.9 - kind * 13,
+      );
+      if (patch * (1 + want.drift) + dice(at, 7, 41 + kind) * (1 - want.drift)
+        < want.drift) {
+        continue;
+      }
+      const size = (want.tall / own) * (0.8 + 0.4 * dice(at, 11, 53 + kind));
+      matrices.push(Matrix.Compose(
+        new Vector3(size, size, size),
+        Quaternion.FromEulerAngles(0, dice(at, 13, 89 + kind) * 6.2831853, 0),
+        new Vector3(
+          x, groundUnder(field, x, y, 1) - want.tall * 0.06, y,
+        ),
+      ));
+    }
+    if (!matrices.length) {
+      plant.dispose();
+      continue;
+    }
+    const packed = new Float32Array(matrices.length * 16);
+    matrices.forEach((matrix, at) => matrix.copyToArray(packed, at * 16));
+    plant.thinInstanceSetBuffer('matrix', packed, 16);
+    plant.alwaysSelectAsActiveMesh = true;
+    // Neither cast nor received: see the note where these are scattered. A
+    // plant a foot across is under one texel of a cascade covering the board.
+    plant.receiveShadows = false;
+    out.push(plant);
+  }
+  return out;
+}
+
 /** The stones this board is made of, for the same reason as {@link STANDING}. */
 export const FIELDSTONE: readonly StoneKind[] = [
     { name: 'boulder_01', tall: 9, open: true, label: 'Lichen boulder' },
