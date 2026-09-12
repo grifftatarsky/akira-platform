@@ -337,6 +337,13 @@ export async function plantScans(
       continue;
     }
     scan.name = `scan-${want.name}-${want.plant ?? 0}`;
+    // <b>The trees have the same defect, and they were the thing this board
+    // held up as proof the scans were fine.</b> Measured over the UV area its
+    // leaves actually cover, `searsia_lucida` is ninety-three per cent painted
+    // black and `island_tree_02` forty-nine. A canopy reads as a canopy at a
+    // distance whatever is between the leaves, which is exactly why it took
+    // this long to notice.
+    maskCutouts(scan, scene, 0.35);
     // The scan's own height, so a tree can be asked for in half-feet rather
     // than in whatever units it was captured at.
     scan.refreshBoundingInfo();
@@ -524,6 +531,71 @@ export const GROUND_FLORA: readonly FloraKind[] = [
  * and leaves gaps between them — which is how wildflowers grow and is the one
  * thing that stops a scatter reading as a texture.
  */
+/**
+ * Binds the alpha mask a Poly Haven scan's glTF forgot, to every cut-out
+ * material on a mesh.
+ *
+ * <p><b>These scans are not solid shells.</b> The leaves are flat cut-out cards
+ * and the base colour is an atlas of foliage on solid black. Poly Haven's JPEG
+ * download gives you the atlas and not the mask — JPEG cannot carry an alpha
+ * channel, glTF says a base colour texture without one is opaque, and so the
+ * alpha test compares 1.0 against its cutoff and discards nothing. Every plant
+ * draws its own black background.
+ *
+ * <p>Measured over the UV area each primitive actually covers: 54 to 66 per
+ * cent of a celandine is black, 37 to 38 per cent of a dandelion, 49 per cent
+ * of `island_tree_02`'s leaves and <b>93 per cent of `searsia_lucida`'s</b> —
+ * the scrub this board has been calling excellent is almost entirely painted
+ * background.
+ *
+ * <p>The mask ships as a separate `Alpha` download the glTF never references.
+ * It goes in as an opacity texture read from luminance, because glTF has no
+ * slot for a standalone alpha map and this leaves the asset alone. Which
+ * materials need it is not a table: the loader has already set a transparency
+ * mode on exactly the cut-out ones, and the mask's own name is the atlas's with
+ * `_diff_` swapped for `_alpha_`.
+ *
+ * <p><b>`invertY` must be false.</b> Babylon's glTF loader builds its textures
+ * with `invertY: false` and a hand-built `new Texture(url, scene)` defaults to
+ * true — so the mask arrives flipped against the atlas and masks the wrong half
+ * of it. It is the fourth constructor argument and there is no setter.
+ */
+function maskCutouts(mesh: Mesh, scene: Scene, cutoff: number): void {
+  for (const material of materialsOf(mesh)) {
+    // <b>`url`, not `name`.</b> The glTF loader names a texture after the
+    // material that uses it — "island_tree_02_leaves (Base Color)" — and keeps
+    // the path in `url`, prefixed with `data:`. Reading the name finds no
+    // `_diff_` in anything and this silently masks nothing at all, which is a
+    // fix that looks applied and is not.
+    const atlas = ((material.albedoTexture as Texture | null)?.url ?? '')
+      .replace(/^data:/, '');
+    // <b>Only the cut-out materials, and `OPAQUE` is zero rather than null.</b>
+    // Testing for null let the bark and the branches through, so they were
+    // handed masks named after atlases that have none — `island_tree_02` ships
+    // an alpha map for its leaves only, and the other two resolved to 404s.
+    // A material the loader left opaque is a solid surface and wants no mask.
+    const mode = material.transparencyMode;
+    const cutout = mode === PBRMaterial.MATERIAL_ALPHATEST
+      || mode === PBRMaterial.MATERIAL_ALPHABLEND
+      || mode === PBRMaterial.MATERIAL_ALPHATESTANDBLEND;
+    if (!cutout || !atlas.includes('_diff_')) {
+      continue;
+    }
+    const mask = new Texture(
+      atlas.replace('_diff_', '_alpha_'), scene, false, false,
+    );
+    mask.getAlphaFromRGB = true;
+    material.opacityTexture = mask;
+    // <b>Test, never blend.</b> A thin-instanced mesh is one draw call in
+    // buffer order and Babylon has no thin-instance sorting at all, so blended
+    // foliage cannot resolve against itself however it is configured.
+    material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
+    material.alphaCutOff = cutoff;
+    material.backFaceCulling = false;
+    material.twoSidedLighting = true;
+  }
+}
+
 /** Every material on a mesh, whether it wears one or a multi-material. */
 function materialsOf(mesh: Mesh): PBRMaterial[] {
   const worn = mesh.material as unknown as {
@@ -556,19 +628,11 @@ export async function scatterFlora(
       continue;
     }
     plant.name = `flora-${want.name}-${want.part}`;
-    // <b>Alpha test, not alpha blend, and the scan asks for blend.</b>
-    // `celandine_01` ships `alphaMode: BLEND`, which is right for one plant on
-    // a turntable and wrong for two and a half thousand of them standing inside
-    // a field of grass: a blended mesh does not write depth, so every leaf
-    // sorts against every blade and the plants read as black scraggle. Alpha
-    // testing is what the sward itself uses and what dense vegetation wants.
-    for (const material of materialsOf(plant)) {
-      material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
-      material.alphaCutOff = 0.4;
-      material.needDepthPrePass = false;
-      material.backFaceCulling = false;
-      material.twoSidedLighting = true;
-    }
+    // The mask the glTF forgot; see `maskCutouts`. The sward's own cutoff,
+    // not the 0.5 the dandelion's glTF asks for — with a real mask a high
+    // cutoff eats the leaf margins, and on a plant this small the margins are
+    // most of the plant.
+    maskCutouts(plant, scene, 0.3);
     plant.refreshBoundingInfo();
     const box = plant.getBoundingInfo().boundingBox;
     const own = Math.max(0.001, box.maximum.y - box.minimum.y);

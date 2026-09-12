@@ -96,9 +96,14 @@ Worth revisiting, and why they failed before:
   see less. None of PBR's own cheaper switches move it either — energy
   conservation, the correlated visibility term, physical light falloff,
   translucency and the specular highlight together measured inside the noise.
-- **Alpha-to-coverage** (`engine.alphaToCoverage` is a deep import, like the
-  multi-render one that blocked SSAO for weeks). Would let the cards blend at
-  their edges without sorting. Unmeasured.
+- ~~**Alpha-to-coverage.**~~ **Verified dead, not merely unmeasured.**
+  `webgpuCacheRenderPipeline.js` computes
+  `alphaToCoverage = this._alphaToCoverageEnabled && sampleCount > 1`, and the
+  engine is built with `antialias: false` because the temporal resolve does the
+  anti-aliasing — so the flag is a silent no-op. Turning MSAA back on to reach
+  it would put stochastic sub-pixel coverage in front of a temporal resolve,
+  which is the one thing that resolve cannot reconstruct. See
+  [FOLIAGE-REPORT.md](./FOLIAGE-REPORT.md).
 
 ---
 
@@ -199,6 +204,29 @@ Two separate ways a tree floats:
   triangle runs above the height field in the hollows. Sample the lattice the
   mesh actually uses, across the footprint, and take the lowest.
 
+## The scans were painting their own background
+
+Poly Haven's plant and tree scans are flat cut-out cards whose base colour is an
+atlas of foliage on solid black, and the JPEG download carries the atlas and not
+the mask. JPEG cannot hold alpha, glTF says a base-colour texture without alpha
+is opaque, so the alpha test compared 1.0 against its cutoff and discarded
+nothing. Measured over the UV area each primitive covers: 54-66% of a celandine
+is black, 41% of a dandelion, 49% of `island_tree_02`'s leaves and **93% of
+`searsia_lucida`'s** — the scrub this board called excellent was almost entirely
+painted background.
+
+The mask ships as a separate `Alpha` download the glTF never references. Bind it
+as `opacityTexture` with `getAlphaFromRGB`, keep `MATERIAL_ALPHATEST`, and pass
+`invertY: false` as the fourth `Texture` argument or it arrives flipped.
+
+**The one-line falsification, to run before anything else:** set
+`alphaCutOff = 0.99`. If nothing disappears, alpha is 1.0 everywhere and no
+transparency setting can help. Three plausible fixes — blend mode, shadow
+casters, receive-shadows — were tried before this was, and none of them was it.
+
+Full reasoning, citations and the remaining work in
+[FOLIAGE-REPORT.md](./FOLIAGE-REPORT.md).
+
 ## Two ways this project measures itself wrong
 
 Both cost hours and both are in the tooling now, not in anyone's memory.
@@ -209,6 +237,14 @@ picture of the *previous* build. Several rounds of tree tuning were judged
 against renders of code that was no longer running, which is how a rule that
 deleted six of seven trees read as "no change". **Always run `chrome-probe.mjs`
 first — it navigates — and shoot afterwards.**
+
+**The dev server serves the last good bundle when a build fails**, and can
+serve a stale *chunk* even when the build succeeded. No error on the page and
+none in the probe: the board is simply not the board in the working tree. Two
+already-correct fixes looked like failures because of this.
+`tools/build-ok.sh` catches the first; the only guard against the second is to
+verify on a clean `ng build ooze` served statically rather than on `ng serve`.
+The tell is a value you just changed still reading its old number.
 
 **`devbuildall.sh` leaves `dist/ooze` without an `index.html`.** It builds the
 federated remote, not the standalone app, so the static probe server 404s every
@@ -233,6 +269,14 @@ measurement lied.
   from `onAfterRenderObservable` too — `requestAnimationFrame` is the only hook
   that has the swap chain in it. A toggle-by-toggle pixel diff has now twice
   come back all zeros for this reason and been believed the first time.
+- `tools/board-angles.mjs` — sweeps nine fixed cameras, shoots each and times
+  each by wall clock. One screenshot is not a review: every foliage mistake here
+  was invisible from the angle it happened to be photographed at.
+- `tools/foliage-trim.mjs` — measures where each cut-out's photographed stalk
+  ends, from the sheet's alpha coverage, and records it. Silhouette width cannot
+  answer this and two attempts at it were wrong.
+- `tools/build-ok.sh` — refuses to let a measurement be taken against a bundle
+  the dev server failed to rebuild.
 - `tools/wgsl-lint.mjs` — catches the four silent WGSL faults this project
   repeats, the worst being a backtick inside a shader comment, which closes the
   template literal and produces a shader that compiles to nothing with no error.

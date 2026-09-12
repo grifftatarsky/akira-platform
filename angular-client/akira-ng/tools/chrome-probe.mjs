@@ -52,6 +52,13 @@ await send('Log.enable');
 // healthy fps from its last live second, a stale camera, and a GPU timer of
 // zero. That reads exactly like a renderer that has broken. These make the
 // throttling go away.
+// <b>And make it fetch the code, not remember it.</b> The dev server can be
+// serving a current bundle while the browser still runs the chunk it cached
+// before the edit — so a probe reports the old values, a screenshot shows the
+// old board, and the fix that is already correct looks like it failed. That
+// cost an hour on top of the hour the stale *server* bundle cost.
+await send('Network.enable');
+await send('Network.setCacheDisabled', { cacheDisabled: true });
 await send('Emulation.setFocusEmulationEnabled', { enabled: true });
 await send('Page.setWebLifecycleState', { state: 'active' });
 if (url) {
