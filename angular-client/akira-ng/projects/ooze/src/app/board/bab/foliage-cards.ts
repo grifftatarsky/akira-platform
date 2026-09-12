@@ -54,6 +54,11 @@ export interface Cut {
    * no extra vertices at all.
    */
   readonly spans: readonly (readonly [number, number])[];
+  /**
+   * Where the photographed stalk ends and the leaf begins, as a fraction of the
+   * cut's length from the root. Measured by `tools/foliage-trim.mjs`.
+   */
+  readonly stalk?: number;
 }
 
 export interface FoliageSheet {
@@ -130,7 +135,11 @@ export function cardGeometry(plant: Plant, sheet: FoliageSheet): VertexData {
         ? Math.sin(placed * 7.3) * 0.9
         : (n / spec.count) * Math.PI * 2 + Math.sin(n * 12.9898 + placed) * 0.4;
       const cut = cuts[(n + placed * 3) % cuts.length];
-      addCard(build, plant, spec, cut, around, n);
+      if (spec.disc) {
+        addHead(build, spec, cut, around);
+      } else {
+        addCard(build, plant, spec, cut, around, n);
+      }
       placed++;
     }
   }
@@ -237,6 +246,78 @@ function addCard(
 }
 
 /**
+ * A flower head, as a dished disc standing on the stem.
+ *
+ * <p><b>A head is not a leaf and a quad is the wrong mesh for it.</b> A card is
+ * a strip that grows from a root, which is what a leaf does; a daisy head is a
+ * disc centred on the top of a stalk. Built as a card it hangs off the stem by
+ * its bottom edge, it is a hard line seen along its plane, and the only way to
+ * rescue the low angle was a second card crossed through it — which read as two
+ * flowers in an X, because it was two flowers in an X.
+ *
+ * <p>So it is a fan: one vertex at the stem, a ring of them around it, and the
+ * photograph mapped radially onto the circle inscribed in its cut-out. Nine
+ * segments, nine triangles, against two for the quad — on five per cent of the
+ * sward that is sixty thousand triangles for the board.
+ *
+ * <p><b>Dished, not flat.</b> The rim sits a little above the centre, which is
+ * what a daisy's ray florets do and what gives the head a silhouette from the
+ * side instead of a vanishing line. It is also why the disc catches a low sun
+ * across its face rather than all at once.
+ */
+function addHead(build: Build, spec: CardSpec, cut: Cut, around: number): void {
+  const segments = Math.max(3, spec.disc ?? 9);
+  const radius = spec.tall * 0.5;
+  const ca = Math.cos(around);
+  const sa = Math.sin(around);
+  const lean = spec.flat ? Math.PI / 2 : spec.lean;
+  const cl = Math.cos(lean);
+  const sl = Math.sin(lean);
+  // The disc lies in the plane these two span, so it tilts with `lean` the same
+  // way a card's face does.
+  const across: Vec = [ca, 0, -sa];
+  const up: Vec = [sa * sl, cl, ca * sl];
+  const face: Vec = cross(across, up);
+  // Up whichever way is skyward, so the dish opens toward the light however the
+  // head happens to be turned.
+  const skyward = face[1] < 0 ? -1 : 1;
+  const dish = radius * 0.22 * skyward;
+
+  const centre = build.positions.length / 3;
+  build.positions.push(0, spec.at, 0);
+  build.normals.push(...lift([face[0] * skyward, face[1] * skyward, face[2] * skyward]));
+  build.uvs.push((cut.u0 + cut.u1) / 2, (cut.v0 + cut.v1) / 2);
+
+  for (let at = 0; at <= segments; at++) {
+    const turn = (at / segments) * Math.PI * 2;
+    const cs = Math.cos(turn);
+    const sn = Math.sin(turn);
+    build.positions.push(
+      (across[0] * cs + up[0] * sn) * radius + face[0] * dish,
+      spec.at + (across[1] * cs + up[1] * sn) * radius + face[1] * dish,
+      (across[2] * cs + up[2] * sn) * radius + face[2] * dish,
+    );
+    // Tilted out from the axis by as much as the rim is raised, so the disc
+    // shades as a shallow bowl rather than as a flat coin.
+    const out: Vec = [
+      face[0] * skyward + (across[0] * cs + up[0] * sn) * 0.45,
+      face[1] * skyward + (across[1] * cs + up[1] * sn) * 0.45,
+      face[2] * skyward + (across[2] * cs + up[2] * sn) * 0.45,
+    ];
+    build.normals.push(...lift(out));
+    // The photograph's own inscribed circle: a scanned flower fills its box, so
+    // this lands the petals on the rim and the yellow disc in the middle.
+    build.uvs.push(
+      cut.u0 + (cut.u1 - cut.u0) * (0.5 + 0.5 * cs),
+      cut.v1 + (cut.v0 - cut.v1) * (0.5 + 0.5 * sn),
+    );
+  }
+  for (let at = 0; at < segments; at++) {
+    build.indices.push(centre, centre + 1 + at, centre + 2 + at);
+  }
+}
+
+/**
  * The bare stalk under a flower or a seed head.
  *
  * <p>Two crossed slivers, and they take their colour from the middle of a
@@ -299,37 +380,22 @@ function addStem(build: Build, plant: Plant, sheet: FoliageSheet): void {
  * what it should: how much the card can bend, not what shape it is.
  */
 /**
- * Where the photographed stalk ends and the leaf begins, as a fraction of the
- * cut's length.
+ * Where the photographed stalk ends, as a fraction of the cut's length.
  *
- * <p>Read from the silhouette rather than authored, because it differs from one
- * cut to the next — of the three clover scans one has a long petiole, one a
- * short one and one almost none. A stalk is the run of rows at the bottom
- * narrower than a third of the cut's width; the first row wider than that is
- * the leaf.
+ * <p><b>Measured off the sheet's alpha, not guessed from the silhouette.</b>
+ * Two attempts at reading it from `spans` were both wrong, and wrong for the
+ * same reason: a clover's petiole runs up the middle *between* the two lower
+ * leaflets, so the moment the leaflets appear the cut is at full width while
+ * the stalk still has half its length to go. Any rule on extent trims to where
+ * the leaf gets wide, which is well below where the stalk stops — it left a
+ * stub on the card, the drawn stem ran into it, and the leaf had two stems.
+ *
+ * <p>What separates them is coverage: a row of stalk is two per cent alpha and
+ * a row of leaf is eighty. `tools/foliage-trim.mjs` measures it once and writes
+ * it into the sheet's table, so nothing here has to decode a PNG.
  */
 function stalkTop(cut: Cut): number {
-  const spans = cut.spans;
-  if (!spans?.length) {
-    return 0;
-  }
-  const wide = spans.map(span => span[1] - span[0]);
-  // <b>Against the cut's own widest, not against a constant.</b> A fixed
-  // threshold of a third measured nothing useful: one of the three clover
-  // scans is a wide leaf whose *second* row is already past it, so it trimmed
-  // nothing at all and the drawn stem ran straight into a photographed
-  // petiole. Half of whatever this particular cut-out reaches is the same
-  // question asked of every scan.
-  const most = Math.max(...wide);
-  for (let at = 0; at < wide.length; at++) {
-    if (wide[at] >= most * 0.5) {
-      // <b>No backing off.</b> Keeping a sample of the stalk "so the join
-      // survives" is keeping exactly the thing being removed — the join is
-      // where the leaf starts, which is this row.
-      return at / (spans.length - 1);
-    }
-  }
-  return 0;
+  return Math.max(0, Math.min(0.9, cut.stalk ?? 0));
 }
 
 function spanOver(cut: Cut, from: number, to: number): readonly [number, number] {

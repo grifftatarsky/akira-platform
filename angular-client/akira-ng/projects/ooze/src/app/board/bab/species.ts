@@ -68,6 +68,13 @@ export interface CardSpec {
    * flower head, a little for a leaf that meets its stalk near one edge.
    */
   readonly centred?: number;
+  /**
+   * Build this as a dished disc of that many segments rather than as a quad.
+   *
+   * <p>For a flower head, which is a disc centred on a stem and not a strip
+   * growing out of one. See `addHead`.
+   */
+  readonly disc?: number;
 }
 
 export interface Plant {
@@ -334,27 +341,20 @@ export const MEADOW: readonly Plant[] = [
     // camera looks down at it, and an oxeye daisy holds its face to the sky.
     cards: [
       { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 2, taper: 1 },
-      // <b>One head, nodding, and that is the whole of it.</b> It was built as
-      // a crossed pair to guarantee a face at every angle, and a crossed pair
-      // is two flat quads in an X — which is what it looked like. A daisy head
-      // is a disc, and the honest mesh for a disc carried on a photograph is
-      // one card.
+      // <b>A dished disc on the stem, not a quad beside it.</b> Two earlier
+      // attempts were a flat card, which hangs off the stem by its bottom edge
+      // and vanishes edge-on, and a crossed pair, which read as two flowers in
+      // an X because that is what it was. A head is a disc centred on a stalk,
+      // so it is built as one: nine triangles, the photograph mapped radially,
+      // the rim raised a little the way ray florets sit.
       //
-      // <p>What rescues the low angle is not a second quad, it is the field:
-      // ten thousand of these with a jittered azimuth each, so some are always
-      // turned toward the eye. A real oxeye holds its face to the sky and is a
-      // white sliver from the side; erring that way errs the way the flower
-      // does. Sixty-six degrees over, so it reads from directly above and from
-      // the usual playing angle, and nods rather than lying perfectly flat —
-      // flat is right for exactly one camera and a hard edge from every other.
-      //
-      // <p>Turning it toward the eye per frame was considered and is the same
-      // view-space thickening this renderer already removed once: it reads the
-      // eye position, so the field rotates slightly on every zoom. Visible
-      // immediately in use and in no screenshot.
+      // <p>Nodding rather than upright. A real oxeye holds its face to the sky;
+      // sixty-six degrees over reads from directly above and from the usual
+      // playing angle, and the dish gives it a silhouette from the side where a
+      // flat one had none.
       {
         group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0,
-        lean: 1.15, rows: 1, taper: 1, centred: 0.5,
+        lean: 1.15, rows: 1, taper: 1, disc: 9,
       },
     ],
     stemTall: 2.4,
