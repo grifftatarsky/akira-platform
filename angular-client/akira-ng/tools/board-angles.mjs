@@ -5,6 +5,7 @@ const PORT = process.env.CDP_PORT || 9333;
 const out = process.argv[2] || 'board-angles';
 const url = process.argv[3] || 'http://localhost:4300/board/bab';
 const settle = Number(process.env.SETTLE || 34000);
+const SCALING = Number(process.env.SCALING || 0.5);
 
 const STOPS = [
   { name: 'overhead', alpha: -1.15, beta: 0.22, radius: 420 },
@@ -56,6 +57,7 @@ for (const stop of STOPS) {
     expression: `(async () => {
       const st = globalThis.bab && globalThis.bab.stage;
       if (!st) { return { error: 'no board' }; }
+      st.scene.getEngine().setHardwareScalingLevel(${SCALING});
       const c = st.scene.activeCamera;
       c.alpha = ${stop.alpha}; c.beta = ${stop.beta}; c.radius = ${stop.radius};
       await new Promise(r => setTimeout(r, 2400));
@@ -82,6 +84,7 @@ for (const stop of STOPS) {
         ms: +gaps[gaps.length >> 1].toFixed(2),
         worst: +gaps[Math.floor(gaps.length * 0.95)].toFixed(2),
         tris: Math.round(tris),
+        px: st.scene.getEngine().getRenderWidth() + 'x' + st.scene.getEngine().getRenderHeight(),
         passes: cost ? cost.passes : [],
       };
     })()`,

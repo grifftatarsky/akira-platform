@@ -159,6 +159,7 @@ import { type Terrain, buildTerrain } from './terrain';
               @if (cost(); as c) {
                 <dl class="flex flex-wrap gap-x-3 gap-y-0.5 border-t border-rule pt-2 font-mono text-[0.65rem] text-fg-subtle">
                   <div><dt class="inline">wall</dt> <dd class="inline tabular-nums text-fg">{{ c.wallMs }} ms</dd></div>
+                  <div><dt class="inline">pixels</dt> <dd class="inline tabular-nums text-fg">{{ c.pixels }} · {{ c.megapixels }} MP</dd></div>
                   <div><dt class="inline">cull</dt> <dd class="inline tabular-nums text-fg">{{ c.cullMs }} ms</dd></div>
                   <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
                   <div><dt class="inline">meshes</dt> <dd class="inline tabular-nums text-fg">{{ c.activeMeshes }}</dd></div>

@@ -56,14 +56,23 @@ reasoning effort in one context beats many shallow ones.
 `PATH` needs `/usr/bin:/bin:/opt/homebrew/bin` prepended in Bash calls here, and
 `ng` is only on `node_modules/.bin`.
 
-A real Chrome with CDP must be running for any probe:
+A real Chrome with CDP must be running for any probe, and **it should be a
+freshly started one** (§0):
 ```bash
+pkill -f "remote-debugging-port=9333"; sleep 3
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --remote-debugging-port=9333 --user-data-dir=/tmp/chrome-probe \
   --enable-dawn-features=allow_unsafe_apis --no-first-run \
-  --window-size=1500,950 about:blank &
+  --no-default-browser-check --window-size=1800,1100 about:blank &
 ```
-The dawn flag is what makes WebGPU timestamps work (§3).
+The dawn flag is what makes WebGPU timestamps work (§3). The in-app browser pane
+cannot render WebGPU reliably — it logs "Destroyed texture
+[WebgpuSwapChainTexture] used in a submit" and draws a board that is perfect on
+the same machine in a real Chrome — which is why this exists at all.
+
+`chrome-probe.mjs` drives the tab whose URL matches the one you pass, so the
+three standing tabs (board, plan, lab) do not fight over it; `CDP_TAB` overrides
+the match.
 
 ### The code carries no comments
 
@@ -74,6 +83,25 @@ code against it. Four wrong beliefs on this board came from exactly that.
 What a comment cannot be recovered from — *what was tried and did not work* —
 lives in `PLAN.md` under **Traps that used to live in comments**. Read it before
 changing `terrain.ts`, `meadow.ts`, `splat-bake.ts` or any WGSL here.
+
+### Two rules the audit added, and they outrank the renderer
+
+**Restart the browser before a measurement session.** A Chrome that has been
+reloading the board all session leaks WebGPU adapters, and the board gets slower
+without a word: the same frame at the same resolution read 23.9 ms on a worn
+browser and 21.5 ms on a fresh one, and the sward alone read 8.57 against 4.88.
+Every number published before this audit was taken on a worn browser. The
+documented symptom of the same leak is `requestAdapter` hanging with no error
+anywhere, which is how this was found.
+
+**Pin the resolution and read it back.** `adaptToDeviceRatio: true` takes the
+pixel count from whichever display the window landed on, so a probe window on a
+non-Retina screen renders a quarter of the pixels and nobody is told. One audit
+run came back at exactly 16.67 ms with every component at 0.0 — that is the 60 Hz
+refresh, not a fast board. `board-check.sh` and `board-angles.mjs` now call
+`setHardwareScalingLevel` (`SCALING`, default 0.5) and report the render size,
+and `FrameCost` carries `pixels` and `megapixels` so the HUD always shows it.
+**A frame number without its pixel count is not a measurement.**
 
 ### The four ways this project has lied to itself
 
@@ -98,33 +126,40 @@ Skills exist for this: `.claude/skills/board-measure`, `foliage-scan`,
 
 ## 1. Where the board actually is
 
-Measured 2026-09-12, audited the same day, at 3600 x 2086, midsummer, sward at
-100%. **Every figure here is a repeat, not a single reading** — the first pass of
-Phase 0 published 22.9 ms / 45 fps, which was the fast tail of the distribution.
+Measured 2026-09-12 and audited the same day. **Read the two rules under §0
+before quoting any of it** — the audit found the browser's age and the probe
+window's display mattering more than anything in the renderer.
 
-| camera | wall clock |
+Play camera (alpha -1.15, beta 1.02, r 300), **3600 x 2026 — 7.29 MP**, midsummer,
+sward at 100%, fresh browser, hardware scaling pinned to 0.5:
+
+| | |
 |---|---|
-| **play (beta 1.02, r 300)** | **23.9 ms — 42 fps** |
-| same, five repeats | median 23.6–24.4, p05 22.2, p95 26 |
-| standing in the field (r 26) | 16.3 ms |
+| **whole frame** | **21.5 ms — 47 fps** |
+| standing in the field (r 26) | see the angle sweep; it is the cheapest stop |
 | target | 16.6 ms |
 
-Component cost at the play camera, three bracketed `splitFrame` runs averaged,
-drift 0.4–0.7 ms:
+Three bracketed `splitFrame` runs averaged, drift 0.37 ms:
 
 | piece | ms | piece | ms |
 |---|---|---|---|
-| sward | 8.57 | stone | 0.32 |
-| trees and scrub | 5.28 | sky dome | 0.27 |
-| shadows | 4.38 | sky light | 0.20 |
-| terrain | 2.10 | grade | 0.15 |
-| ground flora | 1.93 | ground relief | 0.10 |
-| temporal aa | 1.60 | **unattributed** | **0.00** |
+| trees and scrub | 4.93 | ground relief | 0.18 |
+| sward | 4.88 | sky dome | 0.13 |
+| shadows | 4.03 | grade | 0.08 |
+| terrain | 2.13 | **unattributed** | **1.22** |
+| ground flora | 1.87 | | |
+| temporal aa | 1.42 | | |
+| stone | 0.28 | | |
 
-The parts over-sum by about 4%: removing a group also removes what it occluded,
-so this is a difference measurement, not a partition. **The 8.1 ms unattributed
-baseline the first handoff called "the largest single number on the board" does
-not exist** — it was `split-frame.ts` reading `gpuTimeInFrameForMainPass`.
+**Trees and scrub is the largest piece, a hair above the sward.** On a worn
+browser the sward measured 8.57 and looked like the whole problem. It is not.
+
+Taking a group away also removes whatever it was occluding, so this is a
+difference measurement, not a partition.
+
+**The 8.1 ms unattributed baseline the first handoff called "the largest single
+number on the board" does not exist** — it was `split-frame.ts` reading
+`gpuTimeInFrameForMainPass`.
 
 The board draws 230,937 plants at 100%, grass 112,597.
 

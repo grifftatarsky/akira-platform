@@ -6,6 +6,8 @@ import { type GpuPass, type TimedPass, framePasses } from './gpu-passes';
 export interface FrameCost {
   readonly fps: number;
   readonly wallMs: number;
+  readonly pixels: string;
+  readonly megapixels: number;
   readonly cpuMs: number;
   readonly cullMs: number;
   readonly drawCalls: number;
@@ -37,8 +39,12 @@ export class Stats {
     const engine = this.target.getEngine();
     const fps = Math.round(engine.getFps());
     const passes = framePasses(this.target, this.compute);
+    const wide = engine.getRenderWidth();
+    const tall = engine.getRenderHeight();
     return {
       fps,
+      pixels: `${wide}x${tall}`,
+      megapixels: round((wide * tall) / 1e6),
       wallMs: round(fps > 0 ? 1000 / fps : 0),
       cpuMs: round(this.scene.frameTimeCounter.lastSecAverage),
       cullMs: round(this.scene.activeMeshesEvaluationTimeCounter.lastSecAverage),

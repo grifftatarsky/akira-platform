@@ -1,0 +1,614 @@
+<meta charset="utf-8">
+<title>Meadow Board Worklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F4F6F1;
+    --raised: #FFFFFF;
+    --sunk: #EAEEE5;
+    --ink: #151D19;
+    --ink-soft: #4B584F;
+    --ink-faint: #77857B;
+    --rule: #D4DBCE;
+    --rule-soft: #E4E9DE;
+    --sward: #55802F;
+    --sward-soft: #EDF3E3;
+    --working: #35784F;
+    --watch: #8F6417;
+    --broken: #A5443F;
+    --bar-track: #E2E7DA;
+    --shadow: 0 1px 2px rgba(21, 29, 25, .06), 0 8px 24px -16px rgba(21, 29, 25, .35);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0E1412;
+      --raised: #161E1A;
+      --sunk: #0A100E;
+      --ink: #E7EDE6;
+      --ink-soft: #A3B0A5;
+      --ink-faint: #6F7D72;
+      --rule: #26332C;
+      --rule-soft: #1C2721;
+      --sward: #97C763;
+      --sward-soft: #1A2617;
+      --working: #5FB683;
+      --watch: #D3A249;
+      --broken: #DD817B;
+      --bar-track: #1E2A24;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0E1412;
+    --raised: #161E1A;
+    --sunk: #0A100E;
+    --ink: #E7EDE6;
+    --ink-soft: #A3B0A5;
+    --ink-faint: #6F7D72;
+    --rule: #26332C;
+    --rule-soft: #1C2721;
+    --sward: #97C763;
+    --sward-soft: #1A2617;
+    --working: #5FB683;
+    --watch: #D3A249;
+    --broken: #DD817B;
+    --bar-track: #1E2A24;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .9);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem) 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.75rem;
+  }
+
+  h1, h2, h3 { font-family: Fraunces, Georgia, "Times New Roman", serif; font-weight: 600; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); line-height: 1.1; letter-spacing: -.015em; }
+  h2 { font-size: 1.3rem; line-height: 1.2; }
+  p { margin: 0; }
+  .prose { max-width: 62ch; color: var(--ink-soft); }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .7rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  header.masthead { display: flex; flex-direction: column; gap: .85rem; }
+  .stamp { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; }
+
+  /* ---- the measurement band ---- */
+  .band {
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.25rem 1.35rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .band-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.5rem; }
+  .band-head .now { font-family: Fraunces, Georgia, serif; font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .band-head .aim { color: var(--ink-soft); font-size: .85rem; }
+
+  .frame-bar { display: flex; flex-direction: column; gap: .5rem; }
+  .bar {
+    position: relative;
+    display: flex;
+    height: 30px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--bar-track);
+  }
+  .seg { position: relative; min-width: 2px; }
+  .seg + .seg { box-shadow: inset 1px 0 0 var(--ground); }
+  .target-line {
+    position: absolute;
+    top: -5px;
+    bottom: -5px;
+    width: 2px;
+    background: var(--ink);
+    opacity: .75;
+  }
+  .target-line.frame-line { background: var(--broken); opacity: 1; }
+  .target-line.frame-line .target-flag { color: var(--broken); }
+  .target-flag {
+    position: absolute;
+    bottom: calc(100% + .3rem);
+    left: 1px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: .68rem;
+    line-height: 1.3;
+    color: var(--ink);
+    background: var(--raised);
+    padding: 0 .3rem;
+    border-radius: 3px;
+  }
+  .bar-wrap { position: relative; padding-top: 1.6rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .74rem; color: var(--ink-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: .38rem; }
+  .swatch { width: .6rem; height: .6rem; border-radius: 2px; flex: none; }
+
+  .figures { display: flex; flex-wrap: wrap; gap: .25rem 2rem; border-top: 1px solid var(--rule-soft); padding-top: .9rem; }
+  .figure { display: flex; flex-direction: column; gap: .05rem; }
+  .figure dt { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+  .figure dd { margin: 0; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+  /* ---- phases ---- */
+  section.phase { display: flex; flex-direction: column; gap: .35rem; }
+  .phase-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem 1rem; padding-bottom: .5rem; }
+  .phase-head .count { margin-left: auto; }
+  .phase-note { max-width: 62ch; color: var(--ink-soft); font-size: .88rem; padding-bottom: .65rem; }
+
+  ul.items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+  li.item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .15rem .7rem;
+    padding: .85rem .25rem .95rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  li.item.closed .work { color: var(--ink-faint); text-decoration: line-through; text-decoration-thickness: 1px; }
+  li.item.closed .crit { opacity: .5; }
+
+  .tick {
+    grid-row: 1 / span 3;
+    appearance: none;
+    width: 1.1rem; height: 1.1rem;
+    margin: .25rem 0 0;
+    border: 1.5px solid var(--rule);
+    border-radius: 4px;
+    background: var(--ground);
+    cursor: pointer;
+    display: grid;
+    place-content: center;
+    transition: background-color .12s ease, border-color .12s ease;
+  }
+  .tick:hover { border-color: var(--sward); }
+  .tick:checked { background: var(--sward); border-color: var(--sward); }
+  .tick:checked::after {
+    content: "";
+    width: .55rem; height: .3rem;
+    border-left: 2px solid var(--ground);
+    border-bottom: 2px solid var(--ground);
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .tick:focus-visible { outline: 2px solid var(--sward); outline-offset: 2px; }
+
+  .line { display: flex; flex-wrap: wrap; align-items: baseline; gap: .45rem .7rem; }
+  .id {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem;
+    color: var(--sward);
+    background: var(--sward-soft);
+    border-radius: 3px;
+    padding: .05rem .3rem;
+    flex: none;
+  }
+  .work { font-weight: 500; }
+  .work em { font-style: normal; font-weight: 600; }
+  .state {
+    margin-left: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .7rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    flex: none;
+  }
+  .state.done { color: var(--working); }
+  .state.next { color: var(--sward); }
+  .state.refused { color: var(--broken); }
+
+  .crit { display: flex; flex-direction: column; gap: .18rem; margin-top: .4rem; font-size: .82rem; color: var(--ink-soft); }
+  .crit div { padding-left: .65rem; border-left: 2px solid var(--rule); }
+  .crit div.w { border-color: var(--working); }
+  .crit div.n { border-color: var(--watch); }
+  .crit div.b { border-color: var(--broken); }
+  .crit b { font-weight: 600; color: var(--ink); }
+
+  .found { margin-top: .45rem; font-size: .82rem; color: var(--ink-soft); background: var(--sunk); border-radius: 6px; padding: .5rem .65rem; }
+  .found b { color: var(--ink); font-weight: 600; }
+
+  /* ---- lab + rules ---- */
+  .scroller { overflow-x: auto; }
+  table.labs { border-collapse: collapse; width: 100%; font-size: .85rem; min-width: 30rem; }
+  table.labs th { text-align: left; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; padding: 0 1rem .45rem 0; border-bottom: 1px solid var(--rule); }
+  table.labs td { padding: .65rem 1rem .65rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; color: var(--ink-soft); }
+  table.labs td:first-child { color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; white-space: nowrap; }
+
+  ul.rules { margin: 0; padding-left: 1.1rem; color: var(--ink-soft); font-size: .88rem; display: flex; flex-direction: column; gap: .18rem; max-width: 62ch; }
+  ul.rules li::marker { color: var(--ink-faint); }
+
+  footer.note { color: var(--ink-faint); font-size: .78rem; border-top: 1px solid var(--rule); padding-top: 1rem; display: flex; flex-wrap: wrap; gap: .3rem 1.5rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="stamp">
+      <span class="eyebrow">Babylon meadow board &middot; spring-ooze</span>
+      <span class="eyebrow" id="sync">local only</span>
+    </div>
+    <h1>The board: the list</h1>
+    <p class="prose">
+      What gets crossed off. The measured state and the research live in
+      <span class="mono">BOARD-HANDOFF.md</span>; the rules, the refused table and
+      the traps in <span class="mono">PLAN.md</span>. The order is
+      <strong>look first, then optimize</strong> &mdash; Phase&nbsp;1 before Phase&nbsp;2.
+    </p>
+  </header>
+
+  <div class="band">
+    <div class="band-head">
+      <span class="now" id="nowMs">22.9 ms</span>
+      <span class="aim">at the play camera, maximum plants, <strong>3600 &times; 2026 (7.29&nbsp;MP)</strong>, fresh browser
+        &mdash; <strong>47 fps</strong> against a target of 60 (16.6&nbsp;ms). Three bracketed runs, drift 0.37&nbsp;ms.</span>
+    </div>
+
+    <div class="frame-bar">
+      <div class="bar-wrap">
+        <div class="bar" id="bar"></div>
+        <div class="target-line" id="targetLine"><span class="target-flag">16.6 ms &middot; 60 fps</span></div>
+        <div class="target-line frame-line" id="frameLine"><span class="target-flag">measured 21.5</span></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <dl class="figures">
+      <div class="figure"><dt>Plants drawn</dt><dd class="mono">230,937</dd></div>
+      <div class="figure"><dt>Grass</dt><dd class="mono">112,597</dd></div>
+      <div class="figure"><dt>Lattice</dt><dd class="mono">32,116 cells @ 2.03 hf</dd></div>
+      <div class="figure"><dt>Board</dt><dd class="mono">440 &times; 300 half-feet</dd></div>
+      <div class="figure"><dt>Render</dt><dd class="mono">3600 &times; 2026 &middot; 7.29 MP</dd></div>
+    </dl>
+  </div>
+
+  <div id="phases"></div>
+
+  <section class="phase">
+    <div class="phase-head"><h2>The lab</h2></div>
+    <p class="phase-note">
+      <span class="mono">/board/lab</span> lists every screen. One technique each, on the
+      smallest scene that exercises it, with the criterion written <em>before</em> the
+      demo was built. A refused screen stays, with its numbers and its date, so the
+      refusal can be re-run when Babylon or the board changes.
+    </p>
+    <div class="scroller">
+      <table class="labs">
+        <thead><tr><th>Screen</th><th>Phase</th><th>Result</th></tr></thead>
+        <tbody id="labRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-head"><h2>Standing rules</h2></div>
+    <ul class="rules" id="rules"></ul>
+  </section>
+
+  <footer class="note">
+    <span>Updated 2026-09-12.</span>
+    <span>Ticks are shared with everyone who can open this page.</span>
+  </footer>
+</div>
+
+<script>
+  const FRAME = [
+    { name: "trees and scrub", ms: 4.93, color: "#6B9440" },
+    { name: "sward", ms: 4.88, color: "#4F7A2B" },
+    { name: "shadows", ms: 4.03, color: "#3F5E71" },
+    { name: "terrain", ms: 2.13, color: "#8A6B3A" },
+    { name: "ground flora", ms: 1.87, color: "#89A855" },
+    { name: "temporal aa", ms: 1.42, color: "#6E5C86" },
+    { name: "stone, sky, grade, relief", ms: 0.67, color: "#7E7C74" },
+    { name: "unattributed", ms: 1.22, color: "#B4BCAE" }
+  ];
+  const MEASURED_MS = 21.5;
+
+  const PHASES = [
+    {
+      title: "Phase 0 — instruments and regressions",
+      note: "Closed and audited. Nothing here changed how the board looks; it changed what we are able to say about it — and the audit found three things we were saying wrongly.",
+      items: [
+        { id: "0.1", work: "Per-pass GPU breakdown", state: "done",
+          found: "The 8.1 ms unattributed baseline <b>does not exist</b>. Two instruments were reading <span class=\"mono\">gpuTimeInFrameForMainPass</span>, which with a post chain installed times one full-screen blit. The parts now sum to within 1 ms of the whole." },
+        { id: "0.2", work: "Bald ring: one shared wear fade across sowing, ground bake and shadow proxy", state: "done",
+          found: "Coverage map binned on a 44 &times; 30 grid: 122 thin cells, <b>every one of them on the track</b>. None off it." },
+        { id: "0.3", work: "Absolute density; <em>MAX_PLANTS</em> becomes a ceiling", state: "done",
+          found: "The board was opening at <b>half density while the slider read 100%</b>. 230,937 plants now against 94,503. <span class=\"mono\">swardLattice()</span> is pure and unit-tested. <b>Criterion corrected by the audit:</b> the <em>allocation</em> is decoupled exactly — remove a species and every other species' slots, cap, keep and the lattice are identical — but the drift lottery is deliberately coupled, and that moves placed counts by up to 21%." },
+        { id: "0.4", work: "Lab harness — <em>/board/lab</em> index, shell, A/B switch, wall clock, pixel diff", state: "done",
+          found: "The diff carries a <b>control</b> reading — the same state grabbed twice — because a toggle diff has twice come back all zeros here and been believed. A switch that does nothing now says so." },
+        { id: "0.5", work: "<em>Audit of the above</em> — every claim re-measured", state: "done",
+          found: "Nothing published before the audit survived it. <b>The browser's age and the window's display mattered more than anything in the renderer.</b> A Chrome that had been reloading the board all session leaks WebGPU adapters and runs slower with no error: the same frame read 23.9 ms worn and <b>21.5 ms fresh</b>, and the sward alone 8.57 against 4.88 — so the shape of the breakdown moved, not just its scale. And one run came back at exactly 16.67 ms with every component at zero, which is the 60 Hz refresh: the probe window had landed on a non-Retina display and was rendering a quarter of the pixels. The tools pin the scaling and report the render size now, and the HUD carries the pixel count. Separately: the density slider did <b>not</b> thin uniformly — Yorkshire fog came back at 61% of itself at half density because its slots were rounded down and its lottery saturated at full; rounded up, every species now measures 0.498–0.502. And <span class=\"mono\">splitFrame</span> took one baseline across thirteen seconds, so on a loaded machine the parts summed to 73.6 ms of a 28.7 ms frame; each slice is bracketed now and the run reports its drift." }
+      ]
+    },
+    {
+      title: "Phase 1 — the grass itself",
+      note: "The main complaint, and the reason the order is look-first. Every item gets a lab screen before it touches the meadow.",
+      items: [
+        { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bézier blade, 2·stacks+1 verts, tapered to a tip, ±0.3π rotated normals. Lab against the current card, side by side", state: "next",
+          crit: { w: "No visible repetition at the play camera; blades read as rounded, not as flat strips", n: "More than 1.0 ms over cards at equal density" } },
+        { id: "1.2", work: "<em>The old wind back</em> — front with lulls, three-wave body phased on crosswind, per-plant fast term", state: "",
+          crit: { w: "Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above", n: "More than 0.3 ms — it is vertex-only" } },
+        { id: "1.3", work: "<em>Blade variety</em> — per-instance hue, height, width, curve and tilt from the clump hash; base→tip colour; AO at the root", state: "",
+          crit: { w: "Two neighbouring tufts are never obviously the same object", n: "More than 0.3 ms" } },
+        { id: "1.4", work: "<em>Mixed sward structure</em> — trodden patches, mown verge, taller unmown drifts", state: "",
+          crit: { w: "The field has places rather than one texture" } },
+        { id: "1.5", work: "<em>Scanned flora reads pale and scattered</em> — colour dilation under the mask, more than one noise octave for drift", state: "",
+          crit: { w: "Flora sits in the sward, not on top of it; leaf rims do not drift toward the atlas black with distance" } }
+      ]
+    },
+    {
+      title: "Phase 2 — the frame",
+      note: "Sequenced after Phase 1. The per-piece breakdown above already says which of these is worth doing.",
+      items: [
+        { id: "2.1", work: "<em>Hardware scaling</em> lab at 0.5 / 1 / 1.25 / 1.5", state: "",
+          crit: { w: "A setting under 16.6 ms the user cannot tell apart at the play camera", n: "Every setting under 16.6 ms is visibly soft" },
+          found: "Measured, not judged: 0.5 &rarr; 19.7 ms, 1 &rarr; 11.6, 1.25 &rarr; 10.4, 1.5 &rarr; 9.9. The cheapest large experiment on the board." },
+        { id: "2.2", work: "<em>Purpose-written blade ShaderMaterial</em> vs PBR-with-subsurface, with vertex-shader NDC culling", state: "",
+          crit: { w: "1.5 ms or more saved, field looks the same or better", n: "Less than 0.5 ms saved" } },
+        { id: "2.3", work: "<em>Translucency audit</em> on the sward", state: "refused",
+          crit: { w: "Off is not darker", n: "Off is visibly flatter", b: "On is flatly darker everywhere — the irradiance deleted and not replaced" },
+          found: "<b>Refused in the lab.</b> On costs 0.4 ms (10.1 / 9.7) <em>and</em> is flatly darker and less saturated across the whole patch. Change 8.4 against a control of 0.5, so the switch is real. Turning it off on the board is the next board change." },
+        { id: "2.4", work: "<em>Baked geometry vs thin instances</em> for one patch — the forum's 4× claim", state: "",
+          crit: { w: "2 ms or more saved at equal blade count", n: "Less than 0.5 ms, or it breaks the compute placement" } },
+        { id: "2.5", work: "<em>Trees and scrub</em> — 4.93 ms, the <em>largest</em> piece and never examined", state: "next" },
+        { id: "2.6", work: "<em>Shadows</em> — 4.03 ms for two cascades at 2048", state: "" }
+      ]
+    },
+    {
+      title: "Phase 3 — re-examine the refused list",
+      note: "Each in its own lab. If a technique is standard in shipping games for this kind of scene and the lab says it fails, assume the implementation is wrong, find the reference, and diff against it before refusing. Refusing an industry standard needs a citation for why this renderer is the exception.",
+      items: [
+        { id: "3.1", work: "<em>pipeline.samples = 2</em> MSAA — the 24 ms figure came from <span class=\"mono\">antialias: true</span> on the engine, which is a different thing", state: "" },
+        { id: "3.2", work: "Alpha-to-coverage, once sampleCount is above 1", state: "" },
+        { id: "3.3", work: "SSAO2 with the sky mask and <em>excludedMeshes</em> on the prepass", state: "" },
+        { id: "3.4", work: "Grass receiving shadows via a lifted proxy", state: "",
+          found: "Refused twice: 3.3 ms, and acne — a proxy at the same height as the blades standing on it is what a depth bias cannot win." },
+        { id: "3.5", work: "God rays with a real sun quad", state: "" }
+      ]
+    }
+  ];
+
+  const LAB_ROWS = [
+    ["translucency", "2.3", "Refused 2026-09-12 — 10.1 ms on / 9.7 ms off, and on is darker."]
+  ];
+
+  const RULES = [
+    "No time estimates. Rank by size and value.",
+    "Never say “budget”.",
+    "Do not say something is done — the user decides that.",
+    "American spelling in code.",
+    "Verify with the full build, never compile alone.",
+    "The whole board is the shot; standing-in-the-field numbers are not the target.",
+    "No LOD that removes foliage from the map.",
+    "Experimental branch. Breaking it is fine — never hedge about breakage.",
+    "No subagents. Not once.",
+    "No comments in code; what was tried and failed goes in PLAN.md.",
+    "End every message with what is next."
+  ];
+
+  const TARGET_MS = 16.6;
+  const total = FRAME.reduce((sum, part) => sum + part.ms, 0);
+  const span = Math.max(total, MEASURED_MS, TARGET_MS) * 1.06;
+
+  const bar = document.getElementById("bar");
+  const legend = document.getElementById("legend");
+  for (const part of FRAME) {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.style.flexBasis = (part.ms / span * 100) + "%";
+    seg.style.background = part.color;
+    seg.title = part.name + " " + part.ms + " ms";
+    bar.appendChild(seg);
+
+    const tag = document.createElement("span");
+    const dot = document.createElement("span");
+    dot.className = "swatch";
+    dot.style.background = part.color;
+    tag.appendChild(dot);
+    tag.appendChild(document.createTextNode(part.name + " " + part.ms.toFixed(1)));
+    legend.appendChild(tag);
+  }
+  const rest = document.createElement("div");
+  rest.className = "seg";
+  rest.style.flexBasis = ((span - total) / span * 100) + "%";
+  bar.appendChild(rest);
+  document.getElementById("targetLine").style.left = (TARGET_MS / span * 100) + "%";
+  document.getElementById("frameLine").style.left = (MEASURED_MS / span * 100) + "%";
+  document.getElementById("nowMs").textContent = MEASURED_MS.toFixed(1) + " ms";
+
+  const labRows = document.getElementById("labRows");
+  for (const row of LAB_ROWS) {
+    const tr = document.createElement("tr");
+    for (const cell of row) {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      tr.appendChild(td);
+    }
+    labRows.appendChild(tr);
+  }
+
+  const rules = document.getElementById("rules");
+  for (const rule of RULES) {
+    const li = document.createElement("li");
+    li.textContent = rule;
+    rules.appendChild(li);
+  }
+
+  const ticks = new Map();
+  const phases = document.getElementById("phases");
+
+  function countUp(section) {
+    const boxes = section.querySelectorAll(".tick");
+    let on = 0;
+    boxes.forEach(box => { if (box.checked) on++; });
+    section.querySelector(".count").textContent = on + " of " + boxes.length;
+  }
+
+  for (const phase of PHASES) {
+    const section = document.createElement("section");
+    section.className = "phase";
+
+    const head = document.createElement("div");
+    head.className = "phase-head";
+    const title = document.createElement("h2");
+    title.textContent = phase.title;
+    const count = document.createElement("span");
+    count.className = "eyebrow count";
+    head.appendChild(title);
+    head.appendChild(count);
+    section.appendChild(head);
+
+    if (phase.note) {
+      const note = document.createElement("p");
+      note.className = "phase-note";
+      note.textContent = phase.note;
+      section.appendChild(note);
+    }
+
+    const list = document.createElement("ul");
+    list.className = "items";
+
+    for (const item of phase.items) {
+      const li = document.createElement("li");
+      li.className = "item";
+
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "tick";
+      box.id = "tick-" + item.id;
+      box.setAttribute("aria-label", "Cross off " + item.id);
+      if (item.state === "done" || item.state === "refused") {
+        box.checked = true;
+      }
+      li.appendChild(box);
+      ticks.set(item.id, box);
+
+      const line = document.createElement("div");
+      line.className = "line";
+      const id = document.createElement("span");
+      id.className = "id";
+      id.textContent = item.id;
+      const work = document.createElement("span");
+      work.className = "work";
+      work.innerHTML = item.work;
+      line.appendChild(id);
+      line.appendChild(work);
+      if (item.state) {
+        const state = document.createElement("span");
+        state.className = "state " + item.state;
+        state.textContent = item.state;
+        line.appendChild(state);
+      }
+      li.appendChild(line);
+
+      if (item.crit) {
+        const crit = document.createElement("div");
+        crit.className = "crit";
+        const rows = [["w", "Working", item.crit.w], ["n", "Not helping", item.crit.n], ["b", "Broken", item.crit.b]];
+        for (const [key, label, text] of rows) {
+          if (!text) continue;
+          const row = document.createElement("div");
+          row.className = key;
+          const strong = document.createElement("b");
+          strong.textContent = label;
+          row.appendChild(strong);
+          row.appendChild(document.createTextNode(" — " + text));
+          crit.appendChild(row);
+        }
+        li.appendChild(crit);
+      }
+
+      if (item.found) {
+        const found = document.createElement("div");
+        found.className = "found";
+        found.innerHTML = item.found;
+        li.appendChild(found);
+      }
+
+      const sync = () => {
+        li.classList.toggle("closed", box.checked);
+        countUp(section);
+      };
+      box.addEventListener("change", () => { sync(); save(); });
+      sync();
+      list.appendChild(li);
+    }
+
+    section.appendChild(list);
+    phases.appendChild(section);
+    countUp(section);
+  }
+
+  const LOCAL = "board-plan-ticks";
+  let store = null;
+
+  function fromLocal() {
+    try { return JSON.parse(localStorage.getItem(LOCAL) || "{}"); } catch { return {}; }
+  }
+
+  function apply(state) {
+    for (const [id, box] of ticks) {
+      if (typeof state[id] !== "boolean") continue;
+      box.checked = state[id];
+      box.closest("li").classList.toggle("closed", box.checked);
+    }
+    document.querySelectorAll("section.phase").forEach(section => {
+      if (section.querySelector(".count")) countUp(section);
+    });
+  }
+
+  function collect() {
+    const out = {};
+    for (const [id, box] of ticks) out[id] = box.checked;
+    return out;
+  }
+
+  function save() {
+    const state = collect();
+    try { localStorage.setItem(LOCAL, JSON.stringify(state)); } catch { /* private window */ }
+    if (store) store.set(state).catch(() => { /* read-only viewer */ });
+  }
+
+  apply(fromLocal());
+
+  (async () => {
+    const db = window.claude && await window.claude.use("db");
+    if (!db) return;
+    store = db.doc("state/ticks");
+    document.getElementById("sync").textContent = "shared";
+    store.onSnapshot(
+      snap => { if (snap.exists) apply(snap.data() || {}); },
+      () => { document.getElementById("sync").textContent = "local only"; store = null; }
+    );
+  })();
+</script>

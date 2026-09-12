@@ -4,17 +4,30 @@ The working checklist. `BOARD-HANDOFF.md` is the state and the research,
 `PLAN.md` the rules, the refused table and the traps. This is what gets crossed
 off.
 
-Updated 2026-09-12. Published as an Artifact for the Claude GUI —
-https://claude.ai/code/artifact/a3019fb5-028c-4cd6-b34c-a22dad6b13f9 — and when
-an item moves here, that page is republished. Ticks on the page live in its own
-store and survive a republish, so crossing something off there is not undone by
-an update here.
+Updated 2026-09-12. The same list is a page at
+`projects/ooze/public/board-plan.html`, which ooze serves at **/board-plan.html**
+on its own port and which is published as an Artifact for the Claude GUI —
+https://claude.ai/code/artifact/a3019fb5-028c-4cd6-b34c-a22dad6b13f9
 
-**Where we are:** **42 fps at maximum plants — 23.9 ms** at the play camera,
-3600 x 2086, midsummer. Target is 60 (16.6 ms). Five repeats put the median
-between 23.6 and 24.4 ms and the 95th percentile near 26; a single reading of
-22.9 was the fast tail of that, not the number. The order is **look first, then
-optimize** — Phase 1 before Phase 2.
+One file, two destinations: the page is published from the repo, so there is no
+second copy to drift. **This markdown and that page move together** — when an
+item changes here, change the `PHASES` block in the page and republish. Ticks on
+the page live in its own store and survive a republish, so crossing something off
+there is not undone by an update here.
+
+**Where we are:** **47 fps at maximum plants — 21.5 ms** at the play camera,
+**3600 x 2026 (7.29 MP)**, on a freshly started browser. Target is 60 (16.6 ms).
+The order is **look first, then optimize** — Phase 1 before Phase 2.
+
+> **A frame number without its pixel count and its browser's age is not a
+> measurement.** The audit found both mattering more than anything in the
+> renderer: the same board read 23.9 ms on a Chrome that had been reloading
+> WebGPU contexts all session and 21.5 ms on a fresh one, and the sward alone
+> read 8.57 ms against 4.88. And a probe window that lands on a non-Retina
+> display quietly quarters the pixel count — one run came back at exactly
+> 16.67 ms with every component at zero, which is the 60 Hz refresh, not a fast
+> board. Restart the browser, pin `setHardwareScalingLevel`, and read the render
+> size off the HUD before believing anything.
 
 ---
 
@@ -79,20 +92,25 @@ gets a lab screen before it touches the meadow.
 ## Phase 2 — the frame
 
 Sequenced after Phase 1. 0.1 already says which of these is worth doing. The
-frame at the play camera, three bracketed runs averaged, drift 0.4–0.7 ms:
+frame at the play camera, three bracketed runs averaged on a fresh browser at
+7.29 MP, drift 0.37 ms:
 
 | piece | ms | | piece | ms |
 |---|---|---|---|---|
-| **whole frame** | **23.9** | | temporal aa | 1.60 |
-| sward | 8.57 | | stone | 0.32 |
-| trees and scrub | 5.28 | | sky dome | 0.27 |
-| shadows | 4.38 | | sky light | 0.20 |
-| terrain | 2.10 | | grade | 0.15 |
-| ground flora | 1.93 | | ground relief | 0.10 |
-| | | | **unattributed** | **0.00** |
+| **whole frame** | **21.5** | | stone | 0.28 |
+| trees and scrub | 4.93 | | ground relief | 0.18 |
+| sward | 4.88 | | sky dome | 0.13 |
+| shadows | 4.03 | | grade | 0.08 |
+| terrain | 2.13 | | **unattributed** | **1.22** |
+| ground flora | 1.87 | | | |
+| temporal aa | 1.42 | | | |
 
-The parts over-sum by about 4%: taking a group away also removes whatever it
-was occluding, so this is a difference measurement, not a partition.
+**Trees and scrub is now the largest piece**, a hair above the sward. On the
+worn browser the sward measured 8.57 and looked like the whole problem; it is
+not.
+
+Taking a group away also removes whatever it was occluding, so this is a
+difference measurement, not a partition.
 
 | | Work | Working = | Not helping = | State |
 |---|---|---|---|---|
@@ -100,8 +118,8 @@ was occluding, so this is a difference measurement, not a partition.
 | 2.2 | **Purpose-written blade `ShaderMaterial`** vs PBR-with-subsurface, with vertex-shader NDC culling (forum 62558) | ≥ 1.5 ms saved, field looks the same or better | < 0.5 ms saved | |
 | 2.3 | **Translucency audit** | Off is not darker | Off is visibly flatter | **done — refused.** Lab says on costs 0.4 ms *and* is flatly darker. Turning it off on the board is the next board change |
 | 2.4 | **Baked geometry vs thin instances** for one patch (forum 46756's 4× claim) | ≥ 2 ms saved at equal blade count | < 0.5 ms, or it breaks the compute placement | |
-| 2.5 | **Trees and scrub** — 5.3 ms, the second largest piece and never examined | — | — | |
-| 2.6 | **Shadows** — 4.4 ms for two cascades at 2048 | — | — | |
+| 2.5 | **Trees and scrub** — 4.93 ms, the *largest* piece and never examined | — | — | |
+| 2.6 | **Shadows** — 4.03 ms for two cascades at 2048 | — | — | |
 
 ---
 
