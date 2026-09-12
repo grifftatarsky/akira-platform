@@ -50,7 +50,12 @@ export interface Standing {
  */
 const TREES = 7;
 const SCRUB = 54;
-const STONES = 26;
+/**
+ * <b>A dozen, not two dozen.</b> Twenty-six was a scree slope. A grazed field
+ * with a cart track through it turns out a stone at a time over years, and what
+ * you see is a handful along the verge and a couple the plough went round.
+ */
+const STONES = 11;
 
 /** Half-feet. A hedgerow oak in a Virginia field, give or take. */
 const TREE_TALL = 64;
@@ -100,65 +105,148 @@ function margin(field: GroundField, x: number, y: number): number {
 }
 
 /**
- * Fieldstone, as real geometry rather than cards.
+ * The lowest the *drawn* ground gets under a footprint, in stage units.
  *
- * <p><b>The one place a downloaded model is the right answer.</b> Poly Haven's
- * vegetation is unusable at any resolution — its pine is a 948 MB geometry
- * buffer and its smallest broadleaf tree is 60 — but a boulder is two or three
- * megabytes, which is why the trees here are built and the stones are not.
+ * <p><b>`heightAt` is not the surface anybody can see.</b> The terrain mesh
+ * carries one vertex per half-foot and interpolates between them, so on ground
+ * with ruts cut into it — which is most of this board's track — the triangle
+ * between two samples runs above the height field in the hollows and below it
+ * on the ridges. A trunk placed at the field's own value for its centre point
+ * therefore floats by as much as the rut is deep, which is exactly what showed
+ * up on the tree standing in the road.
  *
- * <p>Scattered as thin instances off one mesh: two dozen rocks is one draw, and
- * a rock has no reason to be its own object until something stands behind it.
+ * <p>Sampling the lattice the mesh actually uses, across the trunk's own
+ * footprint, and taking the lowest of them puts the base at or under the
+ * drawn surface everywhere it touches. A little buried is invisible; a little
+ * airborne is the first thing anyone sees.
  */
+function groundUnder(
+  field: GroundField, x: number, y: number, reach: number,
+): number {
+  let low = heightAt(field, x, y);
+  const span = Math.max(1, Math.ceil(reach));
+  for (let dy = -span; dy <= span; dy++) {
+    for (let dx = -span; dx <= span; dx++) {
+      if (dx * dx + dy * dy > span * span) {
+        continue;
+      }
+      low = Math.min(low, heightAt(
+        field, Math.floor(x) + dx, Math.floor(y) + dy,
+      ));
+    }
+  }
+  return low;
+}
+
 /**
- * One scanned model, ready to be scattered.
+ * Named plants out of one scan, each merged and rebased, ready to scatter.
  *
- * <p>A glTF arrives under a `__root__` node carrying the handedness flip, and a
- * thin instance's matrix is composed against whatever world matrix the mesh
- * already has — so left attached, everything is placed through that root's
- * rotation and lands somewhere else entirely. Baking the transform in and
- * clearing the node leaves an instance matrix meaning what it says.
+ * <p>A scan is often several plants captured together, and each plant is
+ * several primitives because bark, leaves and twigs are separate materials.
+ * The index this takes is a *plant*, and every primitive of that plant comes
+ * with it — which is the whole correction this function exists to make.
  */
-async function loadScan(
-  name: string, scene: Scene, part?: number,
-): Promise<Mesh | null> {
+async function loadPlants(
+  name: string, scene: Scene, wanted: readonly number[],
+): Promise<Map<number, Mesh>> {
   const box = await LoadAssetContainerAsync(
     assetUrl(`assets/board/models/${name}/${name}.gltf`), scene,
   );
-  const all = box.meshes.filter(mesh => mesh.getTotalVertices() > 0) as Mesh[];
-  if (!all.length) {
-    box.dispose();
-    return null;
+  const drawn = box.meshes.filter(mesh => mesh.getTotalVertices() > 0) as Mesh[];
+  // <b>A glTF node is a plant; a primitive is one of that plant's materials.</b>
+  // Babylon splits a multi-primitive node into children named
+  // `<node>_primitive0..N` under a transform node, so the flat mesh list runs
+  // bark, leaves, twigs of the first plant, then of the second, and so on.
+  // Indexing that list picks a *material*, not a plant — which is what this
+  // file did for two builds: `searsia_lucida` shipped as five copies of one
+  // bush's twigs and ten of another's bark. It looked exactly like what it
+  // was, a field of disconnected sticks and bare trunks.
+  const byNode = new Map<string, Mesh[]>();
+  for (const mesh of drawn) {
+    const node = mesh.parent && mesh.parent.name !== '__root__' ? mesh.parent : mesh;
+    const found = byNode.get(node.name);
+    if (found) {
+      found.push(mesh);
+    } else {
+      byNode.set(node.name, [mesh]);
+    }
   }
-  // <b>One part of a scan, where the scan is several plants.</b> `searsia_lucida`
-  // is three shrubs captured together — merged it is half a million vertices a
-  // bush, and instanced twenty-two times that is ten million vertices of
-  // scrub for twelve and a half milliseconds. One of the three is a bush.
-  const parts = part === undefined ? all : [all[Math.min(part, all.length - 1)]];
-  parts.forEach(mesh => { if (!parts.includes(mesh)) { mesh.dispose(); } });
-  all.filter(mesh => !parts.includes(mesh)).forEach(mesh => mesh.dispose());
-  // A scan often arrives as several primitives — bark and leaves are different
-  // materials. Merging keeps it one instanceable mesh; `true` for the second
-  // argument disposes the sources, and the multi-material flag keeps both
-  // materials alive on the result.
-  const one = parts.length === 1
-    ? parts[0]
-    : Mesh.MergeMeshes(parts, true, true, undefined, false, true);
-  if (!one) {
-    box.dispose();
-    return null;
-  }
+  // Sorted by name, so a plant index means the same plant on every load
+  // whatever order the loader happens to resolve its promises in.
+  // Sorted inside a plant too, so `_primitive0` — which in both of this
+  // board's scans is the bark — is reliably first. The trunk is what the
+  // rebase below anchors on.
+  const plants = [...byNode.keys()].sort().map(
+    key => byNode.get(key)!.sort((a, b) => a.name.localeCompare(b.name)),
+  );
+  const chosen = [...new Set(wanted)].map(want => ({
+    want, parts: plants[Math.min(want, plants.length - 1)] ?? [],
+  }));
+  const keep = new Set<Mesh>();
+  chosen.forEach(({ parts }) => parts.forEach(mesh => keep.add(mesh)));
+  drawn.filter(mesh => !keep.has(mesh)).forEach(mesh => mesh.dispose());
   box.removeAllFromScene();
-  scene.addMesh(one);
-  one.getChildMeshes().forEach(child => scene.addMesh(child as Mesh));
-  one.parent = null;
-  one.bakeCurrentTransformIntoVertices();
-  one.position.setAll(0);
-  one.rotationQuaternion = null;
-  one.rotation.setAll(0);
-  one.scaling.setAll(1);
-  one.computeWorldMatrix(true);
-  return one;
+
+  const out = new Map<number, Mesh>();
+  for (const { want, parts } of chosen) {
+    if (!parts.length) {
+      continue;
+    }
+    // <b>World transform into the vertices before anything else.</b> A glTF
+    // arrives under a `__root__` carrying the handedness flip, and a thin
+    // instance's matrix composes against whatever world matrix the mesh
+    // already has — so left attached, every instance is placed through that
+    // root and lands somewhere else entirely. `setParent(null)` keeps the
+    // world transform where clearing `.parent` would drop it, and baking
+    // flattens it, flipping the winding with the determinant.
+    for (const mesh of parts) {
+      mesh.setParent(null);
+      mesh.bakeCurrentTransformIntoVertices();
+    }
+    // <b>The trunk is the anchor, not the bounding box.</b> A plant's overall
+    // box bottoms out at whatever hangs lowest, which on a tree is the tip of
+    // a drooping branch a foot outside the trunk and well below its base.
+    // Rebasing on that stands the tree on its lowest leaf and leaves the trunk
+    // hanging in the air — which is exactly what the board showed. The bark
+    // primitive's own lowest point is where the plant actually meets soil, and
+    // its horizontal centre is the trunk rather than the centre of a lopsided
+    // crown, so an instance lands where it was asked to.
+    parts[0].refreshBoundingInfo();
+    const trunk = parts[0].getBoundingInfo().boundingBox;
+    const stands = new Vector3(
+      (trunk.minimum.x + trunk.maximum.x) / 2,
+      trunk.minimum.y,
+      (trunk.minimum.z + trunk.maximum.z) / 2,
+    );
+    const one = parts.length === 1
+      ? parts[0]
+      : Mesh.MergeMeshes(parts, true, true, undefined, false, true);
+    if (!one) {
+      continue;
+    }
+    // <b>`MergeMeshes` builds its result in the scene already.</b> Adding it a
+    // second time put `island_tree_02` in `scene.meshes` twice, and a mesh
+    // listed twice is dispatched twice — every tree on this board was drawn
+    // two times, for nothing anybody could see.
+    if (!scene.meshes.includes(one)) {
+      scene.addMesh(one);
+    }
+    // <b>Base at nought, centred over its own footprint.</b> A scan's node
+    // origin is wherever the capture rig's was, which for a plant lifted out
+    // of a seven-plant scan is metres away from the plant. Rebasing here means
+    // the placement below can say "at this point on the ground" and be right.
+    one.bakeTransformIntoVertices(Matrix.Translation(
+      -stands.x, -stands.y, -stands.z,
+    ));
+    one.refreshBoundingInfo();
+    one.position.setAll(0);
+    one.rotationQuaternion = null;
+    one.rotation.setAll(0);
+    one.scaling.setAll(1);
+    one.computeWorldMatrix(true);
+    out.set(want, one);
+  }
+  return out;
 }
 
 /**
@@ -190,32 +278,58 @@ export async function plantScans(
     readonly wearMax: number;
     /** How strongly it wants the field's margin over its middle. */
     readonly edge: number;
-    /** Which primitive of a multi-plant scan to take. */
-    readonly part?: number;
+    /** Which *plant* of a multi-plant scan to take, not which primitive. */
+    readonly plant?: number;
   }[] = [
-    // <b>Counts are a budget, and this is the expensive kind of asset.</b> A
-    // photographic tree is eight hundred thousand vertices; seven of them and
-    // twenty-two bushes measured twenty-four milliseconds of a thirty-six
-    // millisecond frame. These numbers are what fits, not what a field would
-    // have — and the way to get the field's number back is impostors, which is
-    // in the plan rather than in this file.
-    // Two specimens of the expensive scan, and the rest of the trees from a
-    // part of the cheap one grown large. `searsia_lucida` is three shrubs
-    // captured together; one of them at forty half-feet is a small field tree,
-    // at eighty-five thousand vertices against eight hundred and seventy.
-    { name: 'island_tree_02', count: 2, tall: 54, inside: 58, wearMax: 0.58, edge: 0.8 },
-    { name: 'searsia_lucida', count: 5, tall: 34, inside: 40, wearMax: 0.58, edge: 0.7, part: 2 },
-    { name: 'searsia_lucida', count: 10, tall: 12, inside: 14, wearMax: 0.66, edge: 0.5, part: 0 },
+    // <b>Near enough the size they were photographed at, which they were not
+    // before.</b> These are small plants: `island_tree_02` is 3.4 m tall and
+    // the biggest `searsia_lucida` in its seven-plant scan is 2.3 m. Asking for
+    // a seventeen-foot field tree out of a four-foot shrub is a twelve-fold
+    // blow-up, and a canopy's leaf density falls with the cube of that — which
+    // is why the scrub came out pale and see-through with its stems showing.
+    // A scan carries its own density and the only way to keep it is to leave
+    // its scale alone.
+    //
+    // <p>So the tree is the tree, at half again its captured height, and the
+    // shrub scan is used as shrubs. Plants sorted by name run a (2.3 m, 136k
+    // vertices) down to g (0.8 m, 8k); a, c and e give three silhouettes at
+    // eight, five and three feet for less than one `island_tree_02`.
+    //
+    // <p>Counts are still a budget. A photographic tree is eight hundred
+    // thousand vertices, and the way to get a field's real number back is
+    // impostors, which is in the plan rather than in this file.
+    { name: 'island_tree_02', count: 3, tall: 38, inside: 46, wearMax: 0.58, edge: 0.8 },
+    { name: 'searsia_lucida', count: 4, tall: 16, inside: 20, wearMax: 0.6, edge: 0.7, plant: 0 },
+    { name: 'searsia_lucida', count: 5, tall: 11, inside: 14, wearMax: 0.66, edge: 0.5, plant: 2 },
+    { name: 'searsia_lucida', count: 6, tall: 7, inside: 12, wearMax: 0.7, edge: 0.45, plant: 4 },
   ];
 
+  // One load a file, however many plants are wanted out of it. Parsing an
+  // eighteen-megabyte buffer three times to take three bushes out of it is
+  // three times the wait for the same result.
+  const wanted = new Map<string, number[]>();
+  for (const kind of kinds) {
+    const list = wanted.get(kind.name) ?? [];
+    list.push(kind.plant ?? 0);
+    wanted.set(kind.name, list);
+  }
+  const loaded = new Map<string, Map<number, Mesh>>();
+  for (const [name, plants] of wanted) {
+    loaded.set(name, await loadPlants(name, scene, plants));
+  }
+
   const out: Mesh[] = [];
+  // <b>Shared across every kind, because a tree does not care what species the
+  // thing it is standing inside of is.</b> Two trees at the same point read as
+  // one broken tree, and the rule that placed them had no way to know.
+  const standing: { x: number; y: number; reach: number }[] = [];
   for (let kind = 0; kind < kinds.length; kind++) {
     const want = kinds[kind];
-    const scan = await loadScan(want.name, scene, want.part);
+    const scan = loaded.get(want.name)?.get(want.plant ?? 0);
     if (!scan) {
       continue;
     }
-    scan.name = `scan-${want.name}-${kind}`;
+    scan.name = `scan-${want.name}-${want.plant ?? 0}`;
     // The scan's own height, so a tree can be asked for in half-feet rather
     // than in whatever units it was captured at.
     scan.refreshBoundingInfo();
@@ -227,8 +341,9 @@ export async function plantScans(
     // that can refuse every candidate will, and the board comes back with one
     // tree on it — which has happened twice. So the rule gets the first
     // two-thirds of the attempts to itself, and after that only the hard vetoes
-    // apply: on the board, off the track, off a bank.
-    const tries = want.count * 40;
+    // apply: on the board, off the track, off a bank, and clear of its
+    // neighbours.
+    const tries = want.count * 60;
     for (let at = 0; at < tries && matrices.length < want.count; at++) {
       const insist = at > tries * 0.66;
       const x = dice(at, 37 + kind * 3, 61 + kind * 7) * field.extentXHalfFeet;
@@ -241,6 +356,19 @@ export async function plantScans(
         || slopeAt(field, x, y) > 0.44) {
         continue;
       }
+      const size = (want.tall / own) * (0.78 + 0.44 * dice(at, 5, 7 + kind));
+      // A crown reaches about a third of the tree's height out from the trunk,
+      // so two of them touch at two thirds of the taller one's height. Half
+      // that is the closest two trees in a pasture stand without one of them
+      // having lost the argument.
+      const reach = want.tall * (size / (want.tall / own)) * 0.34;
+      if (standing.some(other => {
+        const dx = other.x - x;
+        const dy = other.y - y;
+        return dx * dx + dy * dy < (other.reach + reach) * (other.reach + reach);
+      })) {
+        continue;
+      }
       const band = 1 - Math.min(1, Math.max(0, inside - want.inside - 6) / 70);
       const verge = wear > 0.18 && wear < 0.5 ? 1 : 0;
       const drift = noise(
@@ -250,13 +378,15 @@ export async function plantScans(
         && dice(at, 1, 91 + kind) > 0.1) {
         continue;
       }
-      const size = (want.tall / own) * (0.78 + 0.44 * dice(at, 5, 7 + kind));
+      standing.push({ x, y, reach });
       matrices.push(Matrix.Compose(
         new Vector3(size, size * (0.9 + 0.22 * dice(at, 9, 13)), size),
         Quaternion.FromEulerAngles(0, dice(at, 13, 89) * 6.2831853, 0),
         // A shade into the ground, so a trunk meets the turf rather than
         // standing on it.
-        new Vector3(x, heightAt(field, x, y) - want.tall * 0.012, y),
+        new Vector3(
+          x, groundUnder(field, x, y, reach * 0.4) - want.tall * 0.02, y,
+        ),
       ));
     }
     if (!matrices.length) {
@@ -273,11 +403,27 @@ export async function plantScans(
   return out;
 }
 
+/**
+ * Fieldstone, as real geometry rather than cards.
+ *
+ * <p><b>The one place a downloaded model is the right answer.</b> Poly Haven's
+ * vegetation is enormous — its pine is a 948 MB geometry buffer — but a boulder
+ * is two or three megabytes.
+ *
+ * <p>Scattered as thin instances off one mesh: two dozen rocks is one draw, and
+ * a rock has no reason to be its own object until something stands behind it.
+ *
+ * <p><b>Both kinds are placed in one pass, and that is the point.</b> Placed a
+ * kind at a time there is nothing to stop the second kind landing on top of the
+ * first, and nothing did: the board shipped with two boulders sitting against
+ * each other in the middle of the track, the same size and near enough the same
+ * rotation to read as one stone drawn twice.
+ */
 export async function scatterStone(
   field: GroundField, scene: Scene,
 ): Promise<Mesh[]> {
   const names = ['namaqualand_boulder_02', 'namaqualand_boulder_04'];
-  const out: Mesh[] = [];
+  const rocks: Mesh[] = [];
   for (let kind = 0; kind < names.length; kind++) {
     const name = names[kind];
     const box = await LoadAssetContainerAsync(
@@ -296,10 +442,8 @@ export async function scatterStone(
     // instance's matrix is composed against whatever the mesh's own world
     // matrix already is — so left attached, two dozen boulders were placed
     // through that root's rotation and scale and landed in a line beside the
-    // board, floating at nothing. Baking the transform into the vertices and
-    // clearing the node leaves the instance matrix meaning exactly what it
-    // says.
-    rock.parent = null;
+    // board, floating at nothing.
+    rock.setParent(null);
     rock.bakeCurrentTransformIntoVertices();
     rock.position.setAll(0);
     rock.rotationQuaternion = null;
@@ -309,45 +453,83 @@ export async function scatterStone(
     if (rock.material) {
       scene.addMaterial(rock.material);
     }
-    // glTF is Y-up and so is the stage, so nothing to swap — but the scan's own
-    // scale is metres and this board counts half-feet.
-    const perMetre = 6.56;
-    const matrices: Matrix[] = [];
-    for (let at = kind; at < STONES; at += names.length) {
-      const x = dice(at, 29, 61) * field.extentXHalfFeet;
-      const y = dice(at, 31, 67) * field.extentYHalfFeet;
-      // Stone shows where the soil is thin, which on this board is the worn
-      // ground beside the track and the rises the plough went round.
-      const { wear } = groundAt(field, x, y);
-      const steep = slopeAt(field, x, y);
-      const inside = Math.min(
-        x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
-      );
-      if (inside < 8) {
-        continue;
-      }
-      if (wear < 0.24 && steep < 0.18 && dice(at, 2, 71) > 0.25) {
-        continue;
-      }
-      // <b>Fieldstone, not gravel.</b> The scan is a metre-and-a-bit boulder
-      // and a tenth of that is a pebble nobody can see from the board's own
-      // camera. Between two and five feet across is a stone you would take
-      // cover behind, which is the only reason a combat map has one.
-      const size = perMetre * (0.34 + 0.46 * dice(at, 5, 73));
-      matrices.push(Matrix.Compose(
-        new Vector3(size, size * (0.72 + 0.3 * dice(at, 7, 79)), size),
-        Quaternion.FromEulerAngles(
-          (dice(at, 11, 83) - 0.5) * 0.4,
-          dice(at, 13, 89) * 6.2831853,
-          (dice(at, 17, 97) - 0.5) * 0.4,
-        ),
-        // Sunk a little, so a boulder sits in the ground rather than on it.
-        new Vector3(x, heightAt(field, x, y) - size * 0.28, y),
-      ));
+    rocks.push(rock);
+  }
+  if (!rocks.length) {
+    return [];
+  }
+
+  // glTF is Y-up and so is the stage, so nothing to swap — but the scan's own
+  // scale is metres and this board counts half-feet.
+  const perMetre = 6.56;
+  const placed: { x: number; y: number; reach: number }[] = [];
+  const perKind: Matrix[][] = rocks.map(() => []);
+  // The count is a promise the same way the trees' is: the weighted preference
+  // gets most of the attempts, and after that only the hard vetoes apply.
+  const tries = STONES * 40;
+  for (let at = 0; at < tries && placed.length < STONES; at++) {
+    const insist = at > tries * 0.7;
+    const x = dice(at, 29, 61) * field.extentXHalfFeet;
+    const y = dice(at, 31, 67) * field.extentYHalfFeet;
+    const inside = Math.min(
+      x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
+    );
+    if (inside < 10) {
+      continue;
     }
+    const { wear } = groundAt(field, x, y);
+    const steep = slopeAt(field, x, y);
+    // <b>Beside the track, not in it.</b> The rule this replaces *preferred*
+    // worn ground, which put boulders in the ruts of a road that carts use —
+    // and a cart road with a three-foot stone in the middle of it is a road
+    // nobody drove down. What a used track actually collects is stone along
+    // its verge, turned out by the wheels, which is the band just outside it.
+    if (wear > 0.56) {
+      continue;
+    }
+    // <b>Fieldstone, not gravel.</b> The scan is a metre-and-a-bit boulder and
+    // a tenth of that is a pebble nobody can see from the board's own camera.
+    // Between two and six feet across is a stone you would take cover behind,
+    // which is the only reason a combat map has one. Spread wider than it was,
+    // because two neighbours of the same size read as a copy-paste.
+    const size = perMetre * (0.24 + 0.7 * dice(at, 5, 73));
+    const reach = size * 0.75;
+    if (placed.some(other => {
+      const dx = other.x - x;
+      const dy = other.y - y;
+      const apart = other.reach + reach + 6;
+      return dx * dx + dy * dy < apart * apart;
+    })) {
+      continue;
+    }
+    const verge = wear > 0.14 && wear < 0.5 ? 1 : 0;
+    // Stone shows where the soil is thin, which on this board is the rises the
+    // plough went round.
+    const thin = Math.min(1, steep / 0.3);
+    const drift = noise(x * 0.02 + 5.1, y * 0.02 - 8.4);
+    if (!insist && verge * 0.5 + thin * 0.5 + drift * 0.4 < 0.5) {
+      continue;
+    }
+    const kind = dice(at, 3, 101) < 0.5 ? 0 : rocks.length - 1;
+    placed.push({ x, y, reach });
+    perKind[kind].push(Matrix.Compose(
+      new Vector3(size, size * (0.66 + 0.42 * dice(at, 7, 79)), size),
+      Quaternion.FromEulerAngles(
+        (dice(at, 11, 83) - 0.5) * 0.4,
+        dice(at, 13, 89) * 6.2831853,
+        (dice(at, 17, 97) - 0.5) * 0.4,
+      ),
+      // Sunk a little, so a boulder sits in the ground rather than on it.
+      new Vector3(x, groundUnder(field, x, y, reach * 0.5) - size * 0.28, y),
+    ));
+  }
+
+  const out: Mesh[] = [];
+  rocks.forEach((rock, kind) => {
+    const matrices = perKind[kind];
     if (!matrices.length) {
       rock.dispose();
-      continue;
+      return;
     }
     const packed = new Float32Array(matrices.length * 16);
     matrices.forEach((matrix, at) => matrix.copyToArray(packed, at * 16));
@@ -355,7 +537,7 @@ export async function scatterStone(
     rock.receiveShadows = true;
     rock.alwaysSelectAsActiveMesh = true;
     out.push(rock);
-  }
+  });
   return out;
 }
 

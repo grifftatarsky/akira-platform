@@ -140,6 +140,65 @@ Worth revisiting, and why they failed before:
 
 ---
 
+## Four things that were silently off, and how each was found
+
+Every one of them shipped green, and every one was found by asking the renderer
+a question rather than by reading the code.
+
+**The grade was disabled everywhere, for as long as bloom has existed.**
+`DefaultRenderingPipeline.imageProcessingEnabled = false` is not a local flag:
+its setter writes `scene.imageProcessingConfiguration.isEnabled`, the master
+switch every PBR material reads. Tone mapping, contrast, exposure and vignette
+were off board-wide, and the grade toggle was flipping settings on a
+configuration nothing applied. Found by printing `isEnabled` — it read `false`
+with nothing in this codebase having set it.
+
+**Bloom's white wedge was the sky, and the sky was the only ungraded surface in
+the frame.** `SkyMaterial` does no image processing at all, so with the grade
+living inside each material the atmosphere went into the frame at several times
+white and nothing compressed it. Blurred and added back, that can only clip.
+Turning the grade into a post pass — which is where it belongs anyway, because
+it then covers the sky — removed the wedge with no change to bloom's own
+settings.
+
+**A merged mesh was in `scene.meshes` twice, so every tree was drawn twice.**
+`Mesh.MergeMeshes` creates its result in the scene already; the `scene.addMesh`
+after it appends a second entry, and a mesh listed twice is dispatched twice.
+Found by counting names in `scene.meshes`. Worth 2.6 ms at the wide camera.
+
+**`part` indexed primitives where it meant plants.** Babylon splits a
+multi-primitive glTF node into children named `<node>_primitiveN`, so the flat
+mesh list runs bark, leaves, twigs of the first plant, then of the second.
+Indexing it picks a *material*: `searsia_lucida` shipped as five copies of one
+bush's twigs and ten of another's bark. Found by reading the glTF's own
+material names beside the vertex counts the scene reported.
+
+## Scans are the size they were photographed at
+
+`island_tree_02` is 3.4 m tall and the largest `searsia_lucida` in its
+seven-plant scan is 2.3 m. Both were being asked for at eight and twelve times
+that, and a canopy's leaf density falls with the cube of the scale — which is
+the whole explanation for scrub that came out pale, thin and showing its stems.
+A scan carries its own density and the only way to keep it is to leave its scale
+roughly alone. Check `h=` per node before choosing a `tall`.
+
+The same applies to what a scan is *for*. A shrub scan makes shrubs. Field trees
+want a tree scan, and this board has exactly one.
+
+## Standing things need the drawn surface, not the height field
+
+Two separate ways a tree floats:
+
+- **Rebasing on the bounding box** stands a plant on whatever hangs lowest,
+  which on a tree is the tip of a drooping branch well below the trunk. Anchor
+  on the bark primitive's own lowest point instead; it is where the plant meets
+  soil, and its horizontal centre is the trunk rather than the centre of a
+  lopsided crown.
+- **`heightAt` is not the surface anybody can see.** The terrain mesh carries one
+  vertex per half-foot and interpolates between them, so over ruts the drawn
+  triangle runs above the height field in the hollows. Sample the lattice the
+  mesh actually uses, across the footprint, and take the lowest.
+
 ## Two ways this project measures itself wrong
 
 Both cost hours and both are in the tooling now, not in anyone's memory.
@@ -170,6 +229,10 @@ measurement lied.
 - `tools/board-shot.mjs` — copies the live canvas with `drawImage`. The
   render-target version it replaced worked and lied by omission: it showed the
   frame *before* the post chain, which is how temporal AA shipped unverified.
+  **A WebGPU canvas reads blank outside a frame callback**, and it reads blank
+  from `onAfterRenderObservable` too — `requestAnimationFrame` is the only hook
+  that has the swap chain in it. A toggle-by-toggle pixel diff has now twice
+  come back all zeros for this reason and been believed the first time.
 - `tools/wgsl-lint.mjs` — catches the four silent WGSL faults this project
   repeats, the worst being a backtick inside a shader comment, which closes the
   template literal and produces a shader that compiles to nothing with no error.

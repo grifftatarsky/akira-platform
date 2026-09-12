@@ -122,6 +122,8 @@ export class Stage {
   private bloom: DefaultRenderingPipeline | null = null;
   private day = 196;
   private hour = 13;
+  /** Whether the grade toggle is on, which the clock has to respect. */
+  private graded = true;
 
   private constructor(
     readonly engine: WebGPUEngine,
@@ -257,7 +259,15 @@ export class Stage {
       // the light it was shot under; lighting it a second time from every
       // direction at once is what was taking the green out of the field and
       // leaving it grey from above.
-      this.scene.environmentIntensity = 0.14;
+      //
+      // <p><b>Back up again, because the field stopped reading it.</b> A tenth
+      // was the right number while the meadow was lit by this as well; the
+      // meadow opts out of image-based lighting entirely now, so all this
+      // reaches is the ground, the stone and the scanned trees — the three
+      // things with no self-shadowing of their own and the three that were
+      // reading as flat cutouts against the sward. At 0.14 switching it off
+      // changed nothing anybody could see, which is a toggle that lies.
+      this.scene.environmentIntensity = 0.45;
       // The hemisphere is a fill under the sky now, not a stand-in for it. Low
       // and neutral: what it is still good for is keeping the underside of a
       // sward off zero, which an environment map alone does not do because the
@@ -337,7 +347,25 @@ export class Stage {
       this.bloom = new DefaultRenderingPipeline('bloom', true, this.scene, [this.camera]);
       this.bloom.fxaaEnabled = false;
       this.bloom.samples = 1;
-      this.bloom.imageProcessingEnabled = false;
+      // <b>On, and switching it off turned the whole grade off everywhere.</b>
+      // `imageProcessingEnabled` on this pipeline is not a local flag: its
+      // setter writes `scene.imageProcessingConfiguration.isEnabled`, which is
+      // the master switch every PBR material reads as well. Set to false the
+      // day bloom shipped, it disabled tone mapping, contrast, exposure and
+      // vignette for the entire board — so the grade toggle flipped settings
+      // on a configuration that was not being applied, and reported nothing.
+      //
+      // <p>Enabled, the grade becomes one full-screen pass after bloom instead
+      // of a term inside each material's shader, and that is the better place
+      // for it for a second reason: <b>`SkyMaterial` does not do image
+      // processing at all.</b> Graded in the materials, the sky was the one
+      // surface in the frame that was never tone mapped — which is why bloom
+      // read as a white wedge across the horizon rather than as light spilling
+      // off anything. A sky several times brighter than white, blurred and
+      // added back to an image with no highlight compression in front of it,
+      // can only clip. The wedge is gone with no change to bloom's own
+      // settings.
+      this.bloom.imageProcessingEnabled = true;
       this.bloom.bloomEnabled = true;
       // High, because almost nothing on a meadow is bright enough to bloom and
       // the things that are — a low sun on wet grass, the sky at the horizon —
@@ -554,8 +582,9 @@ export class Stage {
     // paler, with the warmth washed out of it. A real eye does open up, and a
     // real evening is still visibly evening. The root keeps the direction of
     // the adjustment and drops most of its size.
-    this.scene.imageProcessingConfiguration.exposure =
-      (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45);
+    this.scene.imageProcessingConfiguration.exposure = this.graded
+      ? (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45)
+      : 1;
 
     // Kept with the clock although nothing reads it today — `SkyMaterial`
     // gates its own fog on `fogMode`, which is NONE. It is two lerps a tick and
@@ -648,18 +677,31 @@ export class Stage {
       if (!/^ground-|^scan-/.test(mesh.name)) {
         continue;
       }
-      const material = mesh.material as unknown as { albedoColor?: Color3 } | null;
-      if (material?.albedoColor) {
-        material.albedoColor = tint;
+      // A merged scan wears a `MultiMaterial` — bark, leaves and twigs are
+      // separate materials in the glTF — and that has no albedo of its own,
+      // so the tint has to reach its parts. Left unhandled, the one tree on
+      // the board with three materials was the one tree that stayed July green
+      // in November.
+      const worn = mesh.material as unknown as {
+        albedoColor?: Color3; subMaterials?: ({ albedoColor?: Color3 } | null)[];
+      } | null;
+      for (const material of worn?.subMaterials ?? [worn]) {
+        if (material?.albedoColor) {
+          material.albedoColor = tint;
+        }
       }
     }
   }
 
   setGrade(on: boolean): void {
+    this.graded = on;
     const image = this.scene.imageProcessingConfiguration;
     image.toneMappingEnabled = on;
     image.contrast = on ? (this.look.contrast ?? 1) : 1;
     image.vignetteEnabled = on && (this.look.vignette ?? 0) > 0;
+    // Exposure is written by the clock, so it has to be rewritten here rather
+    // than set — otherwise the next tick of the hour slider puts it back.
+    this.setClock(this.hour);
   }
 
   /** Frames the whole board. */
