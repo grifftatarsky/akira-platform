@@ -58,7 +58,11 @@ export function cardGeometry(
   plant: Plant, sheet: FoliageSheet, leaf: LeafShape = addCard,
 ): VertexData {
   const build: Build = { positions: [], normals: [], uvs: [], indices: [] };
+  const leaves = plant.cards.reduce(
+    (sum, spec) => sum + (spec.disc ? 0 : spec.count), 0,
+  );
   let placed = 0;
+  let leafed = 0;
 
   for (const spec of plant.cards) {
     const cuts = sheet.groups[spec.group];
@@ -66,15 +70,16 @@ export function cardGeometry(
       continue;
     }
     for (let n = 0; n < spec.count; n++) {
-
-      const around = spec.count === 1
+      const around = spec.disc
         ? Math.sin(placed * 7.3) * 0.9
-        : (n / spec.count) * Math.PI * 2 + Math.sin(n * 12.9898 + placed) * 0.4;
-      const cut = cuts[(n + placed * 3) % cuts.length];
+        : (leafed / Math.max(1, leaves)) * Math.PI
+          + Math.sin(leafed * 12.9898 + placed) * (Math.PI / leaves) * 0.22;
+      const cut = cuts[(spec.disc ? placed : leafed) % cuts.length];
       if (spec.disc) {
         addHead(build, spec, cut, around);
       } else {
-        leaf(build, plant, spec, cut, around, n);
+        leaf(build, plant, spec, cut, around, leafed);
+        leafed++;
       }
       placed++;
     }
@@ -117,6 +122,7 @@ function addCard(
   const face: Vec = cross(across, up);
 
   const rows = Math.max(1, spec.rows);
+  const mirror = index % 2 === 1;
 
   const base = spec.trimStalk ? stalkTop(cut) : 0;
 
@@ -137,8 +143,8 @@ function addCard(
 
     const edge = spanOver(cut, s - step, s + step);
     for (const side of [0, 1] as const) {
-
-      const off = (edge[side] - 0.5) * wide * vary;
+      const at = mirror ? 1 - edge[1 - side] : edge[side];
+      const off = (at - 0.5) * wide * vary;
       build.positions.push(
         root[0] + up[0] * along + across[0] * off,
         root[1] + up[1] * along + across[1] * off,
@@ -148,7 +154,7 @@ function addCard(
       const fanned = add(face, scale(across, fan * (side === 0 ? -1 : 1)));
       build.normals.push(...lift(fanned));
       build.uvs.push(
-        cut.u0 + (cut.u1 - cut.u0) * edge[side],
+        cut.u0 + (cut.u1 - cut.u0) * at,
         cut.v1 + (cut.v0 - cut.v1) * s,
       );
     }

@@ -109,8 +109,7 @@ export const MEADOW: readonly Plant[] = [
     patch: 0.012, clumping: 1.0, crowd: 1.0,
 
     cards: [
-      { group: 'spray', count: 1, tall: 3.0, at: 0, out: 0, lean: 0.12, rows: 6, taper: 1 },
-      { group: 'blade', count: 1, tall: 2.6, at: 0, out: 0.05, lean: 0.34, rows: 4, taper: 1 },
+      { group: 'spray', count: 3, tall: 3.0, at: 0, out: 0.02, lean: 0.05, rows: 5, taper: 1 },
     ],
     stemTall: 0,
     lit: 0.9, damp: 0,
