@@ -356,10 +356,12 @@
       items: [
         { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bézier blade, 2·stacks+1 verts, tapered to a tip, ±0.3π rotated normals", state: "refused",
           crit: { w: "No visible repetition at the play camera; blades read as rounded, not as flat strips", n: "More than 1.0 ms over cards at equal density" },
-          found: "<b>Refused on cost, and one free win taken out of it.</b> Three sowings on one field with the same seeds, so only the geometry differs. Scene GPU pass: card 4.80 ms at 70 triangles, blade 8.97 at 358 — <b>+4.17 ms, 87% over, against a 1.0 threshold</b>. Wall clock said nothing: all three sat at 16.7 ms because the lab patch finishes inside the refresh, which is why the scene column exists. Diffed against the reference before refusing, per the lab's rule: the first attempt read as a leafy mat because the blades were about seventeen times too wide; narrowed to a fourteenth of a spray and multiplied from three to seven it reads as fine dense turf — better, and still a mown lawn rather than a meadow, losing the long blade silhouettes the scans carry. A triangle-neutral version is about 1.4 blades per spray, which is not a tuft." },
-        { id: "1.1b", work: "<em>The twist on the card</em> — the reference's ±0.3π normal rotation on the geometry that already ships", state: "next",
+          found: "<b>Open — yours to call.</b> Rebuilt properly after four bugs that distant screenshots hid, then given a texture: the blade group's cuts are single opaque strands, so a photographed blade maps onto the generated geometry with midribs and colour. Card at 100% is 26.8 ms; the textured blade at 38% is 33.0. <b>The blade is not geometry-bound</b> — five blades a card to two, 638 triangles to 162, moved the frame only 52.4 to 49.4. Resolution says where it goes: card 1.68 ms per megapixel, blade 3.38. Twice the fill, because the blade draws twice the grass — solid geometry with nothing discarded, against a card that is mostly empty quad and throws four fifths of its fragments at the alpha test. Both are on the board's sward switch." },
+        { id: "1.1b", work: "<em>The twist on the card</em> — the reference's ±0.3π normal rotation", state: "",
           crit: { w: "The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once", n: "Any measurable cost, or the user cannot see it" },
-          found: "The shading half of the blade idea, <b>free</b>: +0.02 ms, and it moves the image 1.46 against a control of 0.51. The cards already fan their edge normals but by atan(0.3), a third of the reference angle. Shape refused, shading kept — it needs a look on the board." },
+          found: "<b>Inert, and the reason is worth more than the twist.</b> Card against twist, one tuft, eight angles: 0.06–0.10 pixel diff out of 255 at shipping settings, the same at 9am, 7am and 6am. The normals are fine — they differ by 37° mean. <span class=\"mono\">blade-wind</span> throws them away: the shading normal is <span class=\"mono\">mix(leafNormal, groundNormal, plant.lit)</span> and lit is 0.9, so ninety per cent of the sward is shaded by the terrain. <b>No per-blade normal work can show while that stands.</b> The lever is that blend: at 0.45 of shipped, an 8am sun takes sward contrast from 37.2 to 46.4 and the field gains a per-blade shimmer. It is a <b>Leaf normal</b> slider now, at 100% as it ships." },
+        { id: "1.1c", work: "<em>The card's dark bar</em> — one strand in one cut, landing on every plant", state: "done",
+          found: "The bar is a short fat dark diagonal leaf in <b>spray cut 0</b>, and <span class=\"mono\">cuts[(n + placed*3) % 2]</span> is 0 for all three cards, so every plant drew it three times. The sheet already had better material: the <b>blade group is seven distinct clean single blades</b> at 35–60% fill against the sprays' 4%. Grass is five of those plus one spray. Per-angle coverage went 4.6 to 10.9 and the swing 3.2× to 1.38×, for 20 triangles to 40." },
         { id: "1.2", work: "<em>The old wind back</em> — front with lulls, three-wave body phased on crosswind, per-plant fast term", state: "",
           crit: { w: "Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above", n: "More than 0.3 ms — it is vertex-only" } },
         { id: "1.3", work: "<em>Blade variety</em> — per-instance hue, height, width, curve and tilt from the clump hash; base→tip colour; AO at the root", state: "",
@@ -403,11 +405,14 @@
   ];
 
   const LAB_ROWS = [
-    ["blade", "1.1", "Refused 2026-09-12 — +4.17 ms scene, 87% over the card, at 5.1× the triangles."],
+    ["blade", "1.1", "Open — card 26.8 ms at 100%, textured blade 33.0 at 38%. Fill-bound, not geometry-bound."],
     ["translucency", "2.3", "Refused 2026-09-12 — 10.1 ms on / 9.7 ms off, and on is darker."]
   ];
 
   const RULES = [
+    "Do not refuse anything — measure it, show it, and put the call to the user.",
+    "One subpoint at a time; wait for the yes or no before starting the next.",
+    "Look at one of the thing before judging a field of them.",
     "No time estimates. Rank by size and value.",
     "Never say “budget”.",
     "Do not say something is done — the user decides that.",
