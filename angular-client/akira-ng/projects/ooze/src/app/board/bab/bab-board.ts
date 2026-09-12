@@ -43,11 +43,11 @@ function dayLabel(day: number): string {
   return `${part} ${month}`;
 }
 
-type Shape = 'card' | 'blade';
+type Shape = 'card' | 'twist' | 'blade';
 
 type Part = 'meadow' | 'flora' | 'trees' | 'stones' | 'terrain' | 'shadows'
   | 'taa' | 'relief' | 'sky' | 'dome' | 'grade' | 'bloom';
-import { bladeGeometry } from './blade-geometry';
+import { bladeGeometry, twistedCards } from './blade-geometry';
 import { cardGeometry } from './foliage-cards';
 import { type Meadow, type PlantShape, sowMeadow } from './meadow';
 import { type Asset, PlantPreview } from './plant-preview';
@@ -135,6 +135,15 @@ import { type Terrain, buildTerrain } from './terrain';
                     <span class="font-mono text-[0.6rem] text-fg-subtle">sowing…</span>
                   }
                 </span>
+                <label class="flex items-center gap-1.5"
+                  title="How far each leaf's shading normal is pulled onto the ground's own. At 100% the sward is lit almost entirely by the terrain, which is why per-blade normal work is invisible.">
+                  Leaf normal
+                  <input
+                    type="range" min="0" max="100" step="5"
+                    [value]="leafNormal()" (input)="setLeafNormal($any($event.target).valueAsNumber)"
+                    class="w-20" />
+                  <span class="w-9 tabular-nums">{{ leafNormal() }}%</span>
+                </label>
                 <label class="flex items-center gap-1.5">
                   Season
                   <input type="range" min="1" max="365" step="1" [value]="day()"
@@ -480,12 +489,21 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly on = signal<Partial<Record<Part, boolean>>>({ bloom: false });
 
   protected readonly shape = signal<Shape>('card');
+  protected readonly leafNormal = signal(100);
+  private readonly litAsBuilt = new Map<string, number>();
   protected readonly resowing = signal(false);
   protected readonly shapes: readonly { key: Shape; label: string; note: string }[] = [
     {
       key: 'card',
       label: 'cards',
       note: 'Scanned cut-outs on fitted strips. What the board ships.',
+    },
+    {
+      key: 'twist',
+      label: 'twist',
+      note: 'The same cards, with the edge normals rotated 0.3 pi about the '
+        + 'blade axis instead of fanned by atan(0.3) — the reference angle, so a '
+        + 'flat strip shades like a cylinder.',
     },
     {
       key: 'blade',
@@ -632,7 +650,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         sheet,
         shape: (which: Shape): Promise<void> => this.setShape(which),
         grown: this.grown,
-        shapes: { card: cardGeometry, blade: bladeGeometry },
+        shapes: { card: cardGeometry, twist: twistedCards, blade: bladeGeometry },
         split: async (): Promise<readonly Slice[]> => {
           await this.split();
           return this.slices();
@@ -726,11 +744,12 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     }
     const shapes: Readonly<Record<Shape, PlantShape>> = {
       card: cardGeometry,
+      twist: twistedCards,
       blade: bladeGeometry,
     };
     const meadow = sowMeadow(
       this.field!, this.stage!.scene, this.sheet!, undefined, shapes[shape],
-      shape === 'card',
+      shape !== 'blade',
     );
     if (this.density() !== 100) {
       meadow.setDensity(this.density() / 100);
@@ -750,6 +769,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     }
     try {
       this.meadow = this.grow(shape);
+      this.setLeafNormal(this.leafNormal());
       for (const [key, meadow] of this.grown) {
         const on = key === shape && this.on()['meadow'] !== false;
         meadow.sown.forEach(sown => sown.mesh.setEnabled(on));
@@ -774,6 +794,17 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       + `${Math.round(triangles).toLocaleString()} tris a plant set`
       + (meadow.lattice.fit < 1
         ? ` · sward capped to ${Math.round(meadow.lattice.fit * 100)}%` : '');
+  }
+
+  protected setLeafNormal(percent: number): void {
+    this.leafNormal.set(percent);
+    for (const meadow of this.grown.values()) {
+      for (const sown of meadow.sown) {
+        const built = this.litAsBuilt.get(sown.plant.id) ?? sown.wind.ground;
+        this.litAsBuilt.set(sown.plant.id, built);
+        sown.wind.ground = built * (percent / 100);
+      }
+    }
   }
 
   protected setDensity(percent: number): void {
