@@ -1,5 +1,12 @@
 # The board: what is true, what to build, what not to
 
+> **New here? Read [BOARD-HANDOFF.md](./BOARD-HANDOFF.md) first.** It has the
+> measured frame breakdown, the open regressions with file:line, the cited
+> research and the ordered plan. It also corrects every frame number in this
+> file: they came from `gpuTimeInFrameForMainPass`, which times one blit, and
+> the board is 18.3 ms at the whole-board camera rather than the ~9 quoted
+> below. **And: never use subagents on this repo.**
+
 Written after the rebuild that replaced generated plants with photographed ones,
 and after a round of measurement that overturned most of the plan before it. It
 supersedes the tier list in [FOLIAGE.md](./FOLIAGE.md), which is kept because

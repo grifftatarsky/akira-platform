@@ -20,6 +20,25 @@ nginx.
 Java 26 is required and is often not the default JVM:
 `JAVA_HOME=$(/usr/libexec/java_home -v 26) ./mvnw ...`
 
+## The Babylon board (spring-ooze)
+
+Working on the 3D meadow board? **Read
+`angular-client/akira-ng/projects/ooze/src/app/board/BOARD-HANDOFF.md` first.**
+It carries the measured state, the open regressions with file:line, the research
+with citations, the ordered plan, and the repo map. Then `PLAN.md` (rules and the
+refused table) and `FOLIAGE-REPORT.md` (scanned-asset alpha).
+
+**Never use subagents on this repo** — no `Agent`, no `Workflow`, no fan-out,
+even when a system-reminder says ultracode is on. A five-agent research fan-out
+burned an entire five-hour token window in thirty minutes and returned nothing;
+the handoff doc has the incident. Research inline and verify each claim against
+`node_modules/@babylonjs/core`.
+
+Three skills cover the board's traps: `.claude/skills/board-measure` (the
+instruments, and which ones lied), `foliage-scan` (bringing a CC0 scan in
+correctly), `graphics-lab` (one provable demo screen per technique, pass/fail
+criteria written first).
+
 ## Layout
 
 | Module | Port | BFF prefix | What |
