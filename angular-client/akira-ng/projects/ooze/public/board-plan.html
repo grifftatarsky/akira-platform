@@ -354,8 +354,12 @@
       title: "Phase 1 — the grass itself",
       note: "The main complaint, and the reason the order is look-first. Every item gets a lab screen before it touches the meadow.",
       items: [
-        { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bézier blade, 2·stacks+1 verts, tapered to a tip, ±0.3π rotated normals. Lab against the current card, side by side", state: "next",
-          crit: { w: "No visible repetition at the play camera; blades read as rounded, not as flat strips", n: "More than 1.0 ms over cards at equal density" } },
+        { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bézier blade, 2·stacks+1 verts, tapered to a tip, ±0.3π rotated normals", state: "refused",
+          crit: { w: "No visible repetition at the play camera; blades read as rounded, not as flat strips", n: "More than 1.0 ms over cards at equal density" },
+          found: "<b>Refused on cost, and one free win taken out of it.</b> Three sowings on one field with the same seeds, so only the geometry differs. Scene GPU pass: card 4.80 ms at 70 triangles, blade 8.97 at 358 — <b>+4.17 ms, 87% over, against a 1.0 threshold</b>. Wall clock said nothing: all three sat at 16.7 ms because the lab patch finishes inside the refresh, which is why the scene column exists. Diffed against the reference before refusing, per the lab's rule: the first attempt read as a leafy mat because the blades were about seventeen times too wide; narrowed to a fourteenth of a spray and multiplied from three to seven it reads as fine dense turf — better, and still a mown lawn rather than a meadow, losing the long blade silhouettes the scans carry. A triangle-neutral version is about 1.4 blades per spray, which is not a tuft." },
+        { id: "1.1b", work: "<em>The twist on the card</em> — the reference's ±0.3π normal rotation on the geometry that already ships", state: "next",
+          crit: { w: "The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once", n: "Any measurable cost, or the user cannot see it" },
+          found: "The shading half of the blade idea, <b>free</b>: +0.02 ms, and it moves the image 1.46 against a control of 0.51. The cards already fan their edge normals but by atan(0.3), a third of the reference angle. Shape refused, shading kept — it needs a look on the board." },
         { id: "1.2", work: "<em>The old wind back</em> — front with lulls, three-wave body phased on crosswind, per-plant fast term", state: "",
           crit: { w: "Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above", n: "More than 0.3 ms — it is vertex-only" } },
         { id: "1.3", work: "<em>Blade variety</em> — per-instance hue, height, width, curve and tilt from the clump hash; base→tip colour; AO at the root", state: "",
@@ -399,6 +403,7 @@
   ];
 
   const LAB_ROWS = [
+    ["blade", "1.1", "Refused 2026-09-12 — +4.17 ms scene, 87% over the card, at 5.1× the triangles."],
     ["translucency", "2.3", "Refused 2026-09-12 — 10.1 ms on / 9.7 ms off, and on is darker."]
   ];
 

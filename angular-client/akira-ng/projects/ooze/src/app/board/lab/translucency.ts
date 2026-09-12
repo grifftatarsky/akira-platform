@@ -3,15 +3,17 @@ import { swardPatch } from './sward-patch';
 
 export const translucency: Experiment = async (stage): Promise<Rig> => {
   const patch = await swardPatch(stage);
-  const asBuilt = patch.materials.map(material => material.subSurface.translucencyIntensity);
+  const asBuilt = patch.materials().map(material => material.subSurface.translucencyIntensity);
   return {
+    options: ['off', 'on'],
     note: `${patch.slots.toLocaleString()} slots, `
-      + `${patch.materials.length} materials, intensity `
+      + `${patch.materials().length} materials, intensity `
       + asBuilt.map(value => value.toFixed(2)).join(' / '),
-    set(on: boolean): void {
-      patch.materials.forEach((material, at) => {
+    pick(at: number): void {
+      const on = at > 0;
+      patch.materials().forEach((material, index) => {
         material.subSurface.isTranslucencyEnabled = on;
-        material.subSurface.translucencyIntensity = on ? asBuilt[at] : 0;
+        material.subSurface.translucencyIntensity = on ? asBuilt[index] : 0;
       });
     },
     freeze: patch.freeze,

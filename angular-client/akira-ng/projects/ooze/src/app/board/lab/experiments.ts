@@ -1,7 +1,8 @@
 import type { Stage } from '../bab/stage';
 
 export interface Rig {
-  set(on: boolean): void;
+  readonly options: readonly string[];
+  pick(at: number): void;
   freeze(on: boolean): void;
   readonly note: string;
   dispose(): void;
@@ -11,6 +12,7 @@ export type Experiment = (stage: Stage) => Promise<Rig>;
 
 const BENCH: Record<string, () => Promise<Experiment>> = {
   translucency: () => import('./translucency').then(module => module.translucency),
+  blade: () => import('./blade').then(module => module.blade),
 };
 
 export async function experimentFor(id: string): Promise<Experiment | null> {

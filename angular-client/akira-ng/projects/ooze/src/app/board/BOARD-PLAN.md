@@ -81,7 +81,8 @@ gets a lab screen before it touches the meadow.
 
 | | Work | Working = | Not helping = | State |
 |---|---|---|---|---|
-| 1.1 | **Blade mesh** — quadratic-Bézier blade, `2·stacks+1` verts, tapered to a tip, **±0.3π rotated normals**. Lab it against the current card, side by side | No visible repetition at the play camera; blades read as rounded, not as flat strips | > 1.0 ms over cards at equal density | next |
+| 1.1 | **Blade mesh** — quadratic-Bézier blade, `2·stacks+1` verts, tapered to a tip, **±0.3π rotated normals**. Lab it against the current card, side by side | No visible repetition at the play camera; blades read as rounded, not as flat strips | > 1.0 ms over cards at equal density | **done — refused on cost, one free win taken.** See below |
+| 1.1b | **The twist on the card** — the reference's ±0.3π normal rotation on the existing geometry, which is what the blade's shading half amounts to | The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once | Any measurable cost, or the user cannot see it | **next** — free in the lab (+0.02 ms), needs a look on the board |
 | 1.2 | **The old wind back** — front with lulls, three-wave body phased on crosswind, per-plant fast term. Lab with a strength slider and a still/gust toggle | Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above | > 0.3 ms (it is vertex-only) | |
 | 1.3 | **Blade variety** — per-instance hue/height/width/curve/tilt from the clump hash; base→tip colour with a mix factor; AO at the root | Two neighbouring tufts are never obviously the same object | > 0.3 ms | |
 | 1.4 | **Mixed sward structure** — trodden patches, mown verge, taller unmown drifts | The field has places rather than one texture | — | |
@@ -147,7 +148,43 @@ exercises it, with the criterion written **before** the demo was built.
 
 | screen | phase | result |
 |---|---|---|
+| `blade` | 1.1 | refused 2026-09-12 — +4.17 ms scene, 87% over the card, at 5.1× the triangles |
 | `translucency` | 2.3 | refused 2026-09-12 — 10.1 on / 9.7 off, and on is darker |
+
+### 1.1, in full
+
+Three sowings on one field with the same seeds, so every plant stands in the same
+place in all three and only its geometry differs. Scene GPU pass on the lab
+patch:
+
+| option | triangles | scene | vs card | image change | control |
+|---|---|---|---|---|---|
+| card | 70 | 4.80 ms | — | — | 0.41 |
+| card + twist | 70 | 4.82 ms | **+0.02** | 1.46 | 0.51 |
+| blade | 358 | 8.97 ms | **+4.17** | 18.68 | 0.67 |
+
+**Wall clock said nothing** — all three sat at 16.7 ms because the lab patch
+finishes inside the refresh. That is why the scene column exists.
+
+**The blade is refused on cost.** +4.17 ms against a 1.0 ms threshold, at 5.1×
+the triangles. A triangle-neutral version works out at about 1.4 blades per
+spray, which is not a tuft — so it cannot be made cheap and still look like
+grass on this board. That is §4c's regime exactly: geometry is the scarce thing
+here.
+
+**The implementation was diffed against the reference before refusing**, per the
+lab's own rule. The first attempt read as a leafy mat because the blades were
+about seventeen times too wide — a real blade is a hundredth of its height across
+and mine was a fifth of a spray. Narrowed to a fourteenth of a spray and
+multiplied from three to seven, it reads as fine dense turf: better, and still a
+mown lawn rather than a meadow. It loses the long blade silhouettes the scans
+carry, which is the thing the sward is currently best at.
+
+**The twist is the half worth having.** The reference rotates the edge normals
+±0.3π about the blade's axis so a flat strip shades like a cylinder; the board's
+cards already fan theirs, but by atan(0.3) — a third of that. Applying the
+reference angle to the *existing* card geometry costs +0.02 ms, which is nothing,
+and moves the image 1.46 against a control of 0.51. Shape refused, shading kept.
 
 A refused screen stays, with its numbers and its date, so the refusal can be
 re-run when Babylon or the board changes.

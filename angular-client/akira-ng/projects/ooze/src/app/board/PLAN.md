@@ -444,6 +444,46 @@ half a dozen times leaves that many adapters outstanding, and the next
 `requestAdapter` then hangs with no error anywhere — which reads exactly like the
 code being broken, and is not.
 
+### In `foliage-cards.ts`
+
+**A card is fitted to the silhouette, and that is the whole of its cost story.**
+Alpha testing disables early-Z, so every fragment inside a card's quad is shaded
+and only then thrown away by the cutout — and a scanned grass spray fills about a
+fifth of its box, so four fifths of its fragments were pure waste. Measured, that
+waste was the entire remaining cost of the meadow. The card is already rows of
+two vertices, so moving those two to where the leaf actually begins and ends at
+that height fits the strip to the plant for no extra vertices at all; that is
+what `Cut.spans` is.
+
+**Two columns and no more.** A third column down the middle is what the modelled
+leaves had, for a crease — and a scan already has the crease in its shading, so
+the column would double the triangles to describe something the texture states.
+The *rows* are worth having, because the wind and the droop bend the card along
+its length and a bend needs somewhere to happen.
+
+**The per-card jitter is a fixed function of the index, not a random number**, so
+the mesh is identical every build. It is geometry, not a simulation.
+
+**A flower head is not a leaf and a quad is the wrong mesh for it.** Built as a
+card it hangs off the stem by its bottom edge and is a hard line seen along its
+plane; the rescue of a second card crossed through it read as two flowers in an
+X, because it was two flowers in an X. It is a fan now — one vertex at the stem,
+a ring around it, the photograph mapped radially — and dished rather than flat,
+so it has a silhouette from the side instead of a vanishing line.
+
+**`trimStalk` exists because a scan carries its own petiole.** A clover cut is a
+trefoil *on its stalk*, so a card carrying the whole of it can only ever sit at
+whatever angle its stalk was photographed at — leaning the card was a rotation
+standing in for a mesh. What separates stalk from leaf is coverage: a row of
+stalk is about two per cent alpha and a row of leaf eighty, which
+`tools/foliage-trim.mjs` measures once into the sheet's table.
+
+**`lift()` holds its floor by leaning the normal, not by clamping a component.**
+Clamping y after the divide leaves a vector that is no longer unit. The floor is
+not zero because a normal exactly on the horizon still takes nothing from the sky
+and everything from the hemisphere's brown ground colour, which reads as black on
+a thin leaf.
+
 ### In the shaders
 
 **`splat-bake.ts` — every uniform is a `vec4f`, and that is not tidiness.** A

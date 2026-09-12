@@ -1,8 +1,10 @@
 const DIFF_WIDE = 480;
 
 export interface Reading {
-  readonly onMs: number;
-  readonly offMs: number;
+  readonly name: string;
+  readonly ms: number;
+  readonly sceneMs: number;
+  readonly costs: string;
   readonly change: number;
   readonly control: number;
 }

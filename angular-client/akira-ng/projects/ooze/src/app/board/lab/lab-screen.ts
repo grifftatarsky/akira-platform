@@ -3,6 +3,7 @@ import {
   inject, signal, viewChild,
 } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { framePasses } from '../bab/gpu-passes';
 import { frameMs } from '../bab/split-frame';
 import { Stage } from '../bab/stage';
 import { FIELD_THEME, INDOOR_LOOK } from '../board-assets';
@@ -47,11 +48,18 @@ const SETTLE_MS = 900;
 
           @if (lab(); as entry) {
             <div class="flex items-center gap-3 border-y border-rule py-2">
-              <label class="flex cursor-pointer items-center gap-2 text-xs text-fg">
-                <input type="checkbox" [checked]="on()" [disabled]="busy()"
-                  (change)="setOn($any($event.target).checked)" />
-                technique on
-              </label>
+              <div class="flex flex-wrap items-center gap-1">
+                @for (option of options(); track option; let at = $index) {
+                  <button type="button" (click)="setPick(at)" [disabled]="busy()"
+                    class="rounded border px-2 py-0.5 font-mono text-[0.65rem] disabled:opacity-40"
+                    [class.border-accent]="pick() === at"
+                    [class.text-accent]="pick() === at"
+                    [class.border-rule]="pick() !== at"
+                    [class.text-fg-muted]="pick() !== at">
+                    {{ option }}{{ at === 0 ? ' (baseline)' : '' }}
+                  </button>
+                }
+              </div>
               <button type="button" (click)="measure()" [disabled]="busy() || !ready()"
                 class="rounded border border-rule px-2 py-0.5 font-mono text-[0.65rem] text-fg-muted hover:border-accent hover:text-accent disabled:opacity-40">
                 {{ busy() ? 'measuring…' : 'measure' }}
@@ -59,21 +67,32 @@ const SETTLE_MS = 900;
               <span class="font-mono text-[0.6rem] text-fg-subtle">{{ note() }}</span>
             </div>
 
-            @if (reading(); as r) {
-              <dl class="grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
-                <div><dt class="inline">on</dt> <dd class="inline tabular-nums text-fg">{{ r.onMs }} ms</dd></div>
-                <div><dt class="inline">off</dt> <dd class="inline tabular-nums text-fg">{{ r.offMs }} ms</dd></div>
-                <div>
-                  <dt class="inline">costs</dt>
-                  <dd class="inline tabular-nums" [class.text-fg]="true">{{ delta(r) }} ms</dd>
-                </div>
-                <div><dt class="inline">changes</dt> <dd class="inline tabular-nums text-fg">{{ r.change.toFixed(2) }}</dd></div>
-                <div class="col-span-2">
-                  <dt class="inline">control</dt>
-                  <dd class="inline tabular-nums text-fg">{{ r.control.toFixed(2) }}</dd>
-                  <span class="ml-1">{{ verdict(r) }}</span>
-                </div>
-              </dl>
+            @if (readings().length) {
+              <table class="w-full font-mono text-[0.65rem] text-fg-subtle">
+                <thead>
+                  <tr class="text-left text-fg-faint">
+                    <th class="pr-3 font-normal">option</th>
+                    <th class="pr-3 font-normal">wall</th>
+                    <th class="pr-3 font-normal">scene</th>
+                    <th class="pr-3 font-normal">vs baseline</th>
+                    <th class="pr-3 font-normal">changes</th>
+                    <th class="font-normal">control</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of readings(); track r.name) {
+                    <tr>
+                      <td class="pr-3 text-fg">{{ r.name }}</td>
+                      <td class="pr-3 tabular-nums text-fg">{{ r.ms }}</td>
+                      <td class="pr-3 tabular-nums text-fg">{{ r.sceneMs }}</td>
+                      <td class="pr-3 tabular-nums text-fg">{{ r.costs }}</td>
+                      <td class="pr-3 tabular-nums text-fg">{{ r.change }}</td>
+                      <td class="tabular-nums text-fg">{{ r.control }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+              <p class="font-mono text-[0.6rem] text-fg-subtle">{{ verdict() }}</p>
             }
 
             <dl class="flex flex-col gap-1 border-t border-rule pt-2 text-[0.7rem] leading-snug text-fg-subtle">
@@ -97,10 +116,11 @@ export class LabScreen implements AfterViewInit, OnDestroy {
 
   protected readonly root = inject(ActivatedRoute).parent;
   protected readonly lab = signal<LabEntry | undefined>(undefined);
-  protected readonly on = signal(true);
+  protected readonly options = signal<readonly string[]>([]);
+  protected readonly pick = signal(0);
   protected readonly busy = signal(false);
   protected readonly note = signal('');
-  protected readonly reading = signal<Reading | null>(null);
+  protected readonly readings = signal<readonly Reading[]>([]);
   protected readonly fault = signal<string | null>(null);
   protected readonly ready = signal(false);
 
@@ -145,12 +165,14 @@ export class LabScreen implements AfterViewInit, OnDestroy {
       this.stage = stage;
       const rig = await experiment(stage);
       this.rig = rig;
-      rig.set(this.on());
+      this.options.set(rig.options);
+      this.pick.set(0);
+      rig.pick(0);
       this.note.set(rig.note);
       this.ready.set(true);
       stage.start();
       (globalThis as unknown as Record<string, unknown>)['lab'] = {
-        stage, rig, measure: (): Promise<Reading | null> => this.measure(),
+        stage, rig, measure: (): Promise<readonly Reading[]> => this.measure(),
       };
       this.observer = new ResizeObserver(() => stage.resize());
       this.observer.observe(canvas);
@@ -160,54 +182,83 @@ export class LabScreen implements AfterViewInit, OnDestroy {
     }
   }
 
-  protected setOn(want: boolean): void {
-    this.on.set(want);
-    this.rig?.set(want);
+  private sceneMs(): number {
+    const scene = this.stage?.scene;
+    return scene
+      ? framePasses(scene).find(pass => pass.name === 'scene')?.ms ?? 0
+      : 0;
   }
 
-  protected delta(reading: Reading): string {
-    const cost = reading.onMs - reading.offMs;
-    return `${cost >= 0 ? '+' : ''}${cost.toFixed(2)}`;
+  protected setPick(at: number): void {
+    this.pick.set(at);
+    this.rig?.pick(at);
   }
 
-  protected verdict(reading: Reading): string {
-    if (reading.change <= reading.control) {
-      return '— the switch changes nothing the control does not. Read no further.';
+  protected verdict(): string {
+    const seen = this.readings();
+    if (!seen.length) {
+      return '';
     }
-    return `— the switch moves ${(reading.change / Math.max(0.01, reading.control)).toFixed(1)}x the control.`;
+    const clamped = seen.every(r => Math.abs(r.ms - seen[0].ms) < 0.35);
+    const dead = seen.slice(1).filter(r => r.change <= r.control);
+    if (clamped) {
+      return 'Wall clock is the same for every option — the scene finishes inside '
+        + 'the refresh, so read the scene column, not the wall column.';
+    }
+    if (dead.length) {
+      return `${dead.map(r => r.name).join(', ')} changed nothing the control did not. `
+        + 'Read no further on those.';
+    }
+    return 'Every option moves the image further than the control does.';
   }
 
-  protected async measure(): Promise<Reading | null> {
+  protected async measure(): Promise<readonly Reading[]> {
     const rig = this.rig;
     const canvas = this.stage ? this.canvas().nativeElement : null;
     if (!rig || !canvas || this.busy()) {
-      return null;
+      return [];
     }
     this.busy.set(true);
     rig.freeze(true);
+    this.readings.set([]);
     try {
-      rig.set(true);
+      rig.pick(0);
       await settle();
       await frameMs();
-      const onMs = await frameMs();
-      const onShot = await grab(canvas);
-      const onAgain = await grab(canvas);
+      const baseMs = await frameMs();
+      const baseShot = await grab(canvas);
+      const baseAgain = await grab(canvas);
+      const baseScene = this.sceneMs();
+      const seen: Reading[] = [{
+        name: rig.options[0],
+        ms: round(baseMs),
+        sceneMs: baseScene,
+        costs: '—',
+        change: 0,
+        control: round(meanDiff(baseShot, baseAgain)),
+      }];
 
-      rig.set(false);
-      await settle();
-      const offMs = await frameMs();
-      const offShot = await grab(canvas);
-
-      const reading: Reading = {
-        onMs: round(onMs),
-        offMs: round(offMs),
-        change: meanDiff(onShot, offShot),
-        control: meanDiff(onShot, onAgain),
-      };
-      this.reading.set(reading);
-      return reading;
+      for (let at = 1; at < rig.options.length; at++) {
+        rig.pick(at);
+        await settle();
+        await frameMs();
+        const ms = await frameMs();
+        const shot = await grab(canvas);
+        const again = await grab(canvas);
+        const sceneMs = this.sceneMs();
+        seen.push({
+          name: rig.options[at],
+          ms: round(ms),
+          sceneMs,
+          costs: `${sign(ms - baseMs)} wall · ${sign(sceneMs - baseScene)} scene`,
+          change: round(meanDiff(shot, baseShot)),
+          control: round(meanDiff(shot, again)),
+        });
+      }
+      this.readings.set(seen);
+      return seen;
     } finally {
-      rig.set(this.on());
+      rig.pick(this.pick());
       rig.freeze(false);
       this.busy.set(false);
     }
@@ -223,6 +274,10 @@ export class LabScreen implements AfterViewInit, OnDestroy {
 
 function settle(): Promise<void> {
   return new Promise(done => window.setTimeout(done, SETTLE_MS));
+}
+
+function sign(ms: number): string {
+  return `${ms >= 0 ? '+' : ''}${ms.toFixed(2)}`;
 }
 
 function round(ms: number): number {

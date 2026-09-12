@@ -15,6 +15,7 @@ import '@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader';
 import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
 import { cardGeometry, type FoliageSheet } from './foliage-cards';
+import type { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { type Plant, MEADOW, SWARD_FADE_FROM, SWARD_FADE_TO } from './species';
 import { fieldTexture } from './splat-bake';
 
@@ -307,9 +308,12 @@ export interface Meadow {
   dispose(): void;
 }
 
+export type PlantShape = (plant: Plant, sheet: FoliageSheet) => VertexData;
+
 export function sowMeadow(
   field: GroundField, scene: Scene, sheet: FoliageSheet,
   plants: readonly Plant[] = MEADOW,
+  shape: PlantShape = cardGeometry,
 ): Meadow {
   const engine = scene.getEngine() as WebGPUEngine;
   const heightTexture = heightsAsTexture(field, scene);
@@ -360,7 +364,7 @@ export function sowMeadow(
 
     const mesh = new Mesh(`meadow-${plant.id}`, scene);
 
-    cardGeometry(plant, sheet).applyToMesh(mesh);
+    shape(plant, sheet).applyToMesh(mesh);
     mesh.alwaysSelectAsActiveMesh = true;
     mesh.useVertexColors = true;
 
