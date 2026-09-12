@@ -153,13 +153,22 @@ exercises it, with the criterion written **before** the demo was built.
 
 ### 1.1, in full — and the first verdict was right for the wrong reason
 
-The blade is refused **on cost**. The first pass also said it did not look like
-grass, and that was my bug, not the technique.
+Where it stands: it costs 2.2x the frame and it looks better than the cards
+close up. The first pass also said it did not look like grass, and that was my
+bug, not the technique. **Yours to call.**
 
-| option | triangles | play camera | vs card |
+| option | triangles, all four species | play camera | vs card |
 |---|---|---|---|
-| card | 70 a plant set | 21.0 ms | — |
-| blade | 90 a plant set | 47.1 ms | **2.2x the frame** |
+| card | 70 | 21.0 ms | — |
+| blade | 458 (6.5x) | 47.1 ms | **2.2x the frame** |
+
+Per species, card → blade: grass 20 → 90, fog 22 → 94, clover 8 → 49,
+**plantain 20 → 225**. Plantain is a rosette of five broad ribbed leaves and each
+one is being turned into five grass blades, which is both botanically wrong and
+half the added cost. Blades belong to the grasses; that is untried.
+
+Cost rises 2.2x on 6.5x the triangles, so it is not purely geometry — the card's
+alpha-test overdraw is real and the blade does not pay it.
 
 **Version one was broken in four ways at once and distant screenshots hid all of
 them.** The user asked to see one blade from eight angles, which showed every
@@ -203,6 +212,12 @@ now.
 
 ## Standing rules
 
+- **Do not refuse anything.** Measure it, show it, say what the numbers and the
+  look are, and put the decision to the user. "Refused" is theirs to say, not
+  mine — and the blade is why: it was refused twice on a look that was my own
+  bug.
+- **One subpoint at a time**, and wait for a yes or no on it before starting the
+  next.
 - No time estimates. Rank by size and value.
 - Never say "budget".
 - Do not say something is done — the user decides that.
