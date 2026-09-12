@@ -314,6 +314,7 @@ export function sowMeadow(
   field: GroundField, scene: Scene, sheet: FoliageSheet,
   plants: readonly Plant[] = MEADOW,
   shape: PlantShape = cardGeometry,
+  cutout = true,
 ): Meadow {
   const engine = scene.getEngine() as WebGPUEngine;
   const heightTexture = heightsAsTexture(field, scene);
@@ -378,11 +379,20 @@ export function sowMeadow(
 
     material.twoSidedLighting = false;
 
-    material.albedoTexture = sheet.texture;
-    material.albedoColor = new Color3(1, 1, 1);
+    if (cutout) {
+      material.albedoTexture = sheet.texture;
+      material.albedoColor = new Color3(1, 1, 1);
+    } else {
+      material.albedoColor = new Color3(
+        plant.base[0] * 0.45 + plant.tip[0] * 0.55,
+        plant.base[1] * 0.45 + plant.tip[1] * 0.55,
+        plant.base[2] * 0.45 + plant.tip[2] * 0.55,
+      );
+    }
 
-    material.useAlphaFromAlbedoTexture = true;
-    material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
+    material.useAlphaFromAlbedoTexture = cutout;
+    material.transparencyMode = cutout
+      ? PBRMaterial.MATERIAL_ALPHATEST : PBRMaterial.MATERIAL_OPAQUE;
 
     material.alphaCutOff = 0.28;
 
@@ -407,7 +417,11 @@ export function sowMeadow(
 
     wind.strength = 0.62 * plant.stiff;
 
-    wind.tip = [1, 1, 1];
+    wind.tip = cutout ? [1, 1, 1] : [
+      ratio(plant.tip[0], plant.base[0]),
+      ratio(plant.tip[1], plant.base[1]),
+      ratio(plant.tip[2], plant.base[2]),
+    ];
     wind.floor = 0.34;
     wind.ground = plant.lit;
 
@@ -577,6 +591,10 @@ function drawContext(mesh: Mesh, pass?: number): DrawContext | undefined {
     _getDrawWrapper?: (passId?: number) => { drawContext?: DrawContext } | undefined;
   } | undefined;
   return sub?._getDrawWrapper?.(pass)?.drawContext;
+}
+
+function ratio(tip: number, base: number): number {
+  return Math.max(1, Math.min(1.6, tip / Math.max(0.01, base)));
 }
 
 function heightsAsTexture(field: GroundField, scene: Scene): RawTexture {

@@ -148,48 +148,58 @@ exercises it, with the criterion written **before** the demo was built.
 
 | screen | phase | result |
 |---|---|---|
-| `blade` | 1.1 | refused 2026-09-12 — +4.17 ms scene, 87% over the card, at 5.1× the triangles |
+| `blade` | 1.1 | refused 2026-09-12 on cost — 21.0 ms against 47.1 on the board. The look objection in the first result was a bug in my blade, not the technique |
 | `translucency` | 2.3 | refused 2026-09-12 — 10.1 on / 9.7 off, and on is darker |
 
-### 1.1, in full
+### 1.1, in full — and the first verdict was right for the wrong reason
 
-Three sowings on one field with the same seeds, so every plant stands in the same
-place in all three and only its geometry differs. Scene GPU pass on the lab
-patch:
+The blade is refused **on cost**. The first pass also said it did not look like
+grass, and that was my bug, not the technique.
 
-| option | triangles | scene | vs card | image change | control |
-|---|---|---|---|---|---|
-| card | 70 | 4.80 ms | — | — | 0.41 |
-| card + twist | 70 | 4.82 ms | **+0.02** | 1.46 | 0.51 |
-| blade | 358 | 8.97 ms | **+4.17** | 18.68 | 0.67 |
+| option | triangles | play camera | vs card |
+|---|---|---|---|
+| card | 70 a plant set | 21.0 ms | — |
+| blade | 90 a plant set | 47.1 ms | **2.2x the frame** |
 
-**Wall clock said nothing** — all three sat at 16.7 ms because the lab patch
-finishes inside the refresh. That is why the scene column exists.
+**Version one was broken in four ways at once and distant screenshots hid all of
+them.** The user asked to see one blade from eight angles, which showed every
+fault in about a minute:
 
-**The blade is refused on cost.** +4.17 ms against a 1.0 ms threshold, at 5.1×
-the triangles. A triangle-neutral version works out at about 1.4 blades per
-spray, which is not a tuft — so it cannot be made cheap and still look like
-grass on this board. That is §4c's regime exactly: geometry is the scarce thing
-here.
+1. **Width came from `cut.aspect`** — 0.65 for a spray cut, 0.04 for a blade cut.
+   Same divisor, so one group was ten times the other: slabs and wires in the
+   same field. Width is absolute now, from `plant.wide`.
+2. **No real taper.** `pow(1 - t, 0.5)` over three stacks is parallel-sided then
+   a sudden spike. It is a shoulder-then-point curve over five stacks now.
+3. **The tuft splayed into a five-foot starfish** from a three-foot plant — fan,
+   tilt and root spread compounding. The blades turn on the golden angle now, so
+   a tuft is round rather than a paper fan.
+4. **The holes were the alpha test.** The UVs sampled the interior of a cut-out's
+   bounding *span*, which is the transparent gap between the scanned blades, so
+   the cutout punched holes through solid geometry.
 
-**The implementation was diffed against the reference before refusing**, per the
-lab's own rule. The first attempt read as a leafy mat because the blades were
-about seventeen times too wide — a real blade is a hundredth of its height across
-and mine was a fifth of a spray. Narrowed to a fourteenth of a spray and
-multiplied from three to seven, it reads as fine dense turf: better, and still a
-mown lawn rather than a meadow. It loses the long blade silhouettes the scans
-carry, which is the thing the sward is currently best at.
+**A generated blade cannot be textured from a cut-out atlas at all.** Making the
+material opaque to stop the holes just sampled the atlas's black background
+instead, and the tuft came out near-black. The blade takes its colour from the
+species table now, with the root-to-tip gradient `blade-wind` already had and the
+scans had made unnecessary.
 
-**The twist is the half worth having.** The reference rotates the edge normals
-±0.3π about the blade's axis so a flat strip shades like a cylinder; the board's
-cards already fan theirs, but by atan(0.3) — a third of that. Applying the
-reference angle to the *existing* card geometry costs +0.02 ms, which is nothing,
-and moves the image 1.46 against a control of 0.51. Shape refused, shading kept.
+Rebuilt, it reads as real grass from every angle and **it looks better than the
+cards close up** — longer, layered, with depth the cut-outs do not have. It still
+costs 2.2x the frame, so the refusal stands, on cost alone.
 
-A refused screen stays, with its numbers and its date, so the refusal can be
-re-run when Babylon or the board changes.
+It is on the board behind a **cards / blades** switch so the comparison can be
+made on the real field rather than on a lab patch. The blade meadow is not built
+until the switch is first used.
 
----
+**The twist is still the free half.** +0.02 ms in the lab, image change 1.46
+against a control of 0.51.
+
+### What this cost, as a lesson
+
+Two refusals were published from screenshots taken at 300 half-feet. At that
+distance a tuft is four pixels and a broken tuft is also four pixels. **Look at
+one of the thing before judging a field of them** — the lab has a route for it
+now.
 
 ## Standing rules
 

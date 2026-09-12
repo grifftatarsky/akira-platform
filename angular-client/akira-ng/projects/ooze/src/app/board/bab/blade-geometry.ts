@@ -1,20 +1,23 @@
 import type { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import {
-  type Build, type Cut, type FoliageSheet, type Vec,
-  cardGeometry, cardShape, cross, lift, spanAt,
+  type Build, type FoliageSheet, type Vec,
+  cardGeometry, cardShape, cross, lift,
 } from './foliage-cards';
 import type { CardSpec, Plant } from './species';
 
-const BLADES = 7;
-const STACKS = 3;
-const CURL = 0.3;
+const BLADES = 5;
+const STACKS = 5;
+const WIDTH = 0.3;
+const SHOULDER = 0.55;
+const CURL = 0.26;
 const TWIST = 0.3 * Math.PI;
-const FAN = 0.34;
-const TAPER = 0.5;
-const SLIM = 14;
+const LEAN = 0.2;
+const SPREAD = 0.16;
+const TURNS = 2.399963;
 
 export function bladeGeometry(plant: Plant, sheet: FoliageSheet): VertexData {
-  return cardGeometry(plant, sheet, addBlades);
+  return cardGeometry(plant, sheet, (build, owner, spec, _cut, around, index) =>
+    addBlades(build, owner, spec, around, index));
 }
 
 const TWISTED = cardShape(Math.tan(TWIST));
@@ -23,66 +26,65 @@ export function twistedCards(plant: Plant, sheet: FoliageSheet): VertexData {
   return cardGeometry(plant, sheet, TWISTED);
 }
 
-export function bladeTriangles(): number {
-  return BLADES * (2 * STACKS - 1);
-}
-
 function addBlades(
-  build: Build, plant: Plant, spec: CardSpec, cut: Cut, around: number, index: number,
+  build: Build, plant: Plant, spec: CardSpec, around: number, index: number,
 ): void {
-  const wide = spec.tall * cut.aspect;
   const vary = 1 + Math.sin(index * 5.17 + spec.tall) * 0.12;
   const tall = spec.tall * vary;
   const lean = spec.flat ? Math.PI / 2 : spec.lean;
+  const halfRoot = plant.wide * WIDTH * vary;
 
   for (let blade = 0; blade < BLADES; blade++) {
     const seed = index * 11 + blade;
-    const offset = blade - (BLADES - 1) / 2;
-    const turn = around + offset * FAN + Math.sin(seed * 12.9898) * 0.22;
-    const tilt = lean + Math.abs(offset) * 0.2 + Math.sin(seed * 7.31) * 0.1;
-    const height = tall * (0.82 + 0.34 * fract(seed * 0.618));
-    const halfRoot = (wide * 0.5 * vary) / SLIM;
-    const curl = CURL * (0.5 + 1.0 * fract(seed * 0.324));
-    const spread = offset * (wide * vary * 0.09);
-    addBlade(build, spec, cut, turn, tilt, height, halfRoot, curl, blade, spread);
+    const out = (blade + 0.5) / BLADES;
+    addBlade(build, spec, {
+      turn: around + blade * TURNS + Math.sin(seed * 12.9898) * 0.25,
+      tilt: lean + out * LEAN + Math.sin(seed * 7.31) * 0.07,
+      height: tall * (0.78 + 0.4 * fract(seed * 0.618)),
+      halfRoot: halfRoot * (0.78 + 0.44 * fract(seed * 0.271)),
+      curl: CURL * (0.45 + fract(seed * 0.324)) * (1 - out * 0.45),
+      spread: plant.wide * SPREAD * out,
+    });
   }
 }
 
-function addBlade(
-  build: Build, spec: CardSpec, cut: Cut,
-  turn: number, tilt: number, height: number, halfRoot: number,
-  curl: number, blade: number, spread: number,
-): void {
-  const ca = Math.cos(turn);
-  const sa = Math.sin(turn);
-  const cl = Math.cos(tilt);
-  const sl = Math.sin(tilt);
+interface Blade {
+  readonly turn: number;
+  readonly tilt: number;
+  readonly height: number;
+  readonly halfRoot: number;
+  readonly curl: number;
+  readonly spread: number;
+}
+
+function addBlade(build: Build, spec: CardSpec, of: Blade): void {
+  const ca = Math.cos(of.turn);
+  const sa = Math.sin(of.turn);
+  const cl = Math.cos(of.tilt);
+  const sl = Math.sin(of.tilt);
   const across: Vec = [ca, 0, -sa];
   const up: Vec = [sa * sl, cl, ca * sl];
   const away: Vec = cross(across, up);
 
   const root: Vec = [
-    sa * spec.out + across[0] * spread,
-    spec.at + across[1] * spread,
-    ca * spec.out + across[2] * spread,
+    sa * spec.out + across[0] * of.spread,
+    spec.at,
+    ca * spec.out + across[2] * of.spread,
   ];
-  const mid: Vec = [up[0] * height * 0.5, up[1] * height * 0.5, up[2] * height * 0.5];
+  const mid: Vec = scaled(up, of.height * 0.5);
   const tip: Vec = [
-    up[0] * height + away[0] * curl * height,
-    up[1] * height + away[1] * curl * height,
-    up[2] * height + away[2] * curl * height,
+    up[0] * of.height + away[0] * of.curl * of.height,
+    up[1] * of.height + away[1] * of.curl * of.height,
+    up[2] * of.height + away[2] * of.curl * of.height,
   ];
 
   const first = build.positions.length / 3;
   for (let stack = 0; stack <= STACKS; stack++) {
     const t = stack / STACKS;
     const at = bezier(mid, tip, t);
-    const along = normalize(slope(mid, tip, t));
-    const face = normalize(cross(across, along));
-    const half = stack === STACKS ? 0 : halfRoot * Math.pow(1 - t, TAPER);
-    const span = spanAt(cut, t);
-    const middle = span[0] + (span[1] - span[0]) * (0.18 + 0.64 * fract(blade * 0.618));
-    const reach = (span[1] - span[0]) * 0.06;
+    const along = unit(slope(mid, tip, t));
+    const face = unit(cross(across, along));
+    const half = stack === STACKS ? 0 : of.halfRoot * taper(t);
 
     for (const side of stack === STACKS ? [0] : [-1, 1]) {
       build.positions.push(
@@ -91,10 +93,7 @@ function addBlade(
         root[2] + at[2] + across[2] * half * side,
       );
       build.normals.push(...lift(turned(face, across, TWIST * side)));
-      build.uvs.push(
-        cut.u0 + (cut.u1 - cut.u0) * (middle + reach * side),
-        cut.v1 + (cut.v0 - cut.v1) * t,
-      );
+      build.uvs.push(0.5 + side * 0.5, t);
     }
   }
 
@@ -104,6 +103,14 @@ function addBlade(
   }
   const last = first + (STACKS - 1) * 2;
   build.indices.push(last, last + 1, last + 2);
+}
+
+function taper(t: number): number {
+  if (t <= SHOULDER) {
+    return 1 - 0.18 * (t / SHOULDER);
+  }
+  const past = (t - SHOULDER) / (1 - SHOULDER);
+  return 0.82 * (1 - past) * (1 - past * 0.35);
 }
 
 function bezier(mid: Vec, tip: Vec, t: number): Vec {
@@ -124,7 +131,11 @@ function turned(face: Vec, axis: Vec, by: number): Vec {
   return [face[0] * c + axis[0] * s, face[1] * c + axis[1] * s, face[2] * c + axis[2] * s];
 }
 
-function normalize(v: Vec): Vec {
+function scaled(v: Vec, by: number): Vec {
+  return [v[0] * by, v[1] * by, v[2] * by];
+}
+
+function unit(v: Vec): Vec {
   const long = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / long, v[1] / long, v[2] / long];
 }

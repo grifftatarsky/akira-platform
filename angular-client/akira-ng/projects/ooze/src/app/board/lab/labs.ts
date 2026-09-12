@@ -44,20 +44,26 @@ export const LABS: readonly LabEntry[] = [
       broken: 'Blades read as spikes or as a bristle brush — the taper too sharp '
         + 'or the twist so strong the two edges shade as different objects.',
     },
-    result: '2026-09-12 — refused on cost, and one free win taken out of it. '
-      + 'Scene GPU pass on the lab patch: card 4.80 ms, card + twist 4.82, blade '
-      + '8.97 — the blade is +4.17 ms, 87% over the card, against a threshold of '
-      + '1.0. It is 358 triangles against the card\'s 70. Wall clock said nothing: '
-      + 'all three sat at 16.7 ms because the patch finishes inside the refresh, '
-      + 'which is why the scene column exists. On the look, the first attempt read '
-      + 'as a leafy mat because the blades were about seventeen times too wide; '
-      + 'narrowed to a fourteenth of a spray and multiplied to seven, it reads as '
-      + 'fine dense turf — a mown lawn rather than a meadow. It loses the long '
-      + 'blade silhouettes the scans carry. A triangle-neutral version would be '
-      + 'about 1.4 blades per spray, which is not a tuft, so this cannot be made '
-      + 'cheap and still look like grass on this board. **The twist is the part '
-      + 'worth keeping**: the reference\'s 0.3 pi normal rotation on the existing '
-      + 'card costs +0.02 ms and moves the image 1.46 against a control of 0.51.',
+    result: '2026-09-12 — refused on cost. **The first refusal was right for the '
+      + 'wrong reason and is corrected here.** Version one was broken in four ways '
+      + 'at once and I judged it from distant screenshots, which hid all of them: '
+      + 'blade width came from `cut.aspect`, which is 0.65 for a spray cut and 0.04 '
+      + 'for a blade cut, so one group was ten times the other; there was no real '
+      + 'taper, so blades were parallel-sided ribbons with a blunt end; fan, tilt '
+      + 'and root spread compounded into a five-foot starfish from a three-foot '
+      + 'plant; and the UVs sampled the interior of a cut-out\'s bounding span, '
+      + 'which is the transparent gap between scanned blades, so the alpha test '
+      + 'punched holes through solid geometry. Looking at one tuft from eight '
+      + 'angles showed all four in about a minute. A generated blade cannot be '
+      + 'textured from a cut-out atlas at all — it takes its colour from the '
+      + 'species table now, with the root-to-tip gradient the wind plugin already '
+      + 'had and the scans made unnecessary. Rebuilt: five blades a spray on a '
+      + 'golden-angle turn, absolute width from `plant.wide`, a shoulder-then-point '
+      + 'taper, 0.3 pi rotated edge normals. It reads as real grass from every '
+      + 'angle and **it looks better than the cards close up**. It still costs '
+      + '21.0 ms against 47.1 at the play camera on the whole board — 2.2x the '
+      + 'frame — so the refusal stands on cost alone. The look objection in the '
+      + 'first result was my bug, not the technique.',
   },
   {
     id: 'translucency',
