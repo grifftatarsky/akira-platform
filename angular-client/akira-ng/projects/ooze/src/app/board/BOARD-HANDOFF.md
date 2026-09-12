@@ -43,6 +43,9 @@ reasoning effort in one context beats many shallow ones.
 | Board check (build + serve + probe 3 cameras) | `tools/board-check.sh` — kills `ng serve` first, on purpose |
 | Nine-angle sweep, shot + timed | `node tools/board-angles.mjs <out-dir>` |
 | Probe the live board | `SETTLE=34000 node tools/chrome-probe.mjs <url> '<js returning a value>' [shot.png]` |
+| Attribute the frame | `globalThis.bab.split()` in a probe, or the tools panel's **split frame** |
+| Read the per-pass counters | `globalThis.bab.cost().passes` |
+| Read the sward's density | `globalThis.bab.meadow.lattice`, `.sown[i].cap`, `.sown[i].keep` |
 | Is the served bundle current? | `tools/build-ok.sh <serve.log>` |
 | WGSL + Angular-template lint | `node tools/wgsl-lint.mjs projects/ooze/src/app/board/bab/*.ts` |
 | Tests (126) | `npx ng test ooze --watch=false` |
@@ -60,6 +63,16 @@ A real Chrome with CDP must be running for any probe:
 ```
 The dawn flag is what makes WebGPU timestamps work (§3).
 
+### The code carries no comments
+
+The user's rule, from 2026-09-12: every file touched in a pass gets its comments
+removed, because an agent reads a comment as truth and then does not re-read the
+code against it. Four wrong beliefs on this board came from exactly that.
+
+What a comment cannot be recovered from — *what was tried and did not work* —
+lives in `PLAN.md` under **Traps that used to live in comments**. Read it before
+changing `terrain.ts`, `meadow.ts`, `splat-bake.ts` or any WGSL here.
+
 ### The four ways this project has lied to itself
 
 1. **`board-shot.mjs` does not navigate.** Run `chrome-probe.mjs <url>` first or
@@ -73,6 +86,8 @@ The dawn flag is what makes WebGPU timestamps work (§3).
    `scene.onAfterRenderObservable`. Capture with `drawImage` inside
    `requestAnimationFrame`. A toggle pixel-diff returned all zeros twice for
    this reason and was believed the first time.
+5. **A GPU pass counter no longer being written keeps reporting its last
+   average**, and the post-chain counters overlap and cannot be summed. §3.
 
 Skills exist for this: `.claude/skills/board-measure`, `foliage-scan`,
 `graphics-lab`.
@@ -81,88 +96,80 @@ Skills exist for this: `.claude/skills/board-measure`, `foliage-scan`,
 
 ## 1. Where the board actually is
 
-| | |
+Measured 2026-09-12 after Phase 0, at 3600 x 2086, midsummer, sward at 100%.
+
+| camera | wall clock |
 |---|---|
-| Frame, whole board, wall clock | **18.3 ms** |
-| Frame, play camera (beta 1.02, r 300) | **19.4–21.4 ms** |
-| Frame, grazing (beta 1.46) | 22.0 ms |
-| Frame, standing in the field (r 26) | 15.6 ms |
-| Target | 16.6 ms (60 fps) |
+| overhead (beta 0.22, r 420) | 21.1 ms |
+| **play (beta 1.02, r 300)** | **23.2 ms** |
+| low (beta 1.32) | 23.5 ms |
+| grazing (beta 1.46) | 23.4 ms |
+| close (r 70) | 19.2 ms |
+| standing in the field (r 26) | 16.3 ms |
+| target | 16.6 ms |
 
-**Every frame number quoted in this repo before 2026-09-12 was wrong** —
-`board-check.sh` read `gpuTimeInFrameForMainPass`, which the Babylon d.ts
-explicitly says "will only return time spent in the main pass, not additional
-render target / compute passes (if any)"
-(`Engines/thinWebGPUEngine.d.ts:51-54`). With a post chain installed that main
-pass is one full-screen blit. It reported ~9 ms against a true 18. The tool
-reads wall clock now.
-
-Component cost at the play camera, by switching each off:
+Component cost at the play camera, each measured by taking it away — the parts
+now sum to within 1 ms of the whole, so **the 8.1 ms unattributed baseline the
+last handoff called "the largest single number on the board" does not exist**.
+It was an artifact of `split-frame.ts` reading `gpuTimeInFrameForMainPass`.
 
 | piece | ms |
 |---|---|
-| sward (grass + fog + clover + plantain cards) | 4.3 |
-| trees and scrub (scans) | 3.2 |
-| ground flora (scans) | 1.9 |
-| shadows | 1.9 |
-| stone | ~0 |
-| **unattributed baseline** | **~8.1** |
+| sward | 8.1 |
+| trees and scrub | 4.8 |
+| shadows | 3.8 |
+| terrain | 1.9 |
+| ground flora | 1.7 |
+| temporal aa | 1.2 |
+| stone | 0.4 |
+| ground relief, sky light, grade | 0 each |
+| **unattributed** | **1.0** |
 
-That baseline is the largest single number on the board and **nothing has ever
-been measured against it**. It contains: the 40-chunk PBR terrain, the sky, the
-TAA resolve, the grade post pass, and the present.
+The board is drawing more than it was: 228,355 plants at 100%, against 94,503
+when it opened before (it opened at `density = 0.5` while the slider read 100%).
+Grass alone is 112,597, above the 108,258 that was the old ceiling.
 
----
+## 2. Open regressions
 
-## 2. Open regressions (fix these first)
+### 2a. The bald ring — closed
 
-### 2a. The bald ring is a threshold disagreement — one-line fix, exact
+Three systems disagreed about where the sward stops: the sowing faded grass out
+by wear 0.62, the ground bake painted grass to 0.82, and the shadow proxy stood
+to 0.82. The band between was painted green, cast a grass shadow, and had
+nothing in it.
 
-Two systems disagree about where grass stops:
+`SWARD_FADE_FROM` / `SWARD_FADE_TO` in `bab/species.ts` are now the single
+definition, read by `meadow.ts` (the sowing shader), `splat-bake.ts` (the ground
+colour) and `terrain.ts` (the shadow proxy). Per-species `wearMax` is gone —
+reintroduce it only as a modifier on the shared band, never as a second band.
 
-- `bab/meadow.ts:305` — `alive = 1 - smoothstep(wearMax - 0.2, wearMax, wear)`,
-  and grass's `wearMax` is 0.62. **Grass geometry fades out over wear
-  0.42 → 0.62.**
-- `bab/splat-bake.ts:175` — `covered = (1 - smoothstep(0.40, 0.82, wear))`.
-  **The ground paints grass until 0.82.**
-- `bab/terrain.ts:214` — the sward shadow proxy uses the same
-  `smoothTo(wear, 0.40, 0.82)`. **The grass shadow exists until 0.82.**
+**Verified:** a matrix readback binned onto a 44 x 30 grid has 122 cells under
+20% of the densest cell and **every one of them is on the track** (wear > 0.82).
+Off the track there are none.
 
-So the band **wear ∈ [0.62, 0.82]** is painted green, casts a grass shadow, and
-has no grass in it. That is a ring ten to twenty feet wide around every stretch
-of track, and where the track forks the ring sits mid-meadow — which is the
-patch in the user's screenshot.
+### 2b. Absolute density — done
 
-Verified by reading the compute pass's instance matrices onto a 44 × 30 grid and
-overlaying the wear field sampled on the same grid; the empty cells and the
-high-wear cells coincide. The band is present with 2 species and with 4, so it
-is not the species mix.
+`MAX_PLANTS` was a budget split by share, so the mix, the density slider and the
+lattice pitch were one number. Each species now declares `perArea` — plants a
+square half-foot on unworn ground — and:
 
-**Fix:** one shared constant for the sward's fade, matching the bake's
-`(0.40, 0.82)`. Do not "tune" `wearMax` per species until the two curves come
-from one place.
+- the lattice pitch comes from the **densest** species (`TUFT` slots in its
+  cell), not the rarest;
+- capacity is a whole number of slots a cell and the leftover fraction is handed
+  to the sowing lottery as `keep`, so rounding never changes how much of a
+  species there is (a 3% species used to get a whole slot a cell, the floor);
+- the slider scales `keep`, so it thins rather than re-deals — the fog used to
+  double from 6,470 to 12,946 as the slider crossed one setting;
+- `MAX_PLANTS` is a ceiling at 600,000 and `lattice.fit` reports when it bites.
+  At 340,000 it still bound, scaling the whole table to 78%.
 
-### 2b. "100% grass" does not mean maximum grass
+The arithmetic is `swardLattice()` in `bab/meadow.ts`, pure and unit-tested:
+`bab/meadow-lattice.spec.ts` checks that adding or removing a species leaves
+every other species' slots, cap and keep **exactly equal**, that the pitch comes
+from the densest, and that the ceiling scales the mix without changing it.
 
-`MAX_PLANTS = 340_000` is a *total* split by each species' share **normalised by
-the sum of the shares**, and the lattice pitch is derived from the *rarest*
-share (`bab/meadow.ts:598-603`). So the mix and the density are coupled, and
-removing species inflates the survivors. Measured and reproduced arithmetically:
-
-| | sum(share) | pitch | cells | grass cap | grass placed |
-|---|---|---|---|---|---|
-| 2 species (grass, fog) | 0.48 | 1.76 | 42,750 | 299,250 | 92,098 |
-| 4 species (+ clover, plantain) | 0.90 | 2.41 | 22,875 | 160,125 | **46,419** |
-
-Deleting clover and plantain (commit `e250c1d`) handed their slots to grass;
-restoring them (commit `b447c1d`) took them back and **halved the grass**. Both
-are "correct" for a fixed total, and both are wrong for what the user asked:
-*maximum grass should be the default when the meadow opens.*
-
-**Fix:** give each species an **absolute density** (plants per square foot),
-make `MAX_PLANTS` a safety cap rather than the budget, and derive the lattice
-pitch from the densest species rather than the rarest. The ecology numbers for
-real per-m² densities are in §4d.
+The board opens at 100%. The default `density` was 0.5 while the slider read
+100%, which is most of what "the grass looks thin" was.
 
 ### 2c. The scanned flora reads pale and scattered
 
@@ -183,42 +190,70 @@ The flora was the part that was genuinely broken by it.
 
 ---
 
-## 3. Measure the 8 ms — the instrument already exists and was half-read
+## 3. The two instruments, and which one to believe
 
-The board **already** requests the feature and enables the counters:
+Both exist now. They disagree, and the disagreement is the important part.
 
-- `bab/stage.ts:488` — `deviceDescriptor: { requiredFeatures: ['timestamp-query'] }`
-- `bab/stage.ts:496` — `engine.enableGPUTimingMeasurements = true`
+### `split-frame.ts` — the delta instrument. Trust this one.
 
-And `bab/stats.ts:105-113` already reads the *right kind* of counter for the
-shadow map:
-`(texture.renderTarget as { gpuTimeInFrame }).gpuTimeInFrame.counter.lastSecAverage`.
+Measures wall clock between presents, switches one piece off, measures again.
+It drives the board's own `show` toggles rather than owning a second list of
+meshes, so anything switchable is measurable and nothing can drift apart. The
+button is in the tools panel; `globalThis.bab.split()` returns the slices.
 
-**Every render target exposes this**
-(`Engines/WebGPU/webgpuRenderTargetWrapper.d.ts:22-25`: "Gets the GPU time spent
-rendering this render target in the last frame (in nanoseconds)"). So a true
-per-pass breakdown is available today by walking
-`scene.customRenderTargets`, the TAA pipeline's internal targets, each
-post-process's `inputTexture`, the shadow generator's map and the reflection
-probe, and reading each one's `gpuTimeInFrame`. Nobody has done it. Do this
-before optimising anything.
+It used to read `gpuTimeInFrameForMainPass`, which is the blit, which is why
+every component number it ever produced was wrong.
 
-Chrome needs `--enable-dawn-features=allow_unsafe_apis` (forum 53519,
-Evgeni_Popov) — the HUD's non-zero `gpu` numbers confirm the probe Chrome has
-it. `enableAllFeatures: true` is an alternative to naming the feature; the board
-names it, which is better.
+It is blunt in one honest way: taking a group away also removes whatever it was
+occluding, so the parts can over-sum slightly. They currently sum to 101%.
+
+### `gpu-passes.ts` — the per-pass counters. Real, but not additive.
+
+Every WebGPU render target carries `gpuTimeInFrame`
+(`Engines/WebGPU/webgpuRenderTargetWrapper.d.ts`), and so does every
+`ComputeShader`. `framePasses()` walks the camera's post-process chain, the
+shadow maps, the reflection probes, `scene.customRenderTargets` and the meadow's
+compute shaders, and reads each. The HUD shows them.
+
+Two things to know before quoting them:
+
+1. **A counter that stops being written keeps reporting its last average
+   forever.** Switch the post chain off and the `scene` target still reads
+   13.8 ms of a frame it is no longer part of. `counterMs` drops any counter
+   more than 60 frames behind `engine.frameId`. In steady state the lag is 4–5
+   frames — the query read-back is asynchronous — so do not tighten that
+   threshold.
+
+2. **The post-chain counters overlap and must not be summed.** At 7.5 MP they
+   sum to 48.8 ms against a 22.7 ms frame. Checked against the deltas: the whole
+   post chain costs 1.9 ms of wall clock (TAA 1.5, grade 0.4) while its counters
+   report 29. The scene and shadow counters do agree with the deltas, and with
+   the post chain off entirely the counters sum to 16.9 against a 17.5 ms frame.
+   The overlap grows with resolution and vanishes at hardware scaling 4, where
+   the sum lands within 0.1 ms of wall clock. So: **`scene` and `shadow` are
+   worth quoting; the post passes are worth watching relative to themselves and
+   nothing else.** `FrameCost` deliberately carries no summed `gpuMs`.
+
+### The lever nobody had pulled
+
+`adaptToDeviceRatio: true` renders at 2x DPR. `engine.setHardwareScalingLevel(n)`
+divides that, and it is close to linear:
+
+| scaling | pixels | wall |
+|---|---|---|
+| 0.5 (default, 2x DPR) | 3600 x 2086 | 19.7 ms |
+| 1 | 1800 x 1043 | 11.6 ms |
+| 1.25 | 1440 x 834 | 10.4 ms |
+| 1.5 | 1200 x 695 | 9.9 ms |
+| 2 | 900 x 521 | 9.0 ms |
+
+**Unverified** how any of it looks. That is Phase 2.1 and it is the cheapest
+large experiment available.
 
 **Snapshot rendering will not help.** Babylon's own doc: "the performance
 improvement is on the JavaScript side only: GPU performance will be more or less
-the same" (`webGPUSnapshotRendering.md`). This board is GPU-bound.
-
-**Resolution is the untested lever.** `adaptToDeviceRatio: true` renders at 2×
-DPR — 5.7 MP. `engine.setHardwareScalingLevel(n)` divides that. Nothing in this
-repo has ever measured 1.25× or 1.5×, and the meadow was measured as dead linear
-in pixels at 1.25 ms/MP. **Unverified** how it looks; it is the cheapest large
-experiment available.
-
----
+the same" (`webGPUSnapshotRendering.md`). This board is GPU-bound — CPU frame
+time is 1.1 ms of a 23 ms frame.
 
 ## 4. Research findings, cited
 
@@ -367,14 +402,14 @@ meadow** — see `.claude/skills/graphics-lab`. A lab screen is its own route wi
 an A/B switch, its own on-screen wall-clock measurement, and a pass/fail
 criterion written *before* it is built.
 
-### Phase 0 — instruments and regressions (no new rendering)
+### Phase 0 — instruments and regressions — done
 
-| # | Work | Working = | Not helping = |
-|---|---|---|---|
-| 0.1 | **Per-pass GPU breakdown.** Walk every render target and read `gpuTimeInFrame`. Add to the HUD and to `board-angles.mjs`. | The 8.1 ms baseline is attributed to named passes, summing to within 1 ms of wall clock | — |
-| 0.2 | **Bald ring.** One shared wear-fade constant across `meadow.ts`, `splat-bake.ts`, `terrain.ts`. | Matrix-readback coverage map has no cell under 20% of max outside the track itself | — |
-| 0.3 | **Absolute density.** Species get plants/ft²; pitch from the densest species; `MAX_PLANTS` becomes a cap. | Adding or removing a species changes only that species' count | Frame cost rises more than the added plants explain |
-| 0.4 | **Lab harness.** `/board/lab` index + one worked example screen. | A criterion can be read and judged without reading code | — |
+| # | Work | Result |
+|---|---|---|
+| 0.1 | Per-pass GPU breakdown | Done, and it found the 8.1 ms baseline was an instrument fault rather than a cost. Both instruments are in the HUD, in `board-angles.mjs` and in `board-check.sh`. See §3 for which to believe |
+| 0.2 | Bald ring | Done. One shared fade; coverage map has no thin cell off the track |
+| 0.3 | Absolute density | Done. `swardLattice()` is pure and unit-tested; the board opens at maximum |
+| 0.4 | **Lab harness** — `/board/lab` index plus one worked example screen | **Not started.** Phase 1 needs it |
 
 ### Phase 1 — the grass itself (the user's main complaint)
 
@@ -418,7 +453,7 @@ projects/ooze/src/app/board/
   FOLIAGE-REPORT.md    the scan/alpha research
   BOARD-HANDOFF.md     this file
   ground-field.ts      wear/wet/height field — the source of truth for placement
-  species.ts           the sward's species table + CardSpec
+  species.ts           the sward's species table, SWARD_FADE, CardSpec
   bab/
     stage.ts           engine, scene, camera, sun, sky, CSM, TAA, grade, toggles
     meadow.ts          the sward: WGSL compute placement → thin instances → indirect draw
@@ -430,6 +465,8 @@ projects/ooze/src/app/board/
     bab-board.ts       the Angular component: canvas, toggles, Assets panel
     plant-preview.ts   the Assets panel's own scene (top/three-quarter/low/side)
     stats.ts           the HUD counters
+    gpu-passes.ts      per-pass GPU timing: every render target and compute pass
+    split-frame.ts     the delta instrument — wall clock with one piece off
 tools/                 board-check.sh, board-angles.mjs, chrome-probe.mjs,
                        board-shot.mjs, build-ok.sh, wgsl-lint.mjs,
                        foliage-pack.mjs, foliage-trim.mjs

@@ -1,20 +1,3 @@
-// Shoot the board from a fixed set of angles, and time each one.
-//
-// <b>One screenshot is not a review.</b> Every foliage mistake this renderer
-// has made was invisible from the angle it happened to be photographed at and
-// obvious from another: a flat flower head is perfect from directly above and a
-// white hyphen from low down; a leaned clover reads from one side and stands on
-// its edge from the other; the card that clipped its own texture looked like a
-// texture bug at every angle but the one that showed the quad.
-//
-// So the camera is swept rather than posed, the same sweep every time, and the
-// frame time is read at each stop — because the expensive angle and the ugly
-// angle are rarely the same one.
-//
-// Usage:
-//   node tools/board-angles.mjs <out-dir> [url]
-// Environment:
-//   CDP_PORT (default 9333), SETTLE (first-load wait, default 34000)
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -23,16 +6,6 @@ const out = process.argv[2] || 'board-angles';
 const url = process.argv[3] || 'http://localhost:4300/board/bab';
 const settle = Number(process.env.SETTLE || 34000);
 
-/**
- * Where to stand. Beta is from straight up, so 0.2 is nearly overhead and 1.45
- * is nearly level with the ground; radius is in half-feet.
- *
- * <p>These are the angles this board is actually used at plus the two it fails
- * at. `overhead` is the map view. `play` is where the camera sits most of the
- * time. `grazing` is the one that turns a horizontal card into a line.
- * `eye` is standing in the field, which is not the display but is where a
- * silhouette can be read.
- */
 const STOPS = [
   { name: 'overhead', alpha: -1.15, beta: 0.22, radius: 420 },
   { name: 'high', alpha: -1.15, beta: 0.62, radius: 360 },
@@ -68,14 +41,7 @@ const send = (method, params = {}) => new Promise(resolve => {
 
 await send('Page.enable');
 await send('Runtime.enable');
-// Chrome stops firing requestAnimationFrame for a window it thinks is hidden,
-// and Babylon's loop is requestAnimationFrame — a Chrome behind a terminal
-// reports a stale camera and a frame time of zero.
-// <b>And make it fetch the code, not remember it.</b> The dev server can be
-// serving a current bundle while the browser still runs the chunk it cached
-// before the edit — so a probe reports the old values, a screenshot shows the
-// old board, and the fix that is already correct looks like it failed. That
-// cost an hour on top of the hour the stale *server* bundle cost.
+
 await send('Network.enable');
 await send('Network.setCacheDisabled', { cacheDisabled: true });
 await send('Emulation.setFocusEmulationEnabled', { enabled: true });
@@ -93,8 +59,6 @@ for (const stop of STOPS) {
       const c = st.scene.activeCamera;
       c.alpha = ${stop.alpha}; c.beta = ${stop.beta}; c.radius = ${stop.radius};
       await new Promise(r => setTimeout(r, 2400));
-      // Wall clock between presents: the only honest frame time here. Every
-      // engine counter on this board has measured something else.
       const gaps = [];
       await new Promise(done => {
         let seen = 0, last = performance.now();
@@ -113,11 +77,12 @@ for (const stop of STOPS) {
           tris += (m.getTotalIndices() / 3) * Math.max(1, m.thinInstanceCount || 1);
         }
       }
+      const cost = globalThis.bab.cost ? globalThis.bab.cost() : null;
       return {
         ms: +gaps[gaps.length >> 1].toFixed(2),
         worst: +gaps[Math.floor(gaps.length * 0.95)].toFixed(2),
-        draws: st.scene.getEngine()._drawCalls ? undefined : undefined,
         tris: Math.round(tris),
+        passes: cost ? cost.passes : [],
       };
     })()`,
     awaitPromise: true, returnByValue: true,
@@ -135,6 +100,9 @@ for (const stop of STOPS) {
     (value.ms ?? '?') + ' ms', '  p95', (value.worst ?? '?') + ' ms',
     '  tris', (value.tris ?? '?').toLocaleString(),
   );
+  for (const pass of value.passes ?? []) {
+    console.log('   ', pass.name.padEnd(22), pass.ms + ' ms');
+  }
 }
 writeFileSync(join(out, 'timings.json'), JSON.stringify(timings, null, 1));
 if (faults.length) {

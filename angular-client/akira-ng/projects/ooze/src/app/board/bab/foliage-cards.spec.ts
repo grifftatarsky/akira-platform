@@ -1,30 +1,14 @@
 import { cardGeometry, type Cut, type FoliageSheet } from './foliage-cards';
 import { MEADOW, type CardSpec, type Plant } from './species';
 
-/**
- * The shapes the meadow is built out of, checked as arithmetic.
- *
- * <p><b>Every foliage bug this renderer has had was a geometry bug that looked
- * like a texture bug.</b> The oxeye daisy rendered as a white cigarette and the
- * cut-out on the sheet was a perfect photographed flower; the clover had two
- * stems and the scan has one. In both cases the picture was right and the mesh
- * carrying it was wrong, and in both cases it took several rounds of looking at
- * screenshots to work out which. These assert the mesh directly.
- *
- * <p>No GPU is involved and none is needed — `cardGeometry` is a pure function
- * from a plant and a cut-out table to vertex data, which is the whole reason it
- * is worth keeping pure.
- */
 describe('card geometry', () => {
 
-  /** A silhouette that is narrow at both ends and widest in the middle. */
   const DISC: readonly (readonly [number, number])[] = [
     [0.45, 0.55], [0.30, 0.70], [0.15, 0.85], [0.05, 0.95], [0.00, 1.00],
     [0.00, 1.00], [0.02, 0.98], [0.08, 0.92], [0.18, 0.82], [0.30, 0.70],
     [0.40, 0.60], [0.46, 0.54], [0.49, 0.51],
   ];
 
-  /** A stalk at the bottom, then a leaf: what a clover scan looks like. */
   const STALKED: readonly (readonly [number, number])[] = [
     [0.48, 0.52], [0.48, 0.52], [0.47, 0.53], [0.20, 0.80], [0.02, 0.98],
     [0.00, 1.00], [0.00, 1.00], [0.03, 0.97], [0.10, 0.90], [0.22, 0.78],
@@ -48,18 +32,17 @@ describe('card geometry', () => {
 
   function plant(cards: CardSpec[], stemTall = 0): Plant {
     return {
-      id: 'test', name: 'Test', note: '', share: 1,
+      id: 'test', name: 'Test', note: '', perArea: 1,
       tall: 1, wide: 0.5, head: 0, segments: 3,
       widest: 0.5, fullness: 1, blunt: 0.1, notch: 0, fold: 0,
       leaflets: 1, spread: 0, stem: 0, petals: 0, spikelets: 0,
       droop: 0, stiff: 1,
       base: [0, 0, 0], tip: [0, 0, 0], bloom: [0, 0, 0], blooms: false,
       veins: 0, sweep: 0, lit: 1, patch: 0, clumping: 1, crowd: 1,
-      cards, stemTall, wearMax: 1, damp: 0,
+      cards, stemTall, damp: 0,
     };
   }
 
-  /** Every vertex of the built mesh, as triples. */
   function points(data: { positions?: number[] | Float32Array }): [number, number, number][] {
     const out: [number, number, number][] = [];
     const p = data.positions ?? [];
@@ -71,14 +54,6 @@ describe('card geometry', () => {
 
   describe('a card contains the picture it carries', () => {
 
-    /**
-     * <b>The daisy cigarette.</b> A card is a quad strip fitted to the
-     * silhouette, and fitting it to a *point sample* per row clips anything
-     * that bulges between the samples. With two rows and a disc-shaped
-     * outline — narrow, wide, narrow — the quad came out 45% of the flower's
-     * width and the mesh cut the petals off before the alpha test could see
-     * them.
-     */
     it('is at least as wide as the widest point in every row band', () => {
       const one = cut(DISC);
       for (const rows of [1, 2, 3, 5, 8]) {
@@ -86,9 +61,9 @@ describe('card geometry', () => {
           plant([card({ rows })]), sheet({ leaf: [one] }),
         );
         const all = points(data);
-        // The card lies in the x/y plane at lean 0, so |x| is its half-width.
+
         const widest = Math.max(...all.map(([x]) => Math.abs(x)));
-        // The silhouette's own widest, as a half-width of the card.
+
         const outermost = Math.max(...DISC.map(
           ([from, to]) => Math.max(Math.abs(from - 0.5), Math.abs(to - 0.5)),
         ));
@@ -102,35 +77,24 @@ describe('card geometry', () => {
         plant([card({ rows })]), sheet({ leaf: [cut(DISC)] }),
       );
       const all = points(data);
-      // Two vertices a row, in order from the root, so the band is picked by
-      // index rather than by height — the card's own size jitter means a
-      // height window can miss every row and take the maximum of nothing.
+
       const wide = (row: number) => Math.max(
         Math.abs(all[row * 2][0]), Math.abs(all[row * 2 + 1][0]),
       );
-      // A disc is a fraction of its width at the root and all of it halfway up.
+
       expect(wide(0)).toBeLessThan(wide(rows / 2) * 0.65);
     });
   });
 
   describe('trimming the photographed stalk', () => {
 
-    /**
-     * <b>The clover's second stem.</b> The scan is a trefoil on its own
-     * petiole, so a card carrying the whole of it cannot lie flat without its
-     * stalk lying flat too. Trimming means the card starts at the junction —
-     * and the junction is measured off the sheet's alpha by
-     * `tools/foliage-trim.mjs`, because it cannot be read from the outline:
-     * the petiole runs up the middle *between* the leaflets, so the cut is at
-     * full width while the stalk still has half its length to go.
-     */
     it('starts the card at the recorded junction, not at the cut-out root', () => {
       const one = cut(STALKED, 0.4);
       const data = cardGeometry(
         plant([card({ rows: 6, trimStalk: true })]), sheet({ leaf: [one] }),
       );
       const vs = (data.uvs ?? []).filter((_, at) => at % 2 === 1);
-      // v runs from v1 at the root to v0 at the tip, and v0 < v1 here.
+
       const lowest = Math.max(...vs);
       const junction = one.v1 + (one.v0 - one.v1) * 0.4;
       expect(lowest).toBeCloseTo(junction, 5);
@@ -164,7 +128,7 @@ describe('card geometry', () => {
         plant([HEAD], 2), sheet({ head: [cut(DISC)], blade: [cut(DISC)] }),
       );
       const all = points(data);
-      // The first vertex of a head is its centre, by construction.
+
       const [x, y, z] = all[0];
       expect(Math.hypot(x, z)).toBeLessThan(1e-6);
       expect(y).toBeCloseTo(2, 6);
@@ -183,8 +147,7 @@ describe('card geometry', () => {
         const span = Math.hypot(
           at[0] - centre[0], at[1] - centre[1], at[2] - centre[2],
         );
-        // Every rim point is the radius out and the dish up, so its distance
-        // from the centre is the hypotenuse of the two.
+
         expect(span).toBeCloseTo(Math.hypot(radius, dish), 5);
       }
     });
@@ -204,7 +167,7 @@ describe('card geometry', () => {
       const all = points(data);
       const centre = all[0];
       const rim = all.slice(1);
-      // At lean 0 the disc stands upright, so the dish displaces along z.
+
       const offsets = rim.map(at => Math.abs(at[2] - centre[2]));
       expect(Math.min(...offsets)).toBeGreaterThan(1e-6);
     });
@@ -261,8 +224,7 @@ describe('card geometry', () => {
         const data = cardGeometry(one, REAL);
         const normals = data.normals ?? [];
         for (let at = 1; at < normals.length; at += 3) {
-          // A leaf is thin and scatters from both faces; a normal under the
-          // horizon takes the hemisphere's ground colour and reads as black.
+
           expect(normals[at]).toBeGreaterThan(-1e-6);
         }
       });

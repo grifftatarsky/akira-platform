@@ -10,16 +10,6 @@ import { type Dungeon, buildDungeon } from './dungeon';
 import { Stage } from './stage';
 import { type FrameCost, Stats } from './stats';
 
-/**
- * The undercroft, lit by real torches.
- *
- * <p>Every light in this room is a `PointLight` with a position and a range,
- * gathered into one `ClusteredLightContainer`. The old board could not have
- * that — it baked the lot into a blurred image because a forward renderer
- * evaluates every light on every fragment, and twenty torches was a slideshow.
- * The difference is visible rather than theoretical: light stops at walls now,
- * because a light knows where it is and a texture never did.
- */
 @Component({
   selector: 'ooze-bab-dungeon',
   standalone: true,
@@ -37,12 +27,7 @@ import { type FrameCost, Stats } from './stats';
       @if (cost(); as c) {
         <dl class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
           <div><dt class="inline">fps</dt> <dd class="inline tabular-nums text-fg">{{ c.fps }}</dd></div>
-          <div>
-            <dt class="inline">gpu</dt>
-            <dd class="inline tabular-nums text-fg">
-              {{ c.gpuMs ? c.gpuMs + ' ms' : 'not measured' }}
-            </dd>
-          </div>
+          <div><dt class="inline">wall</dt> <dd class="inline tabular-nums text-fg">{{ c.wallMs }} ms</dd></div>
           <div><dt class="inline">frame</dt> <dd class="inline tabular-nums text-fg">{{ c.frameMs }} ms</dd></div>
           <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
           <div><dt class="inline">tris</dt> <dd class="inline tabular-nums text-fg">{{ c.triangles | number }}</dd></div>

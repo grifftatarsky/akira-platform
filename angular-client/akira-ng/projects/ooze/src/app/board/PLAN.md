@@ -50,21 +50,37 @@ in screenshots and obvious in two seconds of use.
 
 ## Where the frame goes
 
-| camera | frame | meadow | headroom |
-|---|---|---|---|
-| whole board, top-down | 12.8 ms | ~4.4 | at the cap without it |
-| angled, whole board | 11.0 ms | ~2.7 | |
-| standing in the field | 10.0 ms | ~1.7 | |
+Measured 2026-09-12 at 3600 x 2086, midsummer, the sward at 100%, by taking each
+piece away and reading wall clock between presents. The parts sum to within a
+millisecond of the whole, so there is no unattributed remainder left.
 
-Take the meadow away at any camera and the frame sits at 8.3 — the refresh. So
-**the meadow is the entire controllable cost of this board**, and there is about
-4.4 ms of it left at the camera that matters.
+| piece | ms | share |
+|---|---|---|
+| **whole frame, play camera** (beta 1.02, r 300) | **22.9** | 100% |
+| sward | 8.1 | 35% |
+| trees and scrub | 4.8 | 21% |
+| shadows | 3.8 | 17% |
+| terrain | 1.9 | 8% |
+| ground flora | 1.7 | 7% |
+| temporal aa | 1.2 | 5% |
+| stone | 0.4 | 2% |
+| ground relief, sky light, grade | 0 each | |
+| unattributed | 1.0 | 4% |
 
-Meadow cost is dead linear in pixels: **1.25 ms per megapixel**, measured across
-four resolutions. It is fragments, and it is not what a fragment costs to
-shade — switching off the material's most expensive term saves half a
-millisecond. It is how many fragments there are, several cards deep over every
-pixel.
+Across the nine-angle sweep the whole board runs 21.1 ms (overhead) to 23.5 ms
+(low), and 16.3 ms standing in the field. The target is 16.6 ms.
+
+**Every frame number in this file before 2026-09-12 was wrong**, including the
+table this replaced. Two instruments were reading
+`gpuTimeInFrameForMainPass`, which with a post chain installed times one
+full-screen blit — the Babylon d.ts says so outright: "will only return time
+spent in the main pass, not additional render target / compute passes (if any)"
+(`Engines/thinWebGPUEngine.d.ts`). `split-frame.ts` was one of them, so the
+per-component numbers it produced were the blit moving around.
+
+Resolution is close to linear and is the largest untested lever: halving each
+axis (hardware scaling 1 instead of the 2x device ratio) took 19.7 ms to 11.6 ms
+with nothing else changed.
 
 ---
 
@@ -257,6 +273,150 @@ The tell is a value you just changed still reading its old number.
 federated remote, not the standalone app, so the static probe server 404s every
 page afterwards and every measurement comes back empty. Rebuild with
 `ng build ooze` before probing.
+
+## Traps that used to live in comments
+
+The code carries no comments. That is deliberate — a comment is read as truth
+and the code is not re-read against it, and four wrong beliefs on this board
+came from exactly that. What a comment cannot be recovered from the code is
+*what was tried and did not work*, so that lives here.
+
+**`terrain.ts` — the shadow proxy must keep the terrain's material.** Nothing
+samples the proxy and nothing lights it, so nulling its material looked like
+honesty. It is not: `RenderingGroup.dispatch` returns immediately on a null
+material, so does the shadow generator, and a default is only substituted when
+`StandardMaterial` has been imported, which this board never does. Nulled, the
+forty proxy chunks were built, uploaded, culled and never drawn, and the field
+cast nothing on the road for as long as the proxy had existed.
+
+**`terrain.ts` — the triangle winding is for Babylon's left-handed frame.** The
+board is right-handed with Z up and `toStage` swaps two axes to reach Y up,
+which reverses orientation. Wound the other way, `ComputeNormals` returns
+normals pointing straight *down*: the ground is lit from underneath and renders
+black under a midday sun, while still looking green at distance because
+image-based light has no direction to get wrong.
+
+**`terrain.ts` — no vertex tangents, and they were tried.** Supplying an
+analytic tangent as a vertex buffer produced a stream of WebGPU validation
+errors and a board that drew nothing. Not chased further: the terrain is one
+fragment deep over every pixel and the meadow over it is several, so this was
+the smallest saving on offer and the only one that broke the picture.
+
+**`terrain.ts` — the shadow-only layer works because render targets ignore
+`layerMask`.** A render target given an explicit render list does not check it,
+and the shadow map is given one, so a mesh on a layer no camera looks at is
+still drawn into every cascade. That is the whole mechanism: no second material
+and no visibility flag the shadow pass would also honour.
+
+**`meadow.ts` — `forcedInstanceCount` is the ceiling, not the count.** Babylon
+writes the instance count into the draw's argument buffer from it and skips the
+write whenever the number has not changed, so a constant ceiling means it writes
+once and the count the compute pass publishes is what stands. Handing it the
+real count has the CPU and the compute pass fighting over the same four bytes
+every frame.
+
+**`meadow.ts` — the sward does not receive shadows, and it was tried twice.**
+The second attempt was after the lifted proxy existed, so the original objection
+was gone. It costs 3.3 ms of a 12.9 ms frame and it brings acne: a proxy surface
+at the same height as the blades standing on it is exactly the configuration a
+depth bias cannot win, and at a low sun the field fills with faint diagonal
+banding.
+
+**`meadow.ts` — the sward opts out of image-based light by overriding
+`_getReflectionTexture`**, which is why `environmentIntensity` can be raised for
+the ground and the scans without the field going pale.
+
+**`splat-bake.ts` — a blended normal has to be decoded, blended as a direction,
+and re-encoded.** Averaging three scans' encoded bytes gives something shorter
+than unit length, which reads as a flattened surface exactly where two layers
+meet — the verge, which is the one place on this board anybody looks closely.
+
+**`bab-board.ts` — the board starts from `ngAfterViewInit`, not an `effect`.** A
+signal effect on a `viewChild` is a race: it can run before the view exists, and
+`viewChild.required` then throws inside the effect where the component's own
+try/catch cannot see it. The board started once and then stopped starting.
+
+**`bab-board.ts` — Babylon throws bare strings in places**, so `error.message`
+is often undefined and a `?? 'unknown'` fallback hides the only useful thing
+there is.
+
+**`bab-board.ts` — the flat-light probe needs a white *ground* colour.** The
+hemisphere's ground colour is a dark brown, so a downward normal reads as black
+under ambient alone; an earlier version turned the sun off but left the brown,
+which is why it proved nothing.
+
+### In the shaders
+
+**`splat-bake.ts` — every uniform is a `vec4f`, and that is not tidiness.** A
+`vec3` aligns to sixteen bytes in a WGSL uniform block, but Babylon packs its
+uniform buffer by declaration order, so a `vec2` followed by a `vec3` lands the
+`vec3`'s fields in the wrong slots. Here that made feet-per-repeat read as zero,
+the UVs divide to infinity and every sample come back black — from a shader that
+compiled without a word of complaint.
+
+**`splat-bake.ts` — the stochastic tiling needs explicit gradients.** The hashed
+offsets are discontinuous across a cell edge, and letting the hardware derive
+the mip from them picks the smallest one along every seam.
+
+**`splat-bake.ts` — blend toward the mean in linear space and push the contrast
+back.** A straight weighted average of three photographs is flatter than any of
+them, which is the known failure of the technique.
+
+**`meadow.ts` — do not name a WGSL local `step` or `cell`.** `step` is a builtin
+this shader calls further down, and shadowing it turns that call into "cannot
+use 'let step' as call target". `cell` is taken by the clump code.
+
+**`meadow.ts` — WGSL refuses to mix `*` and `^` without parentheses**, and it
+refuses by failing to parse the whole stage, silently, with a material that
+still reports itself ready and a field with no grass in it.
+
+**`meadow.ts` — the clump is a Voronoi cell, not the lattice cell.** Keying the
+clump on the square cell paints the field in squares: the clump decides height
+and colour, so every eleven half-feet the whole sward changes tone along a
+straight line, and from directly above — this board's camera — it reads as a
+chequerboard over the grass. It was the most visible artifact on the board at
+full zoom-out. Nine cells is the whole search, because a seed jittered inside
+its own cell can never be nearer than one two cells away.
+
+**`meadow.ts` — alternate rows are staggered by half a cell.** A square lattice
+with bounded jitter shows its rows running away across the field; the stagger
+makes it triangular, which has no rows to look down.
+
+**`meadow.ts` — `alive` scales all three matrix columns, not the height.**
+Scaling only the height leaves a culled plant as a flat quad of full width lying
+on the ground with a zeroed column, and a matrix with a zero column has no
+usable normal, so it shades black. On a grass-only sward those were slivers
+nobody saw; a clover leaf is not a sliver, it is a black scrap on the verge,
+hundreds of them, exactly where the wear test culls the most.
+
+**`meadow.ts` — the instance basis is built with a cross product because it has
+to be orthogonal.** The through column used to be forced horizontal to stop a
+leaning plant tipping its normal at the ground. It worked and it was wrong: with
+up leaning and through level, `dot(through, up)` is `sin(lean)`, so the basis is
+skewed rather than rotated, and a skewed matrix mistransforms a normal exactly
+the way a non-uniform scale does — the transformed normal for a leaflet facing
+the wrong way drops below the horizon and shades black. That defect survived
+every other explanation, because every other explanation was about the material
+and this one is arithmetic.
+
+**`meadow.ts` — the survivors are compacted by an atomic counter.** Losers used
+to be written as a zeroed matrix and submitted anyway; a degenerate instance
+costs no fragments but still costs its setup, and at four hundred thousand of
+them that is a bill for plants nobody can see.
+
+**`meadow.ts` — taking the strongest species outright gives solid mats.** It was
+tried in the renderer this came from: white sheets laid over the field instead
+of daisies standing in it. The drift weights are normalised across species so
+they trade instead — where the daisies come in, the grass between them thins.
+
+**`meadow.ts` — the hash is integer, not a sine.** Sine hashes band visibly at
+large coordinates because they sample a smooth function, and a meadow is exactly
+where a faint regular pattern shows.
+
+**WGSL comments are gone too, which removes a hazard.** `wgsl-lint.mjs` exists
+partly to catch a backtick inside a shader comment — it closes the template
+literal and produces a shader that compiles to nothing, with no error. There are
+no shader comments left to put one in.
 
 ## Instruments
 
