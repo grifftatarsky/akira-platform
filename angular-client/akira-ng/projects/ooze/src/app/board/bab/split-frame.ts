@@ -12,7 +12,7 @@ export interface Knob {
 const SETTLE = 20;
 const SAMPLE = 90;
 
-function frameMs(): Promise<number> {
+export function frameMs(): Promise<number> {
   const gaps: number[] = [];
   return new Promise<number>(done => {
     let seen = 0;

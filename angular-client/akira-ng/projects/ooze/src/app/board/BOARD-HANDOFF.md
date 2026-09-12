@@ -1,8 +1,10 @@
 # The board: handoff
 
 **Read this first if you are a new instance working on the Babylon board.**
-Then [PLAN.md](./PLAN.md) for the rules and the refused table, and
-[FOLIAGE-REPORT.md](./FOLIAGE-REPORT.md) for the scan/alpha research.
+Then [BOARD-PLAN.md](./BOARD-PLAN.md) for the worklist that is actually being
+crossed off, [PLAN.md](./PLAN.md) for the rules, the refused table and the
+traps, and [FOLIAGE-REPORT.md](./FOLIAGE-REPORT.md) for the scan/alpha
+research.
 
 Written 2026-09-12 after a long session that produced real work and two real
 regressions. Every number below was measured in this repo or read out of the

@@ -41,6 +41,18 @@ export const OOZE_ROUTES: Routes = [
         data: { title: 'The undercroft, on Babylon', full: true },
       },
       {
+        // One screen per rendering technique, each with its criterion written
+        // before the demo was built.
+        path: 'board/lab',
+        loadComponent: () => import('./board/lab/lab-index').then(m => m.LabIndex),
+        data: { title: 'The graphics lab' },
+      },
+      {
+        path: 'board/lab/:id',
+        loadComponent: () => import('./board/lab/lab-screen').then(m => m.LabScreen),
+        data: { title: 'Lab', full: true },
+      },
+      {
         // The Babylon port. Same level data, same ground field, same sun.
         path: 'board/bab',
         loadComponent: () => import('./board/bab/bab-board').then(m => m.BabBoard),
