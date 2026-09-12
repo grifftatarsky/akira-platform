@@ -345,6 +345,105 @@ hemisphere's ground colour is a dark brown, so a downward normal reads as black
 under ambient alone; an earlier version turned the sun off but left the brown,
 which is why it proved nothing.
 
+### In `stage.ts`
+
+**Two imports are there for their side effects.**
+`forceSphericalPolynomialsRecompute` is patched onto `BaseTexture` by a separate
+module; without it a probe that renders a new sky hands the PBR materials the
+*first* sky's irradiance forever — the specular moves with the sun and the
+diffuse does not.
+
+**SSAO2 was tried and taken out.** `SSAO2RenderingPipeline` wants depth and
+normals in a multiple render target, which with deep imports is not on the engine
+at all: "createMultipleRenderTarget is not a function", thrown from inside the
+render loop on the first frame. Importing the extension got past that and into a
+stream of WebGPU validation errors with the meadow no longer drawing — a geometry
+prepass over a quarter of a million instanced plants meeting a path never asked
+to carry them.
+
+**God rays were tried.** They render *occluders* into a fifth-resolution buffer
+rather than the whole scene, which looked like the exception to "no second
+geometry pass". It is not: installed and doing nothing — noon, sun off screen —
+the frame went from 15.7 ms to 22.9. The pass runs whatever the sun is doing. It
+also floods white rather than throwing shafts, because with the sky box as the
+light's stand-in the occluder is the thing the rays should come *from*, and a sky
+is not an object.
+
+**`camera.attachControl(true)` scrolls the page.** The second argument is
+*noPreventDefault*, so `true` leaves the wheel event to the document and the page
+scrolls away underneath while the camera zooms. The canvas needs
+`touch-action: none` for the same reason on a trackpad.
+
+**Babylon 9.26 replaced `panningMouseButton` and `useCtrlForPanning`** with a
+declarative table on `camera.movement.input`. Setting the old properties is a
+silent no-op on an object that no longer reads them — and the first attempt
+appeared to work, because right-drag panning is in the *default* table.
+
+**The shadow map stays at 2048 and halving it bought nothing.** The pass is bound
+by draw calls, not fill: forty terrain chunks across the cascades. The lever is
+fewer casters or fewer cascades — measured at 3.25 ms for four cascades, 2.17 for
+three, 1.32 for two.
+
+**`shadowMaxZ` has to reach the far edge of the board.** At 400 there was no
+shadow term past four hundred units, so the far half of the board was lit
+differently from the near half with a hard horizontal edge sliding up and down as
+the camera zoomed — an artifact a still screenshot from one distance cannot show.
+It is set from {@link frame} instead.
+
+**The sky probe must be float.** A sky has a sun in it and the sun is far brighter
+than white; clamped to eight bits the whole dome flattens to one pale blue and the
+light it casts loses its direction.
+
+**Fog was removed and it was not free.** It measured 1.5 ms of a 7.1 ms meadow —
+a per-fragment term paid once a *layer* on a sward several cards deep over every
+pixel.
+
+**TAA has to be first in the camera's chain**, or it resolves an image that has
+already been graded. Its `factor` is 0.16 rather than 0.06 because Babylon's
+temporal resolve reprojects with the camera matrix alone and has no velocity
+buffer: every blade moves in its own vertex shader, so every blade reprojects to
+the wrong place and a long history smears.
+
+**`antialias: true` on the engine is not `pipeline.samples`.** It sets
+`_mainPassSampleCount` to four, allocating a four-sample colour target and a
+four-sample depth target at the full canvas — about ninety megabytes each — and
+resolving them every frame, for a main pass that with the temporal pipeline
+installed contains one full-screen blit and no edges. That is where the 24 ms
+came from, and it is not a measurement of MSAA-in-the-pipeline.
+
+**`bloom.imageProcessingEnabled = false` turns the grade off for the whole
+board.** The setter writes `scene.imageProcessingConfiguration.isEnabled`, which
+is the master switch every PBR material reads as well. Set false the day bloom
+shipped, it disabled tone mapping, contrast, exposure and vignette everywhere —
+so the grade toggle flipped settings on a configuration that was not being
+applied, and reported nothing.
+
+**`SkyMaterial` does no image processing at all.** Graded inside the materials,
+the sky was the one surface never tone mapped, which is why bloom read as a white
+wedge across the horizon: a sky several times brighter than white, blurred and
+added back to an image with no highlight compression in front of it, can only
+clip.
+
+**Bloom has nothing to find on a midday meadow.** Threshold sweep, read as mean
+pixel change against a noise floor of 2.3: threshold 0 moves 117, 0.2 moves 36,
+and **every threshold from 0.4 upward sits at the noise floor**. Nothing there
+exceeds a luminance of about 0.4. Its scale is a quarter because at a half it
+measured 1.8 ms, which is more than the sun costs.
+
+**Tone mapping is Khronos neutral, not ACES.** ACES is built for wide-gamut input
+and its documented failure is hue skew in the highlights and desaturation, the
+reported symptom being washed-out highlights and crushed blacks *especially in
+foliage* — the entire content of this board.
+
+**`enableGPUTimingMeasurements` must be set after the device exists and before
+any frame.** The query pool is sized at that point; turning it on later throws
+"WebGPUDurationMeasure: index out of range" from inside a render pass.
+
+**A failed engine init must `dispose()`.** A page that reloads onto a failed init
+half a dozen times leaves that many adapters outstanding, and the next
+`requestAdapter` then hangs with no error anywhere — which reads exactly like the
+code being broken, and is not.
+
 ### In the shaders
 
 **`splat-bake.ts` — every uniform is a `vec4f`, and that is not tidiness.** A

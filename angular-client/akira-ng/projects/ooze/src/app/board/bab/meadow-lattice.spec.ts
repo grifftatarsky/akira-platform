@@ -66,4 +66,23 @@ describe('swardLattice', () => {
       expect(keep, plant.id).toBeLessThanOrEqual(1);
     }
   });
+
+  it('leaves room for a species to reach its crowd without saturating', () => {
+    for (const { plant, keep } of sow(MEADOW).sowings) {
+      expect(keep * plant.crowd, plant.id).toBeLessThanOrEqual(1 + 1e-9);
+    }
+  });
+
+  it('holds the mix at every density', () => {
+    const { lattice, sowings } = sow(MEADOW);
+    for (const density of [1, 0.5, 0.25, 0.1]) {
+      for (const { plant, slots, keep } of sowings) {
+        expect(keep * density * plant.crowd, `${plant.id} at ${density}`)
+          .toBeLessThanOrEqual(1 + 1e-9);
+        const perArea = (slots * keep * density) / (lattice.pitch * lattice.pitch);
+        expect(perArea, `${plant.id} at ${density}`)
+          .toBeCloseTo(plant.perArea * density, 5);
+      }
+    }
+  });
 });

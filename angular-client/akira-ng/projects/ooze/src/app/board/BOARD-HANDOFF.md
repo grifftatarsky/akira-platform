@@ -98,38 +98,35 @@ Skills exist for this: `.claude/skills/board-measure`, `foliage-scan`,
 
 ## 1. Where the board actually is
 
-Measured 2026-09-12 after Phase 0, at 3600 x 2086, midsummer, sward at 100%.
+Measured 2026-09-12, audited the same day, at 3600 x 2086, midsummer, sward at
+100%. **Every figure here is a repeat, not a single reading** — the first pass of
+Phase 0 published 22.9 ms / 45 fps, which was the fast tail of the distribution.
 
 | camera | wall clock |
 |---|---|
-| overhead (beta 0.22, r 420) | 21.1 ms |
-| **play (beta 1.02, r 300)** | **23.2 ms** |
-| low (beta 1.32) | 23.5 ms |
-| grazing (beta 1.46) | 23.4 ms |
-| close (r 70) | 19.2 ms |
+| **play (beta 1.02, r 300)** | **23.9 ms — 42 fps** |
+| same, five repeats | median 23.6–24.4, p05 22.2, p95 26 |
 | standing in the field (r 26) | 16.3 ms |
 | target | 16.6 ms |
 
-Component cost at the play camera, each measured by taking it away — the parts
-now sum to within 1 ms of the whole, so **the 8.1 ms unattributed baseline the
-last handoff called "the largest single number on the board" does not exist**.
-It was an artifact of `split-frame.ts` reading `gpuTimeInFrameForMainPass`.
+Component cost at the play camera, three bracketed `splitFrame` runs averaged,
+drift 0.4–0.7 ms:
 
-| piece | ms |
-|---|---|
-| sward | 8.1 |
-| trees and scrub | 4.8 |
-| shadows | 3.8 |
-| terrain | 1.9 |
-| ground flora | 1.7 |
-| temporal aa | 1.2 |
-| stone | 0.4 |
-| ground relief, sky light, grade | 0 each |
-| **unattributed** | **1.0** |
+| piece | ms | piece | ms |
+|---|---|---|---|
+| sward | 8.57 | stone | 0.32 |
+| trees and scrub | 5.28 | sky dome | 0.27 |
+| shadows | 4.38 | sky light | 0.20 |
+| terrain | 2.10 | grade | 0.15 |
+| ground flora | 1.93 | ground relief | 0.10 |
+| temporal aa | 1.60 | **unattributed** | **0.00** |
 
-The board is drawing more than it was: 228,355 plants at 100%, against 94,503
-when it opened before (it opened at `density = 0.5` while the slider read 100%).
-Grass alone is 112,597, above the 108,258 that was the old ceiling.
+The parts over-sum by about 4%: removing a group also removes what it occluded,
+so this is a difference measurement, not a partition. **The 8.1 ms unattributed
+baseline the first handoff called "the largest single number on the board" does
+not exist** — it was `split-frame.ts` reading `gpuTimeInFrameForMainPass`.
+
+The board draws 230,937 plants at 100%, grass 112,597.
 
 ## 2. Open regressions
 
@@ -149,7 +146,7 @@ reintroduce it only as a modifier on the shared band, never as a second band.
 20% of the densest cell and **every one of them is on the track** (wear > 0.82).
 Off the track there are none.
 
-### 2b. Absolute density — done
+### 2b. Absolute density — done, with one claim corrected
 
 `MAX_PLANTS` was a budget split by share, so the mix, the density slider and the
 lattice pitch were one number. Each species now declares `perArea` — plants a
@@ -168,7 +165,25 @@ square half-foot on unworn ground — and:
 The arithmetic is `swardLattice()` in `bab/meadow.ts`, pure and unit-tested:
 `bab/meadow-lattice.spec.ts` checks that adding or removing a species leaves
 every other species' slots, cap and keep **exactly equal**, that the pitch comes
-from the densest, and that the ceiling scales the mix without changing it.
+from the densest, that the ceiling scales the mix without changing it, and that
+no species' `keep x crowd` exceeds one at any density.
+
+**Two things the audit found and fixed.** Slots per cell were *rounded*, so a
+species whose `wanted x crowd` landed just above an integer lost the capacity its
+crowd asked for: Yorkshire fog's `keep x crowd` came to 1.44, its lottery
+saturated at full density, and it returned 61% of itself at half density instead
+of 50%. Slots are rounded **up** now (with a float tolerance, or the grass's
+exact 5.0 becomes 6), and every species measures 0.498–0.502 at half density and
+0.249–0.252 at a quarter.
+
+And the criterion "adding or removing a species changes only that species'
+count" is **too strong, and was never true of the count**. The *allocation* is
+decoupled exactly — remove clover and every other species' slots, cap, keep and
+the lattice are bit-identical, measured. The *drift lottery* is deliberately
+coupled, because a species' share of a spot depends on what else wants it, and
+that is worth up to 21% of a placed count: removing clover moved grass +0.7%,
+fog +2.2%, plantain +20.6%. Plantain moves most because it has headroom under
+its crowd; grass barely moves because it is already at its clamp.
 
 The board opens at 100%. The default `density` was 0.5 while the slider read
 100%, which is most of what "the grass looks thin" was.
@@ -206,8 +221,16 @@ button is in the tools panel; `globalThis.bab.split()` returns the slices.
 It used to read `gpuTimeInFrameForMainPass`, which is the blit, which is why
 every component number it ever produced was wrong.
 
-It is blunt in one honest way: taking a group away also removes whatever it was
-occluding, so the parts can over-sum slightly. They currently sum to 101%.
+**Each slice is bracketed, and the run reports its own drift.** It used to take
+one baseline and compare thirteen readings to it across thirteen seconds; on a
+machine whose load moved, every component inflated, and one audit run had the
+parts summing to 73.6 ms of a 28.7 ms frame. Every `without` reading now sits
+between the two on-readings either side of it, so linear drift cancels, and the
+last row is the drift between the first and last baseline. **A run whose drift is
+a large fraction of a component is not a measurement of that component.**
+
+It stays blunt in one honest way: taking a group away also removes whatever it
+was occluding, so the parts over-sum by about 4%.
 
 ### `gpu-passes.ts` — the per-pass counters. Real, but not additive.
 
@@ -235,6 +258,12 @@ Two things to know before quoting them:
    the sum lands within 0.1 ms of wall clock. So: **`scene` and `shadow` are
    worth quoting; the post passes are worth watching relative to themselves and
    nothing else.** `FrameCost` deliberately carries no summed `gpuMs`.
+
+### What is still not attributed
+
+Nothing, at the play camera — `unattributed` reads 0.00 once the sky dome has
+its own toggle. The dome was drawn every frame and had no switch, so it sat in
+the remainder; `setSkyLight` toggles the image-based light, not the mesh.
 
 ### The lever nobody had pulled
 

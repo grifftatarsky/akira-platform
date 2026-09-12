@@ -22,6 +22,8 @@ const MAX_PLANTS = 600_000;
 
 const TUFT = 5;
 
+const SLOT_EPSILON = 1e-9;
+
 const CLUMP = 11;
 
 const PUBLISH = `
@@ -264,7 +266,8 @@ export function swardLattice(
     lattice: { pitch, eastCells, northCells, cells, fit },
     sowings: plants.map(plant => {
       const wanted = plant.perArea * fit * cellArea;
-      const slots = Math.max(1, Math.round(wanted * plant.crowd));
+      const asked = wanted * plant.crowd;
+      const slots = Math.max(1, Math.ceil(asked - SLOT_EPSILON));
       return { plant, slots, cap: slots * cells, keep: Math.min(1, wanted / slots) };
     }),
   };
@@ -556,8 +559,6 @@ export function sowMeadow(
       }
       heightTexture.dispose();
       groundTexture.dispose();
-
-      sheet.texture.dispose();
     },
   };
 }

@@ -6,7 +6,7 @@ import { type GpuPass, type TimedPass, framePasses } from './gpu-passes';
 export interface FrameCost {
   readonly fps: number;
   readonly wallMs: number;
-  readonly frameMs: number;
+  readonly cpuMs: number;
   readonly cullMs: number;
   readonly drawCalls: number;
   readonly activeMeshes: number;
@@ -40,7 +40,7 @@ export class Stats {
     return {
       fps,
       wallMs: round(fps > 0 ? 1000 / fps : 0),
-      frameMs: round(this.scene.frameTimeCounter.lastSecAverage),
+      cpuMs: round(this.scene.frameTimeCounter.lastSecAverage),
       cullMs: round(this.scene.activeMeshesEvaluationTimeCounter.lastSecAverage),
       drawCalls: this.scene.drawCallsCounter.current,
       activeMeshes: this.target.getActiveMeshes().length,

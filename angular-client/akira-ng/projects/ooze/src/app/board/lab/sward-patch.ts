@@ -41,7 +41,8 @@ export async function swardPatch(stage: Stage): Promise<SwardPatch> {
   terrain.chunks.forEach(chunk => stage.shadows.addShadowCaster(chunk));
   terrain.swardProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
 
-  const meadow = sowMeadow(field, stage.scene, await loadFoliage(stage.scene));
+  const sheet = await loadFoliage(stage.scene);
+  const meadow = sowMeadow(field, stage.scene, sheet);
 
   let frozen = false;
   let held = 0;
@@ -68,6 +69,7 @@ export async function swardPatch(stage: Stage): Promise<SwardPatch> {
     dispose(): void {
       stage.scene.onBeforeRenderObservable.remove(tick);
       meadow.dispose();
+      sheet.texture.dispose();
       terrain.dispose();
     },
   };

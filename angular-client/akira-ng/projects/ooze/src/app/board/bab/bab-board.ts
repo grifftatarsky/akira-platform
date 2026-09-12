@@ -12,7 +12,7 @@ import { clockLabel } from '../sun-position';
 import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
-import { loadFoliage } from './foliage-cards';
+import { type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
   FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora, scatterStone,
 } from './standing';
@@ -44,7 +44,7 @@ function dayLabel(day: number): string {
 }
 
 type Part = 'meadow' | 'flora' | 'trees' | 'stones' | 'terrain' | 'shadows'
-  | 'taa' | 'relief' | 'sky' | 'grade' | 'bloom';
+  | 'taa' | 'relief' | 'sky' | 'dome' | 'grade' | 'bloom';
 import { type Meadow, sowMeadow } from './meadow';
 import { type Asset, PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -90,7 +90,7 @@ import { type Terrain, buildTerrain } from './terrain';
             <span class="truncate text-xs font-semibold text-fg">{{ name }}</span>
             @if (cost(); as c) {
               <span class="ml-auto shrink-0 font-mono text-[0.65rem] tabular-nums text-fg-muted">
-                {{ c.fps }} fps · {{ c.frameMs }} ms
+                {{ c.fps }} fps · {{ c.cpuMs }} ms
               </span>
             }
           </div>
@@ -434,6 +434,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   private extent: { x: number; y: number } | null = null;
   private stats: Stats | null = null;
   private meadow: Meadow | null = null;
+  private sheet: FoliageSheet | null = null;
   private stones: Mesh[] = [];
   private groundFlora: Mesh[] = [];
 
@@ -447,6 +448,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     { key: 'taa', label: 'temporal aa', note: 'The temporal resolve. Off is sharper and crawls.' },
     { key: 'relief', label: 'ground relief', note: 'The terrain normal and roughness maps.' },
     { key: 'sky', label: 'sky light', note: 'Image-based light from the sky probe.' },
+    { key: 'dome', label: 'sky dome', note: 'The sky itself, drawn. Off leaves the clear colour behind the board.' },
     { key: 'grade', label: 'grade', note: 'Tone mapping, contrast and exposure.' },
     { key: 'bloom', label: 'bloom', note: 'Light spilling around bright edges. Off: nothing on a midday meadow is bright enough to bloom — measured, everything sits under 0.4 luminance. It is here for torches and fire.' },
   ];
@@ -506,6 +508,9 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       case 'sky':
         stage.setSkyLight(want);
         break;
+      case 'dome':
+        stage.setSkyDome(want);
+        break;
       case 'grade':
         stage.setGrade(want);
         break;
@@ -558,6 +563,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       const built = Math.round(performance.now() - started);
 
       const sheet = await loadFoliage(stage.scene);
+      this.sheet = sheet;
       this.meadow = sowMeadow(field, stage.scene, sheet);
 
       this.stones = [
@@ -581,6 +587,9 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       (globalThis as unknown as Record<string, unknown>)['bab'] = {
         stage, terrain: this.terrain, meadow: this.meadow, field,
         cost: (): FrameCost | null => this.stats?.read() ?? null,
+        sow: sowMeadow,
+        species: MEADOW,
+        sheet,
         split: async (): Promise<readonly Slice[]> => {
           await this.split();
           return this.slices();
@@ -711,6 +720,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     this.observer?.disconnect();
     this.stones.forEach(stone => stone.dispose());
     this.meadow?.dispose();
+    this.sheet?.texture.dispose();
     this.terrain?.dispose();
     this.stage?.dispose();
   }

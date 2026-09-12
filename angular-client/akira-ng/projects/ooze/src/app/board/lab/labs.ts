@@ -36,7 +36,7 @@ export const LABS: readonly LabEntry[] = [
       broken: 'On is flatly darker everywhere, which is the irradiance being '
         + 'deleted and not replaced.',
     },
-    result: '2026-09-12 — refused. 10.2 ms on / 9.7 ms off, so it costs 0.4 ms; and on is flatly darker and less saturated across the whole patch, which is the Broken criterion, not the Working one. Change 8.4 against a control of 0.5, so the switch is real. Babylon subtracts (1 - intensity) of diffuse irradiance before adding the transmitted term, and at 0.55 the sward is not getting it back.',
+    result: '2026-09-12 — refused. 10.1 ms on / 9.7 ms off, so it costs 0.4 ms; and on is flatly darker and less saturated across the whole patch, which is the Broken criterion, not the Working one. Change 8.4 against a control of 0.5, so the switch is real. Babylon subtracts (1 - intensity) of diffuse irradiance before adding the transmitted term, and at 0.55 the sward is not getting it back.',
   },
 ];
 

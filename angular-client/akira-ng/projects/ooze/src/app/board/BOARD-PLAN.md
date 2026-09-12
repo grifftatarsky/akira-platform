@@ -10,8 +10,11 @@ an item moves here, that page is republished. Ticks on the page live in its own
 store and survive a republish, so crossing something off there is not undone by
 an update here.
 
-**Where we are:** 45 fps at maximum plants (22.2 ms). Target is 60 (16.6 ms).
-The order is **look first, then optimize** — Phase 1 before Phase 2.
+**Where we are:** **42 fps at maximum plants — 23.9 ms** at the play camera,
+3600 x 2086, midsummer. Target is 60 (16.6 ms). Five repeats put the median
+between 23.6 and 24.4 ms and the 95th percentile near 26; a single reading of
+22.9 was the fast tail of that, not the number. The order is **look first, then
+optimize** — Phase 1 before Phase 2.
 
 ---
 
@@ -21,8 +24,38 @@ The order is **look first, then optimize** — Phase 1 before Phase 2.
 |---|---|---|
 | 0.1 | Per-pass GPU breakdown | **done** — and it found the 8.1 ms baseline was an instrument fault, not a cost |
 | 0.2 | Bald ring: one shared wear fade | **done** — coverage map has no thin cell off the track |
-| 0.3 | Absolute density; `MAX_PLANTS` a cap | **done** — `swardLattice()` pure and unit-tested; board opens at maximum |
+| 0.3 | Absolute density; `MAX_PLANTS` a cap | **done**, with the criterion corrected — see below |
 | 0.4 | Lab harness: `/board/lab` + one worked screen | **done** — index, shell, A/B switch, wall clock, pixel diff with a control |
+
+### What the audit changed
+
+Phase 0 was audited on 2026-09-12 and three of its claims did not survive.
+
+- **The frame was overstated.** 22.9 ms / 45 fps was one reading at the fast end
+  of the distribution. Repeated, the board is **23.9 ms / 42 fps**.
+- **The density slider did not thin uniformly.** Grass, clover and plantain
+  scaled exactly, but Yorkshire fog came back at 61% of itself at half density
+  instead of 50%: its slots per cell were rounded down, so `keep x crowd`
+  exceeded one and its lottery *saturated* at full density. Slots are now
+  rounded up, and every species measures 0.498–0.502 at half and 0.249–0.252 at
+  a quarter.
+- **"Adding or removing a species changes only that species' count" was too
+  strong.** The *allocation* is decoupled exactly — remove clover and every other
+  species' slots, cap, keep and the lattice itself are bit-identical, which the
+  unit test asserts. The *drift lottery* is deliberately coupled, because a
+  species' share of a spot depends on what else wants it, and measured that is
+  worth up to 21% (grass +0.7%, fog +2.2%, plantain +20.6% when clover is
+  removed). The criterion is now about allocation, which is what was fixed.
+
+Two instruments were repaired at the same time:
+
+- `splitFrame` took one baseline and compared thirteen readings to it over
+  thirteen seconds. On a machine whose load moved, every component inflated —
+  one run had the parts summing to 73.6 ms of a 28.7 ms frame. Each slice is now
+  bracketed between the on-readings either side of it, and the run reports its
+  own **drift** so a reading taken on a busy machine says so.
+- The **sky dome** was drawn but not switchable, so it sat in `unattributed`. It
+  has its own toggle now, and `unattributed` is 0.00.
 
 Phase 0 is closed.
 
@@ -45,7 +78,21 @@ gets a lab screen before it touches the meadow.
 
 ## Phase 2 — the frame
 
-Sequenced after Phase 1. 0.1 already says which of these is worth doing.
+Sequenced after Phase 1. 0.1 already says which of these is worth doing. The
+frame at the play camera, three bracketed runs averaged, drift 0.4–0.7 ms:
+
+| piece | ms | | piece | ms |
+|---|---|---|---|---|
+| **whole frame** | **23.9** | | temporal aa | 1.60 |
+| sward | 8.57 | | stone | 0.32 |
+| trees and scrub | 5.28 | | sky dome | 0.27 |
+| shadows | 4.38 | | sky light | 0.20 |
+| terrain | 2.10 | | grade | 0.15 |
+| ground flora | 1.93 | | ground relief | 0.10 |
+| | | | **unattributed** | **0.00** |
+
+The parts over-sum by about 4%: taking a group away also removes whatever it
+was occluding, so this is a difference measurement, not a partition.
 
 | | Work | Working = | Not helping = | State |
 |---|---|---|---|---|
@@ -53,8 +100,8 @@ Sequenced after Phase 1. 0.1 already says which of these is worth doing.
 | 2.2 | **Purpose-written blade `ShaderMaterial`** vs PBR-with-subsurface, with vertex-shader NDC culling (forum 62558) | ≥ 1.5 ms saved, field looks the same or better | < 0.5 ms saved | |
 | 2.3 | **Translucency audit** | Off is not darker | Off is visibly flatter | **done — refused.** Lab says on costs 0.4 ms *and* is flatly darker. Turning it off on the board is the next board change |
 | 2.4 | **Baked geometry vs thin instances** for one patch (forum 46756's 4× claim) | ≥ 2 ms saved at equal blade count | < 0.5 ms, or it breaks the compute placement | |
-| 2.5 | **Trees and scrub** — 4.8 ms, the second largest piece and never examined | — | — | |
-| 2.6 | **Shadows** — 3.8 ms for two cascades at 2048 | — | — | |
+| 2.5 | **Trees and scrub** — 5.3 ms, the second largest piece and never examined | — | — | |
+| 2.6 | **Shadows** — 4.4 ms for two cascades at 2048 | — | — | |
 
 ---
 
@@ -82,7 +129,7 @@ exercises it, with the criterion written **before** the demo was built.
 
 | screen | phase | result |
 |---|---|---|
-| `translucency` | 2.3 | refused 2026-09-12 — 10.2 on / 9.7 off, and on is darker |
+| `translucency` | 2.3 | refused 2026-09-12 — 10.1 on / 9.7 off, and on is darker |
 
 A refused screen stays, with its numbers and its date, so the refusal can be
 re-run when Babylon or the board changes.

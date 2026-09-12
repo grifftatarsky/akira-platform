@@ -28,7 +28,7 @@ import { type FrameCost, Stats } from './stats';
         <dl class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
           <div><dt class="inline">fps</dt> <dd class="inline tabular-nums text-fg">{{ c.fps }}</dd></div>
           <div><dt class="inline">wall</dt> <dd class="inline tabular-nums text-fg">{{ c.wallMs }} ms</dd></div>
-          <div><dt class="inline">frame</dt> <dd class="inline tabular-nums text-fg">{{ c.frameMs }} ms</dd></div>
+          <div><dt class="inline">frame</dt> <dd class="inline tabular-nums text-fg">{{ c.cpuMs }} ms</dd></div>
           <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
           <div><dt class="inline">tris</dt> <dd class="inline tabular-nums text-fg">{{ c.triangles | number }}</dd></div>
         </dl>
