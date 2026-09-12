@@ -203,6 +203,38 @@ until the switch is first used.
 **The twist is still the free half.** +0.02 ms in the lab, image change 1.46
 against a control of 0.51.
 
+### The card, photographed the same way — and it is the flawed one
+
+The user has said the card is flawed. It had never been isolated and looked at;
+only ever seen as a field of a hundred thousand. Same probe, same eight angles,
+same scale as the blade:
+
+**A grass card is two crossed flat strips carrying two or three photographed
+strands.** From most angles it reads as a letterform — F, X, A, K — and at two of
+the eight it is a pair of hairlines. Green coverage of the frame, per angle:
+
+| | per-angle coverage (per mille) | swing | mean |
+|---|---|---|---|
+| card | 2.7 4.2 6.5 4.2 2.1 4.9 6.6 5.7 | **3.2x** | 4.6 |
+| blade | 25.2 25.4 23.1 24.5 24.5 22.5 23.5 20.9 | 1.2x | 23.7 |
+
+Two things fall out of that, and the second one undoes a comparison I published.
+
+**The card loses two thirds of its silhouette depending on where you stand.** The
+blade tuft is rotationally stable to within 20%. The field hides this because
+there are a hundred and twelve thousand of them at random facings, so the
+aggregate is smooth — but no single plant is a plant, and anything that makes the
+camera prefer one direction will show it.
+
+**A card draws a fifth of the plant a blade tuft does** — 4.6 against 23.7 at the
+same instance count and the same distance. So every cost comparison in this
+document so far has been at equal *instances*, not equal *coverage*: the blade
+was putting roughly five times more grass on screen for its 2.2x. Matched on
+coverage instead of on instance count, the cost question is open and untested.
+
+I also wrote that a card carries "a photo of five-to-ten real blades". It carries
+two or three. That was wrong.
+
 ### What this cost, as a lesson
 
 Two refusals were published from screenshots taken at 300 half-feet. At that
