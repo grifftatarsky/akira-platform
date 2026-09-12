@@ -21,11 +21,11 @@ import type { CardSpec, Plant } from './species';
  * chewed edge on another. No amount of parameters reaches that.
  *
  * <p><b>What a card cannot do is be seen edge-on.</b> A flat quad viewed along
- * its plane is a line, which is most of what "negative space" means in a field
- * of them. Two things answer it: the plant is built from more than one card at
- * different angles, and the wind plugin turns each card about its own stem
- * toward the camera — Ghost of Tsushima's view-space thickening, said
- * geometrically.
+ * its plane is a line. What answers it here is the plant being built from more
+ * than one card at different angles, and the field being many plants at
+ * different azimuths — not a turn toward the camera. That was tried, it is
+ * Ghost of Tsushima's view-space thickening, and it was removed: it reads the
+ * eye position, so the whole field rotates slightly on every zoom.
  *
  * <p>Sources are all CC0 and vendored under `public/assets/board/foliage`, with
  * the packer in `tools/foliage-pack.mjs` and the provenance in ASSETS.md.
@@ -131,17 +131,6 @@ export function cardGeometry(plant: Plant, sheet: FoliageSheet): VertexData {
         : (n / spec.count) * Math.PI * 2 + Math.sin(n * 12.9898 + placed) * 0.4;
       const cut = cuts[(n + placed * 3) % cuts.length];
       addCard(build, plant, spec, cut, around, n);
-      if (spec.cross !== undefined) {
-        // The same head again, turned a right angle and stood partway up. The
-        // pair costs two triangles and is the difference between a flower and
-        // a white hyphen at every angle but one.
-        // A different cut of the same group, so the pair reads as one head
-        // with depth rather than as two flowers stuck together.
-        addCard(
-          build, plant, { ...spec, flat: false, lean: spec.cross },
-          cuts[(n + placed * 3 + 1) % cuts.length], around + Math.PI / 2, n + 1,
-        );
-      }
       placed++;
     }
   }
@@ -197,11 +186,10 @@ function addCard(
   // in for a mesh. Trimming the stalk off the bottom of the cut leaves the
   // leaf free to lie flat on a petiole the mesh draws under it.
   const base = spec.trimStalk ? stalkTop(cut) : 0;
-  // <b>A head straddles its stem; a leaf grows out of one.</b> Rooted at `at`
-  // and grown upward, two crossed cards at different leans put their middles
-  // in different places and read as two flowers side by side — which is what
-  // the daisy looked like. Shifting the card back along its own axis puts the
-  // picture's middle on the stem instead of its bottom edge.
+  // <b>A head straddles its stem; a leaf grows out of one.</b> Rooted at its
+  // position and grown upward, a flower head hangs off the top of the stem by
+  // its bottom edge. Shifting the card back along its own axis puts the
+  // picture's middle where the stem ends, which is where a head sits.
   const sink = tall * (spec.centred ?? 0);
   const root: Vec = [
     sa * spec.out - up[0] * sink,
@@ -325,10 +313,20 @@ function stalkTop(cut: Cut): number {
   if (!spans?.length) {
     return 0;
   }
-  for (let at = 0; at < spans.length; at++) {
-    if (spans[at][1] - spans[at][0] >= 0.3) {
-      // Back off one sample, so the leaf's own join to the stalk survives.
-      return Math.max(0, at - 1) / (spans.length - 1);
+  const wide = spans.map(span => span[1] - span[0]);
+  // <b>Against the cut's own widest, not against a constant.</b> A fixed
+  // threshold of a third measured nothing useful: one of the three clover
+  // scans is a wide leaf whose *second* row is already past it, so it trimmed
+  // nothing at all and the drawn stem ran straight into a photographed
+  // petiole. Half of whatever this particular cut-out reaches is the same
+  // question asked of every scan.
+  const most = Math.max(...wide);
+  for (let at = 0; at < wide.length; at++) {
+    if (wide[at] >= most * 0.5) {
+      // <b>No backing off.</b> Keeping a sample of the stalk "so the join
+      // survives" is keeping exactly the thing being removed — the join is
+      // where the leaf starts, which is this row.
+      return at / (spans.length - 1);
     }
   }
   return 0;

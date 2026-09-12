@@ -313,7 +313,7 @@ import { type Terrain, buildTerrain } from './terrain';
                         <td class="tabular-nums">{{ card.tall }}</td>
                         <td class="tabular-nums">{{ card.flat ? '90' : (card.lean * 57.3 | number:'1.0-0') }}</td>
                         <td class="tabular-nums" [class.text-danger]="card.rows < 3">{{ card.rows }}</td>
-                        <td>{{ card.flat ? 'flat ' : '' }}{{ card.trimStalk ? 'trim ' : '' }}{{ card.cross !== undefined ? 'cross' : '' }}</td>
+                        <td>{{ card.flat ? 'flat ' : '' }}{{ card.trimStalk ? 'trim ' : '' }}{{ card.centred ? 'centred' : '' }}</td>
                       </tr>
                     }
                   </tbody>

@@ -53,18 +53,6 @@ export interface CardSpec {
   /** Lies in the horizontal plane instead, for a flower seen from above. */
   readonly flat?: boolean;
   /**
-   * Emit the card a second time, turned a right angle and leaned this far from
-   * vertical.
-   *
-   * <p><b>A single card is invisible edge-on, and a flower head is the one
-   * place that matters.</b> A blade of grass seen edge-on still reads as a
-   * blade, because a blade really is that thin; a daisy seen edge-on is a white
-   * hyphen. Laid flat it is perfect from straight above and gone from the low
-   * angle this board is looked at from half the time, so it is built as a
-   * crossed pair and there is always a face toward the camera. Two triangles.
-   */
-  readonly cross?: number;
-  /**
    * Cut the photographed stalk off the bottom of the cut-out.
    *
    * <p>A scan of a clover is a trefoil on its own petiole. Carried whole on one
@@ -296,7 +284,7 @@ export const MEADOW: readonly Plant[] = [
       // sward.
       {
         group: 'clover', count: 1, tall: 0.52, at: 0.58, out: 0,
-        lean: 0, rows: 2, taper: 1, flat: true, trimStalk: true, centred: 0.24,
+        lean: 0, rows: 2, taper: 1, flat: true, trimStalk: true, centred: 0.38,
       },
     ],
     stemTall: 0.58,
@@ -346,15 +334,27 @@ export const MEADOW: readonly Plant[] = [
     // camera looks down at it, and an oxeye daisy holds its face to the sky.
     cards: [
       { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 2, taper: 1 },
-      // <b>A crossed pair, and neither half is laid flat.</b> Perfectly
-      // horizontal is right for exactly one camera and draws a hard black
-      // line from every other, because a card seen along its own plane is a
-      // sliver lit by a normal pointing away. Seventy-two degrees over and
-      // thirty-one over, turned a right angle apart, means one of the two is
-      // always presenting its face and neither is ever edge-on.
+      // <b>One head, nodding, and that is the whole of it.</b> It was built as
+      // a crossed pair to guarantee a face at every angle, and a crossed pair
+      // is two flat quads in an X — which is what it looked like. A daisy head
+      // is a disc, and the honest mesh for a disc carried on a photograph is
+      // one card.
+      //
+      // <p>What rescues the low angle is not a second quad, it is the field:
+      // ten thousand of these with a jittered azimuth each, so some are always
+      // turned toward the eye. A real oxeye holds its face to the sky and is a
+      // white sliver from the side; erring that way errs the way the flower
+      // does. Sixty-six degrees over, so it reads from directly above and from
+      // the usual playing angle, and nods rather than lying perfectly flat —
+      // flat is right for exactly one camera and a hard edge from every other.
+      //
+      // <p>Turning it toward the eye per frame was considered and is the same
+      // view-space thickening this renderer already removed once: it reads the
+      // eye position, so the field rotates slightly on every zoom. Visible
+      // immediately in use and in no screenshot.
       {
         group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0,
-        lean: 1.25, rows: 1, taper: 1, cross: 0.55, centred: 0.5,
+        lean: 1.15, rows: 1, taper: 1, centred: 0.5,
       },
     ],
     stemTall: 2.4,
