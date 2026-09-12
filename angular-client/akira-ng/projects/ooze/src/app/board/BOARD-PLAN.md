@@ -151,89 +151,76 @@ exercises it, with the criterion written **before** the demo was built.
 | `blade` | 1.1 | refused 2026-09-12 on cost — 21.0 ms against 47.1 on the board. The look objection in the first result was a bug in my blade, not the technique |
 | `translucency` | 2.3 | refused 2026-09-12 — 10.1 on / 9.7 off, and on is darker |
 
-### 1.1, in full — and the first verdict was right for the wrong reason
+### 1.1 and 1.1b, worked through
 
-Where it stands: it costs 2.2x the frame and it looks better than the cards
-close up. The first pass also said it did not look like grass, and that was my
-bug, not the technique. **Yours to call.**
+Three things were asked for and all three were run to the end: kill the bar in
+the card, settle the twist, and compare card against blade at matched cost.
 
-| option | triangles, all four species | play camera | vs card |
+#### (a) The card's bar — gone, and the card rebuilt
+
+The bar is a real strand in **spray cut 0**: a short fat dark diagonal leaf in
+its lower left. With two spray cuts over three cards it landed twice on every
+plant — and `cuts[(n + placed * 3) % 2]` is 0 for n = 0,1,2, so in fact all three
+cards drew it.
+
+The sheet already held better material. The **`blade` group is seven distinct,
+clean, full-height single blades** with midribs, fine tips and real colour
+variation, at 35–60% fill against the sprays' ~4%. Grass is five of those plus
+one spray for the arch. Cuts cycle on the leaf index; each card takes its own
+lean from the golden ratio so five blades splay instead of standing in a bundle.
+
+| | per-angle coverage (‰) | swing | mean |
 |---|---|---|---|
-| card | 70 | 21.0 ms | — |
-| blade | 458 (6.5x) | 47.1 ms | **2.2x the frame** |
+| as it was | 2.7 · 4.2 · 6.5 · 4.2 · 2.1 · 4.9 · 6.6 · 5.7 | 3.2× | 4.6 |
+| rebuilt | 9.6 · 10.5 · 11.9 · 9.1 · 12.4 · 11.9 · 12.6 · 9.2 | **1.38×** | **10.9** |
 
-Per species, card → blade: grass 20 → 90, fog 22 → 94, clover 8 → 49,
-**plantain 20 → 225**. Plantain is a rosette of five broad ribbed leaves and each
-one is being turned into five grass blades, which is both botanically wrong and
-half the added cost. Blades belong to the grasses; that is untried.
+20 triangles to 40. Play camera about 21 ms to 27.
 
-Cost rises 2.2x on 6.5x the triangles, so it is not purely geometry — the card's
-alpha-test overdraw is real and the blade does not pay it.
+#### (b) The twist is inert, and why is worth more than the twist
 
-**Version one was broken in four ways at once and distant screenshots hid all of
-them.** The user asked to see one blade from eight angles, which showed every
-fault in about a minute:
+Card against twist, one tuft, eight angles, pixel diff per channel out of 255:
+**0.06–0.10 at the shipping settings.** Across midday, 9am, 7am and 6am, the
+same. The normals are not the problem — they differ by 37° mean, measured off
+the VertexData.
 
-1. **Width came from `cut.aspect`** — 0.65 for a spray cut, 0.04 for a blade cut.
-   Same divisor, so one group was ten times the other: slabs and wires in the
-   same field. Width is absolute now, from `plant.wide`.
-2. **No real taper.** `pow(1 - t, 0.5)` over three stacks is parallel-sided then
-   a sudden spike. It is a shoulder-then-point curve over five stacks now.
-3. **The tuft splayed into a five-foot starfish** from a three-foot plant — fan,
-   tilt and root spread compounding. The blades turn on the golden angle now, so
-   a tuft is round rather than a paper fan.
-4. **The holes were the alpha test.** The UVs sampled the interior of a cut-out's
-   bounding *span*, which is the transparent gap between the scanned blades, so
-   the cutout punched holes through solid geometry.
+**`blade-wind.ts` discards them.** The shading normal is
+`mix(leafNormal, groundNormal, plant.lit)` and `lit` is 0.9 for grass, so ninety
+per cent of the sward's shading is the terrain's normal. A 37° change to a leaf
+becomes under four degrees on screen. **No per-blade normal work can show while
+that stands.**
 
-**A generated blade cannot be textured from a cut-out atlas at all.** Making the
-material opaque to stop the holes just sampled the atlas's black background
-instead, and the tuft came out near-black. The blade takes its colour from the
-species table now, with the root-to-tip gradient `blade-wind` already had and the
-scans had made unnecessary.
+The lever is that blend. At 0.45 of its shipped value, an 8am sun takes the
+sward's shading contrast from 37.2 to 46.4 — a quarter more — and the field gains
+a per-blade shimmer. At midday it is a wash, because a high sun reads mostly the
+normal's Y and `lift()` pins that. It is a **Leaf normal** slider in the tools
+panel now, at 100% as it ships.
 
-Rebuilt, it reads as real grass from every angle and **it looks better than the
-cards close up** — longer, layered, with depth the cut-outs do not have. It still
-costs 2.2x the frame, so the refusal stands, on cost alone.
+#### (c) Card against blade, and the blade now has a texture
 
-It is on the board behind a **cards / blades** switch so the comparison can be
-made on the real field rather than on a lab patch. The blade meadow is not built
-until the switch is first used.
+At matched cost the first comparison went to the card easily, because the blade
+had **no texture at all** — a flat albedo off the species table. It could not be
+textured from the cut-out atlas: the sprays' interiors are the transparent gaps
+between blades, which the alpha test turns into holes, and making the material
+opaque sampled the atlas's black background instead.
 
-**The twist is still the free half.** +0.02 ms in the lab, image change 1.46
-against a control of 0.51.
+The `blade` group cuts are single opaque strands, so a photographed blade maps
+straight onto the generated geometry — geometry edges to the cut's own silhouette
+edges at each height, holding off the top 12% where the scan is a hair. The blade
+tuft has midribs, yellowing and colour variation now.
 
-### The card, photographed the same way — and it is the flawed one
-
-The user has said the card is flawed. It had never been isolated and looked at;
-only ever seen as a field of a hundred thousand. Same probe, same eight angles,
-same scale as the blade:
-
-**A grass card is two crossed flat strips carrying two or three photographed
-strands.** From most angles it reads as a letterform — F, X, A, K — and at two of
-the eight it is a pair of hairlines. Green coverage of the frame, per angle:
-
-| | per-angle coverage (per mille) | swing | mean |
+| | triangles | play camera | fill rate |
 |---|---|---|---|
-| card | 2.7 4.2 6.5 4.2 2.1 4.9 6.6 5.7 | **3.2x** | 4.6 |
-| blade | 25.2 25.4 23.1 24.5 24.5 22.5 23.5 20.9 | 1.2x | 23.7 |
+| card @100% | 90 | 26.8 ms | 1.68 ms/MP |
+| blade @100% | 162 | 50.1 ms | **3.38 ms/MP** |
+| blade @38% | 162 | 33.0 ms | |
 
-Two things fall out of that, and the second one undoes a comparison I published.
+**The blade is not geometry-bound.** Cutting blades-per-card from five to two —
+638 triangles to 162 — moved the frame 52.4 to 49.4. The cost is fill, and it is
+fill because the blade *draws more grass*: solid geometry with nothing discarded,
+against a card that is mostly empty quad. That is the whole trade.
 
-**The card loses two thirds of its silhouette depending on where you stand.** The
-blade tuft is rotationally stable to within 20%. The field hides this because
-there are a hundred and twelve thousand of them at random facings, so the
-aggregate is smooth — but no single plant is a plant, and anything that makes the
-camera prefer one direction will show it.
-
-**A card draws a fifth of the plant a blade tuft does** — 4.6 against 23.7 at the
-same instance count and the same distance. So every cost comparison in this
-document so far has been at equal *instances*, not equal *coverage*: the blade
-was putting roughly five times more grass on screen for its 2.2x. Matched on
-coverage instead of on instance count, the cost question is open and untested.
-
-I also wrote that a card carries "a photo of five-to-ten real blades". It carries
-two or three. That was wrong.
+Both are on the board's **sward** switch. Neither is refused; both are yours to
+call.
 
 ### What this cost, as a lesson
 

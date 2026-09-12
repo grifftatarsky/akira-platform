@@ -1,11 +1,11 @@
 import type { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import {
-  type Build, type FoliageSheet, type Vec,
-  cardGeometry, cardShape, cross, lift,
+  type Build, type Cut, type FoliageSheet, type Vec,
+  CARD_SHAPE, cardGeometry, cardShape, cross, lift, spanAt,
 } from './foliage-cards';
 import type { CardSpec, Plant } from './species';
 
-const BLADES = 5;
+const BLADES = 2;
 const STACKS = 5;
 const WIDTH = 0.3;
 const SHOULDER = 0.55;
@@ -14,10 +14,13 @@ const TWIST = 0.3 * Math.PI;
 const LEAN = 0.2;
 const SPREAD = 0.16;
 const TURNS = 2.399963;
+const TIP_V = 0.88;
 
 export function bladeGeometry(plant: Plant, sheet: FoliageSheet): VertexData {
-  return cardGeometry(plant, sheet, (build, owner, spec, _cut, around, index) =>
-    addBlades(build, owner, spec, around, index));
+  return cardGeometry(plant, sheet, (build, owner, spec, cut, around, index) =>
+    spec.group === 'blade'
+      ? addBlades(build, owner, spec, cut, around, index)
+      : CARD_SHAPE(build, owner, spec, cut, around, index));
 }
 
 const TWISTED = cardShape(Math.tan(TWIST));
@@ -27,7 +30,7 @@ export function twistedCards(plant: Plant, sheet: FoliageSheet): VertexData {
 }
 
 function addBlades(
-  build: Build, plant: Plant, spec: CardSpec, around: number, index: number,
+  build: Build, plant: Plant, spec: CardSpec, cut: Cut, around: number, index: number,
 ): void {
   const vary = 1 + Math.sin(index * 5.17 + spec.tall) * 0.12;
   const tall = spec.tall * vary;
@@ -37,7 +40,7 @@ function addBlades(
   for (let blade = 0; blade < BLADES; blade++) {
     const seed = index * 11 + blade;
     const out = (blade + 0.5) / BLADES;
-    addBlade(build, spec, {
+    addBlade(build, spec, cut, {
       turn: around + blade * TURNS + Math.sin(seed * 12.9898) * 0.25,
       tilt: lean + out * LEAN + Math.sin(seed * 7.31) * 0.07,
       height: tall * (0.78 + 0.4 * fract(seed * 0.618)),
@@ -57,7 +60,7 @@ interface Blade {
   readonly spread: number;
 }
 
-function addBlade(build: Build, spec: CardSpec, of: Blade): void {
+function addBlade(build: Build, spec: CardSpec, cut: Cut, of: Blade): void {
   const ca = Math.cos(of.turn);
   const sa = Math.sin(of.turn);
   const cl = Math.cos(of.tilt);
@@ -85,15 +88,22 @@ function addBlade(build: Build, spec: CardSpec, of: Blade): void {
     const along = unit(slope(mid, tip, t));
     const face = unit(cross(across, along));
     const half = stack === STACKS ? 0 : of.halfRoot * taper(t);
+    const v = t * TIP_V;
+    const span = spanAt(cut, v);
+    const middle = (span[0] + span[1]) / 2;
 
     for (const side of stack === STACKS ? [0] : [-1, 1]) {
+      const across01 = side === 0 ? middle : (side < 0 ? span[0] : span[1]);
       build.positions.push(
         root[0] + at[0] + across[0] * half * side,
         root[1] + at[1] + across[1] * half * side,
         root[2] + at[2] + across[2] * half * side,
       );
       build.normals.push(...lift(turned(face, across, TWIST * side)));
-      build.uvs.push(0.5 + side * 0.5, t);
+      build.uvs.push(
+        cut.u0 + (cut.u1 - cut.u0) * across01,
+        cut.v1 + (cut.v0 - cut.v1) * v,
+      );
     }
   }
 

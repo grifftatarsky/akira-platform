@@ -749,7 +749,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     };
     const meadow = sowMeadow(
       this.field!, this.stage!.scene, this.sheet!, undefined, shapes[shape],
-      shape !== 'blade',
+      true,
     );
     if (this.density() !== 100) {
       meadow.setDensity(this.density() / 100);

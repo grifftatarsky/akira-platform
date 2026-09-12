@@ -97,6 +97,9 @@ export function cardGeometry(
   return data;
 }
 
+export const CARD_SHAPE: LeafShape = (build, plant, spec, cut, around, index) =>
+  addCard(build, plant, spec, cut, around, index);
+
 export function cardShape(fan: number): LeafShape {
   return (build, plant, spec, cut, around, index) =>
     addCard(build, plant, spec, cut, around, index, fan);
