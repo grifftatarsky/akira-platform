@@ -40,6 +40,20 @@ import { assetUrl } from './assets';
 const RAD = Math.PI / 180;
 
 /**
+ * The shape of `camera.movement.input` this file uses.
+ *
+ * <p>Typed here rather than imported because the deep-import path for it moves
+ * between releases and the whole of what is wanted is one method.
+ */
+interface PanMap {
+  setInteraction(
+    source: string,
+    conditions: { button?: number; modifiers?: Record<string, boolean> },
+    interaction: string,
+  ): boolean;
+}
+
+/**
  * Engine, scene, camera, sun, sky.
  *
  * <p><b>WebGPU only, no fallback.</b> Every browser ships it, compute is the
@@ -122,6 +136,8 @@ export class Stage {
   private bloom: DefaultRenderingPipeline | null = null;
   private day = 196;
   private hour = 13;
+  /** The camera's input map, for swapping what a left drag means. */
+  private pan: PanMap | null = null;
   /** Whether the grade toggle is on, which the clock has to respect. */
   private graded = true;
 
@@ -157,6 +173,30 @@ export class Stage {
     this.scene.onBeforeRenderObservable.add(() => {
       this.camera.panningSensibility = Math.max(8, 4200 / Math.max(1, this.camera.radius));
     });
+    // <b>Panning is an input map now, not a button number.</b> Babylon 9.26
+    // replaced `panningMouseButton` and `useCtrlForPanning` with a declarative
+    // table on `camera.movement.input`, and setting the old properties is a
+    // silent no-op on an object that no longer reads them — which is exactly
+    // what the first attempt at this did, and it appeared to work because
+    // right-drag panning is in the *default* table.
+    //
+    // <p>What is not in the default table is shift-drag or the middle button,
+    // and those are the two a map wants: a trackpad has no comfortable right
+    // drag, and the middle button is what every other 3D tool uses. Right and
+    // ctrl-left are already there and stay.
+    this.pan = (this.camera as unknown as {
+      movement?: { input?: PanMap };
+    }).movement?.input ?? null;
+    this.pan?.setInteraction('pointer', { button: 0, modifiers: { shift: true } }, 'pan');
+    this.pan?.setInteraction('pointer', { button: 1 }, 'pan');
+    // Right-drag pans, so the menu that would otherwise eat the gesture has to
+    // go. Scoped to the canvas, which is the only place the gesture means this.
+    canvas.addEventListener('contextmenu', event => event.preventDefault());
+    // <b>Panned, but not off the map.</b> A camera whose target can walk
+    // anywhere ends up looking at nothing at all, and the way back is the
+    // reset button rather than the mouse. The origin is set by `frame`, which
+    // is the only thing that knows where the board is.
+    this.camera.panningDistanceLimit = 400;
     this.camera.lowerBetaLimit = 0.05;
     // Just short of the horizon: past it the camera goes under the ground and
     // there is nothing down there to see.
@@ -704,10 +744,39 @@ export class Stage {
     this.setClock(this.hour);
   }
 
+  /**
+   * Whether dragging with the left button pans instead of orbiting.
+   *
+   * <p>For a one-button mouse and for anyone who thinks of this as a map
+   * rather than as a model. Right-drag pans in either mode, so this only ever
+   * adds a way in.
+   */
+  setPanMode(on: boolean): void {
+    this.pan?.setInteraction('pointer', { button: 0 }, on ? 'pan' : 'rotate');
+  }
+
   /** Frames the whole board. */
   frame(atX: number, atY: number, atZ: number, spanHalfFeet: number): void {
     this.camera.setTarget(new Vector3(atX, atZ, atY));
-    this.camera.radius = spanHalfFeet * 1.15;
+    // <b>Fitted to the viewport, not to a constant.</b> `spanHalfFeet * 1.15`
+    // was tuned against a canvas that had four rows of controls stacked over
+    // it; given the whole window the same radius leaves the board a postage
+    // stamp in the middle of a lot of sky. Babylon's fov is vertical, so a
+    // wide window is limited by height and a tall one by width.
+    // Babylon's fov is vertical, so the horizontal one follows the aspect. The
+    // board's on-screen footprint is its width by its depth *laid down* — at a
+    // low angle the depth is foreshortened almost to nothing and the width is
+    // the only constraint, and looking straight down it is the other way round.
+    const aspect = this.engine.getAspectRatio(this.camera) || 1;
+    const tall = Math.tan(this.camera.fov / 2);
+    const wide = tall * aspect;
+    const half = spanHalfFeet / 2;
+    const laid = Math.max(0.2, Math.cos(this.camera.beta));
+    this.camera.radius = Math.max(half / wide, (half * laid) / tall) * 1.3;
+    // Panning is measured from wherever the board turned out to be, and how
+    // far you may wander from it scales with how big the board is.
+    this.camera.panningOriginTarget = new Vector3(atX, atZ, atY);
+    this.camera.panningDistanceLimit = spanHalfFeet * 1.1;
     // The shadowed range has to reach the far corner from wherever the camera
     // ends up, or the board is lit in two halves with a line between them.
     // Twice the span covers standing back far enough to frame it and then

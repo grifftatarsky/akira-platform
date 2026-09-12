@@ -1,10 +1,11 @@
 <!-- ROUTED PAGE — reserves room on desktop for the spine / open panel -->
-<div class="ooze-content" [class.ooze-content--open]="open()">
+<div class="ooze-content" [class.ooze-content--open]="open()"
+     [class.ooze-content--full]="bare()">
   <router-outlet />
 </div>
 
 <!-- COLLAPSED: full-height "book spine" tab, always visible on the side -->
-@if (!open()) {
+@if (!open() && !bare()) {
   <button type="button"
           class="dice-rail group fixed right-0 top-14 z-30 flex w-11 flex-col items-center gap-4 border-l border-rule-strong bg-bg-muted py-4 text-fg-muted shadow-lg transition-colors hover:bg-bg-sunk hover:text-fg"
           [attr.aria-controls]="panelId" [attr.aria-expanded]="false"

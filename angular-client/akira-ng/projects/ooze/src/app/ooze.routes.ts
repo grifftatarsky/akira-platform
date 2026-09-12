@@ -34,13 +34,17 @@ export const OOZE_ROUTES: Routes = [
         // The dungeon on Babylon: real torches, clustered.
         path: 'board/bab-dungeon',
         loadComponent: () => import('./board/bab/bab-dungeon').then(m => m.BabDungeon),
-        data: { title: 'The undercroft, on Babylon' },
+        // `full` means the page wants the whole viewport and none of the
+        // shell's furniture — no dice rail taking a strip off the right, no
+        // reserved padding. A map is looked at, and everything else on the
+        // page is competing with it.
+        data: { title: 'The undercroft, on Babylon', full: true },
       },
       {
         // The Babylon port. Same level data, same ground field, same sun.
         path: 'board/bab',
         loadComponent: () => import('./board/bab/bab-board').then(m => m.BabBoard),
-        data: { title: 'The road, on Babylon' },
+        data: { title: 'The road, on Babylon', full: true },
       },
       {
         // Before the `:encounterId` route below, or that one swallows it —

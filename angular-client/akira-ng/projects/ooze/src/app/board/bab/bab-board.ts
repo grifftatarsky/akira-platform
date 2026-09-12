@@ -15,6 +15,29 @@ import '@babylonjs/loaders/glTF/2.0';
 import { loadFoliage } from './foliage-cards';
 import { plantScans, scatterStone } from './standing';
 
+/**
+ * A remembered boolean, defaulting when this browser refuses storage.
+ *
+ * <p>Private windows throw outright on `localStorage` rather than returning
+ * nothing, so every read of it has to be wrapped or the page does not start.
+ */
+function read(key: string, fallback: boolean): boolean {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved === null ? fallback : saved === 'true';
+  } catch {
+    return fallback;
+  }
+}
+
+function write(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch {
+    // Same browser, same reason. It simply gets the default next time.
+  }
+}
+
 /** A date, as a person would say it. */
 function dayLabel(day: number): string {
   const at = new Date(Date.UTC(2026, 0, 1));
@@ -49,168 +72,233 @@ import { type Terrain, buildTerrain } from './terrain';
   standalone: true,
   imports: [DecimalPipe, PlantPreview],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'block h-full w-full min-h-0' },
+  // <b>Dark, and dark here rather than everywhere.</b> The app's tokens are
+  // redefined by a `.dark` class, so a page can ask for it by wearing one. A
+  // board is looked at the way a photograph is: white chrome around a lit field
+  // is a lamp pointed at the viewer, and every judgement about the picture's
+  // exposure is made against whatever is beside it.
+  host: { class: 'dark ooze-board block w-full' },
+  styles: [`
+    /* The whole visible area under the host's bar. \`dvh\` so a phone's
+     * toolbar sliding away does not leave a strip of page under the canvas;
+     * \`vh\` is the fallback. The variable is the host header's height and
+     * ooze's standalone shell sets it to zero, because there is no bar there. */
+    /* \`:host\`, not a class. Angular scopes a component's own styles with a
+     * content attribute, and the host element carries a *host* attribute
+     * instead — so a plain \`.ooze-board\` rule here matches nothing at all and
+     * the board collapses to zero height with the canvas still in it. */
+    :host {
+      display: block;
+      height: calc(100vh - var(--ooze-shell-header, 3.5rem));
+      height: calc(100dvh - var(--ooze-shell-header, 3.5rem));
+      background: var(--color-bg);
+    }
+  `],
   template: `
-    <div class="flex h-[calc(100vh-8rem)] w-full flex-col gap-2 p-2">
-      <div class="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
-        <span class="font-semibold text-fg">{{ name }}</span>
-        <span class="text-fg-subtle">Babylon.js · WebGPU</span>
-        <label class="flex items-center gap-2">
-          Time
-          <input
-            type="range" min="4" max="21" step="0.25"
-            [value]="hour()" (input)="setHour($any($event.target).valueAsNumber)"
-            class="w-40" />
-          <span class="tabular-nums">{{ clock() }}</span>
-        </label>
-        <label class="flex items-center gap-2">
-          Grass
-          <input
-            type="range" min="0" max="100" step="1"
-            [value]="density()" (input)="setDensity($any($event.target).valueAsNumber)"
-            class="w-32" />
-          <span class="tabular-nums">{{ density() }}%</span>
-        </label>
-        <label class="flex items-center gap-2">
-          <span>Season</span>
-          <input type="range" min="1" max="365" step="1" [value]="day()"
-            (input)="setDay(+$any($event.target).value)" class="w-36" />
-          <span class="tabular-nums w-16">{{ dayLabel() }}</span>
-        </label>
-        <span class="tabular-nums text-fg-subtle">{{ status() }}</span>
-        <button type="button" (click)="inspect()"
-          class="rounded border border-rule px-2 py-0.5 hover:border-accent">
-          Inspector
-        </button>
-      </div>
+    <div class="relative h-full w-full overflow-hidden bg-bg">
+      <canvas #canvas class="absolute inset-0 h-full w-full outline-none"
+        style="touch-action: none; overscroll-behavior: contain"></canvas>
 
-      <!-- <b>One switch per piece of work, so each can be judged on its own.</b>
-           Every one of these was argued about from a screenshot with everything
-           else switched on, which is how three of them shipped wrong. -->
-      <div class="flex flex-wrap items-center gap-3 font-mono text-[0.65rem] text-fg-subtle">
-        <span class="uppercase tracking-widest">show</span>
-        @for (part of parts; track part.key) {
-          <label class="flex items-center gap-1" [title]="part.note">
-            <input type="checkbox" [checked]="on()[part.key] !== false"
-              (change)="toggle(part.key, $any($event.target).checked)" />
-            {{ part.label }}
-          </label>
-        }
-      </div>
-
-      <div class="flex flex-wrap items-center gap-3 font-mono text-[0.65rem] text-fg-subtle">
-        <span class="uppercase tracking-widest">probe</span>
-        <label class="flex items-center gap-1">
-          <input type="checkbox" [checked]="bare()"
-            (change)="setBare($any($event.target).checked)" />
-          hide terrain
-        </label>
-        <label class="flex items-center gap-1">
-          <input type="checkbox" [checked]="flat()"
-            (change)="setFlat($any($event.target).checked)" />
-          flat light
-        </label>
-        <button type="button" (click)="split()" [disabled]="splitting()"
-          class="rounded border border-rule px-2 py-0.5 hover:border-accent disabled:opacity-50">
-          {{ splitting() ? 'measuring…' : 'split frame' }}
-        </button>
-        @for (slice of slices(); track slice.name) {
-          <span class="tabular-nums">
-            {{ slice.name }}
-            <span class="text-fg">{{ slice.ms }} ms</span>
-          </span>
-        }
-      </div>
-
-      @if (cost(); as c) {
-        <dl class="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
-          <div><dt class="inline">fps</dt> <dd class="inline tabular-nums text-fg">{{ c.fps }}</dd></div>
-          <div>
-            <dt class="inline">gpu</dt>
-            <dd class="inline tabular-nums text-fg">
-              {{ c.gpuMs ? c.gpuMs + ' ms' : 'not measured' }}
-            </dd>
+      <!-- <b>Over the map, not above it.</b> Every control used to stack on top
+           of the canvas and push it down; four rows of diagnostics took a third
+           of the screen off the thing they were diagnostics for. -->
+      <div class="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 p-2">
+        <div class="pointer-events-auto flex max-w-[min(34rem,calc(100%-6rem))] flex-col gap-2
+                    rounded-lg border border-rule bg-bg/80 p-2 shadow-xl backdrop-blur">
+          <div class="flex items-center gap-2">
+            <button type="button" (click)="toggleTools()"
+              class="grid size-6 shrink-0 place-items-center rounded border border-rule text-fg-muted transition-colors hover:border-accent hover:text-accent"
+              [attr.aria-expanded]="tools()"
+              [attr.aria-label]="tools() ? 'Collapse tools' : 'Expand tools'">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" class="size-3.5 transition-transform"
+                   [class.rotate-90]="tools()">
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </button>
+            <span class="truncate text-xs font-semibold text-fg">{{ name }}</span>
+            @if (cost(); as c) {
+              <span class="ml-auto shrink-0 font-mono text-[0.65rem] tabular-nums text-fg-muted">
+                {{ c.fps }} fps · {{ c.frameMs }} ms
+              </span>
+            }
           </div>
-          <div><dt class="inline">frame</dt> <dd class="inline tabular-nums text-fg">{{ c.frameMs }} ms</dd></div>
-          <div><dt class="inline">cull</dt> <dd class="inline tabular-nums text-fg">{{ c.cullMs }} ms</dd></div>
-          <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
-          <div><dt class="inline">meshes</dt> <dd class="inline tabular-nums text-fg">{{ c.activeMeshes }}</dd></div>
-          <div><dt class="inline">tris</dt> <dd class="inline tabular-nums text-fg">{{ c.triangles | number }}</dd></div>
-          <div><dt class="inline">shadow</dt> <dd class="inline tabular-nums text-fg">{{ c.shadowMs }} ms</dd></div>
-          <div><dt class="inline">shaders</dt> <dd class="inline tabular-nums text-fg">{{ c.shaderMs }} ms</dd></div>
-        </dl>
+
+          @if (tools()) {
+            <div class="flex flex-col gap-2 border-t border-rule pt-2">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.7rem] text-fg-muted">
+                <label class="flex items-center gap-1.5">
+                  Time
+                  <input
+                    type="range" min="4" max="21" step="0.25"
+                    [value]="hour()" (input)="setHour($any($event.target).valueAsNumber)"
+                    class="w-28" />
+                  <span class="w-14 tabular-nums">{{ clock() }}</span>
+                </label>
+                <label class="flex items-center gap-1.5">
+                  Grass
+                  <input
+                    type="range" min="0" max="100" step="1"
+                    [value]="density()" (input)="setDensity($any($event.target).valueAsNumber)"
+                    class="w-24" />
+                  <span class="w-9 tabular-nums">{{ density() }}%</span>
+                </label>
+                <label class="flex items-center gap-1.5">
+                  Season
+                  <input type="range" min="1" max="365" step="1" [value]="day()"
+                    (input)="setDay(+$any($event.target).value)" class="w-24" />
+                  <span class="w-16 tabular-nums">{{ dayLabel() }}</span>
+                </label>
+              </div>
+
+              <!-- <b>One switch per piece of work, so each can be judged on its
+                   own.</b> Every one of these was argued about from a screenshot
+                   with everything else switched on, which is how four of them
+                   shipped wrong. -->
+              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
+                <span class="uppercase tracking-widest">show</span>
+                @for (part of parts; track part.key) {
+                  <label class="flex items-center gap-1" [title]="part.note">
+                    <input type="checkbox" [checked]="on()[part.key] !== false"
+                      (change)="toggle(part.key, $any($event.target).checked)" />
+                    {{ part.label }}
+                  </label>
+                }
+              </div>
+
+              <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
+                <span class="uppercase tracking-widest">probe</span>
+                <label class="flex items-center gap-1">
+                  <input type="checkbox" [checked]="bare()"
+                    (change)="setBare($any($event.target).checked)" />
+                  hide terrain
+                </label>
+                <label class="flex items-center gap-1">
+                  <input type="checkbox" [checked]="flat()"
+                    (change)="setFlat($any($event.target).checked)" />
+                  flat light
+                </label>
+                <button type="button" (click)="split()" [disabled]="splitting()"
+                  class="rounded border border-rule px-1.5 py-0.5 hover:border-accent disabled:opacity-50">
+                  {{ splitting() ? 'measuring…' : 'split frame' }}
+                </button>
+                <button type="button" (click)="inspect()"
+                  class="rounded border border-rule px-1.5 py-0.5 hover:border-accent">
+                  inspector
+                </button>
+                @for (slice of slices(); track slice.name) {
+                  <span class="tabular-nums">
+                    {{ slice.name }}
+                    <span class="text-fg">{{ slice.ms }} ms</span>
+                  </span>
+                }
+              </div>
+
+              @if (cost(); as c) {
+                <dl class="flex flex-wrap gap-x-3 gap-y-0.5 border-t border-rule pt-2 font-mono text-[0.65rem] text-fg-subtle">
+                  <div><dt class="inline">gpu</dt> <dd class="inline tabular-nums text-fg">{{ c.gpuMs ? c.gpuMs + ' ms' : '—' }}</dd></div>
+                  <div><dt class="inline">cull</dt> <dd class="inline tabular-nums text-fg">{{ c.cullMs }} ms</dd></div>
+                  <div><dt class="inline">draws</dt> <dd class="inline tabular-nums text-fg">{{ c.drawCalls }}</dd></div>
+                  <div><dt class="inline">meshes</dt> <dd class="inline tabular-nums text-fg">{{ c.activeMeshes }}</dd></div>
+                  <div><dt class="inline">tris</dt> <dd class="inline tabular-nums text-fg">{{ c.triangles | number }}</dd></div>
+                  <div><dt class="inline">shadow</dt> <dd class="inline tabular-nums text-fg">{{ c.shadowMs }} ms</dd></div>
+                  <div><dt class="inline">shaders</dt> <dd class="inline tabular-nums text-fg">{{ c.shaderMs }} ms</dd></div>
+                </dl>
+              }
+
+              <p class="font-mono text-[0.6rem] text-fg-subtle">{{ status() }}</p>
+            </div>
+          }
+        </div>
+
+        <!-- Right, middle and shift-drag pan whichever of these is chosen;
+             this pair is the way in for a trackpad with one button and no
+             comfortable way to hold a modifier. -->
+        <div class="pointer-events-auto flex shrink-0 flex-col items-end gap-1">
+          <div class="flex items-center gap-1 rounded-lg border border-rule bg-bg/80 p-1 shadow-xl backdrop-blur">
+            <button type="button" (click)="setPan(false)"
+              class="rounded px-2 py-1 font-mono text-[0.65rem] transition-colors"
+              [class.bg-accent]="!pan()" [class.text-accent-fg]="!pan()"
+              [class.text-fg-muted]="pan()"
+              title="Left drag orbits. Right, middle or shift-drag pans.">orbit</button>
+            <button type="button" (click)="setPan(true)"
+              class="rounded px-2 py-1 font-mono text-[0.65rem] transition-colors"
+              [class.bg-accent]="pan()" [class.text-accent-fg]="pan()"
+              [class.text-fg-muted]="!pan()"
+              title="Left drag pans. Right, middle and shift-drag pan too.">pan</button>
+            <button type="button" (click)="recentre()"
+              class="rounded border border-rule px-2 py-1 font-mono text-[0.65rem] text-fg-muted transition-colors hover:border-accent hover:text-accent"
+              title="Frame the whole board again.">fit</button>
+          </div>
+        </div>
+      </div>
+
+      @if (!flora()) {
+        <button type="button" (click)="flora.set(true)"
+          class="group absolute right-2 top-1/2 z-20 flex w-9 -translate-y-1/2 flex-col items-center gap-3 rounded-l-lg border-y border-l border-rule-strong bg-bg/80 py-3 text-fg-muted shadow-lg backdrop-blur transition-colors hover:text-fg"
+          aria-label="Open plant list">
+          <span class="grid size-5 shrink-0 place-items-center rounded border border-rule-strong text-fg-muted transition-colors group-hover:border-accent group-hover:text-accent">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" class="size-3">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </span>
+          <span class="text-[0.6rem] font-semibold uppercase tracking-[0.2em]"
+                style="writing-mode: vertical-rl">Plants</span>
+        </button>
       }
 
-      <div class="relative min-h-0 flex-1 overflow-hidden rounded">
-        @if (!flora()) {
-          <button type="button" (click)="flora.set(true)"
-            class="group absolute right-0 top-0 z-20 flex w-10 flex-col items-center gap-3 rounded-l border-y border-l border-rule-strong bg-bg-muted py-3 text-fg-muted shadow-lg transition-colors hover:bg-bg-sunk hover:text-fg"
-            aria-label="Open plant list">
-            <span class="grid size-5 shrink-0 place-items-center rounded border border-rule-strong bg-bg text-fg-muted transition-colors group-hover:border-accent group-hover:text-accent">
+      @if (flora()) {
+        <aside class="absolute inset-y-0 right-0 z-30 flex w-80 flex-col border-l border-rule bg-bg/95 shadow-xl backdrop-blur">
+          <div class="flex h-11 shrink-0 items-center justify-between border-b border-rule px-3">
+            <span class="text-sm font-semibold text-fg">Plants</span>
+            <button type="button" (click)="flora.set(false)"
+              class="grid size-7 place-items-center rounded text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
+              aria-label="Collapse plant list">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                   stroke-linecap="round" stroke-linejoin="round" class="size-3">
-                <path d="M12 5v14M5 12h14" />
+                   stroke-linecap="round" stroke-linejoin="round" class="size-4">
+                <path d="m9 18 6-6-6-6" />
               </svg>
-            </span>
-            <span class="text-[0.6rem] font-semibold uppercase tracking-[0.2em]"
-                  style="writing-mode: vertical-rl">Plants</span>
-          </button>
-        }
+            </button>
+          </div>
 
-        @if (flora()) {
-          <aside class="absolute inset-y-0 right-0 z-20 flex w-80 flex-col border-l border-rule bg-bg shadow-xl">
-            <div class="flex h-11 shrink-0 items-center justify-between border-b border-rule px-3">
-              <span class="text-sm font-semibold text-fg">Plants</span>
-              <button type="button" (click)="flora.set(false)"
-                class="grid size-7 place-items-center rounded text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
-                aria-label="Collapse plant list">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round" class="size-4">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
-            </div>
+          <div class="min-h-0 flex-1 overflow-y-auto p-3">
+            <ooze-plant-preview [plant]="chosen()" />
 
-            <div class="min-h-0 flex-1 overflow-y-auto p-3">
-              <ooze-plant-preview [plant]="chosen()" />
+            <p class="mt-2 font-mono text-[0.6rem] text-fg-subtle">
+              {{ chosen().tall / 2 | number:'1.1-1' }} ft tall ·
+              {{ triangles(chosen()) }} tris ·
+              {{ share(chosen()) }}% of the sward ·
+              {{ drawn(chosen()) | number }} drawn
+            </p>
+            <p class="mt-2 text-xs leading-relaxed text-fg-muted">{{ chosen().note }}</p>
 
-              <p class="mt-2 font-mono text-[0.6rem] text-fg-subtle">
-                {{ chosen().tall / 2 | number:'1.1-1' }} ft tall ·
-                {{ triangles(chosen()) }} tris ·
-                {{ share(chosen()) }}% of the sward ·
-                {{ drawn(chosen()) | number }} drawn
-              </p>
-              <p class="mt-2 text-xs leading-relaxed text-fg-muted">{{ chosen().note }}</p>
+            <ul class="mt-3 flex flex-col gap-1">
+              @for (plant of species; track plant.id) {
+                <li>
+                  <button type="button" (click)="chosen.set(plant)"
+                    class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
+                    [class.border-accent]="chosen().id === plant.id"
+                    [class.text-fg]="chosen().id === plant.id"
+                    [class.border-rule]="chosen().id !== plant.id"
+                    [class.text-fg-muted]="chosen().id !== plant.id">
+                    <span class="font-medium">{{ plant.name }}</span>
+                    <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
+                      {{ share(plant) }}%
+                    </span>
+                  </button>
+                </li>
+              }
+            </ul>
+          </div>
+        </aside>
+      }
 
-              <ul class="mt-3 flex flex-col gap-1">
-                @for (plant of species; track plant.id) {
-                  <li>
-                    <button type="button" (click)="chosen.set(plant)"
-                      class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
-                      [class.border-accent]="chosen().id === plant.id"
-                      [class.text-fg]="chosen().id === plant.id"
-                      [class.border-rule]="chosen().id !== plant.id"
-                      [class.text-fg-muted]="chosen().id !== plant.id">
-                      <span class="font-medium">{{ plant.name }}</span>
-                      <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">
-                        {{ share(plant) }}%
-                      </span>
-                    </button>
-                  </li>
-                }
-              </ul>
-            </div>
-          </aside>
-        }
-
-        <canvas #canvas class="h-full w-full outline-none"
-          style="touch-action: none; overscroll-behavior: contain"></canvas>
-        @if (fault(); as message) {
-          <p class="absolute inset-x-0 top-1/2 px-6 text-center text-sm text-fg">
-            {{ message }}
-          </p>
-        }
-      </div>
+      @if (fault(); as message) {
+        <p class="absolute inset-x-0 top-1/2 z-20 px-6 text-center text-sm text-fg">
+          {{ message }}
+        </p>
+      }
     </div>
   `,
 })
@@ -224,6 +312,17 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly density = signal(50);
   /** Collapsed by default, like the dice roller: it is a critique tool. */
   protected readonly flora = signal(false);
+  /**
+   * The tools panel, remembered per browser.
+   *
+   * <p>Open by default the first time, because the switches are the whole
+   * reason this page is more than a screenshot — but collapsible, because a
+   * board is looked at and four rows of diagnostics standing over it are four
+   * rows of the field you cannot see.
+   */
+  protected readonly tools = signal(read('ooze.board.tools', true));
+  /** Whether a left drag pans instead of orbits. Right drag always pans. */
+  protected readonly pan = signal(false);
   protected readonly species = MEADOW;
   protected readonly chosen = signal<Plant>(MEADOW[0]);
   protected readonly fault = signal<string | null>(null);
@@ -243,6 +342,8 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private stage: Stage | null = null;
+  /** The board's own extent, so `fit` can frame it again later. */
+  private extent: { x: number; y: number } | null = null;
   private stats: Stats | null = null;
   private meadow: Meadow | null = null;
   private stones: Mesh[] = [];
@@ -426,6 +527,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         this.meadow?.step(performance.now() / 1000);
       });
 
+      this.extent = { x: field.extentXHalfFeet, y: field.extentYHalfFeet };
       stage.frame(
         field.extentXHalfFeet / 2, field.extentYHalfFeet / 2, 0,
         Math.max(field.extentXHalfFeet, field.extentYHalfFeet),
@@ -576,6 +678,24 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     this.hour.set(hour);
     this.clock.set(clockLabel(hour));
     this.stage?.setClock(hour);
+  }
+
+  protected toggleTools(): void {
+    this.tools.update(open => !open);
+    write('ooze.board.tools', this.tools());
+  }
+
+  protected setPan(on: boolean): void {
+    this.pan.set(on);
+    this.stage?.setPanMode(on);
+  }
+
+  /** Frames the whole board again, for when panning has wandered. */
+  protected recentre(): void {
+    const at = this.extent;
+    if (at && this.stage) {
+      this.stage.frame(at.x / 2, at.y / 2, 0, Math.max(at.x, at.y));
+    }
   }
 
   ngOnDestroy(): void {
