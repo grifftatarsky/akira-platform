@@ -116,6 +116,15 @@ const LEAF_LIFT = 0.22;
 /** How far the two edges of a card fan apart, in the card's own plane. */
 const EDGE_FAN = 0.3;
 
+/**
+ * The lowest a leaf's normal is allowed to point.
+ *
+ * <p>Not zero: a normal exactly on the horizon still takes nothing from the sky
+ * and everything from the hemisphere's ground colour, which is a brown that
+ * reads as black on a thin leaf.
+ */
+const LEAF_FLOOR = 0.02;
+
 /** One plant, at true size in half-feet, rooted at the origin. */
 export function cardGeometry(plant: Plant, sheet: FoliageSheet): VertexData {
   const build: Build = { positions: [], normals: [], uvs: [], indices: [] };
@@ -462,5 +471,15 @@ function lift(v: Vec): Vec {
   const y = (v[1] / flat) * (1 - LEAF_LIFT) + LEAF_LIFT;
   const z = (v[2] / flat) * (1 - LEAF_LIFT);
   const long = Math.hypot(x, y, z) || 1;
-  return [x / long, Math.max(y / long, 0.02), z / long];
+  // <b>Hold the floor by leaning the normal, not by nudging one component.</b>
+  // Clamping y after the divide leaves a vector that is no longer unit — the
+  // geometry tests measured the normals this function ships at between 0.9994
+  // and 1.0002, which the shader then renormalises for nothing. Solving for
+  // the horizontal part that makes it unit again is the same two lines and is
+  // exactly right.
+  const held = Math.max(y / long, LEAF_FLOOR);
+  const side = Math.hypot(x, z) / long;
+  const wanted = Math.sqrt(Math.max(0, 1 - held * held));
+  const scale = side > 1e-9 ? wanted / side : 0;
+  return [(x / long) * scale, held, (z / long) * scale];
 }
