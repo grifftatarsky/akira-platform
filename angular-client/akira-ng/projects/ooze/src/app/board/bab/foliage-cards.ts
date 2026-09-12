@@ -131,6 +131,17 @@ export function cardGeometry(plant: Plant, sheet: FoliageSheet): VertexData {
         : (n / spec.count) * Math.PI * 2 + Math.sin(n * 12.9898 + placed) * 0.4;
       const cut = cuts[(n + placed * 3) % cuts.length];
       addCard(build, plant, spec, cut, around, n);
+      if (spec.cross !== undefined) {
+        // The same head again, turned a right angle and stood partway up. The
+        // pair costs two triangles and is the difference between a flower and
+        // a white hyphen at every angle but one.
+        // A different cut of the same group, so the pair reads as one head
+        // with depth rather than as two flowers stuck together.
+        addCard(
+          build, plant, { ...spec, flat: false, lean: spec.cross },
+          cuts[(n + placed * 3 + 1) % cuts.length], around + Math.PI / 2, n + 1,
+        );
+      }
       placed++;
     }
   }
@@ -185,7 +196,9 @@ function addCard(
   for (let row = 0; row <= rows; row++) {
     const t = row / rows;
     const along = tall * t;
-    const edge = spanAt(cut, t);
+    // Half a row either side, so consecutive quads between them cover the
+    // whole outline with nothing falling down the gap.
+    const edge = spanOver(cut, t - 0.5 / rows, t + 0.5 / rows);
     for (const side of [0, 1] as const) {
       // The silhouette's own edge at this height, as an offset from the middle
       // of the cut-out — so the quad narrows where the plant does.
@@ -255,6 +268,51 @@ function addStem(build: Build, plant: Plant, sheet: FoliageSheet): void {
  * subdivided into three rows and a card subdivided into eight both follow the
  * same outline instead of two different staircases of it.
  */
+/**
+ * The widest the silhouette gets anywhere in the band a row has to cover.
+ *
+ * <p><b>A quad fitted to point samples clips the picture it is carrying.</b>
+ * The cut-out's shape comes from its alpha, not from this geometry — all the
+ * geometry has to do is *contain* it. Sampling the outline at each row does the
+ * opposite: with two rows, a card takes the silhouette's width at t=0 and t=1
+ * and joins them with a straight line, so anything that bulges in between is
+ * cut off before the alpha test ever sees it.
+ *
+ * <p>That is how the oxeye daisy rendered as a white cigarette. Its head is a
+ * disc, so its outline is narrow at the bottom, widest in the middle and narrow
+ * again at the top; taking only the two ends produced a quad 45 per cent of the
+ * flower's width, and the petals were clipped away by the mesh. The clover
+ * escaped it only because its own outline happens to reach the edges at both
+ * ends.
+ *
+ * <p>Taking the extremes over each row's band instead means the quad always
+ * covers the cut-out whatever the row count, so `rows` goes back to meaning
+ * what it should: how much the card can bend, not what shape it is.
+ */
+function spanOver(cut: Cut, from: number, to: number): readonly [number, number] {
+  const spans = cut.spans;
+  if (!spans?.length) {
+    return [0, 1];
+  }
+  const last = spans.length - 1;
+  const lo = Math.max(0, Math.min(last, from * last));
+  const hi = Math.max(0, Math.min(last, to * last));
+  let left = 1;
+  let right = 0;
+  // The interpolated ends, plus every sample strictly between them — the widest
+  // point of a band is at one of those and nowhere else.
+  for (const t of [lo, hi]) {
+    const edge = spanAt(cut, t / last);
+    left = Math.min(left, edge[0]);
+    right = Math.max(right, edge[1]);
+  }
+  for (let at = Math.ceil(lo); at <= Math.floor(hi); at++) {
+    left = Math.min(left, spans[at][0]);
+    right = Math.max(right, spans[at][1]);
+  }
+  return left < right ? [left, right] : [0, 1];
+}
+
 function spanAt(cut: Cut, t: number): readonly [number, number] {
   const spans = cut.spans;
   if (!spans?.length) {

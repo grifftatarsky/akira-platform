@@ -406,7 +406,21 @@ export class Stage {
       // can only clip. The wedge is gone with no change to bloom's own
       // settings.
       this.bloom.imageProcessingEnabled = true;
-      this.bloom.bloomEnabled = true;
+      // <b>Off by default, because this board has nothing to bloom.</b> Kept
+      // wired, because the moment anything on it is genuinely bright — a
+      // torch, a fireball, a sun disc the camera can see — this is the effect
+      // that pays for it, and it costs 1.2 ms only while it is on.
+      //
+      // <p>Measured as a threshold sweep with the pipeline left alone, so no
+      // rebuild and no temporal reset between captures, and read as mean pixel
+      // change against a threshold of six: the noise floor is 2.3, threshold 0
+      // moves 117, threshold 0.2 moves 36, and **every threshold from 0.4
+      // upward sits at the noise floor**. Nothing in a midday meadow exceeds a
+      // luminance of about 0.4, and everything else is just underneath it — so
+      // there is no highlight to separate. A threshold low enough to catch
+      // anything catches the whole frame and reads as a wash; a threshold high
+      // enough to be selective catches nothing at all.
+      this.bloom.bloomEnabled = false;
       // High, because almost nothing on a meadow is bright enough to bloom and
       // the things that are — a low sun on wet grass, the sky at the horizon —
       // are the whole point. A low threshold blooms the entire field into soup.

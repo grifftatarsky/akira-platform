@@ -1,4 +1,5 @@
-// Catch the three WGSL mistakes this project keeps making, before the GPU does.
+// Catch the mistakes this project keeps making in template literals, before
+// the GPU or the compiler does.
 //
 // All three fail silently: Babylon reports nothing, the material still answers
 // isReady(), the pipeline is quietly invalid and the field draws nothing. Each
@@ -25,6 +26,7 @@ for (const file of process.argv.slice(2)) {
   // the pair is balanced. That is how this check missed the sixth occurrence of
   // the bug it exists to catch.
   const blocks = [];
+  const markup = [];
   // Anchored to the line start so prose inside a JS comment cannot open a
   // block: "does not work: `vertexInputs.uv`" matched before this was.
   const opener = /^[ \t]*(?:(?:export )?const \w+\s*=|\w+:)\s*`/gm;
@@ -35,8 +37,14 @@ for (const file of process.argv.slice(2)) {
     const to = close === -1 ? fence : (fence === -1 ? close : Math.min(close, fence));
     if (to === -1) { continue; }
     const body = source.slice(from, to);
-    if (!/@compute|@vertex|@fragment|fn main|positionUpdated|vertexOutputs/.test(body)) { continue; }
-    blocks.push({ body, at: source.slice(0, from).split('\n').length });
+    const at = source.slice(0, from).split('\n').length;
+    if (/@compute|@vertex|@fragment|fn main|positionUpdated|vertexOutputs/.test(body)) {
+      blocks.push({ body, at });
+    } else if (/<\w|@if |@for /.test(body)) {
+      // An Angular component template. Not shader code, but it lives in the
+      // same kind of literal and fails the same way.
+      markup.push({ body, at });
+    }
     opener.lastIndex = to;
   }
 
@@ -66,9 +74,16 @@ for (const file of process.argv.slice(2)) {
       }
     }
   }
-  // A backtick inside a WGSL comment closes the template literal. Five times now.
+  // <b>A backtick inside the body closes the template literal.</b> Eight times
+  // now, and the eighth was not in a shader at all — it was prose inside an
+  // HTML comment inside an Angular component's `template`, which fails exactly
+  // the same way and was not being looked at. Both kinds of literal are checked
+  // now; the fix is always to write the name without the quoting.
   for (const { body, at } of blocks) {
     if (body.includes('`')) { console.error(`${file}:~${at}  backtick inside the shader body`); bad++; }
+  }
+  for (const { body, at } of markup) {
+    if (body.includes('`')) { console.error(`${file}:~${at}  backtick inside a component template`); bad++; }
   }
 }
 console.log(bad ? `${bad} problem(s)` : 'wgsl clean');

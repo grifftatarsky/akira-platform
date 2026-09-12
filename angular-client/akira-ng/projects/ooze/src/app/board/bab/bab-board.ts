@@ -236,7 +236,7 @@ import { type Terrain, buildTerrain } from './terrain';
       @if (!flora()) {
         <button type="button" (click)="flora.set(true)"
           class="group absolute right-2 top-1/2 z-20 flex w-9 -translate-y-1/2 flex-col items-center gap-3 rounded-l-lg border-y border-l border-rule-strong bg-bg/80 py-3 text-fg-muted shadow-lg backdrop-blur transition-colors hover:text-fg"
-          aria-label="Open plant list">
+          aria-label="Open the asset panel">
           <span class="grid size-5 shrink-0 place-items-center rounded border border-rule-strong text-fg-muted transition-colors group-hover:border-accent group-hover:text-accent">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                  stroke-linecap="round" stroke-linejoin="round" class="size-3">
@@ -244,17 +244,17 @@ import { type Terrain, buildTerrain } from './terrain';
             </svg>
           </span>
           <span class="text-[0.6rem] font-semibold uppercase tracking-[0.2em]"
-                style="writing-mode: vertical-rl">Plants</span>
+                style="writing-mode: vertical-rl">Assets</span>
         </button>
       }
 
       @if (flora()) {
-        <aside class="absolute inset-y-0 right-0 z-30 flex w-80 flex-col border-l border-rule bg-bg/95 shadow-xl backdrop-blur">
+        <aside class="absolute inset-y-0 right-0 z-30 flex w-[27rem] max-w-[90vw] flex-col border-l border-rule bg-bg/95 shadow-xl backdrop-blur">
           <div class="flex h-11 shrink-0 items-center justify-between border-b border-rule px-3">
-            <span class="text-sm font-semibold text-fg">Plants</span>
+            <span class="text-sm font-semibold text-fg">Assets</span>
             <button type="button" (click)="flora.set(false)"
               class="grid size-7 place-items-center rounded text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
-              aria-label="Collapse plant list">
+              aria-label="Collapse the asset panel">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" stroke-linejoin="round" class="size-4">
                 <path d="m9 18 6-6-6-6" />
@@ -262,15 +262,60 @@ import { type Terrain, buildTerrain } from './terrain';
             </button>
           </div>
 
-          <div class="min-h-0 flex-1 overflow-y-auto p-3">
-            <ooze-plant-preview [plant]="chosen()" />
+          <!-- <b>Big, because this is where the shapes get judged.</b> A card
+               renderer fails at particular angles — a flat flower head is a
+               white hyphen seen from low down and perfect from above — and a
+               turntable passes through both too fast to notice. -->
+          <div class="h-72 shrink-0 border-b border-rule p-2">
+            <ooze-plant-preview [plant]="chosen()" [angle]="angle()" [spin]="spin()" />
+          </div>
+          <div class="flex shrink-0 flex-wrap items-center gap-1 border-b border-rule px-2 py-1.5 font-mono text-[0.65rem]">
+            @for (where of angles; track where.key) {
+              <button type="button" (click)="angle.set(where.key)" [title]="where.note"
+                class="rounded px-2 py-1 transition-colors"
+                [class.bg-accent]="angle() === where.key"
+                [class.text-accent-fg]="angle() === where.key"
+                [class.text-fg-muted]="angle() !== where.key">{{ where.label }}</button>
+            }
+            <button type="button" (click)="spin.set(!spin())"
+              class="ml-auto rounded border border-rule px-2 py-1 transition-colors"
+              [class.border-accent]="spin()" [class.text-accent]="spin()"
+              [class.text-fg-muted]="!spin()"
+              title="Turntable. Off holds the angle so a silhouette can be read.">spin</button>
+          </div>
 
-            <p class="mt-2 font-mono text-[0.6rem] text-fg-subtle">
+          <div class="min-h-0 flex-1 overflow-y-auto p-3">
+            <p class="font-mono text-[0.6rem] text-fg-subtle">
               {{ chosen().tall / 2 | number:'1.1-1' }} ft tall ·
               {{ triangles(chosen()) }} tris ·
               {{ share(chosen()) }}% of the sward ·
               {{ drawn(chosen()) | number }} drawn
             </p>
+            <!-- Every card the plant is made of, because the number that is
+                 usually wrong is the row count: a card is a quad strip, so two
+                 rows can only ever be a trapezoid and a round leaf collapses.
+                 Under three is flagged. -->
+            <table class="mt-2 w-full font-mono text-[0.6rem] text-fg-subtle">
+              <thead class="text-fg-whisper">
+                <tr class="text-left">
+                  <th class="font-normal">card</th><th class="font-normal">n</th>
+                  <th class="font-normal">tall</th><th class="font-normal">lean</th>
+                  <th class="font-normal">rows</th><th class="font-normal">lies</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (card of chosen().cards; track $index) {
+                  <tr>
+                    <td class="text-fg">{{ card.group }}</td>
+                    <td class="tabular-nums">{{ card.count }}</td>
+                    <td class="tabular-nums">{{ card.tall }}</td>
+                    <td class="tabular-nums">{{ card.flat ? '90°' : (card.lean * 57.3 | number:'1.0-0') + '°' }}</td>
+                    <td class="tabular-nums" [class.text-danger]="card.rows < 3">{{ card.rows }}</td>
+                    <td>{{ card.flat ? 'flat' : '' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
             <p class="mt-2 text-xs leading-relaxed text-fg-muted">{{ chosen().note }}</p>
 
             <ul class="mt-3 flex flex-col gap-1">
@@ -323,6 +368,16 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly tools = signal(read('ooze.board.tools', true));
   /** Whether a left drag pans instead of orbits. Right drag always pans. */
   protected readonly pan = signal(false);
+  protected readonly angle = signal<'top' | 'three' | 'side' | 'low'>('three');
+  protected readonly spin = signal(true);
+  protected readonly angles: readonly {
+    key: 'top' | 'three' | 'side' | 'low'; label: string; note: string;
+  }[] = [
+    { key: 'top', label: 'top', note: 'Straight down — the board\'s own camera.' },
+    { key: 'three', label: 'three-quarter', note: 'The usual playing angle.' },
+    { key: 'low', label: 'low', note: 'The shallow angle a flat card disappears at.' },
+    { key: 'side', label: 'side', note: 'Level with the plant, for its height and its stem.' },
+  ];
   protected readonly species = MEADOW;
   protected readonly chosen = signal<Plant>(MEADOW[0]);
   protected readonly fault = signal<string | null>(null);
@@ -366,10 +421,17 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     { key: 'relief', label: 'ground relief', note: 'The terrain normal and roughness maps.' },
     { key: 'sky', label: 'sky light', note: 'Image-based light from the sky probe.' },
     { key: 'grade', label: 'grade', note: 'Tone mapping, contrast and exposure.' },
-    { key: 'bloom', label: 'bloom', note: 'Light spilling around bright edges.' },
+    { key: 'bloom', label: 'bloom', note: 'Light spilling around bright edges. Off: nothing on a midday meadow is bright enough to bloom — measured, everything sits under 0.4 luminance. It is here for torches and fire.' },
   ];
 
-  protected readonly on = signal<Partial<Record<Part, boolean>>>({});
+  /**
+   * Which pieces are switched on. Absent means on.
+   *
+   * <p>Bloom is the one that starts off: there is nothing on a midday meadow
+   * bright enough for it to find, measured, and a switch that starts on and
+   * does nothing reads as a broken switch rather than as an empty effect.
+   */
+  protected readonly on = signal<Partial<Record<Part, boolean>>>({ bloom: false });
 
   protected readonly day = signal(196);
   protected readonly dayLabel = signal('mid Jul');

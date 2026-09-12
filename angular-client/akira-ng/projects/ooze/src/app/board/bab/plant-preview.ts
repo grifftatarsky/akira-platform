@@ -32,15 +32,27 @@ import type { Plant } from './species';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
-  template: `<canvas #canvas class="h-56 w-full rounded bg-bg-sunk outline-none"
+  template: `<canvas #canvas class="h-full w-full rounded bg-bg-sunk outline-none"
     style="touch-action: none"></canvas>`,
 })
 export class PlantPreview implements AfterViewInit, OnDestroy {
 
   readonly plant = input.required<Plant>();
+  /**
+   * Where to stand.
+   *
+   * <p><b>The angles a card renderer actually fails at.</b> `top` is the
+   * board's own camera and the one a flat flower head is built for; `low` is
+   * the shallow angle it is most often looked at from, and the one that turns
+   * a horizontal card into a white hyphen. A turntable alone shows neither of
+   * them for long enough to notice.
+   */
+  readonly angle = input<'top' | 'three' | 'side' | 'low'>('three');
+  readonly spin = input(true);
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private engine: WebGPUEngine | null = null;
+  private camera: ArcRotateCamera | null = null;
   private scene: Scene | null = null;
   private mesh: Mesh | null = null;
   private sheet: FoliageSheet | null = null;
@@ -53,6 +65,20 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
       const plant = this.plant();
       if (this.scene && this.sheet) {
         this.model(plant, this.sheet);
+      }
+    });
+    effect(() => {
+      const where = this.angle();
+      const camera = this.camera;
+      if (camera) {
+        // Beta is from straight up: a small one looks down on the plant, near
+        // a right angle stands level with it.
+        const [alpha, beta] = where === 'top' ? [-1.1, 0.18]
+          : where === 'side' ? [-1.1, 1.52]
+            : where === 'low' ? [-1.1, 1.33]
+              : [-1.1, 1.0];
+        camera.alpha = alpha;
+        camera.beta = beta;
       }
     });
   }
@@ -76,11 +102,17 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     scene.clearColor = new Color4(0.07, 0.08, 0.07, 1);
     this.scene = scene;
 
-    const camera = new ArcRotateCamera('view', -1.1, 1.15, 2.6, new Vector3(0, 0.45, 0), scene);
+    const camera = new ArcRotateCamera('view', -1.1, 1.0, 2.6, new Vector3(0, 0.45, 0), scene);
     camera.attachControl(this.canvas().nativeElement, false);
-    camera.lowerRadiusLimit = 1.2;
+    camera.lowerRadiusLimit = 0.8;
     camera.upperRadiusLimit = 6;
     camera.wheelDeltaPercentage = 0.04;
+    // All the way over the top, because looking straight down on a flat flower
+    // head is the single most useful angle here and the default limit stops
+    // just short of it.
+    camera.lowerBetaLimit = 0.02;
+    camera.upperBetaLimit = Math.PI - 0.02;
+    this.camera = camera;
 
     const sun = new DirectionalLight('sun', new Vector3(-0.5, -1, 0.6), scene);
     sun.intensity = 2.4;
@@ -106,7 +138,9 @@ export class PlantPreview implements AfterViewInit, OnDestroy {
     // Turning slowly, because a silhouette is the thing being judged and a
     // still one only shows you a single angle of it.
     scene.onBeforeRenderObservable.add(() => {
-      camera.alpha += 0.0045;
+      if (this.spin()) {
+        camera.alpha += 0.0045;
+      }
     });
     engine.runRenderLoop(() => scene.render());
   }

@@ -52,6 +52,18 @@ export interface CardSpec {
   readonly taper: number;
   /** Lies in the horizontal plane instead, for a flower seen from above. */
   readonly flat?: boolean;
+  /**
+   * Emit the card a second time, turned a right angle and leaned this far from
+   * vertical.
+   *
+   * <p><b>A single card is invisible edge-on, and a flower head is the one
+   * place that matters.</b> A blade of grass seen edge-on still reads as a
+   * blade, because a blade really is that thin; a daisy seen edge-on is a white
+   * hyphen. Laid flat it is perfect from straight above and gone from the low
+   * angle this board is looked at from half the time, so it is built as a
+   * crossed pair and there is always a face toward the camera. Two triangles.
+   */
+  readonly cross?: number;
 }
 
 export interface Plant {
@@ -260,7 +272,12 @@ export const MEADOW: readonly Plant[] = [
     patch: 0.017, clumping: 2.0, crowd: 1.3,
     // triangles it replaces were three modelled leaflets trying to say it.
     cards: [
-      { group: 'clover', count: 1, tall: 0.95, at: 0, out: 0, lean: 0.26, rows: 2, taper: 1 },
+      // <b>Held out, not held up.</b> At fifteen degrees off vertical the
+      // trefoil stood on its edge, which is the one thing a white clover leaf
+      // never does — it sits out flat on top of its petiole where the light
+      // is. It also meant the board's own camera, which looks down, saw the
+      // thinnest part of nearly a quarter of the sward.
+      { group: 'clover', count: 1, tall: 0.95, at: 0, out: 0, lean: 0.95, rows: 2, taper: 1 },
     ],
     stemTall: 0,
     lit: 0.64, wearMax: 0.78, damp: 0.5,
@@ -309,7 +326,13 @@ export const MEADOW: readonly Plant[] = [
     // camera looks down at it, and an oxeye daisy holds its face to the sky.
     cards: [
       { group: 'rosette', count: 3, tall: 0.95, at: 0.03, out: 0.04, lean: 1.16, rows: 2, taper: 1 },
-      { group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0, lean: 0, rows: 1, taper: 1, flat: true },
+      // <b>A crossed pair, and neither half is laid flat.</b> Perfectly
+      // horizontal is right for exactly one camera and draws a hard black
+      // line from every other, because a card seen along its own plane is a
+      // sliver lit by a normal pointing away. Seventy-two degrees over and
+      // thirty-one over, turned a right angle apart, means one of the two is
+      // always presenting its face and neither is ever edge-on.
+      { group: 'daisy', count: 1, tall: 0.72, at: 2.4, out: 0, lean: 1.25, rows: 1, taper: 1, cross: 0.55 },
     ],
     stemTall: 2.4,
     lit: 0.72, wearMax: 0.5, damp: 0,
