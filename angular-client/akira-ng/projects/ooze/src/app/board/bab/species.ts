@@ -263,6 +263,75 @@ export const MEADOW: readonly Plant[] = [
     stemTall: 2.4,
     lit: 0.86, wearMax: 0.45, damp: 0,
   },
+  // <b>Restored, and the reason is a measurement.</b> These two were deleted
+  // when the flowers became scans, on the theory that scans would replace all
+  // the broadleaf. Reading the compute pass's matrices back afterwards: grass
+  // 92,098 placed with 220 of 1,320 cells bald, in a band across the board —
+  // the exact complement of the Yorkshire fog's map. The drift competition
+  // hands every cell to whichever species' field is strongest there, and with
+  // only two species left, wherever grass was weak the fog won at two stalks a
+  // cell or nothing did. Clover and plantain were the dense low cover that
+  // used to fill those cells. They are the sward's understorey; the scanned
+  // flowers stand in it, they do not replace it.
+  {
+    id: 'clover',
+    name: 'White clover',
+    note: 'Three round leaflets, notched at the tip, meeting at the top of one '
+      + 'stem and tilted out from it. The notch is the whole recognition — '
+      + 'without it a clover leaf is a spade, and a spade is a weed nobody can '
+      + 'name.',
+    share: 0.21,
+    tall: 0.95, wide: 0.52, head: 0, segments: 6,
+    widest: 0.62, fullness: 1.05, blunt: 0.74, notch: 0.15, fold: 0.28,
+    leaflets: 3, spread: 0.8, stem: 0.85, petals: 0, spikelets: 0,
+    droop: 0.12, stiff: 0.35,
+    base: [0.10, 0.26, 0.09], tip: [0.26, 0.50, 0.19], bloom: [0, 0, 0],
+    veins: 0, sweep: 0,
+    // <b>A petiole the mesh draws, because the card no longer carries one.</b>
+    blooms: false,
+    patch: 0.017, clumping: 2.0, crowd: 1.3,
+    cards: [
+      // <b>Flat, on a petiole, which is what a clover leaf is.</b> Leaning the
+      // card was a rotation standing in for a mesh: the scan has the petiole
+      // photographed into it, so the leaf could not lie down without its stalk
+      // lying down too, and every angle but one looked wrong. The stalk is
+      // trimmed off the cut now and the mesh draws a real one, so the trefoil
+      // sits out flat on top of it where the light is — which also means the
+      // board's own camera stops looking at the thin edge of a fifth of the
+      // sward.
+      {
+        group: 'clover', count: 1, tall: 0.52, at: 0.58, out: 0,
+        lean: 0, rows: 2, taper: 1, flat: true, trimStalk: true, centred: 0.38,
+      },
+    ],
+    stemTall: 0.58,
+    lit: 0.64, wearMax: 0.78, damp: 0.5,
+  },
+  {
+    id: 'plantain',
+    name: 'Ribwort plantain',
+    note: 'A rosette of long, ribbed leaves. Semi-erect and gathered, not '
+      + 'splayed: flat rosettes are what it makes in short turf, and in a '
+      + 'meadow it stands up to compete. Five parallel veins running the '
+      + 'length of the leaf are what name it, and it grows where the grass has '
+      + 'been trodden thin.',
+    share: 0.21,
+    tall: 2.1, wide: 0.31, head: 0, segments: 5,
+    widest: 0.35, fullness: 0.95, blunt: 0.12, notch: 0, fold: 0.45,
+    leaflets: 7, spread: 0.48, stem: 0.05, petals: 0, spikelets: 0,
+    droop: 0.28, stiff: 0.3,
+    base: [0.13, 0.24, 0.08], tip: [0.32, 0.47, 0.16], bloom: [0, 0, 0],
+    veins: 5, sweep: 0.1,
+    // A rosette pressed almost flat, which is how a plantain survives being
+    blooms: false,
+    patch: 0.024, clumping: 2.0, crowd: 1.3,
+    // walked on and why it is the plant on the path rather than beside it.
+    cards: [
+      { group: 'rosette', count: 5, tall: 2.0, at: 0.04, out: 0.05, lean: 0.98, rows: 2, taper: 1 },
+    ],
+    stemTall: 0,
+    lit: 0.68, wearMax: 0.92, damp: -0.3,
+  },
 ];
 
 /**
