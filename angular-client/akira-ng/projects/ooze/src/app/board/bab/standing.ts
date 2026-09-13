@@ -10,48 +10,14 @@ import { type GroundField, groundAt, heightAt, noise, slopeAt } from '../ground-
 import { assetUrl } from './assets';
 import type { Cut, FoliageSheet } from './foliage-cards';
 
-/**
- * What stands above the sward: trees, scrub and stone.
- *
- * <p><b>A meadow is mostly grass, and the count is the first decision.</b>
- * Surveys of wood pasture put scattered trees at up to thirty-four the hectare
- * before the habitat stops being open ground and starts being woodland. This
- * board is two hundred and twenty feet by a hundred and fifty — three tenths of
- * a hectare — so the whole map supports about ten trees, and rather fewer if it
- * is grazed. Filling it with trees would not be a prettier meadow, it would be
- * a different habitat.
- *
- * <p><b>And they are not scattered at random.</b> Random is the mistake this
- * renderer already made once with the grass, and it reads as a texture rather
- * than as a place. Trees in pasture stand where something let them: along the
- * boundary, along the track where a mower cannot reach, and as the occasional
- * lone specimen nobody got round to felling. Scrub comes in from the margins
- * and from the verge for the same reason — it is where the grazing stops.
- * Stone shows where the soil is thin, which is the rises and the worn ground.
- *
- * <p>So every kind here is placed by a rule against the ground field the board
- * already has — how worn, how damp, how steep, how near the edge — times its
- * own slow noise, and a candidate that fails the rule is simply not planted.
- */
-
-/** A tree is a trunk and a canopy of cards; both are one merged mesh. */
 export interface Standing {
   readonly meshes: readonly Mesh[];
   dispose(): void;
 }
 
-/**
- * Trees per hectare, at the open end of wood pasture.
- *
- * <p>Twelve on this board, before the rules refuse any of them. The refusals
- * matter more than the number: a candidate on the track, on a steep bank or in
- * the middle of the open field is thrown away, so the survivors are wherever
- * the board happens to have a margin.
- */
 const TREES = 7;
 const SCRUB = 54;
 
-/** Half-feet. A hedgerow oak in a Virginia field, give or take. */
 const TREE_TALL = 64;
 
 interface Build {
@@ -65,55 +31,22 @@ function empty(): Build {
   return { positions: [], normals: [], uvs: [], indices: [] };
 }
 
-/** A stable hash in nought to one, so a board is the same board every load. */
 function dice(x: number, y: number, salt: number): number {
   const n = Math.sin(x * 127.1 + y * 311.7 + salt * 74.7) * 43758.5453;
   return n - Math.floor(n);
 }
 
-/**
- * How near the board's own edge a point is, in half-feet, as nought to one
- * across the first twenty.
- *
- * <p>The boundary is where a field's trees are, because the boundary is the one
- * line a plough and a mower both stop at.
- */
 function margin(field: GroundField, x: number, y: number): number {
   const near = Math.min(
     x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
   );
-  // <b>A band inside the boundary, not a ramp off the edge.</b> A tree wants
-  // the field's margin and it wants its whole crown on the board — which is
-  // fifty-odd half-feet in, because a crown reaches a third of the tree's
-  // height out from the trunk and a lobe adds its own radius. So the band the
-  // trees want is the one just inside that line, and it fades toward the middle
-  // of the field where only the occasional specimen stands.
-  //
-  // <p>Written as a ramp off the edge it was worth almost nothing at the only
-  // distances a tree is allowed to stand, and the board came out with one tree
-  // on it.
+
   if (near < 52) {
     return 0;
   }
   return 1 - Math.min(1, Math.max(0, near - 58) / 64);
 }
 
-/**
- * The lowest the *drawn* ground gets under a footprint, in stage units.
- *
- * <p><b>`heightAt` is not the surface anybody can see.</b> The terrain mesh
- * carries one vertex per half-foot and interpolates between them, so on ground
- * with ruts cut into it — which is most of this board's track — the triangle
- * between two samples runs above the height field in the hollows and below it
- * on the ridges. A trunk placed at the field's own value for its centre point
- * therefore floats by as much as the rut is deep, which is exactly what showed
- * up on the tree standing in the road.
- *
- * <p>Sampling the lattice the mesh actually uses, across the trunk's own
- * footprint, and taking the lowest of them puts the base at or under the
- * drawn surface everywhere it touches. A little buried is invisible; a little
- * airborne is the first thing anyone sees.
- */
 function groundUnder(
   field: GroundField, x: number, y: number, reach: number,
 ): number {
@@ -132,16 +65,6 @@ function groundUnder(
   return low;
 }
 
-/**
- * Named subjects out of one scan file, each merged and rebased, ready to
- * scatter.
- *
- * <p>A scan is often several subjects captured together — seven shrubs, six
- * mossy rocks — and each subject can be several primitives, because bark,
- * leaves and twigs are separate materials. The index this takes is a
- * *subject*, and every primitive of that subject comes with it, which is the
- * whole correction this function exists to make.
- */
 export async function loadScans(
   name: string, scene: Scene, wanted: readonly number[],
 ): Promise<Map<number, Mesh>> {
@@ -149,14 +72,7 @@ export async function loadScans(
     assetUrl(`assets/board/models/${name}/${name}.gltf`), scene,
   );
   const drawn = box.meshes.filter(mesh => mesh.getTotalVertices() > 0) as Mesh[];
-  // <b>A glTF node is a plant; a primitive is one of that plant's materials.</b>
-  // Babylon splits a multi-primitive node into children named
-  // `<node>_primitive0..N` under a transform node, so the flat mesh list runs
-  // bark, leaves, twigs of the first plant, then of the second, and so on.
-  // Indexing that list picks a *material*, not a plant — which is what this
-  // file did for two builds: `searsia_lucida` shipped as five copies of one
-  // bush's twigs and ten of another's bark. It looked exactly like what it
-  // was, a field of disconnected sticks and bare trunks.
+
   const byNode = new Map<string, Mesh[]>();
   for (const mesh of drawn) {
     const node = mesh.parent && mesh.parent.name !== '__root__' ? mesh.parent : mesh;
@@ -167,11 +83,7 @@ export async function loadScans(
       byNode.set(node.name, [mesh]);
     }
   }
-  // Sorted by name, so a plant index means the same plant on every load
-  // whatever order the loader happens to resolve its promises in.
-  // Sorted inside a plant too, so `_primitive0` — which in both of this
-  // board's scans is the bark — is reliably first. The trunk is what the
-  // rebase below anchors on.
+
   const plants = [...byNode.keys()].sort().map(
     key => byNode.get(key)!.sort((a, b) => a.name.localeCompare(b.name)),
   );
@@ -188,25 +100,12 @@ export async function loadScans(
     if (!parts.length) {
       continue;
     }
-    // <b>World transform into the vertices before anything else.</b> A glTF
-    // arrives under a `__root__` carrying the handedness flip, and a thin
-    // instance's matrix composes against whatever world matrix the mesh
-    // already has — so left attached, every instance is placed through that
-    // root and lands somewhere else entirely. `setParent(null)` keeps the
-    // world transform where clearing `.parent` would drop it, and baking
-    // flattens it, flipping the winding with the determinant.
+
     for (const mesh of parts) {
       mesh.setParent(null);
       mesh.bakeCurrentTransformIntoVertices();
     }
-    // <b>The trunk is the anchor, not the bounding box.</b> A plant's overall
-    // box bottoms out at whatever hangs lowest, which on a tree is the tip of
-    // a drooping branch a foot outside the trunk and well below its base.
-    // Rebasing on that stands the tree on its lowest leaf and leaves the trunk
-    // hanging in the air — which is exactly what the board showed. The bark
-    // primitive's own lowest point is where the plant actually meets soil, and
-    // its horizontal centre is the trunk rather than the centre of a lopsided
-    // crown, so an instance lands where it was asked to.
+
     parts[0].refreshBoundingInfo();
     const trunk = parts[0].getBoundingInfo().boundingBox;
     const stands = new Vector3(
@@ -220,17 +119,11 @@ export async function loadScans(
     if (!one) {
       continue;
     }
-    // <b>`MergeMeshes` builds its result in the scene already.</b> Adding it a
-    // second time put `island_tree_02` in `scene.meshes` twice, and a mesh
-    // listed twice is dispatched twice — every tree on this board was drawn
-    // two times, for nothing anybody could see.
+
     if (!scene.meshes.includes(one)) {
       scene.addMesh(one);
     }
-    // <b>Base at nought, centred over its own footprint.</b> A scan's node
-    // origin is wherever the capture rig's was, which for a plant lifted out
-    // of a seven-plant scan is metres away from the plant. Rebasing here means
-    // the placement below can say "at this point on the ground" and be right.
+
     one.bakeTransformIntoVertices(Matrix.Translation(
       -stands.x, -stands.y, -stands.z,
     ));
@@ -245,61 +138,23 @@ export async function loadScans(
   return out;
 }
 
-/**
- * Trees and scrub, from scans, scattered by the same rules the cards were.
- *
- * <p><b>These replaced trees I built out of cards, and building them was the
- * mistake.</b> The plants in the sward worked because a scan states a shape
- * exactly and a card only has to carry it; a tree is not one shape, it is a
- * structure, and composing one out of foliage clumps produced something that
- * read as a stack of boxes however the cards were arranged. The lesson the
- * meadow already taught — find the photograph, do not draw it — applies twice
- * as hard to the more complicated object.
- *
- * <p><b>They are big, and that is the trade.</b> Poly Haven's `island_tree_02`
- * is forty-five megabytes and `searsia_lucida` nineteen. Every CC0 tree that is
- * photographic is that size, and every CC0 tree that is small is flat-shaded
- * low-poly that would sit beside photographed grass looking like a different
- * game. This board is not deployed; it downloads once and instances after.
- */
 export interface ScanKind {
   readonly name: string;
   readonly count: number;
-  /** Half-feet the scan measures, so it can be fitted to the board's scale. */
+
   readonly tall: number;
   readonly inside: number;
   readonly wearMax: number;
-  /** How strongly it wants the field's margin over its middle. */
+
   readonly edge: number;
-  /** Which *plant* of a multi-plant scan to take, not which primitive. */
+
   readonly plant?: number;
-  /** What to call it in the asset panel. */
+
   readonly label: string;
 }
 
-/**
- * What stands on this board, as data rather than as a literal inside the
- * function that plants it — so the asset panel can show exactly the things the
- * board is made of instead of a second list that drifts from this one.
- */
 export const STANDING: readonly ScanKind[] = [
-    // <b>Near enough the size they were photographed at, which they were not
-    // before.</b> These are small plants: `island_tree_02` is 3.4 m tall and
-    // the biggest `searsia_lucida` in its seven-plant scan is 2.3 m. Asking for
-    // a seventeen-foot field tree out of a four-foot shrub is a twelve-fold
-    // blow-up, and a canopy's leaf density falls with the cube of that — which
-    // is why the scrub came out pale and see-through with its stems showing.
-    // A scan carries its own density and the only way to keep it is to leave
-    // its scale alone.
-    //
-    // <p>So the tree is the tree, at half again its captured height, and the
-    // shrub scan is used as shrubs. Plants sorted by name run a (2.3 m, 136k
-    // vertices) down to g (0.8 m, 8k); a, c and e give three silhouettes at
-    // eight, five and three feet for less than one `island_tree_02`.
-    //
-    // <p>Counts are still a budget. A photographic tree is eight hundred
-    // thousand vertices, and the way to get a field's real number back is
-    // impostors, which is in the plan rather than in this file.
+
     { name: 'island_tree_02', count: 3, tall: 38, inside: 46, wearMax: 0.58, edge: 0.8, label: 'Island tree' },
     { name: 'searsia_lucida', count: 4, tall: 16, inside: 20, wearMax: 0.6, edge: 0.7, plant: 0, label: 'Searsia, tall bush' },
     { name: 'searsia_lucida', count: 5, tall: 11, inside: 14, wearMax: 0.66, edge: 0.5, plant: 2, label: 'Searsia, bush' },
@@ -311,9 +166,6 @@ export async function plantScans(
 ): Promise<Mesh[]> {
   const kinds = STANDING;
 
-  // One load a file, however many plants are wanted out of it. Parsing an
-  // eighteen-megabyte buffer three times to take three bushes out of it is
-  // three times the wait for the same result.
   const wanted = new Map<string, number[]>();
   for (const kind of kinds) {
     const list = wanted.get(kind.name) ?? [];
@@ -326,9 +178,7 @@ export async function plantScans(
   }
 
   const out: Mesh[] = [];
-  // <b>Shared across every kind, because a tree does not care what species the
-  // thing it is standing inside of is.</b> Two trees at the same point read as
-  // one broken tree, and the rule that placed them had no way to know.
+
   const standing: { x: number; y: number; reach: number }[] = [];
   for (let kind = 0; kind < kinds.length; kind++) {
     const want = kinds[kind];
@@ -337,26 +187,15 @@ export async function plantScans(
       continue;
     }
     scan.name = `scan-${want.name}-${want.plant ?? 0}`;
-    // <b>The trees have the same defect, and they were the thing this board
-    // held up as proof the scans were fine.</b> Measured over the UV area its
-    // leaves actually cover, `searsia_lucida` is ninety-three per cent painted
-    // black and `island_tree_02` forty-nine. A canopy reads as a canopy at a
-    // distance whatever is between the leaves, which is exactly why it took
-    // this long to notice.
+
     maskCutouts(scan, scene, 0.35);
-    // The scan's own height, so a tree can be asked for in half-feet rather
-    // than in whatever units it was captured at.
+
     scan.refreshBoundingInfo();
     const box = scan.getBoundingInfo().boundingBox;
     const own = Math.max(0.001, box.maximum.y - box.minimum.y);
 
     const matrices: Matrix[] = [];
-    // <b>The count is a promise, the rule is a preference.</b> A weighted rule
-    // that can refuse every candidate will, and the board comes back with one
-    // tree on it — which has happened twice. So the rule gets the first
-    // two-thirds of the attempts to itself, and after that only the hard vetoes
-    // apply: on the board, off the track, off a bank, and clear of its
-    // neighbours.
+
     const tries = want.count * 60;
     for (let at = 0; at < tries && matrices.length < want.count; at++) {
       const insist = at > tries * 0.66;
@@ -371,10 +210,7 @@ export async function plantScans(
         continue;
       }
       const size = (want.tall / own) * (0.78 + 0.44 * dice(at, 5, 7 + kind));
-      // A crown reaches about a third of the tree's height out from the trunk,
-      // so two of them touch at two thirds of the taller one's height. Half
-      // that is the closest two trees in a pasture stand without one of them
-      // having lost the argument.
+
       const reach = want.tall * (size / (want.tall / own)) * 0.34;
       if (standing.some(other => {
         const dx = other.x - x;
@@ -396,8 +232,7 @@ export async function plantScans(
       matrices.push(Matrix.Compose(
         new Vector3(size, size * (0.9 + 0.22 * dice(at, 9, 13)), size),
         Quaternion.FromEulerAngles(0, dice(at, 13, 89) * 6.2831853, 0),
-        // A shade into the ground, so a trunk meets the turf rather than
-        // standing on it.
+
         new Vector3(
           x, groundUnder(field, x, y, reach * 0.4) - want.tall * 0.02, y,
         ),
@@ -417,86 +252,34 @@ export async function plantScans(
   return out;
 }
 
-/**
- * Fieldstone, as real geometry rather than cards.
- *
- * <p><b>A short table of one-offs, not a count and a scatter.</b> Eleven copies
- * of the same boulder reads as eleven copies of the same boulder however they
- * are rotated and scaled, and two dozen of them reads as a scree slope. A
- * grazed field with a cart track through it has a couple of stones sitting in
- * the open grass and a few more turned out along the verge — so that is what
- * this is: seven stones, seven different rocks, placed one at a time.
- *
- * <p>Variety is nearly free here, because `rock_moss_set_01` is six separate
- * mossy rocks in one three-megabyte file at six thousand vertices each. The
- * Karoo boulders that were doing all the work are desert scans and read orange
- * under a Virginia sun; one of them stays for the colour break.
- */
 export interface StoneKind {
   readonly name: string;
-  /** Which rock of a multi-rock scan. */
+
   readonly rock?: number;
-    /**
-     * <b>Half-feet standing proud, not half-feet across.</b> Sized by width,
-     * these scans disappear: `rock_moss_set_01`'s rocks are slabs about twice
-     * as wide as they are tall, so asking for a four-foot stone got one under
-     * two feet high — and the sward is over two feet. Seven boulders went in
-     * and two could be seen. Height is the dimension that decides whether a
-     * stone is on this map at all, so height is what the table states.
-     */
+
   readonly tall: number;
-  /** Out in the open grass, or turned out along the track's verge. */
+
   readonly open: boolean;
-  /** What to call it in the asset panel. */
+
   readonly label: string;
 }
 
-/**
- * Scanned plants that are candidates for the sward, for looking at.
- *
- * <p><b>The trees are photogrammetry and the sward is flat photographs, and
- * that is the whole reason one looks better than the other.</b> Poly Haven has
- * scanned plants as well as scanned trees — five separate clumps in
- * `grass_medium_02`, five flowering plants in `celandine_01` — and the cheapest
- * of them is a complete little plant in 442 triangles, which is affordable at
- * the share a flower takes. Grass is not: a scanned tuft is 700 to 2500
- * triangles and there are eighty-eight thousand of them.
- *
- * <p>Listed here so they can be judged in the asset panel before anything is
- * planted with them.
- */
 export interface FloraKind {
   readonly name: string;
   readonly part: number;
   readonly label: string;
-  /** How many to scatter over the whole board. */
+
   readonly count: number;
-  /** Half-feet tall, so a scan can be fitted to the sward it stands in. */
+
   readonly tall: number;
-  /** How tightly it gathers into drifts: 0 is even, 1 is patches only. */
+
   readonly drift: number;
-  /** Ground this plant will not stand on, as worn-ness from 0 to 1. */
+
   readonly wearMax: number;
 }
 
-/**
- * The broadleaf plants and flowers of the sward, as scans.
- *
- * <p><b>Counts are deliberately low.</b> A meadow is grass; what makes it read
- * as a real place is a scatter of other things through it, not a carpet of
- * them. About three thousand plants over thirty-three thousand square feet is
- * one every eleven — two to a five-foot square, which is what a grazed field
- * with wildflowers in it actually looks like from above.
- *
- * <p>And counts are a budget for the same reason the trees' are: these are real
- * geometry. A celandine is 442 to 622 triangles and a flowering dandelion is
- * 3180, against the two triangles a card costs — which is exactly why the grass
- * stays cards. Eighty-eight thousand scanned tufts is not a thing any renderer
- * does; three thousand scanned flowers is nothing.
- */
 export const GROUND_FLORA: readonly FloraKind[] = [
-  // The flower. A real scanned dandelion with a real flower on a real stalk,
-  // which is the thing a card was never going to be.
+
   {
     name: 'dandelion_01', part: 2, label: 'Dandelion, in flower',
     count: 240, tall: 3.2, drift: 0.72, wearMax: 0.34,
@@ -505,8 +288,7 @@ export const GROUND_FLORA: readonly FloraKind[] = [
     name: 'dandelion_01', part: 4, label: 'Dandelion, small',
     count: 420, tall: 2.1, drift: 0.6, wearMax: 0.46,
   },
-  // The low broadleaf through the turf, where the clover was. Celandine's
-  // rounded leaves in a flat rosette are the same reading at the same height.
+
   {
     name: 'celandine_01', part: 0, label: 'Celandine, spreading',
     count: 620, tall: 2.4, drift: 0.55, wearMax: 0.38,
@@ -521,59 +303,11 @@ export const GROUND_FLORA: readonly FloraKind[] = [
   },
 ];
 
-/**
- * Scatters the ground flora as thin instances, in drifts.
- *
- * <p>A jittered lattice rather than the trees' try-and-reject loop: at these
- * counts a rule that refuses most candidates would spend a long time refusing,
- * and what a low plant wants is not a rare good spot but a general preference.
- * The drift is slow noise, so a species gathers into patches a few paces across
- * and leaves gaps between them — which is how wildflowers grow and is the one
- * thing that stops a scatter reading as a texture.
- */
-/**
- * Binds the alpha mask a Poly Haven scan's glTF forgot, to every cut-out
- * material on a mesh.
- *
- * <p><b>These scans are not solid shells.</b> The leaves are flat cut-out cards
- * and the base colour is an atlas of foliage on solid black. Poly Haven's JPEG
- * download gives you the atlas and not the mask — JPEG cannot carry an alpha
- * channel, glTF says a base colour texture without one is opaque, and so the
- * alpha test compares 1.0 against its cutoff and discards nothing. Every plant
- * draws its own black background.
- *
- * <p>Measured over the UV area each primitive actually covers: 54 to 66 per
- * cent of a celandine is black, 37 to 38 per cent of a dandelion, 49 per cent
- * of `island_tree_02`'s leaves and <b>93 per cent of `searsia_lucida`'s</b> —
- * the scrub this board has been calling excellent is almost entirely painted
- * background.
- *
- * <p>The mask ships as a separate `Alpha` download the glTF never references.
- * It goes in as an opacity texture read from luminance, because glTF has no
- * slot for a standalone alpha map and this leaves the asset alone. Which
- * materials need it is not a table: the loader has already set a transparency
- * mode on exactly the cut-out ones, and the mask's own name is the atlas's with
- * `_diff_` swapped for `_alpha_`.
- *
- * <p><b>`invertY` must be false.</b> Babylon's glTF loader builds its textures
- * with `invertY: false` and a hand-built `new Texture(url, scene)` defaults to
- * true — so the mask arrives flipped against the atlas and masks the wrong half
- * of it. It is the fourth constructor argument and there is no setter.
- */
 function maskCutouts(mesh: Mesh, scene: Scene, cutoff: number): void {
   for (const material of materialsOf(mesh)) {
-    // <b>`url`, not `name`.</b> The glTF loader names a texture after the
-    // material that uses it — "island_tree_02_leaves (Base Color)" — and keeps
-    // the path in `url`, prefixed with `data:`. Reading the name finds no
-    // `_diff_` in anything and this silently masks nothing at all, which is a
-    // fix that looks applied and is not.
     const atlas = ((material.albedoTexture as Texture | null)?.url ?? '')
       .replace(/^data:/, '');
-    // <b>Only the cut-out materials, and `OPAQUE` is zero rather than null.</b>
-    // Testing for null let the bark and the branches through, so they were
-    // handed masks named after atlases that have none — `island_tree_02` ships
-    // an alpha map for its leaves only, and the other two resolved to 404s.
-    // A material the loader left opaque is a solid surface and wants no mask.
+
     const mode = material.transparencyMode;
     const cutout = mode === PBRMaterial.MATERIAL_ALPHATEST
       || mode === PBRMaterial.MATERIAL_ALPHABLEND
@@ -586,9 +320,7 @@ function maskCutouts(mesh: Mesh, scene: Scene, cutoff: number): void {
     );
     mask.getAlphaFromRGB = true;
     material.opacityTexture = mask;
-    // <b>Test, never blend.</b> A thin-instanced mesh is one draw call in
-    // buffer order and Babylon has no thin-instance sorting at all, so blended
-    // foliage cannot resolve against itself however it is configured.
+
     material.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
     material.alphaCutOff = cutoff;
     material.backFaceCulling = false;
@@ -596,7 +328,6 @@ function maskCutouts(mesh: Mesh, scene: Scene, cutoff: number): void {
   }
 }
 
-/** Every material on a mesh, whether it wears one or a multi-material. */
 function materialsOf(mesh: Mesh): PBRMaterial[] {
   const worn = mesh.material as unknown as {
     subMaterials?: (PBRMaterial | null)[];
@@ -628,17 +359,12 @@ export async function scatterFlora(
       continue;
     }
     plant.name = `flora-${want.name}-${want.part}`;
-    // The mask the glTF forgot; see `maskCutouts`. The sward's own cutoff,
-    // not the 0.5 the dandelion's glTF asks for — with a real mask a high
-    // cutoff eats the leaf margins, and on a plant this small the margins are
-    // most of the plant.
+
     maskCutouts(plant, scene, 0.3);
     plant.refreshBoundingInfo();
     const box = plant.getBoundingInfo().boundingBox;
     const own = Math.max(0.001, box.maximum.y - box.minimum.y);
 
-    // A lattice loose enough that the rule can refuse most of it and still
-    // reach the count.
     const cells = want.count * 3;
     const across = Math.max(1, Math.round(Math.sqrt(
       (cells * field.extentXHalfFeet) / field.extentYHalfFeet)));
@@ -648,9 +374,7 @@ export async function scatterFlora(
       const cx = at % across;
       const cy = Math.floor(at / across);
       const x = ((cx + 0.5 + (dice(at, 3, 17 + kind) - 0.5) * 0.9) / across)
-        * field.extentXHalfFeet;
       const y = ((cy + 0.5 + (dice(at, 5, 23 + kind) - 0.5) * 0.9) / along)
-        * field.extentYHalfFeet;
       const inside = Math.min(
         x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
       );
@@ -690,22 +414,18 @@ export async function scatterFlora(
     matrices.forEach((matrix, at) => matrix.copyToArray(packed, at * 16));
     plant.thinInstanceSetBuffer('matrix', packed, 16);
     plant.alwaysSelectAsActiveMesh = true;
-    // Neither cast nor received: see the note where these are scattered. A
-    // plant a foot across is under one texel of a cascade covering the board.
+
     plant.receiveShadows = false;
     out.push(plant);
   }
   return out;
 }
 
-/** The stones this board is made of, for the same reason as {@link STANDING}. */
 export const FIELDSTONE: readonly StoneKind[] = [
     { name: 'boulder_01', tall: 9, open: true, label: 'Lichen boulder' },
     { name: 'rock_moss_set_01', rock: 3, tall: 8, open: true, label: 'Mossy rock, tall' },
     { name: 'namaqualand_boulder_04', tall: 7, open: false, label: 'Karoo boulder' },
-    // The sward stands about four half-feet, so anything under five is a stone
-    // in the grass rather than a stone on the map. Measured proud of the
-    // ground, these four come out between five and five and a half.
+
     { name: 'rock_moss_set_01', rock: 0, tall: 7, open: false, label: 'Mossy slab' },
     { name: 'rock_moss_set_01', rock: 4, tall: 7, open: false, label: 'Mossy rock, broad' },
     { name: 'rock_moss_set_01', rock: 2, tall: 6, open: false, label: 'Mossy rock, small' },
@@ -744,9 +464,6 @@ export async function scatterStone(
       box.maximum.x - box.minimum.x, box.maximum.z - box.minimum.z,
     ) / own;
 
-    // One stone a kind, so the loop is looking for the one spot that suits it
-    // rather than filling a quota. The last quarter of the attempts drops the
-    // preference and keeps only the vetoes, the same as the trees.
     const tries = 300;
     let sat: Matrix | null = null;
     for (let at = 0; at < tries && !sat; at++) {
@@ -760,10 +477,7 @@ export async function scatterStone(
         continue;
       }
       const { wear } = groundAt(field, x, y);
-      // <b>Beside the track, never in it.</b> The rule this replaces
-      // *preferred* worn ground, which put boulders in the ruts of a road that
-      // carts use — and a cart road with a four-foot stone in the middle of it
-      // is a road nobody drove down.
+
       if (wear > 0.5) {
         continue;
       }
@@ -778,9 +492,6 @@ export async function scatterStone(
         continue;
       }
       if (!insist) {
-        // A stone in the open wants ground the plough went round, which on
-        // this board is the rises; one on the verge wants the band just
-        // outside the ruts.
         const fits = want.open
           ? Math.min(1, slopeAt(field, x, y) / 0.26) * 0.7
             + (wear < 0.12 ? 0.3 : 0)
@@ -797,11 +508,7 @@ export async function scatterStone(
           dice(at, 13, 89 + kind) * 6.2831853,
           (dice(at, 17, 97) - 0.5) * 0.4,
         ),
-        // Sunk a tenth of its own height, so a boulder sits in the ground
-        // rather than on it. `groundUnder` is already the lowest point under
-        // the footprint, so this is the whole of the burial and it wants to be
-        // small — a slab that is only two feet tall to begin with has no depth
-        // to spare.
+
         new Vector3(
           x, groundUnder(field, x, y, reach * 0.5) - want.tall * 0.1, y,
         ),
@@ -832,31 +539,19 @@ export function raiseStanding(
   const leaves = empty();
   const bark = empty();
 
-  // <b>Trees.</b> A candidate is judged, not placed: it wants a margin or a
-  // verge, it will not stand on the track itself, and it will not stand on a
-  // bank. What is left is a handful, in the places a handful would be.
   let planted = 0;
   for (let at = 0; at < TREES * 22 && planted < TREES; at++) {
     const x = dice(at, 3, 11) * field.extentXHalfFeet;
     const y = dice(at, 7, 23) * field.extentYHalfFeet;
     const { wear, wet } = groundAt(field, x, y);
-    // <b>A veto, not a weight.</b> The margin used to be one term of a sum, so
-    // a candidate with a strong drift behind it could still be planted on the
-    // board's rim — and a crown two dozen half-feet across then hangs over the
-    // edge with nothing under it. There is no weighting that makes that
-    // acceptable, so it is a refusal instead.
-    // Fifty-two, because a crown reaches a third of the tree's height out from
-    // its trunk and a lobe adds its own radius on top of that. Anything less
-    // and the leaves hang over the rim of the board.
+
     const inside = Math.min(
       x, y, field.extentXHalfFeet - x, field.extentYHalfFeet - y,
     );
     if (inside < 52 || wear > 0.58 || slopeAt(field, x, y) > 0.42) {
       continue;
     }
-    // Near the boundary, or near the track but off it, or the one in ten that
-    // is simply out in the open. A field with trees only round its edge is a
-    // paddock; a field with one in the middle of it is a field.
+
     const edge = margin(field, x, y);
     const verge = wear > 0.18 && wear < 0.5 ? 1 : 0;
     const drift = noise(x * 0.014 + 31.7, y * 0.014 - 12.3);
@@ -870,10 +565,6 @@ export function raiseStanding(
     addTree(leaves, bark, canopy, x, y, heightAt(field, x, y), tall, lean, at, wet);
   }
 
-  // <b>Scrub.</b> Bramble and thorn come in where the grass is not cut, which
-  // is the verge and the boundary. Low, wide and clumped: three or four cards
-  // lying almost flat, which is also the only way a bush reads from a camera
-  // directly above it.
   for (let at = 0; at < SCRUB * 4; at++) {
     const x = dice(at, 17, 41) * field.extentXHalfFeet;
     const y = dice(at, 19, 53) * field.extentYHalfFeet;
@@ -904,10 +595,7 @@ export function raiseStanding(
   sward.useAlphaFromAlbedoTexture = true;
   sward.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
   sward.alphaCutOff = 0.34;
-  // The same trade the meadow makes, for the same measured reason: a PBR
-  // material with no reflection of its own falls back to the scene's, and the
-  // whole irradiance path for an ambient term at 0.14 is the most expensive
-  // thing on a leaf.
+
   (sward as unknown as { _getReflectionTexture(): null })
     ._getReflectionTexture = () => null;
   sward.subSurface.isTranslucencyEnabled = false;
@@ -945,10 +633,7 @@ export function raiseStanding(
     data.indices = build.indices;
     data.applyToMesh(mesh);
     mesh.material = material;
-    // <b>They cast, and the meadow does not.</b> A tree is the one thing on
-    // this board whose shadow is worth a shadow map: it is large, it is sharp
-    // at this cascade resolution, and the dark patch under a tree is most of
-    // what says there is a tree there at all when the camera is overhead.
+
     mesh.receiveShadows = true;
     meshes.push(mesh);
   };
@@ -968,26 +653,6 @@ export function raiseStanding(
   };
 }
 
-/**
- * One tree: a trunk, limbs, and a lobe of foliage on the end of each.
- *
- * <p><b>The first version was a ball of cards and it looked like Minecraft.</b>
- * Every guide on drawing foliage says the same thing in the same order — start
- * from the silhouette, and *carve secondary lobes so it is not a balloon* — and
- * a sphere of clusters is precisely the balloon. It also floated: with no
- * branches between the trunk and the crown, the canopy was a separate object
- * hanging above a post.
- *
- * <p>So this follows the structure instead. The trunk forks; five limbs leave
- * the fork at real branching angles and taper as they go; each limb ends in a
- * lobe, and the lobes are different sizes at different heights, which is what
- * gives a crown its lumpy outline. The cards fill the lobes rather than the
- * crown, so the gaps between lobes stay gaps — and the gaps are the whole
- * difference between a tree and a bush on a stick.
- *
- * <p>The limbs are drawn, not implied. They cost ten triangles each and they
- * are what connects the thing.
- */
 function addTree(
   leaves: Build, bark: Build, canopy: readonly Cut[],
   x: number, y: number, ground: number, tall: number, lean: number,
@@ -998,11 +663,6 @@ function addTree(
   const top: Vec = [x + lean * forkAt, ground + forkAt, y];
   addLimb(bark, [x, ground, y], top, thick * 1.5, thick * 0.74);
 
-  // <b>Five limbs, at angles a tree actually uses.</b> A broadleaf leaves its
-  // fork between twenty-five and fifty degrees off vertical; wider than that is
-  // a shrub and narrower is a poplar. They are not evenly spaced either — the
-  // golden angle plus a nudge, because four limbs at ninety degrees is a
-  // telegraph pole with arms.
   const limbs = 4 + Math.floor(dice(seed, 3, 2) * 3);
   const lobes: { at: Vec; size: number }[] = [];
   for (let n = 0; n < limbs; n++) {
@@ -1017,8 +677,7 @@ function addTree(
     addLimb(bark, top, end, thick * 0.7, thick * 0.28);
     lobes.push({ at: end, size: tall * (0.15 + 0.07 * dice(seed, n, 26)) });
   }
-  // And one over the fork, so the crown closes above the trunk instead of
-  // leaving a hole straight down it from the board's own camera.
+
   lobes.push({
     at: [top[0], top[1] + tall * 0.30, top[2]],
     size: tall * 0.17,
@@ -1045,12 +704,11 @@ function addTree(
   }
 }
 
-/** A tapering limb between two points. Five sides is plenty at this size. */
 function addLimb(
   build: Build, from: Vec, to: Vec, thickFrom: number, thickTo: number,
 ): void {
   const up = unit([to[0] - from[0], to[1] - from[1], to[2] - from[2]]);
-  // Any vector not along the limb will do to start the frame off.
+
   const aside = Math.abs(up[1]) > 0.9 ? [1, 0, 0] as Vec : [0, 1, 0] as Vec;
   const across = unit(cross(up, aside));
   const through = cross(up, across);
@@ -1079,7 +737,6 @@ function addLimb(
   }
 }
 
-/** Bramble and thorn: the same cards, low and wide and lying over. */
 function addScrub(
   leaves: Build, canopy: readonly Cut[],
   x: number, y: number, ground: number, wide: number, seed: number,
@@ -1098,14 +755,6 @@ function addScrub(
   }
 }
 
-/**
- * One card of foliage, at a point, facing out along the dome it belongs to.
- *
- * <p>Its silhouette is followed the same way the meadow's is — the two columns
- * of vertices sit on the outline the packer recorded rather than on a bounding
- * box — because alpha testing shades a fragment before it discards it, so the
- * empty corners of a canopy card are paid for at full price.
- */
 function addCanopyCard(
   build: Build, cut: Cut,
   x: number, y: number, z: number, size: number,
@@ -1115,15 +764,11 @@ function addCanopyCard(
   const ca = Math.cos(around);
   const sa = Math.sin(around);
 
-  // The card's own frame: `face` points out along the dome, `across` is
-  // horizontal and square to it, `along` completes the pair.
   const flat = Math.sqrt(Math.max(0.0001, 1 - up * up));
   const face: Vec = [ca * flat, up, sa * flat];
   const across: Vec = [-sa, 0, ca];
   const along: Vec = cross(face, across);
 
-  // A little roll about the facing axis, so twenty cards on one dome are not
-  // twenty copies of the same rectangle.
   const cr = Math.cos(roll * 6.2831853);
   const sr = Math.sin(roll * 6.2831853);
   const u: Vec = add(scale(across, cr), scale(along, sr));
@@ -1134,9 +779,7 @@ function addCanopyCard(
   for (let row = 0; row <= rows; row++) {
     const t = row / rows;
     const edge = spanOf(cut, t);
-    // Leaves are paler and yellower where the ground is dry, and the wet end of
-    // a field is where a tree is greenest. It is the same fact the sward's own
-    // drift reads, said once more on something taller.
+
     const height = (t - 0.5) * size;
     for (const side of [0, 1] as const) {
       const off = (edge[side] - 0.5) * wide;
@@ -1145,9 +788,7 @@ function addCanopyCard(
         z + u[1] * off + v[1] * height,
         y + u[2] * off + v[2] * height,
       );
-      // Normals fan from the dome's own outward direction rather than the
-      // card's: a canopy is a rough sphere of leaves and lights like one, and a
-      // card lit by its own flat normal reads as a signboard in a tree.
+
       const lifted = add(face, scale(u, (side === 0 ? -0.5 : 0.5)));
       build.normals.push(...unit(lifted));
       build.uvs.push(

@@ -709,3 +709,137 @@ cut**, in `foliage-pack.mjs`, not anything in the renderer.
 **Translucency is off everywhere now** — 2.3 measured it at 0.4 ms *and*
 visibly darker. Both the sward material in `meadow.ts` and the scanned-leaf
 material in `standing.ts` had it on.
+
+
+## Baking is slower than instancing here (2.4, 2026-09-13)
+
+The claim in forum 46756 is that merging N copies of a mesh into one buffer is
+about four times faster than thin instances. On this board it is **18% slower**.
+
+112,543 grass plants, the same plants both ways, both drawn with a plain PBR
+material carrying the atlas and no wind plugin, at a mid camera, with the
+empty-scene frame subtracted:
+
+| | above empty |
+|---|---|
+| thin instances | **6.5 ms** |
+| baked into one buffer | 7.65 ms |
+
+Coverage was matched to within 0.1% of the view (54.52% green against 54.42%),
+which is the only reason the numbers can be compared at all.
+
+**Two false results came first, and both would have been published.** The
+baked mesh drew nothing:
+
+  - `new (src.geometry.constructor)()` is a **Geometry**, not a `VertexData`.
+    Assigning `.positions`/`.indices` to it and calling `applyToMesh` is silent
+    and does nothing. Build with `mesh.setVerticesData` / `mesh.setIndices`
+    instead, which needs no class reference.
+  - At 40,000 plants at the play camera the whole test sat inside the noise —
+    instanced 8.6 against an 8.3 empty frame — so a broken arm reading exactly
+    the empty baseline looked like a 45% win.
+
+**Every A/B of a draw path now reports its own coverage**, and a zero reading
+next to a non-zero one is the thing to check first. Baking would also give up
+the wind, the ground-normal shading, the per-plant tint and the compute
+placement: all four read the instance matrix columns.
+
+
+## What the shadows are actually spending (2.6, 2026-09-13)
+
+Play camera, 3600x2026, fresh browser, 9am sun. Every reading is the median of
+110 frames, taken by swapping the shadow map's `renderList` in place so nothing
+else in the scene moves.
+
+| | ms | |
+|---|---|---|
+| shadows off entirely | 26.4 | |
+| shadows on, **renderList empty** | 28.2 | **1.8 ms is the receiving side** |
+| all casters | 30.5 | 2.3 ms is drawing the casters |
+| all casters but the big tree | 29.3 | that tree is **1.2 ms** |
+| all casters but the stones | 30.4 | the seven stones are 0.1 ms |
+
+So the 4.1 ms is **1.8 receiving + 2.3 casting**, and over half the casting is
+a single mesh. The caster list is 4.93M triangles; `scan-island_tree_02-0` is
+**3.22M** of them — 403,000 triangles, eight instances, rendered into both
+cascades every frame for a shadow that covers a few dozen texels of a 2048 map
+spanning 1144 half-feet. Its shadow is visibly missed when removed, so the
+answer is a decimated proxy, not dropping it.
+
+The receiving 1.8 ms is PCF over 91 receivers and only comes down by changing
+the look (fewer cascades, lower filtering quality).
+
+**Do not change `numCascades` at runtime on WebGPU.** Babylon regenerates the
+fragment shader with an empty argument slot —
+`computeShadowWithCSMPCF1(index0, vPositionFromLight0[index0], vDepthMetric0[index0], , shadowTexture0Sampler, ...)`
+— which fails to parse as a validation *warning*, floods the console, and
+leaves the board rendering without shadows. It cost one whole probe run. Change
+it in `stage.ts` and rebuild.
+
+## What `standing.ts` knew, before its comments were stripped (2026-09-13)
+
+**`heightAt` is not the surface anybody can see.** The terrain mesh carries one
+vertex per half-foot and interpolates, so where ruts are cut in — most of this
+board's track — the triangle between two samples runs above the height field in
+the hollows. A trunk placed at the field's value for its centre floats by the
+depth of the rut, which is what the tree standing in the road showed. Sample the
+lattice the mesh actually uses, across the trunk's footprint, and take the
+lowest.
+
+**A glTF node is a plant; a primitive is one of that plant's materials.**
+Babylon splits a multi-primitive node into `<node>_primitive0..N` children, so
+the flat mesh list runs bark, leaves, twigs of plant one, then of plant two.
+Indexing that list picks a *material*, not a plant — which is how `searsia_lucida`
+shipped as five copies of one bush's twigs and ten of another's bark: a field of
+disconnected sticks and bare trunks.
+
+**Bake the world transform into the vertices first.** A glTF arrives under a
+`__root__` carrying the handedness flip, and a thin instance's matrix composes
+against whatever world matrix the mesh already has, so every instance lands
+somewhere else entirely. `setParent(null)` keeps the world transform where
+clearing `.parent` would drop it; baking flattens it and flips the winding with
+the determinant.
+
+**The trunk is the anchor, not the bounding box.** A plant's overall box bottoms
+out at the tip of a drooping branch, well below the trunk's base — rebasing on
+that stands the tree on its lowest leaf with the trunk in the air. Use the bark
+primitive's own lowest point and horizontal centre.
+
+**`MergeMeshes` builds its result in the scene already.** Adding it again put
+`island_tree_02` in `scene.meshes` twice, and a mesh listed twice is dispatched
+twice: every tree drawn two times for nothing visible.
+
+**Leave a scan's scale alone.** `island_tree_02` is 3.4 m and the biggest
+`searsia_lucida` is 2.3 m. Asking for a seventeen-foot field tree out of a
+four-foot shrub is a twelvefold blow-up, and canopy leaf density falls with the
+cube of it — which is why the scrub came out pale and see-through with its stems
+showing.
+
+**`url`, not `name`, to find a scan's atlas.** The glTF loader names a texture
+after the material that uses it ("island_tree_02_leaves (Base Color)") and keeps
+the path in `url`, prefixed `data:`. Reading the name finds no `_diff_` in
+anything and masks nothing at all — a fix that looks applied and is not.
+
+**Only mask the cut-out materials, and `OPAQUE` is zero rather than null.**
+Testing for null let bark and branches through and handed them masks named after
+atlases that have none, which resolved to 404s.
+
+**Test, never blend.** A thin-instanced mesh is one draw call in buffer order and
+Babylon has no thin-instance sorting at all, so blended foliage cannot resolve
+against itself however it is configured.
+
+**The board margin is a veto, not a weight.** It used to be one term of a sum, so
+a candidate with a strong drift behind it could still be planted on the rim with
+a crown two dozen half-feet across hanging over nothing.
+
+**Trees cast and the meadow does not.** A tree is the one thing here whose shadow
+is worth a shadow map — large, sharp at this cascade resolution, and the dark
+patch under it is most of what says there is a tree there when the camera is
+overhead. A plant a foot across is under one texel of a cascade covering the
+board, so ground flora neither casts nor receives.
+
+**The hand-built tree was refused and why.** The first version was a ball of
+cards and looked like Minecraft; with no branches between trunk and crown the
+canopy hung above a post. A scan states a shape exactly and a card only has to
+carry it — but a tree is not one shape, it is a structure, and composing one out
+of foliage clumps reads as a stack of boxes however the cards are arranged.
