@@ -115,7 +115,7 @@ import { type Terrain, buildTerrain } from './terrain';
                   <span class="w-9 tabular-nums">{{ density() }}%</span>
                 </label>
                 <label class="flex items-center gap-1.5"
-                  title="How far each leaf's shading normal is pulled onto the ground's own. At 100% the sward is lit almost entirely by the terrain, which is why per-blade normal work is invisible.">
+                  title="How far each leaf's shading normal is pulled onto the ground's own. At 100% the grass is lit almost entirely by the terrain, which is why per-blade normal work is invisible.">
                   Leaf normal
                   <input
                     type="range" min="0" max="100" step="5"
@@ -268,7 +268,7 @@ import { type Terrain, buildTerrain } from './terrain';
                 <p class="font-mono text-[0.6rem] text-fg-subtle">
                   {{ pick.plant.tall / 2 | number:'1.1-1' }} ft tall ·
                   {{ triangles(pick.plant) }} tris ·
-                  {{ share(pick.plant) }}% of the sward ·
+                  {{ share(pick.plant) }}% of the grass ·
                   {{ drawn(pick.plant) | number }} drawn
                 </p>
                 <table class="mt-2 w-full font-mono text-[0.6rem] text-fg-subtle">
@@ -305,7 +305,7 @@ import { type Terrain, buildTerrain } from './terrain';
               }
             }
 
-            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">sward</p>
+            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">grass</p>
             <ul class="mt-1 flex flex-col gap-1">
               @for (plant of species; track plant.id) {
                 <li>
@@ -459,11 +459,11 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   private groundFlora: Mesh[] = [];
 
   protected readonly parts: readonly { key: Part; label: string; note: string }[] = [
-    { key: 'meadow', label: 'sward', note: 'The grass, clover, plantain and daisies.' },
-    { key: 'flora', label: 'ground flora', note: 'Scanned plants standing in the sward.' },
+    { key: 'meadow', label: 'grass', note: 'The grass, clover, plantain and daisies.' },
+    { key: 'flora', label: 'ground flora', note: 'Scanned plants standing in the grass.' },
     { key: 'trees', label: 'trees', note: 'Scanned trees and scrub.' },
     { key: 'stones', label: 'stone', note: 'Scanned fieldstone.' },
-    { key: 'terrain', label: 'terrain', note: 'The forty ground chunks. Off, the sward stands in the sky.' },
+    { key: 'terrain', label: 'terrain', note: 'The forty ground chunks. Off, the grass stands in the sky.' },
     { key: 'shadows', label: 'shadows', note: 'The sun\'s cascaded shadow map.' },
     { key: 'taa', label: 'temporal aa', note: 'The temporal resolve. Off is sharper and crawls.' },
     { key: 'relief', label: 'ground relief', note: 'The terrain normal and roughness maps.' },
@@ -475,8 +475,8 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   protected readonly on = signal<Partial<Record<Part, boolean>>>({ bloom: false });
 
-  protected readonly leafNormal = signal(100);
-  protected readonly wind = signal(100);
+  protected readonly leafNormal = signal(50);
+  protected readonly wind = signal(300);
   private readonly litAsBuilt = new Map<string, number>();
   private readonly gustAsBuilt = new Map<string, number>();
 
@@ -579,12 +579,14 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       const field = groundField(scene);
       this.terrain = buildTerrain(ground, field, stage.scene);
       this.terrain.chunks.forEach(chunk => stage.shadows.addShadowCaster(chunk));
-      this.terrain.swardProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
+      this.terrain.grassProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
 
       const sheet = await loadFoliage(stage.scene);
       this.sheet = sheet;
       this.field = field;
       this.meadow = this.grow();
+      this.setLeafNormal(this.leafNormal());
+      this.setWind(this.wind());
 
       this.stones = [
         ...await plantScans(field, stage.scene),
@@ -718,10 +720,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     );
     return `${this.terrain?.chunks.length ?? 0} chunks · lattice `
       + `${meadow.lattice.cells.toLocaleString()} cells at `
-      + `${meadow.lattice.pitch.toFixed(2)} half-feet · twist `
+      + `${meadow.lattice.pitch.toFixed(2)} half-feet · grass `
       + `${Math.round(triangles).toLocaleString()} tris a plant set`
       + (meadow.lattice.fit < 1
-        ? ` · sward capped to ${Math.round(meadow.lattice.fit * 100)}%` : '');
+        ? ` · grass capped to ${Math.round(meadow.lattice.fit * 100)}%` : '');
   }
 
   protected setWind(percent: number): void {

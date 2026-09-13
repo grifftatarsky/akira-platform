@@ -88,8 +88,8 @@ export interface Plant {
   readonly damp: number;
 }
 
-export const SWARD_FADE_FROM = 0.40;
-export const SWARD_FADE_TO = 0.82;
+export const GRASS_FADE_FROM = 0.40;
+export const GRASS_FADE_TO = 0.82;
 
 export const MEADOW: readonly Plant[] = [
   {
@@ -122,7 +122,7 @@ export const MEADOW: readonly Plant[] = [
     note: 'A panicle — a dense cluster of small spikelets on side branches, '
       + 'not a lump on a stick and not a starburst either: the real thing is '
       + 'soft and pinkish and reads as a mass. It stands a foot above '
-      + 'everything else so the sward has no flat ceiling, and it is the first '
+      + 'everything else so the grass has no flat ceiling, and it is the first '
       + 'thing to catch a low sun.',
     perArea: 0.145,
     tall: 4.2, wide: 0.15, head: 0.42, segments: 4,
@@ -459,7 +459,7 @@ function push(build: Build, at: Vec, normal: Vec, u: number, v: number): void {
   build.uvs.push(u, v);
 }
 
-export function swardColor(plants: readonly Plant[] = MEADOW): [number, number, number] {
+export function grassColor(plants: readonly Plant[] = MEADOW): [number, number, number] {
   const total = plants.reduce((sum, plant) => sum + plant.perArea, 0);
   const mixed: [number, number, number] = [0, 0, 0];
   for (const plant of plants) {

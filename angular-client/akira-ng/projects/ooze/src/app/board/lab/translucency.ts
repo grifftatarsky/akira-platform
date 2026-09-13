@@ -1,8 +1,8 @@
 import type { Experiment, Rig } from './experiments';
-import { swardPatch } from './sward-patch';
+import { grassPatch } from './grass-patch';
 
 export const translucency: Experiment = async (stage): Promise<Rig> => {
-  const patch = await swardPatch(stage);
+  const patch = await grassPatch(stage);
   const asBuilt = patch.materials().map(material => material.subSurface.translucencyIntensity);
   return {
     options: ['off', 'on'],

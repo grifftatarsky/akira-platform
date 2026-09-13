@@ -6,7 +6,7 @@ import { Vector4 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
 import type { SplatGround } from '../board-assets';
 import type { GroundField } from '../ground-field';
-import { swardColor, SWARD_FADE_FROM, SWARD_FADE_TO } from './species';
+import { grassColor, GRASS_FADE_FROM, GRASS_FADE_TO } from './species';
 
 import '@babylonjs/core/Materials/Textures/Procedurals/proceduralTextureSceneComponent';
 import { assetUrl } from './assets';
@@ -32,7 +32,7 @@ uniform reach: vec4f;
 uniform tintA: vec4f;
 uniform tintB: vec4f;
 uniform tintC: vec4f;
-uniform sward: vec4f;
+uniform grass: vec4f;
 uniform bakeWhat: vec4f;
 
 fn hash2(p: vec2f) -> vec2f {
@@ -95,9 +95,9 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
   color = mix(color, color * 0.55, wet * 0.8);
 
-  let covered = (1.0 - smoothstep(${SWARD_FADE_FROM.toFixed(2)}, ${SWARD_FADE_TO.toFixed(2)}, wear))
-    * uniforms.sward.w;
-  color = mix(color, uniforms.sward.rgb * (0.86 + 0.28 * drift), covered);
+  let covered = (1.0 - smoothstep(${GRASS_FADE_FROM.toFixed(2)}, ${GRASS_FADE_TO.toFixed(2)}, wear))
+    * uniforms.grass.w;
+  color = mix(color, uniforms.grass.rgb * (0.86 + 0.28 * drift), covered);
 
   let asNormal = normalize(blended * 2.0 - 1.0) * 0.5 + 0.5;
   fragmentOutputs.color = vec4f(
@@ -173,7 +173,7 @@ export function bakeGround(
   const relief = bake('groundRelief', normals, 1);
   const surface = bake('groundSurface', arms, 2);
 
-  const sward = swardColor();
+  const grass = grassColor();
   for (const made of [macro, relief, surface]) {
     made.setVector4('sizing', new Vector4(
       widthFeet, heightFeet, ground.layers[0].feet, ground.layers[1].feet,
@@ -186,7 +186,7 @@ export function bakeGround(
         new Vector4(tint[0], tint[1], tint[2], 1),
       );
     });
-    made.setVector4('sward', new Vector4(sward[0], sward[1], sward[2], 0.72));
+    made.setVector4('grass', new Vector4(grass[0], grass[1], grass[2], 0.72));
   }
 
   const every = [...sources, ...normals, ...arms];

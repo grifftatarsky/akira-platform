@@ -585,20 +585,20 @@ export function raiseStanding(
     addScrub(leaves, canopy, x, y, heightAt(field, x, y), wide, at);
   }
 
-  const sward = new PBRMaterial('standing-leaf', scene);
-  sward.metallic = 0;
-  sward.roughness = 0.62;
-  sward.backFaceCulling = false;
-  sward.twoSidedLighting = false;
-  sward.albedoTexture = sheet.texture;
-  sward.albedoColor = new Color3(1, 1, 1);
-  sward.useAlphaFromAlbedoTexture = true;
-  sward.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
-  sward.alphaCutOff = 0.34;
+  const grass = new PBRMaterial('standing-leaf', scene);
+  grass.metallic = 0;
+  grass.roughness = 0.62;
+  grass.backFaceCulling = false;
+  grass.twoSidedLighting = false;
+  grass.albedoTexture = sheet.texture;
+  grass.albedoColor = new Color3(1, 1, 1);
+  grass.useAlphaFromAlbedoTexture = true;
+  grass.transparencyMode = PBRMaterial.MATERIAL_ALPHATEST;
+  grass.alphaCutOff = 0.34;
 
-  (sward as unknown as { _getReflectionTexture(): null })
+  (grass as unknown as { _getReflectionTexture(): null })
     ._getReflectionTexture = () => null;
-  sward.subSurface.isTranslucencyEnabled = false;
+  grass.subSurface.isTranslucencyEnabled = false;
 
   const trunk = new PBRMaterial('standing-bark', scene);
   trunk.metallic = 0;
@@ -637,14 +637,14 @@ export function raiseStanding(
     mesh.receiveShadows = true;
     meshes.push(mesh);
   };
-  put(leaves, 'standing-leaves', sward);
+  put(leaves, 'standing-leaves', grass);
   put(bark, 'standing-bark', trunk);
 
   return {
     meshes,
     dispose(): void {
       meshes.forEach(mesh => mesh.dispose());
-      sward.dispose();
+      grass.dispose();
       trunk.dispose();
       barkColor.dispose();
       barkRelief.dispose();

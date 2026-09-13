@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_PLANTS, swardLattice } from './meadow';
+import { MAX_PLANTS, grassLattice } from './meadow';
 import { type Plant, MEADOW } from './species';
 
 const EAST = 440;
@@ -7,7 +7,7 @@ const NORTH = 300;
 const AREA = EAST * NORTH;
 
 function sow(plants: readonly Plant[]) {
-  return swardLattice(plants, EAST, NORTH);
+  return grassLattice(plants, EAST, NORTH);
 }
 
 function by(plants: readonly Plant[], id: string) {
@@ -16,7 +16,7 @@ function by(plants: readonly Plant[], id: string) {
   return found!;
 }
 
-describe('swardLattice', () => {
+describe('grassLattice', () => {
 
   it('gives every species the density its table asks for', () => {
     const { lattice, sowings } = sow(MEADOW);

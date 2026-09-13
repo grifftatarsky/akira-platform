@@ -82,7 +82,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     colour = mix(colour, colour * 1.16, vein * uniforms.tip.w * (1.0 - rib));
   }
 
-  // Mottling, and a drier edge. Light does not reach the middle of a sward
+  // Mottling, and a drier edge. Light does not reach the middle of a grass
   // evenly and a leaf's rim is the first part of it to give up.
   let mottle = noise(vec2f(across * 7.0, along * 22.0)) - 0.5;
   colour *= 1.0 + mottle * uniforms.ribs.z;

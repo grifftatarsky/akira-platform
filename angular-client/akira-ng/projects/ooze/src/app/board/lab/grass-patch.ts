@@ -16,7 +16,7 @@ export interface Sowing {
   readonly triangles: number;
 }
 
-export interface SwardPatch {
+export interface GrassPatch {
   readonly sowings: readonly Sowing[];
   readonly terrain: Terrain;
   readonly slots: number;
@@ -26,9 +26,9 @@ export interface SwardPatch {
   dispose(): void;
 }
 
-export async function swardPatch(
+export async function grassPatch(
   stage: Stage, shapes: Readonly<Record<string, PlantShape>> = { cards: cardGeometry },
-): Promise<SwardPatch> {
+): Promise<GrassPatch> {
   const scene = sceneForEncounter({
     id: 'lab',
     name: 'lab',
@@ -48,7 +48,7 @@ export async function swardPatch(
   const field = groundField(scene);
   const terrain = buildTerrain(FIELD_THEME.ground as SplatGround, field, stage.scene);
   terrain.chunks.forEach(chunk => stage.shadows.addShadowCaster(chunk));
-  terrain.swardProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
+  terrain.grassProxy.forEach(chunk => stage.shadows.addShadowCaster(chunk));
 
   const sheet = await loadFoliage(stage.scene);
   const sowings = Object.entries(shapes).map(([name, shape]): Sowing => {

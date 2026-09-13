@@ -16,7 +16,7 @@ import type { GroundField } from '../ground-field';
 import { BladeWind } from './blade-wind';
 import { cardGeometry, type FoliageSheet } from './foliage-cards';
 import type { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
-import { type Plant, MEADOW, SWARD_FADE_FROM, SWARD_FADE_TO } from './species';
+import { type Plant, MEADOW, GRASS_FADE_FROM, GRASS_FADE_TO } from './species';
 import { fieldTexture } from './splat-bake';
 
 const MAX_PLANTS = 600_000;
@@ -166,10 +166,10 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let placeB = vnoise(where2 * 0.037 + vec2f(37.3, 11.9));
   let place = clamp(placeA * 0.70 + placeB * 0.30, 0.0, 1.0);
   let unmown = mix(0.56, 1.42, smoothstep(0.28, 0.76, place));
-  let trodden = 1.0 - 0.48 * smoothstep(0.02, ${SWARD_FADE_FROM.toFixed(2)}, wear);
+  let trodden = 1.0 - 0.48 * smoothstep(0.02, ${GRASS_FADE_FROM.toFixed(2)}, wear);
   let stature = unmown * trodden;
 
-  var alive = 1.0 - smoothstep(${SWARD_FADE_FROM.toFixed(2)}, ${SWARD_FADE_TO.toFixed(2)}, wear);
+  var alive = 1.0 - smoothstep(${GRASS_FADE_FROM.toFixed(2)}, ${GRASS_FADE_TO.toFixed(2)}, wear);
   alive *= mix(0.80, 1.10, place);
   let damp = params.c.x;
   alive *= clamp(1.0 + damp * (wet - 0.35) * 1.6, 0.15, 1.0);
@@ -213,11 +213,11 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let eastward = vnoise((where2 + vec2f(1.4, 0.0)) * swept);
   let northward = vnoise((where2 + vec2f(0.0, 1.4)) * swept);
   let relief = vec3f(here - eastward, 0.0, here - northward) * 2.6;
-  let swardN = normalize(groundN + relief);
+  let grassN = normalize(groundN + relief);
 
   let flatAcross = vec3f(cf, 0.0, -sf);
-  let acrossDir = normalize(flatAcross - swardN * dot(flatAcross, swardN));
-  let upDir = swardN;
+  let acrossDir = normalize(flatAcross - grassN * dot(flatAcross, grassN));
+  let upDir = grassN;
   let across = acrossDir * wide;
   let up = upDir * tall;
   let through = cross(acrossDir, upDir) * wide;
@@ -260,7 +260,7 @@ export interface Sowing {
   readonly keep: number;
 }
 
-export function swardLattice(
+export function grassLattice(
   plants: readonly Plant[], extentXHalfFeet: number, extentYHalfFeet: number,
 ): { lattice: Lattice; sowings: readonly Sowing[] } {
   const area = extentXHalfFeet * extentYHalfFeet;
@@ -355,7 +355,7 @@ export function sowMeadow(
     readonly kind: number;
   }
 
-  const { lattice, sowings } = swardLattice(
+  const { lattice, sowings } = grassLattice(
     plants, field.extentXHalfFeet, field.extentYHalfFeet,
   );
   const { pitch, eastCells, northCells, cells } = lattice;

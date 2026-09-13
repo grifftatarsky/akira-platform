@@ -8,7 +8,7 @@ import '@babylonjs/core/Materials/material.detailMapConfiguration';
 import type { SplatGround } from '../board-assets';
 import { type GroundField, groundAt, heightAt } from '../ground-field';
 import { assetUrl } from './assets';
-import { SWARD_FADE_FROM, SWARD_FADE_TO } from './species';
+import { GRASS_FADE_FROM, GRASS_FADE_TO } from './species';
 import { bakeGround } from './splat-bake';
 
 const MESH_DETAIL = 1;
@@ -18,12 +18,12 @@ const CHUNK_HALF_FEET = 60;
 export interface Terrain {
   readonly chunks: Mesh[];
 
-  readonly swardProxy: Mesh[];
+  readonly grassProxy: Mesh[];
   readonly material: PBRMaterial;
   dispose(): void;
 }
 
-const SWARD_HALF_FEET = 2.3;
+const GRASS_HALF_FEET = 2.3;
 
 const SHADOW_ONLY_LAYER = 0x20000000;
 
@@ -72,7 +72,7 @@ export function buildTerrain(
   material.detailMap.roughnessBlendLevel = 0.3;
 
   const chunks: Mesh[] = [];
-  const swardProxy: Mesh[] = [];
+  const grassProxy: Mesh[] = [];
   const across = Math.ceil(field.extentXHalfFeet / CHUNK_HALF_FEET);
   const along = Math.ceil(field.extentYHalfFeet / CHUNK_HALF_FEET);
   for (let cy = 0; cy < along; cy++) {
@@ -83,21 +83,21 @@ export function buildTerrain(
       const y1 = Math.min(field.extentYHalfFeet, y0 + CHUNK_HALF_FEET);
       chunks.push(chunkMesh(field, material, scene, x0, y0, x1, y1, `ground-${cx}-${cy}`));
       const proxy = chunkMesh(
-        field, material, scene, x0, y0, x1, y1, `sward-${cx}-${cy}`, true,
+        field, material, scene, x0, y0, x1, y1, `grass-${cx}-${cy}`, true,
       );
       proxy.layerMask = SHADOW_ONLY_LAYER;
 
-      swardProxy.push(proxy);
+      grassProxy.push(proxy);
     }
   }
 
   return {
     chunks,
-    swardProxy,
+    grassProxy,
     material,
     dispose(): void {
       chunks.forEach(chunk => chunk.dispose());
-      swardProxy.forEach(chunk => chunk.dispose());
+      grassProxy.forEach(chunk => chunk.dispose());
       material.dispose();
       macro.dispose();
       sources.forEach(texture => texture.dispose());
@@ -111,7 +111,7 @@ export function buildTerrain(
 function chunkMesh(
   field: GroundField, material: PBRMaterial, scene: Scene,
   x0: number, y0: number, x1: number, y1: number, name: string,
-  sward = false,
+  grass = false,
 ): Mesh {
 
   const cols = Math.max(1, Math.round((x1 - x0) * MESH_DETAIL)) + 1;
@@ -125,9 +125,9 @@ function chunkMesh(
       const x = x0 + ((x1 - x0) * col) / (cols - 1 || 1);
       const y = y0 + ((y1 - y0) * row) / (rows - 1 || 1);
 
-      const lift = sward
-        ? SWARD_HALF_FEET
-          * (1 - smoothTo(groundAt(field, x, y).wear, SWARD_FADE_FROM, SWARD_FADE_TO))
+      const lift = grass
+        ? GRASS_HALF_FEET
+          * (1 - smoothTo(groundAt(field, x, y).wear, GRASS_FADE_FROM, GRASS_FADE_TO))
         : 0;
       const z = heightAt(field, x, y) + lift;
       const at = (row * cols + col) * 3;
