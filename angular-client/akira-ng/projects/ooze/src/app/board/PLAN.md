@@ -964,3 +964,38 @@ happens at the very edge of the track, which is where short grass belongs.
 **The rule this earned:** after any change to the compute pass, photograph the
 whole board from above. Field-scale structure is invisible at the play camera
 and at close range, which is where every one of my shots was.
+
+## The bald ground was the species lottery, not the wear or the stature (2026-09-13)
+
+I guessed twice and was wrong twice. The third attempt read the data.
+
+`tools/board-survey.mjs` reads every species' instance matrices straight out of
+the storage buffers, bins the positions across the board, prints a density map,
+and then takes eight top-down tiles with `bab.shot()`. What it said:
+
+  - **95 bins with no plants at all — every one of them `wear` 254 or 255.**
+    That is the road. Correct, not a bug.
+  - **97 bins with no grass but other species present — every one `wear` 0.**
+    Clean ground where grass alone was excluded. That is the bald ground.
+
+The cause is `driftAt`, which clamps: `clamp((raw - 0.5) * 1.9 + 0.5, 0, 1)`.
+Any noise value under 0.237 becomes **exactly zero**, which is about a quarter
+of the board. A species' weight is `share * drift^clumping * (clumping + 1)`,
+so where grass's drift clamps to zero its weight is zero, `relative` is zero,
+and **no grass is placed at all** — while clover and plantain, on their own
+noise fields, carry on. Grass's `patch` of 0.012 is an 83 half-foot wavelength,
+so each of those regions is enormous.
+
+Fixed with a per-species **`hold`**: the least of its slots a species keeps
+however the competition goes, carried in the spare `w` of the `kinds` uniform
+and applied as `relative = max(won, hold)`. Grass holds 0.72 — it is the matrix
+species and must never vanish; clover 0.18, plantain 0.12, Yorkshire fog 0,
+because being patchy is the whole point of that one.
+
+Empty bins after: grass 152 → **74**, clover 215 → **75**, plantain 305 → 80,
+and the remainder is the road. Grass placed 112,594 → 129,039.
+
+**The rule:** when something is missing from the board, read the instance
+buffers and the ground field at the missing places before touching a constant.
+Both of my guesses — the wear field, then 1.4's stature — were wrong, and the
+data said so in one run.

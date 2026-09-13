@@ -80,6 +80,7 @@ export interface Plant {
   readonly clumping: number;
 
   readonly crowd: number;
+  readonly hold: number;
 
   readonly cards: readonly CardSpec[];
 
@@ -107,7 +108,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
 
     blooms: false,
-    patch: 0.012, clumping: 1.0, crowd: 1.0,
+    patch: 0.012, clumping: 1.0, crowd: 1.0, hold: 0.72,
 
     cards: [
       { group: 'blade', count: 9, tall: 3.0, at: 0, out: 0.06, lean: 0.90, rows: 3, taper: 1 },
@@ -133,7 +134,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
 
     blooms: false,
-    patch: 0.022, clumping: 3.0, crowd: 2.4,
+    patch: 0.022, clumping: 3.0, crowd: 2.4, hold: 0,
 
     cards: [
       { group: 'blade', count: 1, tall: 3.6, at: 0, out: 0.06, lean: 0.30, rows: 3, taper: 1 },
@@ -159,7 +160,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 0, sweep: 0,
 
     blooms: false,
-    patch: 0.017, clumping: 2.0, crowd: 1.3,
+    patch: 0.017, clumping: 2.0, crowd: 1.3, hold: 0.18,
     cards: [
 
       {
@@ -187,7 +188,7 @@ export const MEADOW: readonly Plant[] = [
     veins: 5, sweep: 0.1,
 
     blooms: false,
-    patch: 0.024, clumping: 2.0, crowd: 1.3,
+    patch: 0.024, clumping: 2.0, crowd: 1.3, hold: 0.12,
 
     cards: [
       { group: 'rosette', count: 5, tall: 2.0, at: 0.04, out: 0.05, lean: 0.98, rows: 2, taper: 1 },

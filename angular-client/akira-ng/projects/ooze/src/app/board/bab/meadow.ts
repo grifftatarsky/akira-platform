@@ -189,7 +189,9 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   }
   let share = max(0.0001, params.d.z);
   let crowd = max(1.0, params.d.w);
-  let relative = select(0.0, (mine / total) / share, total > 0.0);
+  let hold = params.kinds[u32(params.d.x)].w;
+  let won = select(0.0, (mine / total) / share, total > 0.0);
+  let relative = max(won, hold);
   alive *= step(rand(seed + 9u), params.c.w * min(relative, crowd));
   alive *= params.c.z;
   alive *= 0.72 + 0.28 * green;
@@ -369,6 +371,7 @@ export function sowMeadow(
     kinds[at * 4 + 0] = plant.perArea / total;
     kinds[at * 4 + 1] = plant.patch;
     kinds[at * 4 + 2] = plant.clumping;
+    kinds[at * 4 + 3] = plant.hold;
   });
 
   for (const { plant, slots: slotsFull, cap, keep } of sowings) {

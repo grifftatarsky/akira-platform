@@ -15,6 +15,7 @@ import '@babylonjs/loaders/glTF/2.0';
 import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
   FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora, scatterStone,
+  shadowProxy,
 } from './standing';
 
 function read(key: string, fallback: boolean): boolean {
@@ -479,6 +480,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly wind = signal(300);
   private readonly litAsBuilt = new Map<string, number>();
   private readonly gustAsBuilt = new Map<string, number>();
+  private readonly proxies: Mesh[] = [];
 
   protected readonly day = signal(196);
   protected readonly dayLabel = signal('mid Jul');
@@ -592,7 +594,15 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         ...await plantScans(field, stage.scene),
         ...await scatterStone(field, stage.scene),
       ];
-      this.stones.forEach(stone => stage.shadows.addShadowCaster(stone));
+      this.stones.forEach(stone => {
+        const proxy = shadowProxy(stone, stage.scene);
+        if (proxy) {
+          this.proxies.push(proxy);
+          stage.shadows.addShadowCaster(proxy);
+        } else {
+          stage.shadows.addShadowCaster(stone);
+        }
+      });
 
       this.groundFlora = await scatterFlora(field, stage.scene);
 
@@ -806,6 +816,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     this.stats?.dispose();
     this.observer?.disconnect();
     this.stones.forEach(stone => stone.dispose());
+    this.proxies.forEach(proxy => proxy.dispose());
     this.meadow?.dispose();
     this.sheet?.texture.dispose();
     this.terrain?.dispose();

@@ -427,7 +427,7 @@
           found: "<b>Baking is 18% slower, not four times faster.</b> 112,543 grass plants, the same plants both ways, coverage matched to 0.1% of the view, empty-scene frame subtracted: thin instances <b>6.5 ms</b>, baked <b>7.65</b>. Baking also costs 9.45M vertices and 86 MB of index buffer against an 84-vertex mesh, and gives up the wind, the ground-normal shading, the per-plant tint and the compute placement — all four read the instance matrix columns. <b>Two false results came first and both would have been published:</b> <span class=\"mono\">src.geometry.constructor</span> is a <em>Geometry</em>, not a VertexData, so assigning positions to it and calling applyToMesh is silent and does nothing — the baked arm drew nothing and read exactly the empty baseline, which looked like a 45% win. Every A/B of a draw path reports its own coverage now." },
         { id: "2.5", work: "<em>Trees and scrub</em> — 4.93 ms, the <em>largest</em> piece and never examined", state: "next" },
         { id: "2.6", work: "<em>Shadows</em> — 4.03 ms for two cascades at 2048", state: "done",
-          found: "<b>1.8 ms receiving, 2.3 casting, and a decimated caster saves 1.0 of it.</b> <span class=\"mono\">scan-island_tree_02-0</span> is 3.22M of the 4.93M caster triangles. A proxy keeping every triangle in the top 3% by area — trunk and limbs — plus a hashed fraction of the leaves: at <b>30% of the leaves it saves 1.0 ms</b> (29.1 &rarr; 28.1; dropping the tree entirely is 27.7). Decimating <em>thins</em> the shadow rather than only cheapening it, because the leaves are alpha-test cut-outs; 12% saves 1.2 ms but the shadow is then nearer absent than real. Accepted on the look at 30%. Not yet wired into <span class=\"mono\">standing.ts</span>." }
+          found: "<b>Done \u2014 the proxy is wired in.</b> <span class=\"mono\">shadowProxy()</span> in <span class=\"mono\">standing.ts</span> decimates any caster over 200k triangles: every triangle in the top 3% by area, plus a hashed 30% of the rest, on a shadow-only layer mask. The board's casters went <b>4.93M to 2.75M triangles</b>; the big tree casts 344,691 instead of 1,072,213, across all three of its instances. It returns null rather than a proxy if the instance count does not match, because a caster that draws nothing reads like a win." }
       ]
     },
     {
@@ -451,6 +451,7 @@
   const RULES = [
     "Screenshots have a noise floor: TAA jitters the projection every frame, so two captures of an unchanged board differ by 0.5 mean and 57 max out of 255. Use bab.shot(), which switches the jitter off and returns byte-identical frames.",
     "Every A/B reports a liveness signal for both arms — covered pixels, triangles, instances. An arm that draws nothing reads exactly like a win, and has three times.",
+    "When something is missing from the board, read the instance buffers and the ground field at the missing places before touching a constant. Two guesses in a row were wrong; board-survey.mjs answered it in one run.",
     "Kill every background task before the turn ends. A probe or watcher left running burns the user's machine for nothing.",
     "A decision the user makes is crossed off in the same turn they make it. Nothing answered stays in the queue.",
     "Look at the whole board after every change to the compute pass. A field-scale bug is invisible in a close shot.",
@@ -471,19 +472,14 @@
   ];
 
   const ASKS = [
-    { id: "2.6", q: "Wire the 30% shadow proxy into standing.ts",
-      why: "Decided and measured — 1.0 ms — but it only exists inside a probe. The board still casts the full 1,072,213-triangle tree.",
-      opts: [["Mine to do", "about 1 ms", "Next."]] },
-    { id: "1.4b", q: "The bald patch — the stature field is too strong",
-      why: "Reported from the board: a large area right of the road is nearly plantless and what is there lies flat. That is 1.4's place field at 0.56 height combined with density at 0.80, over too large an area. Intended mechanism, wrong magnitude, and I never looked at the whole board after shipping it.",
-      opts: [["Mine to fix", "free", "Raise the floor and break up the scale."]] },
-    { id: "2.5", q: "Trees and scrub — 4.93 ms, the largest single piece",
-      why: "Queued behind 2.6.",
+    { id: "2.5", q: "Trees and scrub \u2014 4.93 ms, the largest single piece, never examined",
+      why: "Next. Bigger than the grass; nobody has split what it spends.",
       opts: [["Mine to do", "unknown", "Split the cost before changing anything."]] },
     { id: "3.1", q: "MSAA, reopened",
-      why: "The 24 ms that refused it came from antialias: true on the engine, which is not pipeline.samples = 2. 3.2, alpha-to-coverage, is blocked behind it.",
+      why: "The 24 ms that refused it came from antialias: true on the engine, which is not pipeline.samples = 2. Alpha-to-coverage is blocked behind it.",
       opts: [["Mine to do", "unknown", "Lab it."]] },
   ];
+
 
 
   const asks = document.getElementById("asks");

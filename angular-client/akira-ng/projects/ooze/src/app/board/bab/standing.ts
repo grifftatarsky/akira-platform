@@ -841,3 +841,95 @@ function unit(v: Vec): Vec {
   const size = Math.hypot(v[0], v[1], v[2]) || 1;
   return [v[0] / size, v[1] / size, v[2] / size];
 }
+
+const SHADOW_ONLY = 0x10000000;
+const PROXY_OVER = 200_000;
+const PROXY_KEEP = 0.30;
+const PROXY_BIG = 0.97;
+
+export function shadowProxy(mesh: Mesh, scene: Scene): Mesh | null {
+  const positions = mesh.getVerticesData('position');
+  const indices = mesh.getIndices();
+  if (!positions || !indices || indices.length / 3 < PROXY_OVER) {
+    return null;
+  }
+  const triangles = indices.length / 3;
+  const area = new Float32Array(triangles);
+  for (let at = 0; at < triangles; at++) {
+    const a = indices[at * 3] * 3;
+    const b = indices[at * 3 + 1] * 3;
+    const c = indices[at * 3 + 2] * 3;
+    const ux = positions[b] - positions[a];
+    const uy = positions[b + 1] - positions[a + 1];
+    const uz = positions[b + 2] - positions[a + 2];
+    const vx = positions[c] - positions[a];
+    const vy = positions[c + 1] - positions[a + 1];
+    const vz = positions[c + 2] - positions[a + 2];
+    const cx = uy * vz - uz * vy;
+    const cy = uz * vx - ux * vz;
+    const cz = ux * vy - uy * vx;
+    area[at] = 0.5 * Math.sqrt(cx * cx + cy * cy + cz * cz);
+  }
+  const ranked = Array.from(area).sort((one, two) => one - two);
+  const trunk = ranked[Math.floor(triangles * PROXY_BIG)];
+
+  const kept: number[] = [];
+  for (let at = 0; at < triangles; at++) {
+    if (area[at] <= 1e-9) {
+      continue;
+    }
+    if (area[at] >= trunk) {
+      kept.push(at);
+      continue;
+    }
+    let mixed = Math.imul(at ^ 0x9e3779b9, 2654435761) >>> 0;
+    mixed ^= mixed >>> 15;
+    mixed = Math.imul(mixed, 2246822519) >>> 0;
+    mixed ^= mixed >>> 13;
+    if ((mixed >>> 8) / 16777216 < PROXY_KEEP) {
+      kept.push(at);
+    }
+  }
+  if (!kept.length) {
+    return null;
+  }
+
+  const thinned = new Uint32Array(kept.length * 3);
+  kept.forEach((at, slot) => {
+    thinned[slot * 3] = indices[at * 3];
+    thinned[slot * 3 + 1] = indices[at * 3 + 1];
+    thinned[slot * 3 + 2] = indices[at * 3 + 2];
+  });
+
+  const proxy = new Mesh(`${mesh.name}-shadow`, scene);
+  proxy.setVerticesData('position', Float32Array.from(positions), false);
+  const normals = mesh.getVerticesData('normal');
+  if (normals) {
+    proxy.setVerticesData('normal', Float32Array.from(normals), false);
+  }
+  const uvs = mesh.getVerticesData('uv');
+  if (uvs) {
+    proxy.setVerticesData('uv', Float32Array.from(uvs), false);
+  }
+  proxy.setIndices(thinned, positions.length / 3, false);
+  proxy.material = mesh.material;
+  proxy.alwaysSelectAsActiveMesh = true;
+  proxy.layerMask = SHADOW_ONLY;
+  proxy.receiveShadows = false;
+
+  const held = mesh as unknown as {
+    thinInstanceBufferStorage?: { matrix?: { data?: Float32Array } };
+    _thinInstanceDataStorage?: { matrixData?: Float32Array };
+  };
+  const carried = held.thinInstanceBufferStorage?.matrix?.data
+    ?? held._thinInstanceDataStorage?.matrixData;
+  const wanted = mesh.thinInstanceCount;
+  if (carried && wanted > 0) {
+    proxy.thinInstanceSetBuffer('matrix', carried.slice(0, wanted * 16), 16);
+  }
+  if (proxy.thinInstanceCount !== wanted) {
+    proxy.dispose();
+    return null;
+  }
+  return proxy;
+}
