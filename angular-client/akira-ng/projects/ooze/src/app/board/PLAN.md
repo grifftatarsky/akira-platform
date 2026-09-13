@@ -999,3 +999,43 @@ and the remainder is the road. Grass placed 112,594 → 129,039.
 buffers and the ground field at the missing places before touching a constant.
 Both of my guesses — the wear field, then 1.4's stature — were wrong, and the
 data said so in one run.
+
+## 2.5: trees and scrub are vertex-bound, not fill-bound (2026-09-13)
+
+Split by switching each group out of the scene, wind stopped, green coverage
+reported for every arm so a blank arm could not pass:
+
+| | play camera (r 300) | far camera (r 900) |
+|---|---|---|
+| everything | 30.8 ms | 20.7 ms |
+| without the big tree | 28.2 | 19.1 |
+| without the scrub | 29.6 | 20.0 |
+| neither | 26.8 | 18.3 |
+| **the scans cost** | **4.0 ms** (tree 2.6, scrub 1.2) | **2.4 ms** (tree 1.6, scrub 0.7) |
+
+**The decisive number is the far camera.** There the whole board covers 3.75%
+of the view and the scans are a few dozen pixels — and they still cost 2.4 ms,
+sixty per cent of what they cost at the play camera. Green coverage moves
+35.58 → 35.95 when every scan is removed, so at the play camera they are
+drawing **0.4% of the screen for 4.0 ms**.
+
+That is geometry, not fill. The scans submit **4,224,480 triangles every
+frame**: `island_tree_02` is 1,072,213 x 3, and the three `searsia_lucida`
+parts are 113,405 x 4, 77,603 x 5 and 27,701 x 6. A 3.4 m plant carrying a
+million triangles is never going to be worth it on a board where it covers a
+few hundred pixels.
+
+## 3.1: MSAA is `taa.msaaSamples`, and it is already wired to 1
+
+`TAARenderingPipeline` exposes `msaaSamples` (default 1), which sets
+`_taaPostProcess.samples` — that is the modern spelling of the
+`pipeline.samples = 2` the plan refers to. `stage.ts` already sets it
+explicitly to 1, so turning it up is a one-line change, not new plumbing.
+
+The 24 ms that refused MSAA came from `antialias: true` on the **engine**,
+which is swapchain MSAA over the whole chain and a different mechanism.
+
+`engine.setAlphaToCoverage(true)` exists on the WebGPU engine
+(`Engines/WebGPU/Extensions/engine.alphaToCoverage`), so 3.2 is reachable the
+moment samples go above 1 — and the grass is alpha-tested cut-outs, which is
+exactly what alpha-to-coverage is for.

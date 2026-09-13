@@ -425,7 +425,8 @@
         { id: "2.4", work: "<em>Baked geometry vs thin instances</em> for one patch — the forum's 4× claim", state: "refused",
           crit: { w: "2 ms or more saved at equal blade count", n: "Less than 0.5 ms, or it breaks the compute placement" },
           found: "<b>Baking is 18% slower, not four times faster.</b> 112,543 grass plants, the same plants both ways, coverage matched to 0.1% of the view, empty-scene frame subtracted: thin instances <b>6.5 ms</b>, baked <b>7.65</b>. Baking also costs 9.45M vertices and 86 MB of index buffer against an 84-vertex mesh, and gives up the wind, the ground-normal shading, the per-plant tint and the compute placement — all four read the instance matrix columns. <b>Two false results came first and both would have been published:</b> <span class=\"mono\">src.geometry.constructor</span> is a <em>Geometry</em>, not a VertexData, so assigning positions to it and calling applyToMesh is silent and does nothing — the baked arm drew nothing and read exactly the empty baseline, which looked like a 45% win. Every A/B of a draw path reports its own coverage now." },
-        { id: "2.5", work: "<em>Trees and scrub</em> — 4.93 ms, the <em>largest</em> piece and never examined", state: "next" },
+        { id: "2.5", work: "<em>Trees and scrub</em> — 4.93 ms, the <em>largest</em> piece and never examined", state: "done",
+          found: "<b>Split \u2014 it is geometry, not fill.</b> 4.0 ms at the play camera (tree 2.6, scrub 1.2), and still <b>2.4 ms at a camera where the whole board is 3.75% of the view</b>. Green coverage moves 35.58 to 35.95 when every scan is removed, so they draw <b>0.4% of the screen for 4.0 ms</b>. The scans submit <b>4,224,480 triangles a frame</b>: island_tree_02 is 1,072,213 x 3, and the three searsia parts 113,405 x 4, 77,603 x 5 and 27,701 x 6. A 3.4 m plant carrying a million triangles is never worth it here." },
         { id: "2.6", work: "<em>Shadows</em> — 4.03 ms for two cascades at 2048", state: "done",
           found: "<b>Done \u2014 the proxy is wired in.</b> <span class=\"mono\">shadowProxy()</span> in <span class=\"mono\">standing.ts</span> decimates any caster over 200k triangles: every triangle in the top 3% by area, plus a hashed 30% of the rest, on a shadow-only layer mask. The board's casters went <b>4.93M to 2.75M triangles</b>; the big tree casts 344,691 instead of 1,072,213, across all three of its instances. It returns null rather than a proxy if the instance count does not match, because a caster that draws nothing reads like a win." }
       ]
@@ -434,7 +435,8 @@
       title: "Phase 3 — re-examine the refused list",
       note: "Each in its own lab. If a technique is standard in shipping games for this kind of scene and the lab says it fails, assume the implementation is wrong, find the reference, and diff against it before refusing. Refusing an industry standard needs a citation for why this renderer is the exception.",
       items: [
-        { id: "3.1", work: "<em>pipeline.samples = 2</em> MSAA — the 24 ms figure came from <span class=\"mono\">antialias: true</span> on the engine, which is a different thing", state: "" },
+        { id: "3.1", work: "<em>pipeline.samples = 2</em> MSAA — the 24 ms figure came from <span class=\"mono\">antialias: true</span> on the engine, which is a different thing", state: "done",
+          found: "<b>Researched \u2014 it is one line.</b> The modern spelling of <span class=\"mono\">pipeline.samples</span> is <span class=\"mono\">taa.msaaSamples</span> on TAARenderingPipeline, and <span class=\"mono\">stage.ts</span> already sets it explicitly to 1. The 24 ms that refused MSAA was <span class=\"mono\">antialias: true</span> on the <em>engine</em> \u2014 swapchain MSAA over the whole chain, a different mechanism. <span class=\"mono\">engine.setAlphaToCoverage(true)</span> exists on the WebGPU engine, so 3.2 unblocks the moment samples go above 1." },
         { id: "3.2", work: "Alpha-to-coverage, once sampleCount is above 1", state: "" },
         { id: "3.3", work: "SSAO2 with the sky mask and <em>excludedMeshes</em> on the prepass", state: "" },
         { id: "3.4", work: "Grass receiving shadows via a lifted proxy", state: "",
@@ -472,13 +474,20 @@
   ];
 
   const ASKS = [
-    { id: "2.5", q: "Trees and scrub \u2014 4.93 ms, the largest single piece, never examined",
-      why: "Next. Bigger than the grass; nobody has split what it spends.",
-      opts: [["Mine to do", "unknown", "Split the cost before changing anything."]] },
-    { id: "3.1", q: "MSAA, reopened",
-      why: "The 24 ms that refused it came from antialias: true on the engine, which is not pipeline.samples = 2. Alpha-to-coverage is blocked behind it.",
-      opts: [["Mine to do", "unknown", "Lab it."]] },
+    { id: "2.5", q: "Decimate the scans at load, and give them LOD levels",
+      why: "Measured: 4.0 ms at the play camera and still 2.4 ms when the whole board is 3.75% of the view. They draw 0.4% of the screen. That is geometry \u2014 4,224,480 triangles a frame, of which island_tree_02 is 1,072,213 x 3.",
+      opts: [
+        ["Decimate once at load", "aim 2 ms", "Reuse shadowProxy's builder on the visible mesh. No plant removed, only its triangle count."],
+        ["Add LOD levels on top", "more", "mesh.addLODLevel(distance, coarser). Keeps full detail when you walk up to a tree."],
+      ] },
+    { id: "3.1", q: "Turn taa.msaaSamples up from 1",
+      why: "One line in stage.ts, not new plumbing. The 24 ms that refused MSAA was antialias: true on the engine, a different mechanism.",
+      opts: [
+        ["samples 2, then 4", "unknown", "Measure with TAA on and off \u2014 they may be redundant."],
+        ["Then 3.2", "unknown", "engine.setAlphaToCoverage(true) exists on WebGPU. The grass is alpha-tested cut-outs, which is what A2C is for."],
+      ] },
   ];
+
 
 
 

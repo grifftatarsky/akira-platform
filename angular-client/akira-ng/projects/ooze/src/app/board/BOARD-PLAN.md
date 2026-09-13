@@ -123,7 +123,7 @@ difference measurement, not a partition.
 | 2.2 | **Purpose-written blade `ShaderMaterial`** vs PBR-with-subsurface, with vertex-shader NDC culling (forum 62558) | ≥ 1.5 ms saved, field looks the same or better | < 0.5 ms saved | |
 | 2.3 | **Translucency audit** | Off is not darker | Off is visibly flatter | **done — refused.** Lab says on costs 0.4 ms *and* is flatly darker. Turning it off on the board is the next board change |
 | 2.4 | **Baked geometry vs thin instances** for one patch (forum 46756's 4× claim) | ≥ 2 ms saved at equal blade count | < 0.5 ms, or it breaks the compute placement | **refused 2026-09-13 — baking is 18% *slower*.** 112,543 grass plants, coverage matched to 0.1% of the view, empty-scene baseline subtracted: instanced **6.5 ms**, baked **7.65**. The forum's 4× does not reproduce here. Baking also costs 9.45M vertices and 86 MB of index buffer against an 84-vertex mesh, and gives up the wind, the ground-normal shading, the per-plant tint and the compute placement, all of which read the instance matrix |
-| 2.5 | **Trees and scrub** — 4.93 ms, the *largest* piece and never examined | — | — | |
+| 2.5 | **Trees and scrub** — 4.93 ms, the *largest* piece and never examined | No visible difference at the play camera | < 2 ms saved | **split 2026-09-13 — it is geometry, not fill.** 4.0 ms at the play camera (tree 2.6, scrub 1.2), and still **2.4 ms at a camera where the whole board is 3.75% of the view**. They draw 0.4% of the screen for 4.0 ms. The scans submit 4,224,480 triangles a frame; `island_tree_02` alone is 1,072,213 × 3. Plan: decimate at load and add LOD levels — no plant removed, only its triangle count |
 | 2.6 | **Shadows** — 4.03 ms for two cascades at 2048 | — | — | **done 2026-09-13 — the proxy is wired in.** `shadowProxy()` in `standing.ts` decimates any caster over 200k triangles: every triangle in the top 3% by area, plus a hashed 30% of the rest, on a shadow-only layer mask. The board's caster count went **4.93M → 2.75M** triangles; `scan-island_tree_02-0` casts 344,691 instead of 1,072,213, across all three of its instances. It refuses and returns null if the instance count does not match, because a proxy that casts nothing reads like a win |
 
 ---
@@ -137,7 +137,7 @@ industry standard needs a citation for why this renderer is the exception.
 
 | | Work | State |
 |---|---|---|
-| 3.1 | `pipeline.samples = 2` MSAA — the 24 ms figure came from `antialias: true` on the engine, which is a different thing | |
+| 3.1 | `pipeline.samples = 2` MSAA — the 24 ms figure came from `antialias: true` on the engine, which is a different thing | Grass edges stop crawling at the play camera | > 2 ms | **researched 2026-09-13 — it is one line.** The modern spelling is `taa.msaaSamples`, and `stage.ts` already sets it to 1. `engine.setAlphaToCoverage(true)` exists on WebGPU, so 3.2 unblocks the moment samples go above 1 |
 | 3.2 | Alpha-to-coverage, once `sampleCount > 1` | blocked on 3.1 |
 | 3.3 | SSAO2 with the sky mask (forum 63942) and `excludedMeshes` on the prepass | |
 | 3.4 | Grass receiving shadows via a lifted proxy | refused twice; 3.3 ms and acne |
