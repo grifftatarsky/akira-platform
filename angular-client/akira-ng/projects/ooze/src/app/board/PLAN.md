@@ -843,3 +843,47 @@ cards and looked like Minecraft; with no branches between trunk and crown the
 canopy hung above a post. A scan states a shape exactly and a card only has to
 carry it — but a tree is not one shape, it is a structure, and composing one out
 of foliage clumps reads as a stack of boxes however the cards are arranged.
+
+
+## The sward is the twist, and the other two are gone (2026-09-13)
+
+Decided on the board rather than in the lab: the twist runs about five frames
+ahead of cards and far ahead of blades, and the blade no longer carried enough
+extra fidelity to argue for itself once the cards were leaned over and given
+nine a plant.
+
+What that removed, rather than left switchable:
+
+  - `bab/blade-geometry.ts` and `lab/blade.ts`, deleted, with the lab's entry.
+  - `EDGE_FAN` in `foliage-cards.ts` is `tan(0.3π)` now, not 0.3 — so
+    `cardGeometry` *is* the twist and there is no second path. `LeafShape`,
+    `CARD_SHAPE`, `cardShape(fan)` and the `leaf` override parameter existed
+    only so blades could be swapped in; all gone, along with the helper
+    exports (`spanAt`, `cross`, `add`, `scale`, `lift`, `Vec`, `Build`) that
+    only `blade-geometry` imported.
+  - The board's `Shape` type, sward switch, `grown` map, `setShape` and
+    `resowing` signal are gone; `grow()` takes no argument.
+
+**Two edits by script went wrong and the build caught both**, which is the
+argument for never hand-slicing TypeScript by index: deleting the `LeafShape`
+declaration took the `LEAF_LIFT` and `EDGE_FAN` constants with it, and removing
+the shapes array left an unbalanced `))`. Both were plain compile errors, which
+is the good case — unlike the page below.
+
+## Two checks that were checking nothing (2026-09-13)
+
+Both reported green for hours.
+
+  - **`wgsl-lint` with no arguments linted no files** and printed `wgsl clean`.
+    It walks `projects/` now — 157 files.
+  - **The plan page's "js parses" check** sliced from `s.indexOf("const PLAN")`,
+    and there is no `const PLAN` in that file. `indexOf` returned −1, the slice
+    came back empty, and an empty string always parses. Meanwhile an unescaped
+    `class="mono"` inside a double-quoted string had ended the string early and
+    killed the whole `<script>`, so **the page rendered nothing at all** and was
+    published to the artifact in that state.
+
+`tools/page-check.mjs` replaces it: it loads the page in the browser, counts
+rendered items, fails on console errors, and fails if named text is missing.
+Note that port 4300 serves `dist/`, not `public/` — a plan-page edit needs the
+file copied across (or a build) before the check means anything.

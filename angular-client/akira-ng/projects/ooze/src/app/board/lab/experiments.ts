@@ -12,7 +12,6 @@ export type Experiment = (stage: Stage) => Promise<Rig>;
 
 const BENCH: Record<string, () => Promise<Experiment>> = {
   translucency: () => import('./translucency').then(module => module.translucency),
-  blade: () => import('./blade').then(module => module.blade),
 };
 
 export async function experimentFor(id: string): Promise<Experiment | null> {

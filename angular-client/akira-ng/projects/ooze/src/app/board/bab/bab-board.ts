@@ -12,7 +12,7 @@ import { clockLabel } from '../sun-position';
 import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
-import { type FoliageSheet, loadFoliage } from './foliage-cards';
+import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
   FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora, scatterStone,
 } from './standing';
@@ -43,13 +43,9 @@ function dayLabel(day: number): string {
   return `${part} ${month}`;
 }
 
-type Shape = 'card' | 'twist' | 'blade';
-
 type Part = 'meadow' | 'flora' | 'trees' | 'stones' | 'terrain' | 'shadows'
   | 'taa' | 'relief' | 'sky' | 'dome' | 'grade' | 'bloom';
-import { bladeGeometry, twistedCards } from './blade-geometry';
-import { cardGeometry } from './foliage-cards';
-import { type Meadow, type PlantShape, sowMeadow } from './meadow';
+import { type Meadow, sowMeadow } from './meadow';
 import { type Asset, PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
 import { type Slice, splitFrame } from './split-frame';
@@ -118,23 +114,6 @@ import { type Terrain, buildTerrain } from './terrain';
                     class="w-24" />
                   <span class="w-9 tabular-nums">{{ density() }}%</span>
                 </label>
-                <span class="flex items-center gap-1">
-                  Sward
-                  @for (kind of shapes; track kind.key) {
-                    <button type="button" (click)="setShape(kind.key)" [disabled]="resowing()"
-                      [title]="kind.note"
-                      class="rounded border px-1.5 py-0.5 font-mono text-[0.65rem] disabled:opacity-40"
-                      [class.border-accent]="shape() === kind.key"
-                      [class.text-accent]="shape() === kind.key"
-                      [class.border-rule]="shape() !== kind.key"
-                      [class.text-fg-muted]="shape() !== kind.key">
-                      {{ kind.label }}
-                    </button>
-                  }
-                  @if (resowing()) {
-                    <span class="font-mono text-[0.6rem] text-fg-subtle">sowing…</span>
-                  }
-                </span>
                 <label class="flex items-center gap-1.5"
                   title="How far each leaf's shading normal is pulled onto the ground's own. At 100% the sward is lit almost entirely by the terrain, which is why per-blade normal work is invisible.">
                   Leaf normal
@@ -474,7 +453,6 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   private extent: { x: number; y: number } | null = null;
   private stats: Stats | null = null;
   private meadow: Meadow | null = null;
-  private readonly grown = new Map<Shape, Meadow>();
   private field: GroundField | null = null;
   private sheet: FoliageSheet | null = null;
   private stones: Mesh[] = [];
@@ -497,33 +475,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   protected readonly on = signal<Partial<Record<Part, boolean>>>({ bloom: false });
 
-  protected readonly shape = signal<Shape>('card');
   protected readonly leafNormal = signal(100);
   protected readonly wind = signal(100);
   private readonly litAsBuilt = new Map<string, number>();
   private readonly gustAsBuilt = new Map<string, number>();
-  protected readonly resowing = signal(false);
-  protected readonly shapes: readonly { key: Shape; label: string; note: string }[] = [
-    {
-      key: 'card',
-      label: 'cards',
-      note: 'Scanned cut-outs on fitted strips. What the board ships.',
-    },
-    {
-      key: 'twist',
-      label: 'twist',
-      note: 'The same cards, with the edge normals rotated 0.3 pi about the '
-        + 'blade axis instead of fanned by atan(0.3) — the reference angle, so a '
-        + 'flat strip shades like a cylinder.',
-    },
-    {
-      key: 'blade',
-      label: 'blades',
-      note: 'Seven quadratic-Bezier blades a spray, tapered to a tip, edge normals '
-        + 'rotated 0.3 pi. Refused in the lab at +4.17 ms and 5.1x the triangles — '
-        + 'this is that version, on the whole board.',
-    },
-  ];
 
   protected readonly day = signal(196);
   protected readonly dayLabel = signal('mid Jul');
@@ -538,7 +493,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       0.5 - 0.52 * Math.cos((year - 0.04) * Math.PI * 2)));
     const bloom = Math.max(0, Math.min(1,
       1 - Math.abs(day - 172) / 52));
-    this.grown.forEach(meadow => meadow.setSeason(green, bloom));
+    this.meadow?.setSeason(green, bloom);
     this.stage?.setSeasonTint(green);
   }
 
@@ -550,9 +505,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     }
     switch (part) {
       case 'meadow':
-        this.grown.forEach((meadow, key) => meadow.sown.forEach(
-          sown => sown.mesh.setEnabled(want && key === this.shape()),
-        ));
+        this.meadow?.sown.forEach(sown => sown.mesh.setEnabled(want));
         break;
       case 'flora':
         this.groundFlora.forEach(mesh => mesh.setEnabled(want));
@@ -631,7 +584,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       const sheet = await loadFoliage(stage.scene);
       this.sheet = sheet;
       this.field = field;
-      this.meadow = this.grow('card');
+      this.meadow = this.grow();
 
       this.stones = [
         ...await plantScans(field, stage.scene),
@@ -659,9 +612,6 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         sow: sowMeadow,
         species: MEADOW,
         sheet,
-        shape: (which: Shape): Promise<void> => this.setShape(which),
-        grown: this.grown,
-        shapes: { card: cardGeometry, twist: twistedCards, blade: bladeGeometry },
         split: async (): Promise<readonly Slice[]> => {
           await this.split();
           return this.slices();
@@ -748,48 +698,14 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     return this.meadow?.sown.find(s => s.plant.id === plant.id)?.count ?? 0;
   }
 
-  private grow(shape: Shape): Meadow {
-    const standing = this.grown.get(shape);
-    if (standing) {
-      return standing;
-    }
-    const shapes: Readonly<Record<Shape, PlantShape>> = {
-      card: cardGeometry,
-      twist: twistedCards,
-      blade: bladeGeometry,
-    };
+  private grow(): Meadow {
     const meadow = sowMeadow(
-      this.field!, this.stage!.scene, this.sheet!, undefined, shapes[shape],
-      true,
+      this.field!, this.stage!.scene, this.sheet!, undefined, cardGeometry, true,
     );
     if (this.density() !== 100) {
       meadow.setDensity(this.density() / 100);
     }
-    this.grown.set(shape, meadow);
     return meadow;
-  }
-
-  protected async setShape(shape: Shape): Promise<void> {
-    if (!this.stage || !this.field || !this.sheet || this.resowing()) {
-      return;
-    }
-    this.shape.set(shape);
-    if (!this.grown.has(shape)) {
-      this.resowing.set(true);
-      await new Promise(done => window.setTimeout(done, 0));
-    }
-    try {
-      this.meadow = this.grow(shape);
-      this.setLeafNormal(this.leafNormal());
-      this.setWind(this.wind());
-      for (const [key, meadow] of this.grown) {
-        const on = key === shape && this.on()['meadow'] !== false;
-        meadow.sown.forEach(sown => sown.mesh.setEnabled(on));
-      }
-      this.status.set(this.lattice());
-    } finally {
-      this.resowing.set(false);
-    }
   }
 
   private lattice(): string {
@@ -802,7 +718,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     );
     return `${this.terrain?.chunks.length ?? 0} chunks · lattice `
       + `${meadow.lattice.cells.toLocaleString()} cells at `
-      + `${meadow.lattice.pitch.toFixed(2)} half-feet · ${this.shape()} `
+      + `${meadow.lattice.pitch.toFixed(2)} half-feet · twist `
       + `${Math.round(triangles).toLocaleString()} tris a plant set`
       + (meadow.lattice.fit < 1
         ? ` · sward capped to ${Math.round(meadow.lattice.fit * 100)}%` : '');
@@ -810,29 +726,25 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   protected setWind(percent: number): void {
     this.wind.set(percent);
-    for (const meadow of this.grown.values()) {
-      for (const sown of meadow.sown) {
-        const built = this.gustAsBuilt.get(sown.plant.id) ?? sown.wind.strength;
-        this.gustAsBuilt.set(sown.plant.id, built);
-        sown.wind.strength = built * (percent / 100);
-      }
+    for (const sown of this.meadow?.sown ?? []) {
+      const built = this.gustAsBuilt.get(sown.plant.id) ?? sown.wind.strength;
+      this.gustAsBuilt.set(sown.plant.id, built);
+      sown.wind.strength = built * (percent / 100);
     }
   }
 
   protected setLeafNormal(percent: number): void {
     this.leafNormal.set(percent);
-    for (const meadow of this.grown.values()) {
-      for (const sown of meadow.sown) {
-        const built = this.litAsBuilt.get(sown.plant.id) ?? sown.wind.ground;
-        this.litAsBuilt.set(sown.plant.id, built);
-        sown.wind.ground = built * (percent / 100);
-      }
+    for (const sown of this.meadow?.sown ?? []) {
+      const built = this.litAsBuilt.get(sown.plant.id) ?? sown.wind.ground;
+      this.litAsBuilt.set(sown.plant.id, built);
+      sown.wind.ground = built * (percent / 100);
     }
   }
 
   protected setDensity(percent: number): void {
     this.density.set(percent);
-    this.grown.forEach(meadow => meadow.setDensity(percent / 100));
+    this.meadow?.setDensity(percent / 100);
 
   }
 
@@ -865,7 +777,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     this.stats?.dispose();
     this.observer?.disconnect();
     this.stones.forEach(stone => stone.dispose());
-    this.grown.forEach(meadow => meadow.dispose());
+    this.meadow?.dispose();
     this.sheet?.texture.dispose();
     this.terrain?.dispose();
     this.stage?.dispose();

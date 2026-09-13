@@ -52,7 +52,7 @@ export async function swardPatch(
 
   const sheet = await loadFoliage(stage.scene);
   const sowings = Object.entries(shapes).map(([name, shape]): Sowing => {
-    const meadow = sowMeadow(field, stage.scene, sheet, undefined, shape, name !== 'blade');
+    const meadow = sowMeadow(field, stage.scene, sheet, undefined, shape, true);
     return {
       name,
       meadow,

@@ -16,56 +16,6 @@ export interface LabEntry {
 
 export const LABS: readonly LabEntry[] = [
   {
-    id: 'blade',
-    title: 'A Bezier blade against the scanned card',
-    phase: '1.1',
-    standard: 'Every grass renderer that draws blades rather than photographs of '
-      + 'them builds this shape. Jahrmann and Wimmer 2017 describe a blade as '
-      + 'three control points of a quadratic Bezier plus height, width, direction '
-      + 'and stiffness — "a blade of grass can be completely described by four 4D '
-      + 'vectors" — tapering to a single tip vertex, with the edge normals rotated '
-      + 'about the blade\'s own axis so a flat strip shades like a cylinder. The '
-      + 'board\'s cards already fan their edge normals, but by atan(0.3) — a third '
-      + 'of the 0.3 pi the reference uses.',
-    scene: 'A flat 60 x 60 foot patch under the board\'s own sun, sky and post '
-      + 'chain. Three sowings on the same field with the same seeds, so every '
-      + 'plant stands in the same place in all three and only its geometry '
-      + 'differs: the card as it ships, the same card with the reference twist on '
-      + 'its edge normals, and three Bezier blades standing in for each scanned '
-      + 'spray. The middle option is there to separate the shape from the shading '
-      + '— without it a win cannot be attributed to either.',
-    criterion: {
-      working: 'No visible repetition at the play camera, and blades read as '
-        + 'rounded rather than as flat strips — a tuft should have a lit side and '
-        + 'a shaded side at the same instant.',
-      notHelping: 'More than 1.0 ms over the card at equal density. Read the '
-        + 'triangle counts in the note: the comparison is not triangle-neutral, so '
-        + 'a cost that tracks the triangle ratio is the geometry, not the idea.',
-      broken: 'Blades read as spikes or as a bristle brush — the taper too sharp '
-        + 'or the twist so strong the two edges shade as different objects.',
-    },
-    result: '2026-09-12 — refused on cost. **The first refusal was right for the '
-      + 'wrong reason and is corrected here.** Version one was broken in four ways '
-      + 'at once and I judged it from distant screenshots, which hid all of them: '
-      + 'blade width came from `cut.aspect`, which is 0.65 for a spray cut and 0.04 '
-      + 'for a blade cut, so one group was ten times the other; there was no real '
-      + 'taper, so blades were parallel-sided ribbons with a blunt end; fan, tilt '
-      + 'and root spread compounded into a five-foot starfish from a three-foot '
-      + 'plant; and the UVs sampled the interior of a cut-out\'s bounding span, '
-      + 'which is the transparent gap between scanned blades, so the alpha test '
-      + 'punched holes through solid geometry. Looking at one tuft from eight '
-      + 'angles showed all four in about a minute. A generated blade cannot be '
-      + 'textured from a cut-out atlas at all — it takes its colour from the '
-      + 'species table now, with the root-to-tip gradient the wind plugin already '
-      + 'had and the scans made unnecessary. Rebuilt: five blades a spray on a '
-      + 'golden-angle turn, absolute width from `plant.wide`, a shoulder-then-point '
-      + 'taper, 0.3 pi rotated edge normals. It reads as real grass from every '
-      + 'angle and **it looks better than the cards close up**. It still costs '
-      + '21.0 ms against 47.1 at the play camera on the whole board — 2.2x the '
-      + 'frame — so the refusal stands on cost alone. The look objection in the '
-      + 'first result was my bug, not the technique.',
-  },
-  {
     id: 'translucency',
     title: 'Subsurface translucency on the sward',
     phase: '2.3',

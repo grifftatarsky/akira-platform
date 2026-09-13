@@ -37,25 +37,21 @@ export async function loadFoliage(scene: Scene): Promise<FoliageSheet> {
   return { texture, groups: table.groups };
 }
 
-export interface Build {
+interface Build {
   positions: number[];
   normals: number[];
   uvs: number[];
   indices: number[];
 }
 
-export type LeafShape = (
-  build: Build, plant: Plant, spec: CardSpec, cut: Cut, around: number, index: number,
-) => void;
-
 const LEAF_LIFT = 0.22;
 
-const EDGE_FAN = 0.3;
+const EDGE_FAN = Math.tan(0.3 * Math.PI);
 
 const LEAF_FLOOR = 0.02;
 
 export function cardGeometry(
-  plant: Plant, sheet: FoliageSheet, leaf: LeafShape = addCard,
+  plant: Plant, sheet: FoliageSheet,
 ): VertexData {
   const build: Build = { positions: [], normals: [], uvs: [], indices: [] };
   const leaves = plant.cards.reduce(
@@ -78,7 +74,7 @@ export function cardGeometry(
       if (spec.disc) {
         addHead(build, spec, cut, around);
       } else {
-        leaf(build, plant, spec, cut, around, leafed);
+        addCard(build, plant, spec, cut, around, leafed);
         leafed++;
       }
       placed++;
@@ -97,17 +93,9 @@ export function cardGeometry(
   return data;
 }
 
-export const CARD_SHAPE: LeafShape = (build, plant, spec, cut, around, index) =>
-  addCard(build, plant, spec, cut, around, index);
-
-export function cardShape(fan: number): LeafShape {
-  return (build, plant, spec, cut, around, index) =>
-    addCard(build, plant, spec, cut, around, index, fan);
-}
-
 function addCard(
   build: Build, plant: Plant, spec: CardSpec, cut: Cut,
-  around: number, index: number, fan = EDGE_FAN,
+  around: number, index: number,
 ): void {
   const wide = spec.tall * cut.aspect;
 
@@ -156,7 +144,7 @@ function addCard(
         root[2] + up[2] * along + across[2] * off,
       );
 
-      const fanned = add(face, scale(across, fan * (side === 0 ? -1 : 1)));
+      const fanned = add(face, scale(across, EDGE_FAN * (side === 0 ? -1 : 1)));
       build.normals.push(...lift(fanned));
       build.uvs.push(
         cut.u0 + (cut.u1 - cut.u0) * at,
@@ -275,7 +263,7 @@ function spanOver(cut: Cut, from: number, to: number): readonly [number, number]
   return left < right ? [left, right] : [0, 1];
 }
 
-export function spanAt(cut: Cut, t: number): readonly [number, number] {
+function spanAt(cut: Cut, t: number): readonly [number, number] {
   const spans = cut.spans;
   if (!spans?.length) {
     return [0, 1];
@@ -290,9 +278,9 @@ export function spanAt(cut: Cut, t: number): readonly [number, number] {
   ];
 }
 
-export type Vec = readonly [number, number, number];
+type Vec = readonly [number, number, number];
 
-export function cross(a: Vec, b: Vec): Vec {
+function cross(a: Vec, b: Vec): Vec {
   return [
     a[1] * b[2] - a[2] * b[1],
     a[2] * b[0] - a[0] * b[2],
@@ -300,15 +288,15 @@ export function cross(a: Vec, b: Vec): Vec {
   ];
 }
 
-export function add(a: Vec, b: Vec): Vec {
+function add(a: Vec, b: Vec): Vec {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
 
-export function scale(a: Vec, by: number): Vec {
+function scale(a: Vec, by: number): Vec {
   return [a[0] * by, a[1] * by, a[2] * by];
 }
 
-export function lift(v: Vec): Vec {
+function lift(v: Vec): Vec {
   const flat = Math.hypot(v[0], v[1], v[2]) || 1;
   const x = (v[0] / flat) * (1 - LEAF_LIFT);
   const y = (v[1] / flat) * (1 - LEAF_LIFT) + LEAF_LIFT;
