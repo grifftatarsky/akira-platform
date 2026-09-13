@@ -74,6 +74,7 @@ export interface Plant {
   readonly sweep: number;
 
   readonly lit: number;
+  readonly wash?: readonly [number, number, number];
 
   readonly patch: number;
   readonly clumping: number;
@@ -193,6 +194,7 @@ export const MEADOW: readonly Plant[] = [
     ],
     stemTall: 0,
     lit: 0.68, damp: -0.3,
+    wash: [0.70, 0.80, 0.46],
   },
 ];
 

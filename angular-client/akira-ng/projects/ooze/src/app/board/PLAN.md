@@ -681,3 +681,31 @@ changes and not otherwise.
 **The per-plant dice is hashed from `floor(world3.xz * 8.0)`** — the plant's
 rooted position, not an index, because the vertex stage has no index; and from
 nothing that changes with the frame, or the field boils.
+
+
+## The pale flora is the scan, not the renderer (2026-09-13)
+
+The rosette cut-outs — the broad leaves that read as washed out in the sward —
+are pale yellow-green **in the atlas**. Pulled out of `foliage.png` and looked
+at directly, all five of them.
+
+Two renderer levers were measured against it, on the same camera, counting
+pixels that fall in the pale-leaf hue:
+
+| lever | pale-leaf area | mean green |
+|---|---|---|
+| albedo wash 1.00 (as it was) | 5.91% | 175 |
+| wash 0.85 | 5.42% | 172 |
+| **wash 0.70 (taken)** | **4.65%** | 168 |
+| wash 0.55 | 3.50% | 165 |
+| ground blend 0.68 → 0.82 | 5.13% (worse) | 170 |
+| ground blend 0.68 → 0.92 | 5.29% (worse) | 171 |
+
+So the albedo works and has a ceiling: the leaf is blown out by direct sun, not
+by its albedo, and the ground blend makes it worse because the ground normal
+points at the sun too. **The fix that would actually work is a darker source
+cut**, in `foliage-pack.mjs`, not anything in the renderer.
+
+**Translucency is off everywhere now** — 2.3 measured it at 0.4 ms *and*
+visibly darker. Both the sward material in `meadow.ts` and the scanned-leaf
+material in `standing.ts` had it on.

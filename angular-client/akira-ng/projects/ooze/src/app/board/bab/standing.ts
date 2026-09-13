@@ -661,21 +661,24 @@ export async function scatterFlora(
       if (wear > want.wearMax || slopeAt(field, x, y) > 0.5) {
         continue;
       }
-      // Slow noise, one field per species, so the drifts of one do not sit on
-      // the drifts of another.
-      const patch = noise(
-        x * 0.028 + 11.3 + kind * 17, y * 0.028 - 7.9 - kind * 13,
-      );
+      const patch =
+        noise(x * 0.028 + 11.3 + kind * 17, y * 0.028 - 7.9 - kind * 13) * 0.62
+        + noise(x * 0.091 + 53.7 + kind * 29, y * 0.091 - 31.1 - kind * 19) * 0.26
+        + noise(x * 0.24 + 7.1 + kind * 41, y * 0.24 - 13.3 - kind * 37) * 0.12;
       if (patch * (1 + want.drift) + dice(at, 7, 41 + kind) * (1 - want.drift)
         < want.drift) {
         continue;
       }
       const size = (want.tall / own) * (0.8 + 0.4 * dice(at, 11, 53 + kind));
+      const lean = 0.26 * (dice(at, 17, 101 + kind) - 0.5);
+      const roll = 0.26 * (dice(at, 19, 131 + kind) - 0.5);
       matrices.push(Matrix.Compose(
         new Vector3(size, size, size),
-        Quaternion.FromEulerAngles(0, dice(at, 13, 89 + kind) * 6.2831853, 0),
+        Quaternion.FromEulerAngles(
+          lean, dice(at, 13, 89 + kind) * 6.2831853, roll,
+        ),
         new Vector3(
-          x, groundUnder(field, x, y, 1) - want.tall * 0.06, y,
+          x, groundUnder(field, x, y, 1) - want.tall * 0.22, y,
         ),
       ));
     }
@@ -907,11 +910,7 @@ export function raiseStanding(
   // thing on a leaf.
   (sward as unknown as { _getReflectionTexture(): null })
     ._getReflectionTexture = () => null;
-  sward.subSurface.isTranslucencyEnabled = true;
-  sward.subSurface.minimumThickness = 0;
-  sward.subSurface.maximumThickness = 0.14;
-  sward.subSurface.translucencyIntensity = 0.6;
-  sward.subSurface.tintColor = new Color3(0.55, 0.72, 0.28);
+  sward.subSurface.isTranslucencyEnabled = false;
 
   const trunk = new PBRMaterial('standing-bark', scene);
   trunk.metallic = 0;

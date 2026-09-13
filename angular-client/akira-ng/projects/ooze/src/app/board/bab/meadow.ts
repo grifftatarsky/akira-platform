@@ -390,7 +390,8 @@ export function sowMeadow(
 
     if (cutout) {
       material.albedoTexture = sheet.texture;
-      material.albedoColor = new Color3(1, 1, 1);
+      const wash = plant.wash ?? [1, 1, 1];
+      material.albedoColor = new Color3(wash[0], wash[1], wash[2]);
     } else {
       material.albedoColor = new Color3(
         plant.base[0] * 0.45 + plant.tip[0] * 0.55,
@@ -407,14 +408,7 @@ export function sowMeadow(
 
     material.twoSidedLighting = false;
 
-    material.subSurface.isTranslucencyEnabled = true;
-
-    material.subSurface.minimumThickness = 0;
-    material.subSurface.maximumThickness = 0.1;
-    material.subSurface.translucencyIntensity = 0.55;
-    material.subSurface.tintColor = new Color3(
-      plant.tip[0] * 1.5 + 0.1, plant.tip[1] * 1.35 + 0.1, plant.tip[2] * 0.9,
-    );
+    material.subSurface.isTranslucencyEnabled = false;
 
     (material as unknown as { _getReflectionTexture(): null })
       ._getReflectionTexture = () => null;
