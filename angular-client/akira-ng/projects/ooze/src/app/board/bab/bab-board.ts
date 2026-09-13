@@ -12,6 +12,7 @@ import { clockLabel } from '../sun-position';
 import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
+import { Effects } from './effects';
 import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
   CANDIDATES, FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora,
@@ -28,11 +29,20 @@ function read(key: string, fallback: boolean): boolean {
   }
 }
 
-function write(key: string, value: boolean): void {
+function write(key: string, value: boolean | number): void {
   try {
     localStorage.setItem(key, String(value));
   } catch {
 
+  }
+}
+
+function readNumber(key: string, fallback: number): number {
+  try {
+    const saved = Number(localStorage.getItem(key));
+    return Number.isFinite(saved) && saved > 0 ? saved : fallback;
+  } catch {
+    return fallback;
   }
 }
 
@@ -46,7 +56,9 @@ function dayLabel(day: number): string {
 }
 
 type Part = 'meadow' | 'flora' | 'trees' | 'stones' | 'terrain' | 'shadows'
-  | 'taa' | 'relief' | 'sky' | 'dome' | 'grade' | 'bloom';
+  | 'relief' | 'sky' | 'dome' | 'grade';
+
+type Look = 'taa' | 'msaa' | 'ao' | 'rays' | 'grassShade' | 'bloom';
 import { type Meadow, sowMeadow } from './meadow';
 import { type Asset, PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -151,6 +163,62 @@ import { type Terrain, buildTerrain } from './terrain';
                     {{ part.label }}
                   </label>
                 }
+              </div>
+
+              <div class="flex flex-col gap-1 border-t border-rule pt-2 font-mono text-[0.65rem] text-fg-subtle">
+                <div class="flex items-center gap-2">
+                  <span class="uppercase tracking-widest">graphics</span>
+                  <label class="ml-auto flex items-center gap-1" title="Renders at a fraction of the canvas and scales up. The cheapest way to buy back a whole frame on a slower machine.">
+                    render scale
+                    <select [value]="scale()"
+                      (change)="setScale(+$any($event.target).value)"
+                      class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
+                      @for (step of scales; track step) {
+                        <option [value]="step" [selected]="scale() === step">{{ step }}%</option>
+                      }
+                    </select>
+                  </label>
+                </div>
+                @for (feature of looks; track feature.key) {
+                  <label class="flex items-baseline gap-1.5" [title]="feature.note">
+                    <input type="checkbox" class="self-center" [checked]="look()[feature.key]"
+                      (change)="setLook(feature.key, $any($event.target).checked)" />
+                    <span class="text-fg">{{ feature.label }}</span>
+                    <span class="ml-auto shrink-0 tabular-nums"
+                      [class.text-fg-whisper]="feature.cost === 'free'">{{ feature.cost }}</span>
+                  </label>
+                  @if (feature.key === 'grassShade') {
+                    <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
+                      title="What is allowed to cast onto the grass. Trees and stone gives the field the tree shadows and nothing else. Everything adds the lifted proxy that stands at grass height, which is what puts the field's own shadow on the road — and what darkens the whole sward, because the proxy shadows the blades standing under it.">
+                      casts
+                      <select [value]="grassFromSelf() ? 'all' : 'solid'"
+                        (change)="setGrassFromSelf($any($event.target).value === 'all')"
+                        class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
+                        <option value="solid" [selected]="!grassFromSelf()">trees and stone</option>
+                        <option value="all" [selected]="grassFromSelf()">everything</option>
+                      </select>
+                    </label>
+                  }
+                  @if (feature.key === 'ao') {
+                    <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
+                      title="What goes into the depth and normal buffer the occlusion is read from. Ground only leaves the grass out: it is nearly free and nearly invisible, because the grass covers the ground it darkens. Grass too is what actually looks like occlusion, and it is the whole cost.">
+                      reads
+                      <select [value]="aoOverGrass() ? 'all' : 'solid'"
+                        (change)="setAoOverGrass($any($event.target).value === 'all')"
+                        class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
+                        <option value="solid" [selected]="!aoOverGrass()">ground only</option>
+                        <option value="all" [selected]="aoOverGrass()">grass too</option>
+                      </select>
+                    </label>
+                  }
+                }
+                <p class="text-[0.6rem] leading-snug text-fg-muted">
+                  Hover a name for what it does and what it breaks. Costs are what
+                  this one machine read at 3600 &times; 2026 over a 28.1 ms frame,
+                  at the play camera with the wind stopped &mdash; press
+                  <span class="text-fg-subtle">split frame</span> below to measure
+                  your own. Only temporal aa is on to begin with.
+                </p>
               </div>
 
               <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
@@ -485,15 +553,114 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     { key: 'stones', label: 'stone', note: 'Scanned fieldstone.' },
     { key: 'terrain', label: 'terrain', note: 'The forty ground chunks. Off, the grass stands in the sky.' },
     { key: 'shadows', label: 'shadows', note: 'The sun\'s cascaded shadow map.' },
-    { key: 'taa', label: 'temporal aa', note: 'The temporal resolve. Off is sharper and crawls.' },
     { key: 'relief', label: 'ground relief', note: 'The terrain normal and roughness maps.' },
     { key: 'sky', label: 'sky light', note: 'Image-based light from the sky probe.' },
     { key: 'dome', label: 'sky dome', note: 'The sky itself, drawn. Off leaves the clear colour behind the board.' },
     { key: 'grade', label: 'grade', note: 'Tone mapping, contrast and exposure.' },
-    { key: 'bloom', label: 'bloom', note: 'Light spilling around bright edges. Off: nothing on a midday meadow is bright enough to bloom — measured, everything sits under 0.4 luminance. It is here for torches and fire.' },
   ];
 
-  protected readonly on = signal<Partial<Record<Part, boolean>>>({ bloom: false });
+  protected readonly on = signal<Partial<Record<Part, boolean>>>({});
+
+  protected readonly looks: readonly {
+    key: Look; label: string; cost: string; note: string;
+  }[] = [
+    {
+      key: 'taa', label: 'temporal aa', cost: '+1.8 ms',
+      note: 'Averages sixteen sub-pixel jittered frames. It is what keeps the grass from crawling, and it is the only anti-aliasing on the board. Off, edge contrast rises from 17.9 to 22.4.',
+    },
+    {
+      key: 'msaa', label: 'msaa ×2', cost: '+4.6 ms',
+      note: 'Multisampling on the temporal resolve target. It needs temporal aa on — with it off this does nothing at all. Four samples cost the same as two, so the price is the multisampled target, not the resolve.',
+    },
+    {
+      key: 'ao', label: 'ambient occlusion', cost: '+8.4 / +26.9 ms',
+      note: 'Contact darkening where geometry meets geometry — under trunks, around stones, between the blades. Read from a half-resolution depth and normal buffer. Leaving the grass out of that buffer takes it from 26.9 ms to 8.4 — and takes most of what you can see with it, because the grass covers the ground being darkened.',
+    },
+    {
+      key: 'rays', label: 'god rays', cost: '+4.6 ms',
+      note: 'Shafts of light from a real sun disc, scattered around whatever stands in front of it. The occluder pass draws the disc, the terrain, the trees and the stone at quarter resolution and nothing else. Worth turning on at a low sun; near noon there is nothing in front of the sun to throw a shaft.',
+    },
+    {
+      key: 'grassShade', label: 'grass shadows', cost: '+8.3 ms',
+      note: 'Lets the grass receive the shadow map, so tree shadows fall across the field instead of stopping at the ground under it. The proxy that stands at grass height is what used to make this unusable — left casting, it shadows every blade underneath it and the whole field goes dark. Casts: trees and stone drops it while the grass is receiving, which costs the field its own shadow on the road.',
+    },
+    {
+      key: 'bloom', label: 'bloom', cost: '+1.6 ms',
+      note: 'Light spilling around bright edges. Nothing on a midday meadow is bright enough to bloom — measured, everything sits under 0.4 luminance. It is here for torches and fire.',
+    },
+  ];
+
+  protected readonly look = signal<Record<Look, boolean>>({
+    taa: read('ooze.board.look.taa', true),
+    msaa: read('ooze.board.look.msaa', false),
+    ao: read('ooze.board.look.ao', false),
+    rays: read('ooze.board.look.rays', false),
+    grassShade: read('ooze.board.look.grassShade', false),
+    bloom: read('ooze.board.look.bloom', false),
+  });
+
+  protected readonly scale = signal(readNumber('ooze.board.scale', 100));
+
+  protected readonly aoOverGrass = signal(read('ooze.board.aoOverGrass', true));
+
+  protected readonly grassFromSelf = signal(read('ooze.board.grassFromSelf', false));
+
+  protected readonly scales: readonly number[] = [100, 85, 75, 60, 50];
+
+  private effects: Effects | null = null;
+
+  protected setLook(key: Look, want: boolean): void {
+    this.look.update(was => ({ ...was, [key]: want }));
+    write(`ooze.board.look.${key}`, want);
+    this.applyLook(key, want);
+  }
+
+  private applyLook(key: Look, want: boolean): void {
+    const stage = this.stage;
+    if (!stage) {
+      return;
+    }
+    switch (key) {
+      case 'taa':
+        stage.setResolve(want);
+        break;
+      case 'msaa':
+        stage.setMsaa(want ? 2 : 1);
+        break;
+      case 'ao':
+        this.effects?.setAoOverGrass(this.aoOverGrass());
+        void this.effects?.setAmbientOcclusion(want);
+        break;
+      case 'rays':
+        this.effects?.setGodRays(want);
+        break;
+      case 'grassShade':
+        this.effects?.setGrassFromSelf(this.grassFromSelf());
+        this.effects?.setGrassShadows(want);
+        break;
+      case 'bloom':
+        stage.setBloom(want);
+        break;
+    }
+  }
+
+  protected setAoOverGrass(on: boolean): void {
+    this.aoOverGrass.set(on);
+    write('ooze.board.aoOverGrass', on);
+    this.effects?.setAoOverGrass(on);
+  }
+
+  protected setGrassFromSelf(on: boolean): void {
+    this.grassFromSelf.set(on);
+    write('ooze.board.grassFromSelf', on);
+    this.effects?.setGrassFromSelf(on);
+  }
+
+  protected setScale(percent: number): void {
+    this.scale.set(percent);
+    write('ooze.board.scale', percent);
+    this.stage?.setRenderScale(percent / 100);
+  }
 
   protected readonly leafNormal = signal(50);
   protected readonly wind = signal(300);
@@ -545,9 +712,6 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       case 'shadows':
         stage.setShadows(want);
         break;
-      case 'taa':
-        stage.setResolve(want);
-        break;
       case 'relief':
         stage.setRelief(want);
         break;
@@ -559,9 +723,6 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         break;
       case 'grade':
         stage.setGrade(want);
-        break;
-      case 'bloom':
-        stage.setBloom(want);
         break;
     }
   }
@@ -625,6 +786,20 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
       this.groundFlora = await scatterFlora(field, stage.scene);
 
+      const effects = new Effects(stage);
+      this.effects = effects;
+      effects.standing(
+        [...this.terrain.chunks, ...this.stones],
+        (this.meadow?.sown ?? []).map(sown => sown.mesh),
+        this.terrain.grassProxy,
+      );
+      for (const feature of this.looks) {
+        this.applyLook(feature.key, this.look()[feature.key]);
+      }
+      if (this.scale() !== 100) {
+        stage.setRenderScale(this.scale() / 100);
+      }
+
       stage.scene.onBeforeRenderObservable.add(() => {
         this.meadow?.step(performance.now() / 1000);
       });
@@ -637,7 +812,11 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
       const board = this;
       (globalThis as unknown as Record<string, unknown>)['bab'] = {
-        stage, terrain: this.terrain, field,
+        stage, terrain: this.terrain, field, effects,
+        look: (key: Look, want: boolean): void => this.setLook(key, want),
+        scale: (percent: number): void => this.setScale(percent),
+        aoGrass: (want: boolean): void => this.setAoOverGrass(want),
+        grassSelf: (want: boolean): void => this.setGrassFromSelf(want),
         get meadow(): Meadow | null { return board.meadow; },
         cost: (): FrameCost | null => this.stats?.read() ?? null,
         sow: sowMeadow,
@@ -730,14 +909,20 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     this.splitting.set(true);
     this.slices.set([]);
     try {
-      this.slices.set(await splitFrame(
-        this.parts
+      this.slices.set(await splitFrame([
+        ...this.parts
           .filter(part => this.on()[part.key] !== false)
           .map(part => ({
             name: part.label,
             set: (want: boolean): void => this.toggle(part.key, want),
           })),
-      ));
+        ...this.looks
+          .filter(feature => this.look()[feature.key])
+          .map(feature => ({
+            name: feature.label,
+            set: (want: boolean): void => this.applyLook(feature.key, want),
+          })),
+      ]));
     } finally {
       this.splitting.set(false);
     }
@@ -834,6 +1019,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     window.clearInterval(this.ticker);
     this.stats?.dispose();
     this.observer?.disconnect();
+    this.effects?.dispose();
     this.stones.forEach(stone => stone.dispose());
     this.proxies.forEach(proxy => proxy.dispose());
     this.meadow?.dispose();

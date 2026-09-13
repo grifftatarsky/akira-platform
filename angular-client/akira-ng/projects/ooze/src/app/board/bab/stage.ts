@@ -413,6 +413,15 @@ export class Stage {
     this.shadows.shadowMaxZ = Math.max(400, spanHalfFeet * 2.6);
   }
 
+  setMsaa(samples: number): void {
+    this.taa.msaaSamples = Math.max(1, Math.min(4, samples));
+  }
+
+  setRenderScale(scale: number): void {
+    this.engine.setHardwareScalingLevel(1 / Math.max(0.25, Math.min(1, scale)));
+    this.engine.resize();
+  }
+
   jitter(on: boolean): void {
     this.taa.isEnabled = on;
   }
