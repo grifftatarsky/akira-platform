@@ -381,12 +381,12 @@
       title: "Phase 1 — the grass itself",
       note: "The main complaint, and the reason the order is look-first. Every item gets a lab screen before it touches the meadow.",
       items: [
-        { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bézier blade, 2·stacks+1 verts, tapered to a tip, ±0.3π rotated normals", state: "refused",
+        { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bezier blade, tapered to a tip, edge normals rotated 0.3 pi", state: "refused",
           crit: { w: "No visible repetition at the play camera; blades read as rounded, not as flat strips", n: "More than 1.0 ms over cards at equal density" },
-          found: "<b>Closed 2026-09-12 — the sward stays on cards. The fidelity is not worth ten frames.</b> The lab and the code stay. Rebuilt properly after four bugs that distant screenshots hid, then given a texture: the blade group's cuts are single opaque strands, so a photographed blade maps onto the generated geometry with midribs and colour. Card at 100% is 26.8 ms; the textured blade at 38% is 33.0. <b>The blade is not geometry-bound</b> — five blades a card to two, 638 triangles to 162, moved the frame only 52.4 to 49.4. Resolution says where it goes: card 1.68 ms per megapixel, blade 3.38. Twice the fill, because the blade draws twice the grass — solid geometry with nothing discarded, against a card that is mostly empty quad and throws four fifths of its fragments at the alpha test. Both are on the board's sward switch." },
-        { id: "1.1b", work: "<em>The twist on the card</em> — the reference's ±0.3π normal rotation", state: "",
+          found: "<b>Removed from the code 2026-09-13.</b> Closed on cost, then deleted outright: <span class=\"mono\">blade-geometry.ts</span>, <span class=\"mono\">lab/blade.ts</span> and this lab's entry are gone. Once the cards were leaned over and given nine a plant, the blade no longer carried the extra fidelity to justify ten frames." },
+        { id: "1.1b", work: "<em>The twist on the card</em> — the reference's 0.3 pi normal rotation on the existing geometry", state: "done",
           crit: { w: "The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once", n: "Any measurable cost, or the user cannot see it" },
-          found: "<b>Not done — it fails its own criterion, and is blocked on 1.1d.</b> <b>Card and twist are the same mesh:</b> same vertices, same triangles, same texture, same cost. <span class=\"mono\">addCard</span> writes each edge vertex's normal as <span class=\"mono\">face + across * fan</span> — the card's fan is 0.3, so edge normals tilt 16.7° out; the twist's is <span class=\"mono\">tan(0.3π)</span>, so they tilt 54°. The card claims to be a shallow cylinder, the twist a half-round tube. Nothing moves; it is a lie told to the lighting. And on the board you cannot see it: card against twist over the whole field is <b>0.78 mean out of 255</b>. One tuft, eight angles: 0.06–0.10, the same at 9am, 7am and 6am. The normals are fine — they differ by 37° mean. <span class=\"mono\">blade-wind</span> throws them away: the shading normal is <span class=\"mono\">mix(leafNormal, groundNormal, plant.lit)</span> and lit is 0.9, so ninety per cent of the sward is shaded by the terrain. <b>No per-blade normal work can show while that stands.</b> The lever is that blend — see 1.1d." },
+          found: "<b>Taken — it is the sward now, and the only one.</b> Decided on the board rather than in the lab: about five frames ahead of cards and far ahead of blades. <span class=\"mono\">EDGE_FAN</span> is <span class=\"mono\">tan(0.3pi)</span> in <span class=\"mono\">foliage-cards.ts</span>, so every card the board draws is twisted and there is no second path. The sward switch, the <span class=\"mono\">grown</span> map, <span class=\"mono\">setShape</span> and the <span class=\"mono\">LeafShape</span> override are gone." },
         { id: "1.1c", work: "<em>The card's dark bar</em> — one strand in one cut, landing on every plant", state: "done",
           found: "The bar is a short fat dark diagonal leaf in <b>spray cut 0</b>, and <span class=\"mono\">cuts[(n + placed*3) % 2]</span> is 0 for all three cards, so every plant drew it three times. The sheet already had better material: the <b>blade group is seven distinct clean single blades</b> at 35–60% fill against the sprays' 4%. Grass is five of those plus one spray. Per-angle coverage went 4.6 to 10.9 and the swing 3.2× to 1.38×, for 20 triangles to 40." },
         { id: "1.1d", work: "<em>The leaf-normal blend</em> — a <b>Leaf normal</b> slider on the shading mix that currently discards every leaf normal", state: "",
@@ -447,8 +447,7 @@
   ];
 
   const LAB_ROWS = [
-    ["blade", "1.1", "Open — card 26.8 ms at 100%, textured blade 33.0 at 38%. Fill-bound, not geometry-bound."],
-    ["translucency", "2.3", "Refused 2026-09-12 — 10.1 ms on / 9.7 ms off, and on is darker."]
+    ["translucency", "2.3", "Refused 2026-09-12 — 10.1 ms on / 9.7 ms off, and on is darker. Now off on the board."]
   ];
 
   const RULES = [
