@@ -162,7 +162,15 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
   let green = params.c.y;
 
+  let placeA = vnoise(where2 * 0.013);
+  let placeB = vnoise(where2 * 0.037 + vec2f(37.3, 11.9));
+  let place = clamp(placeA * 0.70 + placeB * 0.30, 0.0, 1.0);
+  let unmown = mix(0.56, 1.42, smoothstep(0.28, 0.76, place));
+  let trodden = 1.0 - 0.48 * smoothstep(0.02, ${SWARD_FADE_FROM.toFixed(2)}, wear);
+  let stature = unmown * trodden;
+
   var alive = 1.0 - smoothstep(${SWARD_FADE_FROM.toFixed(2)}, ${SWARD_FADE_TO.toFixed(2)}, wear);
+  alive *= mix(0.80, 1.10, place);
   let damp = params.c.x;
   alive *= clamp(1.0 + damp * (wet - 0.35) * 1.6, 0.15, 1.0);
   alive *= step(0.02, alive);
@@ -188,9 +196,10 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     return;
   }
 
-  let grow = clumpTall * (0.74 + 0.52 * rand(seed + 2u)) * alive;
-  let tall = grow;
-  let wide = grow;
+  let grow = clumpTall * stature * (0.74 + 0.52 * rand(seed + 2u)) * alive;
+  let stretch = 0.78 + 0.46 * rand(seed + 11u);
+  let tall = grow * stretch;
+  let wide = grow / sqrt(stretch);
 
   let outward = where2 - middle;
   let splay = select(atan2(outward.y, outward.x), rand(seed + 4u) * 6.2831853,
