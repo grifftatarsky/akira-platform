@@ -81,8 +81,11 @@ gets a lab screen before it touches the meadow.
 
 | | Work | Working = | Not helping = | State |
 |---|---|---|---|---|
-| 1.1 | **Blade mesh** — quadratic-Bézier blade, `2·stacks+1` verts, tapered to a tip, **±0.3π rotated normals**. Lab it against the current card, side by side | No visible repetition at the play camera; blades read as rounded, not as flat strips | > 1.0 ms over cards at equal density | **done — refused on cost, one free win taken.** See below |
-| 1.1b | **The twist on the card** — the reference's ±0.3π normal rotation on the existing geometry, which is what the blade's shading half amounts to | The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once | Any measurable cost, or the user cannot see it | **next** — free in the lab (+0.02 ms), needs a look on the board |
+| 1.1 | **Blade mesh** — quadratic-Bézier blade, `2·stacks+1` verts, tapered to a tip, **±0.3π rotated normals**. Lab it against the current card, side by side | No visible repetition at the play camera; blades read as rounded, not as flat strips | > 1.0 ms over cards at equal density | **closed 2026-09-12 — the sward stays on cards.** The blade's fidelity is not worth ten frames. Its lab and its code stay |
+| 1.1b | **The twist on the card** — the reference's ±0.3π normal rotation on the existing geometry, which is what the blade's shading half amounts to | The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once | Any measurable cost, or the user cannot see it | **blocked on 1.1d, not done.** Built and free, and it fails its own criterion: card and twist are one pixel apart on the board |
+| 1.1c | **The card's dark bar** — one strand in one cut, landing on every plant | No repeated letterform in the sward | — | **done 2026-09-12** — spray cut 0's fat diagonal leaf, drawn by all three cards. Grass is five `blade` cuts plus one spray now; coverage 4.6→10.9‰, swing 3.2×→1.38× |
+| 1.1d | **The leaf-normal blend** — `blade-wind.ts` shades the sward `mix(leafNormal, groundNormal, 0.9)`, so nine tenths of every blade is lit by the terrain. It is a **Leaf normal** slider now. Lowering it is what lets 1.1b, 1.3's per-blade colour, and any future normal work reach the screen | Blades in one clump are lit differently from each other; the field shimmers as the sun moves | The sward loses its even mass, or reads noisy at the play camera | **decision open** — at 45% the card/twist switch goes from 0.78 to 5.35 mean difference, and 8am contrast from 37.2 to 46.4. Free |
+| 1.1e | **Card thickness** — card width is `spec.tall * cut.aspect`, locked to the cut's own photographed aspect, so a card cannot be widened without stretching the photo. A `widen` on `CardSpec` would decouple them | The sward has more body without more plants | Blades read as ribbons or the tuft reads as a fan | **asked for, not started** |
 | 1.2 | **The old wind back** — front with lulls, three-wave body phased on crosswind, per-plant fast term. Lab with a strength slider and a still/gust toggle | Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above | > 0.3 ms (it is vertex-only) | |
 | 1.3 | **Blade variety** — per-instance hue/height/width/curve/tilt from the clump hash; base→tip colour with a mix factor; AO at the root | Two neighbouring tufts are never obviously the same object | > 0.3 ms | |
 | 1.4 | **Mixed sward structure** — trodden patches, mown verge, taller unmown drifts | The field has places rather than one texture | — | |
@@ -177,6 +180,14 @@ lean from the golden ratio so five blades splay instead of standing in a bundle.
 20 triangles to 40. Play camera about 21 ms to 27.
 
 #### (b) The twist is inert, and why is worth more than the twist
+
+**Card and twist are the same mesh.** Same vertices, same triangles, same
+texture, same draw, same cost. `addCard` writes each edge vertex's normal as
+`face + across * fan`: the card's `fan` is `EDGE_FAN` 0.3, so its edge normals
+tilt 16.7° outward; the twist's is `tan(0.3π)`, so they tilt 54°. The card
+claims to be a very shallow cylinder, the twist a nearly half-round tube.
+Nothing moves. It is entirely a lie told to the lighting.
+
 
 Card against twist, one tuft, eight angles, pixel diff per channel out of 255:
 **0.06–0.10 at the shipping settings.** Across midday, 9am, 7am and 6am, the
