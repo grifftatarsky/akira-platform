@@ -14,7 +14,8 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
 import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
-  FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora, scatterStone,
+  CANDIDATES, FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora,
+  scatterStone,
   shadowProxy,
 } from './standing';
 
@@ -325,6 +326,23 @@ import { type Terrain, buildTerrain } from './terrain';
               }
             </ul>
 
+            <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">candidates</p>
+            <ul class="mt-1 flex flex-col gap-1">
+              @for (kind of candidates; track $index) {
+                <li>
+                  <button type="button" (click)="pickScan(kind.name, kind.plant ?? 0)"
+                    class="w-full rounded border px-2 py-1.5 text-left text-xs transition-colors"
+                    [class.border-accent]="isScan(kind.name, kind.plant ?? 0)"
+                    [class.text-fg]="isScan(kind.name, kind.plant ?? 0)"
+                    [class.border-rule]="!isScan(kind.name, kind.plant ?? 0)"
+                    [class.text-fg-muted]="!isScan(kind.name, kind.plant ?? 0)">
+                    <span class="font-medium">{{ kind.label }}</span>
+                    <span class="ml-1 font-mono text-[0.6rem] text-fg-subtle">not placed</span>
+                  </button>
+                </li>
+              }
+            </ul>
+
             <p class="mt-4 font-mono text-[0.6rem] uppercase tracking-widest text-fg-whisper">standing</p>
             <ul class="mt-1 flex flex-col gap-1">
               @for (kind of standing; track $index) {
@@ -422,6 +440,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly species = MEADOW;
   protected readonly chosen = signal<Asset>({ kind: 'plant', plant: MEADOW[0] });
   protected readonly standing = STANDING;
+  protected readonly candidates = CANDIDATES;
   protected readonly fieldstone = FIELDSTONE;
   protected readonly floraScans = GROUND_FLORA;
 

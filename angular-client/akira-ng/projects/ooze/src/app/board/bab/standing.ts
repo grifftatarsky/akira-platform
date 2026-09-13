@@ -153,6 +153,17 @@ export interface ScanKind {
   readonly label: string;
 }
 
+export const CANDIDATES: readonly ScanKind[] = [
+  {
+    name: 'quiver_tree_02', count: 0, tall: 9, inside: 12, wearMax: 0.58,
+    edge: 0.8, label: 'Quiver tree 02, 1.47 m, 82k',
+  },
+  {
+    name: 'quiver_tree_01', count: 0, tall: 17, inside: 20, wearMax: 0.58,
+    edge: 0.8, label: 'Quiver tree 01, 2.72 m, 150k',
+  },
+];
+
 export const STANDING: readonly ScanKind[] = [
 
     { name: 'island_tree_02', count: 3, tall: 38, inside: 46, wearMax: 0.58, edge: 0.8, label: 'Island tree' },

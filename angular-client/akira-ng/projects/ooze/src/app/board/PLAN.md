@@ -1126,3 +1126,32 @@ Blender**: QEM on the `branches` primitive alone, which is 330,171 triangles of
 solid twig geometry and is what QEM handles well, leaving the 714,744 leaf-card
 triangles untouched. That is asset work, not renderer work, and it is the only
 route that keeps the silhouette.
+
+## The quiver trees are a different plant, not a cheaper tree (2026-09-13)
+
+Both pulled down and looked at in the Assets panel, which grew a **candidates**
+shelf for exactly this: an asset listed and previewable with `count: 0`, so it
+can be judged before anything places it on the board.
+
+| | height | triangles | what it actually is |
+|---|---|---|---|
+| quiver_tree_01 | 2.72 m | 150,124 | a bare pole with a small tuft on top |
+| quiver_tree_02 | 1.47 m | 82,074 | a squat aloe, reads as a palm or yucca |
+| *island_tree_02* | *3.41 m* | *1,072,213* | *a broadleaf with a spreading canopy* |
+
+Neither is a shade tree. `Aloidendron dichotomum` is a succulent: smooth pale
+trunk, dichotomous fork, aloe rosettes where a canopy would be. In a green
+meadow they read as desert palms. Refused on the look.
+
+Two useful facts from the trip:
+
+  - **Neither has an alpha map** — only `diff`, `arm` and `nor`, and the glTF
+    material is `OPAQUE`. The rosettes are real geometry, not cut-out cards, so
+    none of the mask traps apply to them. That is also why 82k triangles is
+    enough for a whole plant.
+  - **Poly Haven's download URLs refuse `urllib`** with a 403 and want a
+    browser user agent; `curl -L -A "Mozilla/5.0"` works.
+
+The files are kept under `assets/board/models/` (6.3 MB the pair) so the
+judgement can be re-run without downloading again. Delete both folders and the
+`CANDIDATES` entries to drop them.
