@@ -144,6 +144,15 @@ import { type Terrain, buildTerrain } from './terrain';
                     class="w-20" />
                   <span class="w-9 tabular-nums">{{ leafNormal() }}%</span>
                 </label>
+                <label class="flex items-center gap-1.5"
+                  title="Scales every plant's wind strength. The board ships at 100%, which is 0.62 of the plugin's own default.">
+                  Wind
+                  <input
+                    type="range" min="0" max="300" step="10"
+                    [value]="wind()" (input)="setWind($any($event.target).valueAsNumber)"
+                    class="w-20" />
+                  <span class="w-9 tabular-nums">{{ wind() }}%</span>
+                </label>
                 <label class="flex items-center gap-1.5">
                   Season
                   <input type="range" min="1" max="365" step="1" [value]="day()"
@@ -490,7 +499,9 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   protected readonly shape = signal<Shape>('card');
   protected readonly leafNormal = signal(100);
+  protected readonly wind = signal(100);
   private readonly litAsBuilt = new Map<string, number>();
+  private readonly gustAsBuilt = new Map<string, number>();
   protected readonly resowing = signal(false);
   protected readonly shapes: readonly { key: Shape; label: string; note: string }[] = [
     {
@@ -770,6 +781,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     try {
       this.meadow = this.grow(shape);
       this.setLeafNormal(this.leafNormal());
+      this.setWind(this.wind());
       for (const [key, meadow] of this.grown) {
         const on = key === shape && this.on()['meadow'] !== false;
         meadow.sown.forEach(sown => sown.mesh.setEnabled(on));
@@ -794,6 +806,17 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       + `${Math.round(triangles).toLocaleString()} tris a plant set`
       + (meadow.lattice.fit < 1
         ? ` · sward capped to ${Math.round(meadow.lattice.fit * 100)}%` : '');
+  }
+
+  protected setWind(percent: number): void {
+    this.wind.set(percent);
+    for (const meadow of this.grown.values()) {
+      for (const sown of meadow.sown) {
+        const built = this.gustAsBuilt.get(sown.plant.id) ?? sown.wind.strength;
+        this.gustAsBuilt.set(sown.plant.id, built);
+        sown.wind.strength = built * (percent / 100);
+      }
+    }
   }
 
   protected setLeafNormal(percent: number): void {

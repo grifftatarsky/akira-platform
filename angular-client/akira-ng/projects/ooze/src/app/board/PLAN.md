@@ -588,3 +588,48 @@ measurement lied.
   template literal and produces a shader that compiles to nothing with no error.
 - `tools/foliage-pack.mjs` — composes the CC0 cut-out sheet, bleeds colour under
   the alpha, and records each silhouette's outline.
+
+
+## The sward's coverage, and the wind (2026-09-13)
+
+**A card is invisible from above.** The complaint was that you see ground
+through cards and not through blades, and the cause is geometry, not width: an
+upright quad seen from overhead is a line. Five near-vertical cards a plant
+leave gaps; a blade is a solid tapered tube and presents area from every
+direction. Measured as the share of a steep-camera view that is hole or dirt:
+cards 5.6%, blades 1.2%.
+
+Leaning the cards over is the cheap half of the fix and costs nothing — same
+triangles, same plants. The full fresh-browser curve, all four sown back to
+back in one session at 3600x2026:
+
+| grass cards | holes | play camera |
+|---|---|---|
+| 5 at lean 0.34 (as it was) | 5.6% | 27.7 ms |
+| 5 at lean 0.90 | 4.3% | 28.3 ms |
+| 7 at lean 0.90 | 2.5% | 30.2 ms |
+| 9 at lean 0.90 (shipped) | 1.8% | 31.9 ms |
+| blades | 1.2% | ~50 ms |
+
+Raising `perArea` 1.5x on top reached 1.0% at 39.9 ms, still ten under the
+blade — untaken, because the lattice is then near `MAX_PLANTS`.
+
+**Do not tint the terrain green to hide the gaps.** Refused by the user before
+it was proposed; the coverage has to be real geometry.
+
+**The wind is running and cannot be seen.** `meadow.ts` sets
+`wind.strength = 0.62 * plant.stiff` against the plugin's own default of 1.35,
+and the sward sweeps about 7/255 over three seconds — real motion, below the
+threshold of reading as wind. At 250% the sweep is 22/255 and obvious. There
+is a **Wind** slider now; 1.2 is still the shape of the gust, not its size.
+
+**A probe that mutates the board leaves it mutated.** Several runs here set
+`sown.wind.strength = 0` for a still comparison and never put it back, and the
+meadows are cached in `grown`, so the board stayed windless for the user until
+a reload. Restore anything a probe changes, in a `finally`.
+
+**Do not judge a shading technique on a frozen field.** The twist was first
+measured with the wind zeroed, which removes the one condition it exists for —
+a blade turning through the light. Re-run with the wind running it is still
+inert (spatial contrast 22.70 card against 23.02 twist), so the conclusion
+held, but it had not been earned.
