@@ -290,9 +290,9 @@
 
   <div class="band">
     <div class="band-head">
-      <span class="now" id="nowMs">22.9 ms</span>
+      <span class="now" id="nowMs">31.25 ms</span>
       <span class="aim">at the play camera, maximum plants, <strong>3600 &times; 2026 (7.29&nbsp;MP)</strong>, fresh browser
-        &mdash; <strong>47 fps</strong> against a target of 60 (16.6&nbsp;ms). Three bracketed runs, drift 0.37&nbsp;ms.</span>
+        &mdash; <strong>32 fps</strong> against a target of 60 (16.6&nbsp;ms). Read off the board 2026-09-13, grass at 100%, wind 300%, leaf normal 50%. The bars are the GPU passes the HUD reports, which overlap and do not partition the frame.</span>
     </div>
 
     <div class="frame-bar">
@@ -305,16 +305,17 @@
     </div>
 
     <dl class="figures">
-      <div class="figure"><dt>Plants drawn</dt><dd class="mono">230,937</dd></div>
-      <div class="figure"><dt>Grass</dt><dd class="mono">112,597</dd></div>
+      <div class="figure"><dt>Plants drawn</dt><dd class="mono">481,740</dd></div>
+      <div class="figure"><dt>Grass</dt><dd class="mono">160,580</dd></div>
       <div class="figure"><dt>Lattice</dt><dd class="mono">32,116 cells @ 2.03 hf</dd></div>
+      <div class="figure"><dt>Triangles</dt><dd class="mono">14,513,409</dd></div>
       <div class="figure"><dt>Board</dt><dd class="mono">440 &times; 300 half-feet</dd></div>
       <div class="figure"><dt>Render</dt><dd class="mono">3600 &times; 2026 &middot; 7.29 MP</dd></div>
     </dl>
   </div>
 
   <section class="asks">
-    <h2>Waiting on you <span class="count" id="askCount"></span></h2>
+    <h2>Next up <span class="count" id="askCount"></span></h2>
     <ul class="asklist" id="asks"></ul>
   </section>
 
@@ -349,16 +350,13 @@
 
 <script>
   const FRAME = [
-    { name: "trees and scrub", ms: 4.93, color: "#6B9440" },
-    { name: "sward", ms: 4.88, color: "#4F7A2B" },
-    { name: "shadows", ms: 4.03, color: "#3F5E71" },
-    { name: "terrain", ms: 2.13, color: "#8A6B3A" },
-    { name: "ground flora", ms: 1.87, color: "#89A855" },
-    { name: "temporal aa", ms: 1.42, color: "#6E5C86" },
-    { name: "stone, sky, grade, relief", ms: 0.67, color: "#7E7C74" },
-    { name: "unattributed", ms: 1.22, color: "#B4BCAE" }
+    { name: "scene", ms: 23.56, color: "#4F7A2B" },
+    { name: "shadow sun", ms: 3.71, color: "#3F5E71" },
+    { name: "present", ms: 2.31, color: "#7E7C74" },
+    { name: "temporal aa", ms: 1.56, color: "#6E5C86" },
+    { name: "image processing", ms: 0.95, color: "#8A6B3A" }
   ];
-  const MEASURED_MS = 21.5;
+  const MEASURED_MS = 31.25;
 
   const PHASES = [
     {
@@ -389,15 +387,15 @@
           found: "<b>Taken — it is the sward now, and the only one.</b> Decided on the board rather than in the lab: about five frames ahead of cards and far ahead of blades. <span class=\"mono\">EDGE_FAN</span> is <span class=\"mono\">tan(0.3pi)</span> in <span class=\"mono\">foliage-cards.ts</span>, so every card the board draws is twisted and there is no second path. The sward switch, the <span class=\"mono\">grown</span> map, <span class=\"mono\">setShape</span> and the <span class=\"mono\">LeafShape</span> override are gone." },
         { id: "1.1c", work: "<em>The card's dark bar</em> — one strand in one cut, landing on every plant", state: "done",
           found: "The bar is a short fat dark diagonal leaf in <b>spray cut 0</b>, and <span class=\"mono\">cuts[(n + placed*3) % 2]</span> is 0 for all three cards, so every plant drew it three times. The sheet already had better material: the <b>blade group is seven distinct clean single blades</b> at 35–60% fill against the sprays' 4%. Grass is five of those plus one spray. Per-angle coverage went 4.6 to 10.9 and the swing 3.2× to 1.38×, for 20 triangles to 40." },
-        { id: "1.1d", work: "<em>The leaf-normal blend</em> — a <b>Leaf normal</b> slider on the shading mix that currently discards every leaf normal", state: "",
+        { id: "1.1d", work: "<em>The leaf-normal blend</em> — a <b>Leaf normal</b> slider on the shading mix that currently discards every leaf normal", state: "done",
           crit: { w: "Blades in one clump are lit differently from each other; the field shimmers as the sun moves", n: "The sward loses its even mass, or reads noisy at the play camera" },
-          found: "<b>Decision open, and free.</b> <span class=\"mono\">blade-wind</span> shades the sward <span class=\"mono\">mix(leafNormal, groundNormal, 0.9)</span>, so nine tenths of every blade is lit by the terrain — which is why 1.1b is invisible and why 1.3's per-blade colour would be too. At 45% the card/twist switch goes from <b>0.78 to 5.35</b> mean difference over the field, and 8am sward contrast from 37.2 to 46.4. Midday is a wash: a high sun reads mostly the normal's Y and <span class=\"mono\">lift()</span> pins that." },
+          found: "<b>Settled: 50%.</b> Half the blade's own normal, half the ground's — enough to let a little colour and texture through instead of every blade taking the terrain's shading." },
         { id: "1.1e", work: "<em>The sward's coverage</em> — you see ground through cards and not through blades", state: "done",
           crit: { w: "No holes through the sward at a steep camera", n: "Costs more than the blade it replaces" },
           found: "<b>Not width — an upright quad seen from above is a line.</b> Five near-vertical cards a plant leave gaps between them; a blade is a solid tapered tube and presents area from every direction. Measured as the share of a steep view that is hole or dirt: <b>cards 5.6%, blades 1.2%</b>. Leaning the cards over is the free half of the fix — same triangles, same plants — and 5 to 9 cards buys the rest. Fresh browser, four sowings back to back: 5 upright 5.6% at 27.7 ms; 5 leaned <b>4.3% at 28.3</b>; 7 leaned 2.5% at 30.2; <b>9 leaned 1.8% at 31.9</b>; blades 1.2% at about 50. Raising the plant count half again reached 1.0% at 39.9, untaken. Tinting the terrain green to hide the gaps was refused before it was proposed." },
-        { id: "1.1f", work: "<em>The wind cannot be seen</em> — a <b>Wind</b> slider, and the resting value", state: "",
+        { id: "1.1f", work: "<em>The wind cannot be seen</em> — a <b>Wind</b> slider, and the resting value", state: "done",
           crit: { w: "Gusts are legible as wind without looking at a graph" },
-          found: "<b>It was running the whole time.</b> <span class=\"mono\">meadow.ts</span> sets <span class=\"mono\">wind.strength = 0.62 * stiff</span> against the plugin's own default of 1.35, and the sward sweeps about <b>7 of 255 over three seconds</b> — real motion, under the threshold of reading as wind. At 250% the sweep is 22 and it is obvious. Slider added; resting value is open. The <em>shape</em> of the gust is still 1.2's job." },
+          found: "<b>Settled: 300%.</b> Below that it does not read as wind at all. The gust <em>shape</em> was 1.2; this is only its size." },
         { id: "1.2", work: "<em>The old wind back</em> — front with lulls, three-wave body phased on crosswind, per-plant fast term", state: "done",
           crit: { w: "Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above", n: "More than 0.3 ms — it is vertex-only" },
           found: "<b>Free, and it moves 2.2x as much as the old wind at the same slider setting.</b> 31.0 ms with the wind stopped, 30.8 blowing. The gust was four sines with the time subtracted from each phase — four plane waves each running along its own axis. It is a travelling <em>pattern</em> now: the field is sampled at <span class=\"mono\">root.xz - downwind * t</span>, so every gust moves downwind together and reads as flow over the field rather than bars crossing it. Lulls are a smoothstep that reaches zero, and a per-plant flutter rides on the local gust. <span class=\"mono\">patchSize</span> and <span class=\"mono\">gustBias</span> are live on the plugin." },
@@ -453,6 +451,9 @@
   const RULES = [
     "Screenshots have a noise floor: TAA jitters the projection every frame, so two captures of an unchanged board differ by 0.5 mean and 57 max out of 255. Use bab.shot(), which switches the jitter off and returns byte-identical frames.",
     "Every A/B reports a liveness signal for both arms — covered pixels, triangles, instances. An arm that draws nothing reads exactly like a win, and has three times.",
+    "Kill every background task before the turn ends. A probe or watcher left running burns the user's machine for nothing.",
+    "A decision the user makes is crossed off in the same turn they make it. Nothing answered stays in the queue.",
+    "Look at the whole board after every change to the compute pass. A field-scale bug is invisible in a close shot.",
     "Do not refuse anything — measure it, show it, and put the call to the user.",
     "One subpoint at a time; wait for the yes or no before starting the next.",
     "Look at one of the thing before judging a field of them.",
@@ -470,35 +471,23 @@
   ];
 
   const ASKS = [
-    { id: "1.1d", q: "Leaf normal &mdash; where does the slider rest?",
-      why: "The sward is shaded nine parts by the ground it stands on, one part by the blade. Lowering it is what lets any per-blade normal work reach the screen.",
-      opts: [
-        ["100% &mdash; as it ships", "free", "Even mass. The twist and 1.3's per-blade colour stay invisible."],
-        ["45%", "free", "8am sward contrast 37.2 &rarr; 46.4; the card/twist difference goes 0.78 &rarr; 5.35 out of 255."],
-        ["0%", "free", "Every blade lit by itself. Not yet looked at on the board."],
-      ] },
-    { id: "1.1f", q: "Wind &mdash; where does the slider rest?",
-      why: "It ran at 0.62 against the plugin's own default of 1.35 and could not be seen. The gust shape is settled; this is only its size.",
-      opts: [
-        ["100% &mdash; as it ships", "free", "Sweeps about 16 of 255 over three seconds at the near camera."],
-        ["150&ndash;200%", "free", "Plainly moving. Bends further, so it covers a few more pixels."],
-      ] },
-    { id: "2.6", q: "Decimate the big tree's shadow caster?",
-      why: "scan-island_tree_02-0 is 3.22M of the 4.93M caster triangles &mdash; 403k triangles, eight instances, into both cascades every frame, for a shadow a few dozen texels across.",
-      opts: [
-        ["Build a decimated proxy", "about 1 ms", "Keeps the shadow. The work is Babylon's simplify() on a scan, quality unknown until tried."],
-        ["Leave it", "&mdash;", "Shadows stay at 4.1 ms."],
-      ] },
-    { id: "2.5", q: "Trees and scrub &mdash; 4.93 ms, the largest single piece, never examined",
-      why: "Bigger than the sward. Nobody has looked at what it is spending.",
-      opts: [["Take it next", "unknown", "Same treatment as 2.6: split the cost before changing anything."]] },
-    { id: "3.1", q: "Re-open MSAA?",
-      why: "It was refused at 24 ms, but that figure came from antialias: true on the engine, which is a different thing from pipeline.samples = 2.",
-      opts: [["Lab it", "unknown", "3.2, alpha-to-coverage, is blocked behind it."]] },
+    { id: "2.6", q: "Wire the 30% shadow proxy into standing.ts",
+      why: "Decided and measured — 1.0 ms — but it only exists inside a probe. The board still casts the full 1,072,213-triangle tree.",
+      opts: [["Mine to do", "about 1 ms", "Next."]] },
+    { id: "1.4b", q: "The bald patch — the stature field is too strong",
+      why: "Reported from the board: a large area right of the road is nearly plantless and what is there lies flat. That is 1.4's place field at 0.56 height combined with density at 0.80, over too large an area. Intended mechanism, wrong magnitude, and I never looked at the whole board after shipping it.",
+      opts: [["Mine to fix", "free", "Raise the floor and break up the scale."]] },
+    { id: "2.5", q: "Trees and scrub — 4.93 ms, the largest single piece",
+      why: "Queued behind 2.6.",
+      opts: [["Mine to do", "unknown", "Split the cost before changing anything."]] },
+    { id: "3.1", q: "MSAA, reopened",
+      why: "The 24 ms that refused it came from antialias: true on the engine, which is not pipeline.samples = 2. 3.2, alpha-to-coverage, is blocked behind it.",
+      opts: [["Mine to do", "unknown", "Lab it."]] },
   ];
 
+
   const asks = document.getElementById("asks");
-  document.getElementById("askCount").textContent = ASKS.length + " open";
+  document.getElementById("askCount").textContent = "nothing waiting on you \u00b7 " + ASKS.length + " queued";
   for (const ask of ASKS) {
     const li = document.createElement("li");
     li.className = "ask";

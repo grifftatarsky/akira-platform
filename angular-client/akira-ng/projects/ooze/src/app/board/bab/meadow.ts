@@ -164,13 +164,14 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
 
   let placeA = vnoise(where2 * 0.013);
   let placeB = vnoise(where2 * 0.037 + vec2f(37.3, 11.9));
-  let place = clamp(placeA * 0.70 + placeB * 0.30, 0.0, 1.0);
-  let unmown = mix(0.56, 1.42, smoothstep(0.28, 0.76, place));
-  let trodden = 1.0 - 0.48 * smoothstep(0.02, ${GRASS_FADE_FROM.toFixed(2)}, wear);
+  let placeC = vnoise(where2 * 0.094 + vec2f(7.7, 53.1));
+  let place = clamp(placeA * 0.42 + placeB * 0.34 + placeC * 0.24, 0.0, 1.0);
+  let unmown = mix(0.82, 1.24, smoothstep(0.25, 0.78, place));
+  let trodden = 1.0 - 0.30 * smoothstep(0.02, ${GRASS_FADE_FROM.toFixed(2)}, wear);
   let stature = unmown * trodden;
 
   var alive = 1.0 - smoothstep(${GRASS_FADE_FROM.toFixed(2)}, ${GRASS_FADE_TO.toFixed(2)}, wear);
-  alive *= mix(0.80, 1.10, place);
+  alive *= mix(0.94, 1.06, place);
   let damp = params.c.x;
   alive *= clamp(1.0 + damp * (wet - 0.35) * 1.6, 0.15, 1.0);
   alive *= step(0.02, alive);

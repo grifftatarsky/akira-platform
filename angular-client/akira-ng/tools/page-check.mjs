@@ -39,7 +39,7 @@ const probe = `(() => {
     items: document.querySelectorAll('li.item').length,
     rows: document.querySelectorAll('tr').length,
     chars: text.length,
-    missing: ${JSON.stringify(want)}.filter(w => !text.includes(w)),
+    missing: ${JSON.stringify(want)}.filter(w => !text.toLowerCase().includes(w.toLowerCase())),
   });
 })()`;
 const got = await send('Runtime.evaluate', { expression: probe, returnByValue: true });

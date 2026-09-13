@@ -934,3 +934,33 @@ elements 8 and 9, which is exactly where the jitter offset lives. A diagnostic
 that seemed to show the camera resetting was itself wrong: it set `alpha`
 *before* `setTarget`, and `ArcRotateCamera.setTarget` recomputes alpha, beta and
 radius from the camera's position. Set the target first, always.
+
+## The bald patch: 1.4's place field was far too strong (2026-09-13)
+
+Reported from the board, not found by me: a large region beside the road with
+almost no plants, and what was there lay flat. Intended mechanism, wrong
+magnitude, and **I never looked at the whole board after shipping 1.4** — every
+shot I took was close or at the play camera.
+
+Three things compounded:
+
+  - `placeA` ran at `where2 * 0.013`, a wavelength of about 77 half-feet on a
+    440 x 300 board. That is roughly six noise cells across the whole field, so
+    one low cell is an enormous region, not a mown patch.
+  - `unmown` floored at **0.56** of normal height, and `alive` separately
+    multiplied by **0.80** in the same places. `grow` multiplies by `alive` too,
+    so effective height in a low patch was 0.56 x 0.80 = **0.45** — and 20%
+    fewer plants standing at it.
+  - Those short plants still carry 1.1e's lean of 0.90, so a 45%-height plant
+    with cards leaning up to 78 degrees reads as a flat mat rather than short
+    grass.
+
+Now: three octaves (0.013 / 0.037 / 0.094) weighted 0.42 / 0.34 / 0.24 so the
+structure is patchy rather than one swell; `unmown` floors at **0.82** and tops
+at 1.24; `trodden` takes at most 30% instead of 48%; and `alive` follows place
+only between 0.94 and 1.06. Worst case is 0.82 x 0.70 = 0.57, and that only
+happens at the very edge of the track, which is where short grass belongs.
+
+**The rule this earned:** after any change to the compute pass, photograph the
+whole board from above. Field-scale structure is invisible at the play camera
+and at close range, which is where every one of my shots was.
