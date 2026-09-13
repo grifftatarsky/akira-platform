@@ -4,7 +4,7 @@ The working checklist. `BOARD-HANDOFF.md` is the state and the research,
 `PLAN.md` the rules, the refused table and the traps. This is what gets crossed
 off.
 
-Updated 2026-09-12. The same list is a page at
+Updated 2026-09-13. The same list is a page at
 `projects/ooze/public/board-plan.html`, which ooze serves at **/board-plan.html**
 on its own port and which is published as an Artifact for the Claude GUI —
 https://claude.ai/code/artifact/a3019fb5-028c-4cd6-b34c-a22dad6b13f9
@@ -18,6 +18,14 @@ there is not undone by an update here.
 **Where we are:** **47 fps at maximum plants — 21.5 ms** at the play camera,
 **3600 x 2026 (7.29 MP)**, on a freshly started browser. Target is 60 (16.6 ms).
 The order is **look first, then optimize** — Phase 1 before Phase 2.
+
+**Next:** Phase 3 is closed and nothing in it was thrown away — every technique
+in it is a switch in the board's **graphics menu** with its measured price beside
+it. What is left unstarted is **2.2**, the purpose-written grass
+`ShaderMaterial`, which is the only remaining item that could return a frame
+rather than spend one; **2.1** is in the menu as *render scale* and wants a look
+rather than a measurement; and `shadowProxy`'s 200k threshold still misses all
+three searsia parts, so the scrub casts at full resolution.
 
 > **A frame number without its pixel count and its browser's age is not a
 > measurement.** The audit found both mattering more than anything in the
@@ -135,13 +143,46 @@ this kind of scene and the lab says it fails, assume the implementation is
 wrong, find the reference, and diff against it before refusing. Refusing an
 industry standard needs a citation for why this renderer is the exception.
 
+**Nothing here is refused.** Every one of them works; every one costs more than
+this machine can spare at maximum plants; all five are switches in the board's
+graphics menu, off to begin with, for whoever is running a card that can afford
+them.
+
 | | Work | State |
 |---|---|---|
-| 3.1 | `pipeline.samples = 2` MSAA — the 24 ms figure came from `antialias: true` on the engine, which is a different thing | Grass edges stop crawling at the play camera | > 2 ms | **refused 2026-09-13 — 9.4 ms.** Two samples takes 31.1 ms to 40.5, four is no worse, so the cost is the multisampled target not the resolve. **And the mechanism is not what I said:** `taa.msaaSamples` sets the sample count on the *TAA post-process's* target, so with TAA off it does nothing at all — samples 1, 2 and 4 give a byte-identical frame. What it buys is edge 17.96→17.66 and 0.89 mean of 255, barely over the TAA noise floor; crawl does drop 0.962→0.696 |
-| 3.2 | Alpha-to-coverage, once `sampleCount > 1` | — | — | **blocked, and now on cost.** `engine.setAlphaToCoverage(true)` exists on the WebGPU engine, but the only way to samples > 1 here is 3.1's 9.4 ms, which fails on its own before A2C does anything |
-| 3.3 | SSAO2 with the sky mask (forum 63942) and `excludedMeshes` on the prepass | |
-| 3.4 | Grass receiving shadows via a lifted proxy | refused twice; 3.3 ms and acne |
-| 3.5 | God rays with a real sun quad | |
+| 3.1 | `taa.msaaSamples` above 1 | **a setting — `+4.6 ms`.** Earlier read 9.4 ms at a different framing; at the play camera over a 28.1 ms frame it is 4.6. Four samples cost no more than two, so the price is the multisampled target, not the resolve. **The mechanism is not scene MSAA:** it sets the sample count on the *TAA post-process's* target, so with TAA off it does nothing at all — samples 1, 2 and 4 give a byte-identical frame. What it buys is edge 17.96→17.66 and crawl 0.962→0.696 |
+| 3.2 | Alpha-to-coverage, once `sampleCount > 1` | **not taken — no multisampled target to hang it on.** `engine.setAlphaToCoverage(true)` exists on the WebGPU engine, but 3.1 established that the scene pass stays at one sample whatever `msaaSamples` says. A2C needs the *scene's* pass multisampled, and nothing on this board multisamples it |
+| 3.3 | SSAO2 with the sky mask (forum 63942) and an explicit render list on the prepass | **a setting — `+8.4 ms` ground only, `+26.9 ms` with the grass.** The forum's NaN is real and is now patched in the WGSL at the shader store: the prepass normal is `(0,0,0)` on the sky and `normalize()` of that is NaN, so the shader carries a `skyMask` and a guarded normalize. **The `excludedMeshes` half is answered too, and it is the whole cost:** the grass in that buffer is 18.5 of the 26.9 ms. But leaving the grass out takes nearly all of what you can see with it — the grass covers the ground being darkened — so which meshes feed it is a select in the menu, not a decision |
+| 3.4 | Grass receiving shadows via a lifted proxy | **a setting — `+8.3 ms`.** The acne was never the depth bias. It was the lifted proxy, which stands at grass height and therefore shadows every blade underneath it; left casting, the whole field goes dark. Dropped from the casters while the grass receives, the field takes tree shadows cleanly and gives up its own shadow on the road. That trade is the second select in the menu |
+| 3.5 | God rays with a real sun quad | **a setting — `+4.6 ms`.** A billboarded disc on a hidden layer at 3000 half-feet along the sun, with the occluder pass given an explicit render list of the disc, the terrain, the trees and the stone. That render list is the difference from the attempt that flooded white and cost 7 ms doing nothing: the sky box was standing in for the light, and a sky is not an object. Worth having at a low sun; at noon there is nothing in front of the sun to throw a shaft |
+
+---
+
+## Phase 4 — the graphics menu
+
+Built 2026-09-13, because a frame this machine cannot spare is not the same as a
+frame nobody can. Everything Phase 3 measured is a switch in the tools panel with
+its price beside it, persisted per browser, and **only temporal aa is on to begin
+with**.
+
+| switch | cost | sub-choice |
+|---|---|---|
+| temporal aa | +1.8 ms | — |
+| msaa ×2 | +4.6 ms | needs temporal aa on |
+| ambient occlusion | +8.4 / +26.9 ms | *reads*: ground only · grass too |
+| god rays | +4.6 ms | — |
+| grass shadows | +8.3 ms | *casts*: trees and stone · everything |
+| bloom | +1.6 ms | — |
+| render scale | — | 100 / 85 / 75 / 60 / 50% |
+
+Measured at 3600 × 2026, play camera, noon, wind stopped, over a 28.1 ms frame,
+two passes each, on a freshly started browser. **`split frame` now measures
+whichever of these are on**, so the numbers above are one machine's reading and
+not the answer.
+
+`effects.ts` holds SSAO2, the god rays and the grass-shadow wiring; `stage.ts`
+gained `setMsaa` and `setRenderScale`; `taa` and `bloom` moved out of the *show*
+row, which is for content, into the menu, which is for quality.
 
 ---
 
@@ -243,10 +284,12 @@ now.
 
 ## Standing rules
 
-- **Do not refuse anything.** Measure it, show it, say what the numbers and the
-  look are, and put the decision to the user. "Refused" is theirs to say, not
-  mine — and the blade is why: it was refused twice on a look that was my own
-  bug.
+- **Nothing gets refused. Anything that works becomes a setting.** A technique
+  that costs more than this machine can spare is not a technique that nobody
+  wants — it goes in the graphics menu with its measured price, off by default if
+  the cost matters. Measure it, show it, ship the switch, and let the user
+  decide. "Refused" is theirs to say, not mine — and the blade is why: it was
+  refused twice on a look that was my own bug.
 - **One subpoint at a time**, and wait for a yes or no on it before starting the
   next.
 - No time estimates. Rank by size and value.

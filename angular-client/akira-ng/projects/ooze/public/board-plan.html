@@ -223,6 +223,7 @@
   .state.done { color: var(--working); }
   .state.next { color: var(--sward); }
   .state.refused { color: var(--broken); }
+  .state.setting { color: var(--watch); }
 
   .crit { display: flex; flex-direction: column; gap: .18rem; margin-top: .4rem; font-size: .82rem; color: var(--ink-soft); }
   .crit div { padding-left: .65rem; border-left: 2px solid var(--rule); }
@@ -282,8 +283,9 @@
     <h1>The board: the list</h1>
     <p class="prose">
       What gets crossed off. The measured state and the research live in
-      <span class="mono">BOARD-HANDOFF.md</span>; the rules, the refused table and
-      the traps in <span class="mono">PLAN.md</span>. The order is
+      <span class="mono">BOARD-HANDOFF.md</span>; the rules, the priced table and
+      the traps in <span class="mono">PLAN.md</span>. Anything priced out of this
+      machine&rsquo;s frame is a switch in the board&rsquo;s graphics menu, not a refusal. The order is
       <strong>look first, then optimize</strong> &mdash; Phase&nbsp;1 before Phase&nbsp;2.
     </p>
   </header>
@@ -343,7 +345,7 @@
   </section>
 
   <footer class="note">
-    <span>Updated 2026-09-12.</span>
+    <span>Updated 2026-09-13.</span>
     <span>Ticks are shared with everyone who can open this page.</span>
   </footer>
 </div>
@@ -433,16 +435,28 @@
     },
     {
       title: "Phase 3 — re-examine the refused list",
-      note: "Each in its own lab. If a technique is standard in shipping games for this kind of scene and the lab says it fails, assume the implementation is wrong, find the reference, and diff against it before refusing. Refusing an industry standard needs a citation for why this renderer is the exception.",
+      note: "Closed 2026-09-13, and nothing in it was thrown away. All five were built and measured; every one that works is a switch in the board's graphics menu with its price beside it, off to begin with. A technique this machine cannot afford is not a technique nobody wants.",
       items: [
-        { id: "3.1", work: "<em>pipeline.samples = 2</em> MSAA — the 24 ms figure came from <span class=\"mono\">antialias: true</span> on the engine, which is a different thing", state: "refused",
-          found: "<b>Refused \u2014 9.4 ms.</b> Two samples takes the frame 31.1 to 40.5; four is no worse than two, so the cost is the multisampled target and not the resolve. The bar was 2 ms. <b>And the mechanism is not what I said it was:</b> <span class=\"mono\">taa.msaaSamples</span> sets the sample count on the <em>TAA post-process\u2019s</em> target, not the scene\u2019s \u2014 with TAA off, samples 1, 2 and 4 give a <b>byte-identical frame</b> and an identical 22.35 edge. MSAA on this board exists only through the TAA pass. What it buys where it works is small: edge 17.96 to 17.66, and 0.89 mean out of 255 over the whole frame, barely above the 0.5 TAA noise floor. Crawl does drop 0.962 to 0.696, so it is doing something for temporal stability \u2014 just not nine milliseconds\u2019 worth. TAA is carrying the anti-aliasing here: turning it off <em>raises</em> edge contrast to 22.35." },
+        { id: "3.1", work: "<em>taa.msaaSamples</em> above 1 — the 24 ms figure came from <span class=\"mono\">antialias: true</span> on the engine, which is a different thing", state: "setting",
+          found: "<b>A setting \u2014 +4.6 ms</b> at the play camera over a 28.1 ms frame; the 9.4 below was a different framing. Two samples takes the frame 31.1 to 40.5; four is no worse than two, so the cost is the multisampled target and not the resolve. The bar was 2 ms. <b>And the mechanism is not what I said it was:</b> <span class=\"mono\">taa.msaaSamples</span> sets the sample count on the <em>TAA post-process\u2019s</em> target, not the scene\u2019s \u2014 with TAA off, samples 1, 2 and 4 give a <b>byte-identical frame</b> and an identical 22.35 edge. MSAA on this board exists only through the TAA pass. What it buys where it works is small: edge 17.96 to 17.66, and 0.89 mean out of 255 over the whole frame, barely above the 0.5 TAA noise floor. Crawl does drop 0.962 to 0.696, so it is doing something for temporal stability \u2014 just not nine milliseconds\u2019 worth. TAA is carrying the anti-aliasing here: turning it off <em>raises</em> edge contrast to 22.35." },
         { id: "3.2", work: "Alpha-to-coverage, once sampleCount is above 1", state: "refused",
-          found: "<b>Blocked, and now on cost.</b> <span class=\"mono\">engine.setAlphaToCoverage(true)</span> does exist on the WebGPU engine, but the only route to samples above 1 on this board is 3.1\u2019s 9.4 ms, which fails on its own before alpha-to-coverage does anything." },
-        { id: "3.3", work: "SSAO2 with the sky mask and <em>excludedMeshes</em> on the prepass", state: "" },
-        { id: "3.4", work: "Grass receiving shadows via a lifted proxy", state: "",
-          found: "Refused twice: 3.3 ms, and acne — a proxy at the same height as the blades standing on it is what a depth bias cannot win." },
-        { id: "3.5", work: "God rays with a real sun quad", state: "" }
+          found: "<b>Not taken \u2014 there is no multisampled target to hang it on.</b> <span class=\"mono\">engine.setAlphaToCoverage(true)</span> does exist on the WebGPU engine, but 3.1 established that the scene pass stays at one sample whatever <span class=\"mono\">msaaSamples</span> says \u2014 that number lives on the TAA post-process\u2019s target. A2C needs the <em>scene\u2019s</em> pass multisampled, and nothing here multisamples it." },
+        { id: "3.3", work: "SSAO2 with the sky mask and an explicit render list on the prepass", state: "setting",
+          found: "<b>A setting \u2014 +8.4 ms reading the ground, +26.9 ms reading the grass too.</b> Forum 63942\u2019s NaN is real: the prepass writes no normal where the sky is, the g-buffer clears to zero, and <span class=\"mono\">normalize(vec3f(0))</span> is NaN in WGSL where WebGL drivers were lenient. Patched into <span class=\"mono\">ShaderStore.ShadersStoreWGSL</span> before the pipeline compiles \u2014 the shader is a dynamic import, so it has to be pulled in and patched by hand first \u2014 as a length test producing a skyMask plus a guarded select normalize, both substitutions asserted so a Babylon upgrade fails loudly instead of silently un-patching. <b>And the excludedMeshes half is answered: it is the whole cost.</b> <span class=\"mono\">GeometryBufferRenderer.renderList</span> set to the 51 terrain, tree and stone meshes takes it from 26.9 ms to 8.4 \u2014 18.5 ms of prepass over 200k grass instances, exactly what the original refusal measured. <b>But the cheap arm is nearly invisible</b>, at 0.65 mean against a 0.5 TAA noise floor, because the grass covers the ground the occlusion darkens. So which meshes feed the buffer is a select in the menu, not a decision." },
+        { id: "3.4", work: "Grass receiving shadows via a lifted proxy", state: "setting",
+          found: "<b>A setting \u2014 +8.3 ms.</b> The acne was never the depth bias. It is the lifted proxy: it stands at grass height by construction, so every blade is underneath a surface that casts and the field shadows itself \u2014 not banding, a blanket, the whole sward going dark and flat. Dropped from the shadow generator while the grass receives, the field takes tree shadows cleanly for the same 8.3 ms and gives up its own shadow on the road. Both are in the menu under <em>casts</em>." },
+        { id: "3.5", work: "God rays with a real sun quad", state: "setting",
+          found: "<b>A setting \u2014 +4.6 ms</b>, and the old 7.2 ms \u201cdrawing nothing\u201d plus the white flood were one omission. <span class=\"mono\">VolumetricLightScatteringPostProcess</span> leaves its occluder target\u2019s renderList null, so it drew the whole scene \u2014 grass included \u2014 every frame, and the sky box was standing in for the light. A sky is not an object: everything is in front of it, so everything is a source. Now a 150-half-foot billboarded disc on a hidden layer, parked 3000 half-feet along the sun from the camera each frame with an unlit material tinted by the sun\u2019s own colour, and the pass given a render list of the disc, the terrain, the trees and the stone at quarter resolution. At a low sun the light bursts through the canopy; at noon there is nothing in front of the sun to throw a shaft." }
+      ]
+    },
+    {
+      title: "Phase 4 — the graphics menu",
+      note: "Built 2026-09-13, because a frame this machine cannot spare is not the same as a frame nobody can. Everything Phase 3 measured is a switch in the tools panel with its price beside it, persisted per browser, and only temporal aa is on to begin with.",
+      items: [
+        { id: "4.1", work: "The menu itself \u2014 <em>graphics</em> in the tools panel", state: "done",
+          found: "temporal aa <b>+1.8 ms</b> \u00b7 msaa \u00d72 <b>+4.6</b> \u00b7 ambient occlusion <b>+8.4 / +26.9</b> (reads: ground only \u00b7 grass too) \u00b7 god rays <b>+4.6</b> \u00b7 grass shadows <b>+8.3</b> (casts: trees and stone \u00b7 everything) \u00b7 bloom <b>+1.6</b> \u00b7 render scale 100 / 85 / 75 / 60 / 50%. Measured at 3600 \u00d7 2026, play camera, noon, wind stopped, over a 28.1 ms frame, two passes each. <b>split frame now measures whichever of these are on</b>, so those numbers are one machine\u2019s reading and not the answer. <span class=\"mono\">effects.ts</span> is the new file; taa and bloom moved out of the <em>show</em> row, which is for content, into the menu, which is for quality." },
+        { id: "4.2", work: "Two instrument faults found building it", state: "done",
+          found: "<b>The g-buffer outlives the pipeline.</b> <span class=\"mono\">SSAO2RenderingPipeline.dispose()</span> does not touch <span class=\"mono\">scene.geometryBufferRenderer</span>, which keeps rendering every frame for nothing \u2014 so the first AO reading came back at +4.4 ms because the <em>off</em> arm was still paying for the prepass. <b>And a probe that reaches past the UI measures something the UI does not do:</b> calling <span class=\"mono\">effects.setAoOverGrass(false)</span> directly and then toggling through the component re-applied the component\u2019s own signal, so ground-only was measured as grass-too twice and reported at 26 ms." }
       ]
     }
   ];
@@ -459,7 +473,7 @@
     "Kill every background task before the turn ends. A probe or watcher left running burns the user's machine for nothing.",
     "A decision the user makes is crossed off in the same turn they make it. Nothing answered stays in the queue.",
     "Look at the whole board after every change to the compute pass. A field-scale bug is invisible in a close shot.",
-    "Do not refuse anything — measure it, show it, and put the call to the user.",
+    "Nothing gets refused. Anything that works becomes a setting — a technique this machine cannot afford is not one nobody wants. Measure it, show it, ship the switch, default it off if the cost matters.",
     "One subpoint at a time; wait for the yes or no before starting the next.",
     "Look at one of the thing before judging a field of them.",
     "No time estimates. Rank by size and value.",
@@ -476,17 +490,25 @@
   ];
 
   const ASKS = [
-    { id: "2.5", q: "Decimate the scans at load, and give them LOD levels",
-      why: "Measured: 4.0 ms at the play camera and still 2.4 ms when the whole board is 3.75% of the view. They draw 0.4% of the screen. That is geometry \u2014 4,224,480 triangles a frame, of which island_tree_02 is 1,072,213 x 3.",
+    { id: "4.1", q: "Which of the graphics switches should the board open with",
+      why: "All of them are off but temporal aa, because every one costs more than this machine can spare at maximum plants. On a card that can afford them the defaults are yours to set \u2014 and the per-browser store already remembers whatever you pick in the panel.",
       opts: [
-        ["Decimate once at load", "aim 2 ms", "Reuse shadowProxy's builder on the visible mesh. No plant removed, only its triangle count."],
-        ["Add LOD levels on top", "more", "mesh.addLODLevel(distance, coarser). Keeps full detail when you walk up to a tree."],
+        ["Leave it as it is", "28.1 ms", "Temporal aa only. Anything else is opt-in per browser."],
+        ["God rays on", "+4.6 ms", "The cheapest of the three and the only one that changes the picture at a low sun rather than a close one."],
+        ["Grass shadows on, trees and stone", "+8.3 ms", "Tree shadows fall across the field instead of stopping at the ground under it. Costs the field its own shadow on the road."],
+        ["Ambient occlusion on, grass too", "+26.9 ms", "The one that changes the sward most and the one that costs a whole frame."],
       ] },
-    { id: "3.1", q: "Turn taa.msaaSamples up from 1",
-      why: "One line in stage.ts, not new plumbing. The 24 ms that refused MSAA was antialias: true on the engine, a different mechanism.",
+    { id: "2.1", q: "Render scale \u2014 which step, if any, is acceptable to look at",
+      why: "It is in the menu now at 100 / 85 / 75 / 60 / 50%. Measured long ago: halving each axis took 19.7 ms to 11.6. This one was always a judgement, not a measurement \u2014 the question is the step at which you can see it.",
       opts: [
-        ["samples 2, then 4", "unknown", "Measure with TAA on and off \u2014 they may be redundant."],
-        ["Then 3.2", "unknown", "engine.setAlphaToCoverage(true) exists on WebGPU. The grass is alpha-tested cut-outs, which is what A2C is for."],
+        ["100% and leave it", "\u2014", "The board is sharp and 47 fps at maximum plants."],
+        ["Find the step", "up to half the frame", "Open the menu, walk it down, and say where it starts to soften."],
+      ] },
+    { id: "2.2", q: "The purpose-written grass ShaderMaterial",
+      why: "The last unstarted item that could return a frame rather than spend one: PBR-with-subsurface replaced by a material written for the blade, with vertex-shader NDC culling (forum 62558). The grass is 4.88 ms.",
+      opts: [
+        ["Take it", "aim \u22651.5 ms back", "Refused if under 0.5 ms saved or the field looks worse."],
+        ["Leave it", "\u2014", "Trees and scrub are the larger piece, and 2.5 closed that door to the asset."],
       ] },
   ];
 
@@ -611,7 +633,7 @@
       box.className = "tick";
       box.id = "tick-" + item.id;
       box.setAttribute("aria-label", "Cross off " + item.id);
-      if (item.state === "done" || item.state === "refused") {
+      if (item.state === "done" || item.state === "refused" || item.state === "setting") {
         box.checked = true;
       }
       li.appendChild(box);

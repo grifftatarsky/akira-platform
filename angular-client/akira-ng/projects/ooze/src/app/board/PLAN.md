@@ -84,21 +84,24 @@ with nothing else changed.
 
 ---
 
-## Refused, with the measurement
+## Priced, with the measurement
 
-These are not open questions. Each was tried and each has a number.
+Each was tried and each has a number. **Priced is not refused.** Anything in
+here that works and only costs too much for *this* machine lives in the board's
+graphics menu as a switch, off by default — see Phase 4 in `BOARD-PLAN.md`. What
+stays out is what does not work or gains nothing.
 
 | | cost | why it cannot work here |
 |---|---|---|
 | **Frustum culling** | — | Compaction already removed 52% of instances and the frame did not move. The camera where culling removes the most is already the fastest. Off-screen plants are clipped and free. |
 | **Draw-indirect compaction** | neutral | Works, 52% fewer instances drawn, no measurable gain. Kept only as the mechanism something else might need. |
-| **Screen-space occlusion** | **+10 ms** | Not the occlusion — `totalStrength = 0` costs the same. It is the geometry prepass: 200k meadow instances rendered again for depth and normals. |
-| **Meadow receiving shadows** | **+3.3 ms** | And acne. A proxy surface at the same height as the blades on it is what no depth bias can win. |
+| **Screen-space occlusion** | **+8.4 / +26.9 ms** | Superseded 2026-09-13 — **a setting now**. The prepass was the cost and the measurement proves it: with the grass in the g-buffer 26.9 ms, with an explicit render list of terrain, trees and stone 8.4. The sky NaN is patched in the WGSL. |
+| **Meadow receiving shadows** | **+8.3 ms** | Superseded 2026-09-13 — **a setting now**. The acne was the lifted proxy shadowing the blades under it, not the depth bias; dropping the proxy from the casters while the grass receives is clean. |
 | **Per-frame re-sow** | **+3.3 ms** | Rules out folding any per-frame test into the placement pass. |
 | **Per-frame compute** | **~0.24 ms a dispatch** | Five species is 1.2 ms before doing any work. Batch or do not dispatch. |
 | **Fitting cards to the silhouette** | neutral | Kept — it is free and honest — but discarded fragments are cheap, because the cutout runs before the lighting. |
 | **Level of detail, thinning** | — | See the rules. |
-| **Volumetric light scattering** | **+7.2 ms** | Looked like the exception — it renders occluders into a fifth-resolution buffer, not the whole scene. It is not: installed and drawing nothing at noon, the frame went 15.7 to 22.9. It also floods white rather than throwing shafts, because the sky box is not an object for rays to come from. |
+| **Volumetric light scattering** | **+4.6 ms** | Superseded 2026-09-13 — **a setting now**. The 7.2 ms and the white flood were both one bug: the occluder pass had no render list, so it drew the whole scene including the sky, and the sky was standing in for the light. A real sun disc plus a render list of the disc, the terrain, the trees and the stone throws actual shafts for 4.6. |
 | **A cheaper meadow material** | ceiling **2.0 ms** | Unlit is only 2.0 ms below the real thing now that image-based lighting and fog are gone; those were the gap the old 3 ms estimate measured. None of PBR's own cheap switches move it either. |
 
 **The pattern:** anything that adds a second pass over the meadow loses, and
@@ -164,7 +167,8 @@ Worth revisiting, and why they failed before:
 
 - **A horizon.** Out of scope: a map builder has no way to choose the right one
   without autogeneration, and that is a different project.
-- **Anything in the refused table.**
+- **Anything in the priced table that does not work.** What works and is merely
+  expensive belongs in the graphics menu, not here.
 
 ---
 
@@ -1195,3 +1199,108 @@ is blocked behind a cost that already fails on its own.
 
 TAA is also carrying the anti-aliasing here: turning it off *raises* edge
 contrast from 17.96 to 22.35. Whatever replaces it has to beat that.
+
+
+## Phase 3 closed as settings, not refusals (2026-09-13)
+
+The instruction: *"stop rejecting; all the shit you reject might be something
+someone with a gaming computer wants. Instead, build a menu of features for
+graphics, so we keep functionality available. Just don't default it on if it's
+an FPS loss that matters."*
+
+So Phase 3's three untouched items were built, measured, looked at, and wired
+into a graphics menu in the tools panel. `effects.ts` is the new file.
+
+### The numbers
+
+Play camera, noon, wind stopped, 3600 x 2026, freshly started browser, over a
+**28.1 ms** frame. Each feature on and off with a fresh off-reading either side,
+twice.
+
+| | pass 1 | pass 2 |
+|---|---|---|
+| temporal aa | +1.75 | |
+| msaa x2 | +4.8 | +4.4 |
+| ambient occlusion, ground only | +8.35 | +8.55 |
+| ambient occlusion, grass too | +26.85 | +27.2 |
+| god rays | +4.7 | +4.45 |
+| grass shadows, trees and stone | +8.25 | +8.4 |
+| grass shadows, everything | +8.55 | +8.25 |
+| bloom | +1.65 | +1.5 |
+
+### SSAO2: the sky NaN is real, and so is the prepass cost
+
+Forum 63942 is right. The prepass writes no normal where the sky is, the
+g-buffer clears to `(0,0,0,0)`, and `normalize(vec3f(0))` is NaN in WGSL where
+WebGL drivers were lenient. `ssao2.fragment` does exactly that with no guard.
+
+The fix is patched into `ShaderStore.ShadersStoreWGSL['ssao2PixelShader']`
+before the pipeline is constructed — the shader module is a *dynamic* import
+inside `_gatherImports`, so it has to be imported and patched by hand first or
+the patch lands after the effect compiles. Two substitutions, both asserted, so
+a Babylon upgrade that moves the source fails loudly instead of silently
+un-patching: the read becomes a length test producing `skyMask` plus a guarded
+`select` normalize, and `ao` is multiplied by `skyMask`. No early return and no
+branch — `select` evaluates both arms and the NaN one is simply not chosen.
+
+**`excludedMeshes` was the load-bearing question and the answer is yes.**
+`GeometryBufferRenderer.renderList` is the mechanism. With the grass in the
+buffer SSAO costs 26.9 ms; with a list of the 51 terrain, tree and stone meshes
+it costs 8.4. That is 18.5 ms of prepass over 200k instances, which is what the
+original refusal measured and attributed correctly.
+
+**But the cheap one is nearly invisible**, and that is not a bug: the grass
+covers the ground the occlusion darkens, so excluding it removes almost
+everything there was to see. Measured at the tree camera, 820 x 461: the
+ground-only arm differs from AO-off by **0.65 mean / 103 max**, against a TAA
+noise floor of 0.5 mean / 57 max. The full arm is plainly different — the sward
+gains depth between the tufts and the canopy shade reads. So *which meshes feed
+the buffer* is a select in the menu.
+
+### God rays: the occluder pass had no render list
+
+The old attempt cost 7.2 ms "drawing nothing" and flooded white. Both were the
+same omission. `VolumetricLightScatteringPostProcess` leaves its RTT's
+`renderList` null, which means it draws the whole scene — the grass included —
+into the occluder buffer every frame, and the *light* mesh defaulted to standing
+in for the sky. A sky is not an object: everything is in front of it, so
+everything is a source.
+
+Now: a 150-half-foot billboarded disc on layer `0x40000000` (invisible to the
+camera, but a render target with an explicit render list ignores `layerMask` —
+the same mechanism the terrain's shadow proxy uses), parked 3000 half-feet along
+`-sun.direction` from the camera each frame, with an unlit PBR material tinted by
+the sun's own colour and intensity. The pass gets
+`renderList = [disc, ...terrain, ...trees, ...stone]` at a quarter resolution,
+50 samples. 4.6 ms, and at a low sun the light bursts through the canopy the way
+it should.
+
+`VolumetricLightScatteringPostProcess.dispose(camera)` looks for its RTT in
+`scene.customRenderTargets` but the constructor pushed it to
+`camera.customRenderTargets`, so it is spliced out by hand before disposing or
+it keeps rendering forever.
+
+### Grass shadows: the acne was never the bias
+
+Two earlier attempts blamed the depth bias. It is the **lifted proxy**: it
+stands at grass height by construction, so every blade is *underneath* a surface
+that casts, and the field shadows itself. With the proxy still casting, the
+whole sward goes dark and flat — not banding, a blanket. Dropping the proxy from
+the shadow generator while the grass receives gives clean tree shadows across the
+field for the same 8.3 ms, and costs the field its own shadow on the road. Both
+are in the menu under *casts*.
+
+### Two instrument faults found while doing this
+
+**The g-buffer outlives the pipeline.** `SSAO2RenderingPipeline.dispose()` does
+not touch `scene.geometryBufferRenderer`, which keeps rendering every frame for
+nothing. The first AO reading came back at +4.4 ms because the *off* arm was
+still paying for the prepass. `scene.disableGeometryBufferRenderer()` on
+teardown; the honest number is 8.4.
+
+**A probe that calls a sub-setter before the toggle loses.** `applyLook('ao')`
+re-applies the component's own signal, so `bab.effects.setAoOverGrass(false)`
+followed by `bab.look('ao', true)` measured "grass too" twice and reported
+ground-only as costing 26 ms. The board exposes `bab.aoGrass()` and
+`bab.grassSelf()` now, which go through the component. **A probe that reaches
+past the UI into the implementation measures something the UI does not do.**

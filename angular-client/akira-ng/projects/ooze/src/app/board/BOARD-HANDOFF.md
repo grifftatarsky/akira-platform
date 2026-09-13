@@ -453,11 +453,16 @@ differently. This also gates alpha-to-coverage, which is dead only because
 Forum 63942 (Aug 2026): SSAO2 on WebGPU **NaNs on the sky**, because the
 background writes colour but no prepass depth/normal, the prepass normal is
 (0,0,0), and WGSL propagates NaN from `normalize(0,0,0)` — WebGL drivers were
-merely lenient. The fix is a geometry mask using the prepass normal's alpha. So
-the project's "SSAO floods the image" symptom was a real bug with a real fix; the
-"+10 ms for the geometry prepass over 200k instances" half of the refusal is
-still the load-bearing objection, and that one is about `excludedMeshes` on the
-prepass — **untested**.
+merely lenient. The fix is a geometry mask using the prepass normal's alpha.
+
+**Both halves settled 2026-09-13.** The NaN is real and is patched into the WGSL
+at the shader store (a `skyMask` from the normal's length, and a guarded
+`select` normalize). The `excludedMeshes` half is real too, and it is the whole
+cost: `GeometryBufferRenderer.renderList` set to the 51 terrain, tree and stone
+meshes takes SSAO from **26.9 ms to 8.4** — 18.5 ms of prepass over 200k grass
+instances. What the original refusal missed is that the cheap arm is also nearly
+invisible, because the grass covers the ground the occlusion darkens. Both arms
+are in the graphics menu. See `PLAN.md`, *Phase 3 closed as settings*.
 
 ---
 
@@ -498,16 +503,19 @@ Sequenced *after* 0.1, because 0.1 says which of these is worth doing.
 | 2.4 | **Baked geometry vs thin instances** for one patch (forum 46756's 4× claim). | ≥ 2 ms saved at equal blade count | < 0.5 ms, or it breaks the compute placement |
 | 2.5 | **Terrain pass**: whatever 0.1 attributes to it — chunk count, texture count, CSM sample cost. | — | — |
 
-### Phase 3 — re-examine the refused list, each in its own lab
+### Phase 3 — re-examine the refused list — closed 2026-09-13, as settings
 
-`pipeline.samples = 2` MSAA (§4f) · alpha-to-coverage once sampleCount > 1 ·
-SSAO2 with the sky mask and `excludedMeshes` on the prepass (§4g) · grass
-receiving shadows via a lifted proxy · god rays with a real sun quad.
+All five were built and measured, and **none was refused**. MSAA ×2 +4.6 ms,
+SSAO2 +8.4 / +26.9, god rays +4.6, grass shadows +8.3, and alpha-to-coverage
+still has no multisampled scene pass to hang on. Every one that works is a switch
+in the board's **graphics menu** with its price beside it, off to begin with.
+`BOARD-PLAN.md` Phase 4 is the menu; `PLAN.md` carries what each one cost to get
+right.
 
 **Rule:** if a technique is standard in shipping games for this kind of scene and
 the lab says it fails, assume the implementation is wrong, find the reference,
-and diff against it before refusing. Refusing an industry standard needs a
-citation for why this renderer is the exception.
+and diff against it before refusing. And a technique this machine cannot afford
+is not refused — it is a setting, defaulted off.
 
 ---
 
@@ -522,6 +530,7 @@ projects/ooze/src/app/board/
   species.ts           the sward's species table, SWARD_FADE, CardSpec
   bab/
     stage.ts           engine, scene, camera, sun, sky, CSM, TAA, grade, toggles
+    effects.ts         SSAO2 with the sky mask, god rays, grass shadows
     meadow.ts          the sward: WGSL compute placement → thin instances → indirect draw
     blade-wind.ts      MaterialPluginBase WGSL injection: wind, per-plant shading
     foliage-cards.ts   cardGeometry(): cards/heads/stems from the cut-out sheet
