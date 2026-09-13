@@ -6,7 +6,21 @@
 // one has cost an hour at least once.
 //
 // Usage: node tools/wgsl-lint.mjs <file...>
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+
+// No arguments used to lint no files and report "wgsl clean", which is how a
+// reserved-word fault reached a probe run with three green checks behind it.
+function walk(dir) {
+  const found = [];
+  for (const entry of readdirSync(dir)) {
+    if (entry === 'node_modules' || entry.startsWith('.')) continue;
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) found.push(...walk(full));
+    else if (/\.(ts|mts)$/.test(entry)) found.push(full);
+  }
+  return found;
+}
 
 // WGSL builtins a local name must not shadow — shadowing turns that builtin's
 // next call into "cannot use 'let x' as call target".
@@ -17,8 +31,38 @@ const BUILTINS = new Set([
   'reflect', 'refract', 'saturate', 'atan2', 'modf', 'transpose',
 ]);
 
+// WGSL reserved words. A local named one of these fails to parse at pipeline
+// creation as a *warning* — the material still answers isReady(), and the field
+// simply has no grass in it. `patch` cost a full probe run.
+const RESERVED = new Set([
+  'active', 'alignas', 'alignof', 'as', 'asm', 'bf16', 'binding_array', 'cast',
+  'catch', 'class', 'co_await', 'co_return', 'co_yield', 'coherent',
+  'column_major', 'common', 'compile', 'compile_fragment', 'concept',
+  'const_cast', 'consteval', 'constexpr', 'constinit', 'crate', 'debugger',
+  'decltype', 'delete', 'demote', 'demote_to_helper', 'do', 'dynamic_cast',
+  'enum', 'explicit', 'export', 'extends', 'extern', 'external', 'filter',
+  'final', 'finally', 'friend', 'from', 'fxgroup', 'get', 'goto', 'groupshared',
+  'highp', 'impl', 'implements', 'import', 'inline', 'instanceof', 'interface',
+  'layout', 'lowp', 'macro', 'macro_rules', 'match', 'mediump', 'meta', 'mod',
+  'module', 'move', 'mut', 'mutable', 'namespace', 'new', 'nil', 'noexcept',
+  'noinline', 'nointerpolation', 'non_coherent', 'noncoherent', 'noperspective',
+  'null', 'nullptr', 'of', 'operator', 'package', 'packoffset', 'partition',
+  'pass', 'patch', 'pixelfragment', 'precise', 'precision', 'premerge',
+  'priv', 'protected', 'pub', 'public', 'readonly', 'ref', 'regardless',
+  'register', 'reinterpret_cast', 'require', 'resource', 'restrict',
+  'self', 'set', 'shared', 'sizeof', 'smooth', 'snorm', 'static',
+  'static_assert', 'static_cast', 'std', 'subroutine', 'super', 'target',
+  'tempate', 'template', 'this', 'thread_local', 'throw', 'trait', 'try',
+  'type', 'typedef', 'typeid', 'typename', 'typeof', 'union', 'unless',
+  'unorm', 'unsafe', 'unsized', 'use', 'using', 'varying', 'virtual', 'volatile',
+  'wgsl', 'where', 'with', 'writeonly', 'yield',
+]);
+
 let bad = 0;
-for (const file of process.argv.slice(2)) {
+const given = process.argv.slice(2);
+const files = given.length ? given : walk('projects');
+if (!given.length) console.log(`wgsl-lint: ${files.length} files under projects/`);
+for (const file of files) {
   const source = readFileSync(file, 'utf8');
   // Every WGSL block in the file, found by its delimiters rather than by
   // matching balanced backticks — because a stray backtick inside the shader is
@@ -53,6 +97,7 @@ for (const file of process.argv.slice(2)) {
     const seen = new Set();
     for (const name of declared) {
       if (BUILTINS.has(name)) { console.error(`${file}:~${at}  shadows WGSL builtin: ${name}`); bad++; }
+      if (RESERVED.has(name)) { console.error(`${file}:~${at}  WGSL reserved word: ${name}`); bad++; }
       if (seen.has(name)) { console.error(`${file}:~${at}  redeclared in one scope: ${name}`); bad++; }
       seen.add(name);
     }

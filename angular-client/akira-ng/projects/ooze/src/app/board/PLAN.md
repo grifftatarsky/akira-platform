@@ -633,3 +633,51 @@ measured with the wind zeroed, which removes the one condition it exists for —
 a blade turning through the light. Re-run with the wind running it is still
 inert (spatial contrast 22.70 card against 23.02 twist), so the conclusion
 held, but it had not been earned.
+
+## What `blade-wind.ts` knew, before its comments were stripped (2026-09-13)
+
+Salvaged whole, because none of it is derivable from the code that remains.
+
+**Height cannot come from the uv.** `vertexInputs.uv` is only declared when
+something in the material wants it, and this material has no texture at all.
+Pushing the attribute does not help and neither does the define — a plugin's
+defines do not reach the material's. The shader fails to *parse*, as a
+validation warning, with no exception anywhere and a field with no grass in it.
+Height is `positionUpdated.y / bladeTall.x` instead.
+
+**`bladeAlong` is declared outside its braces on purpose.** The hooks are
+separate injection sites in one function, and that is how the shading block at
+`CUSTOM_VERTEX_MAIN_END` sees it.
+
+**The stem's bend is an integrated circular arc, not a shear.** It was the
+tangent of the lean used to shear sideways, with a hand-fitted term taking
+height back off so the sheared blade did not stretch. That term was quadratic
+in half-feet, so on the one plant tall enough to matter — Yorkshire fog at four
+and a bit — it went past one, turned the height negative, and stood the whole
+species upside down beneath the meadow. The arc preserves length by
+construction and cannot invert.
+
+**There is no turn toward the camera, and there must not be one.** Ghost of
+Tsushima's view-space thickening was here, rolling each card about its stem to
+face the viewer, because a flat strip seen edge-on is a line. It read the eye
+position, so the whole field rotated slightly on every zoom — obvious to a
+person using the board and invisible in every screenshot. The scanned cards are
+wide enough that there is no edge-on case left to rescue.
+
+**`ground` was documented as needing to stay above about 0.6**, because a leaf
+whose own normal points at the ground can drag the blend under the horizon and
+take the hemispheric light's brown. The **Leaf normal** slider (1.1d) goes to
+zero and the field does not go brown, because `lit.y = max(lit.y, 0.08)` is a
+backstop that postdates that note. Treat 0.6 as advisory, not a floor.
+
+**The root's darkness is the compute pass's enclosure**, carried in the
+instance colour's alpha: a plant in a thick clump has neighbours over it and
+goes dark at the base, one on a worn verge is lit to the ground.
+
+**The wind used to live in the compute pass**, re-sowing six hundred thousand
+blades every frame to change a lean. The compute pass now runs when the density
+changes and not otherwise.
+
+**The per-plant dice is hashed from `floor(world3.xz * 8.0)`** — the plant's
+rooted position, not an index, because the vertex stage has no index; and from
+nothing that changes with the frame, or the field boils.
