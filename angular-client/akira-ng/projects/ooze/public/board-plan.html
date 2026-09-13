@@ -429,7 +429,7 @@
           found: "<b>Baking is 18% slower, not four times faster.</b> 112,543 grass plants, the same plants both ways, coverage matched to 0.1% of the view, empty-scene frame subtracted: thin instances <b>6.5 ms</b>, baked <b>7.65</b>. Baking also costs 9.45M vertices and 86 MB of index buffer against an 84-vertex mesh, and gives up the wind, the ground-normal shading, the per-plant tint and the compute placement — all four read the instance matrix columns. <b>Two false results came first and both would have been published:</b> <span class=\"mono\">src.geometry.constructor</span> is a <em>Geometry</em>, not a VertexData, so assigning positions to it and calling applyToMesh is silent and does nothing — the baked arm drew nothing and read exactly the empty baseline, which looked like a 45% win. Every A/B of a draw path reports its own coverage now." },
         { id: "2.5", work: "<em>Trees and scrub</em> — 4.93 ms, the <em>largest</em> piece and never examined", state: "next" },
         { id: "2.6", work: "<em>Shadows</em> — 4.03 ms for two cascades at 2048", state: "done",
-          found: "<b>1.8 ms receiving, 2.3 casting — and 1.2 of the casting is one tree.</b> Shadows off 26.4 ms; on with an empty caster list 28.2; all casters 30.5. The caster list is 4.93M triangles and <span class=\"mono\">scan-island_tree_02-0</span> is <b>3.22M of them</b> — 403k triangles, eight instances, into both cascades every frame, for a shadow a few dozen texels across. Its shadow is visibly missed when dropped, so the answer is a decimated proxy rather than removal. The seven stones are 0.1 ms. <b>Do not change numCascades at runtime on WebGPU</b> — Babylon emits a fragment shader with an empty argument slot and it fails to parse as a warning." }
+          found: "<b>1.8 ms receiving, 2.3 casting, and a decimated caster saves 1.0 of it.</b> <span class=\"mono\">scan-island_tree_02-0</span> is 3.22M of the 4.93M caster triangles. A proxy keeping every triangle in the top 3% by area — trunk and limbs — plus a hashed fraction of the leaves: at <b>30% of the leaves it saves 1.0 ms</b> (29.1 &rarr; 28.1; dropping the tree entirely is 27.7). Decimating <em>thins</em> the shadow rather than only cheapening it, because the leaves are alpha-test cut-outs; 12% saves 1.2 ms but the shadow is then nearer absent than real. Accepted on the look at 30%. Not yet wired into <span class=\"mono\">standing.ts</span>." }
       ]
     },
     {
@@ -451,6 +451,8 @@
   ];
 
   const RULES = [
+    "Screenshots have a noise floor: TAA jitters the projection every frame, so two captures of an unchanged board differ by 0.5 mean and 57 max out of 255. Use bab.shot(), which switches the jitter off and returns byte-identical frames.",
+    "Every A/B reports a liveness signal for both arms — covered pixels, triangles, instances. An arm that draws nothing reads exactly like a win, and has three times.",
     "Do not refuse anything — measure it, show it, and put the call to the user.",
     "One subpoint at a time; wait for the yes or no before starting the next.",
     "Look at one of the thing before judging a field of them.",

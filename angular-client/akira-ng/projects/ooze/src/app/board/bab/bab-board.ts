@@ -614,6 +614,33 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         sow: sowMeadow,
         species: MEADOW,
         sheet,
+        shot: async (width = 900): Promise<string> => {
+          const was = stage.jittering();
+          const gusts = (board.meadow?.sown ?? []).map(sown => sown.wind.strength);
+          stage.jitter(false);
+          (board.meadow?.sown ?? []).forEach(sown => { sown.wind.strength = 0; });
+          try {
+            await new Promise<void>(done => {
+              let left = 4;
+              const tick = (): void => {
+                left -= 1;
+                if (left > 0) { requestAnimationFrame(tick); } else { done(); }
+              };
+              requestAnimationFrame(tick);
+            });
+            const live = stage.scene.getEngine().getRenderingCanvas()!;
+            const flat = document.createElement('canvas');
+            flat.width = width;
+            flat.height = Math.round((live.height / live.width) * width);
+            flat.getContext('2d')!.drawImage(live, 0, 0, flat.width, flat.height);
+            return flat.toDataURL('image/png');
+          } finally {
+            stage.jitter(was);
+            (board.meadow?.sown ?? []).forEach((sown, at) => {
+              sown.wind.strength = gusts[at];
+            });
+          }
+        },
         split: async (): Promise<readonly Slice[]> => {
           await this.split();
           return this.slices();

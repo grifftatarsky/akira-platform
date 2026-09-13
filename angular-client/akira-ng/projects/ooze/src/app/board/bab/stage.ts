@@ -413,6 +413,14 @@ export class Stage {
     this.shadows.shadowMaxZ = Math.max(400, spanHalfFeet * 2.6);
   }
 
+  jitter(on: boolean): void {
+    this.taa.isEnabled = on;
+  }
+
+  jittering(): boolean {
+    return this.taa.isEnabled;
+  }
+
   start(): void {
     this.engine.runRenderLoop(() => this.scene.render());
   }

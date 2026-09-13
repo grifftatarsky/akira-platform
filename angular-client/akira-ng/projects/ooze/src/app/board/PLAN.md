@@ -887,3 +887,50 @@ Both reported green for hours.
 rendered items, fails on console errors, and fails if named text is missing.
 Note that port 4300 serves `dist/`, not `public/` — a plan-page edit needs the
 file copied across (or a build) before the check means anything.
+
+## Every screenshot of this board had a noise floor (2026-09-13)
+
+The board runs `TAARenderingPipeline` at **16 samples with a 0.16 blend**
+(`stage.ts`). Temporal anti-aliasing works by jittering the projection matrix a
+fraction of a pixel each frame and blending the result into a history buffer.
+On grass — which is nothing but high-frequency edges — that moves a great many
+pixels every frame.
+
+Measured with the camera byte-for-byte static, the wind stopped and nothing in
+the scene changing, comparing consecutive captures:
+
+| capture method | mean difference | worst pixel |
+|---|---|---|
+| single frames, TAA on | **0.514 / 255** | **57** |
+| mean of 24 frames, TAA on | 0.136 | 10 |
+| single frames, **TAA off** | **0.000** | **0** |
+
+So **0.5 mean and 57 max was the floor under every image comparison in this
+file**, and it was never subtracted. What that costs:
+
+  - **"Card and twist are 0.78 mean apart" was measuring the noise**, not the
+    twist. The conclusion — that the twist cannot be seen at a leaf-normal
+    blend of 100% — still stands, because the 45% reading (5.35) and the
+    blend-off reading (6.31) are an order of magnitude above the floor and both
+    show the twist plainly. But the 0.78 figure meant nothing.
+  - The shadow-proxy readings (1.01 and 1.31 against a 1.88 full range) are
+    only two to three times the floor. Directionally right, worth re-running.
+  - Anything quoted below about 1.5 mean should be treated as unmeasured.
+
+**The fix is `bab.shot(width)`**, on the debug handle. It switches the jitter
+off, stops the wind, waits four frames, grabs the canvas, and restores both in
+a `finally`. Three consecutive calls return byte-identical PNGs. `Stage` gained
+`jitter(on)` / `jittering()` for it.
+
+Use `bab.shot()` for every A/B. Hand-rolled `drawImage` in a probe is how this
+happened, and it is also focus-dependent: the same grab returns pure white when
+the Chrome window is behind another, and pure black in some occluded states,
+with no error either way.
+
+**The camera was never the problem.** Several runs looked like the camera was
+drifting between captures. It was not: `alpha`, `beta`, `radius` and the view
+matrix are identical across grabs — only the *projection* matrix changes, in
+elements 8 and 9, which is exactly where the jitter offset lives. A diagnostic
+that seemed to show the camera resetting was itself wrong: it set `alpha`
+*before* `setTarget`, and `ArcRotateCamera.setTarget` recomputes alpha, beta and
+radius from the camera's position. Set the target first, always.
