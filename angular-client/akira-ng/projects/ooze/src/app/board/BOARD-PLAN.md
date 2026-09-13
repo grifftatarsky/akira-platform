@@ -137,8 +137,8 @@ industry standard needs a citation for why this renderer is the exception.
 
 | | Work | State |
 |---|---|---|
-| 3.1 | `pipeline.samples = 2` MSAA — the 24 ms figure came from `antialias: true` on the engine, which is a different thing | Grass edges stop crawling at the play camera | > 2 ms | **researched 2026-09-13 — it is one line.** The modern spelling is `taa.msaaSamples`, and `stage.ts` already sets it to 1. `engine.setAlphaToCoverage(true)` exists on WebGPU, so 3.2 unblocks the moment samples go above 1 |
-| 3.2 | Alpha-to-coverage, once `sampleCount > 1` | blocked on 3.1 |
+| 3.1 | `pipeline.samples = 2` MSAA — the 24 ms figure came from `antialias: true` on the engine, which is a different thing | Grass edges stop crawling at the play camera | > 2 ms | **refused 2026-09-13 — 9.4 ms.** Two samples takes 31.1 ms to 40.5, four is no worse, so the cost is the multisampled target not the resolve. **And the mechanism is not what I said:** `taa.msaaSamples` sets the sample count on the *TAA post-process's* target, so with TAA off it does nothing at all — samples 1, 2 and 4 give a byte-identical frame. What it buys is edge 17.96→17.66 and 0.89 mean of 255, barely over the TAA noise floor; crawl does drop 0.962→0.696 |
+| 3.2 | Alpha-to-coverage, once `sampleCount > 1` | — | — | **blocked, and now on cost.** `engine.setAlphaToCoverage(true)` exists on the WebGPU engine, but the only way to samples > 1 here is 3.1's 9.4 ms, which fails on its own before A2C does anything |
 | 3.3 | SSAO2 with the sky mask (forum 63942) and `excludedMeshes` on the prepass | |
 | 3.4 | Grass receiving shadows via a lifted proxy | refused twice; 3.3 ms and acne |
 | 3.5 | God rays with a real sun quad | |

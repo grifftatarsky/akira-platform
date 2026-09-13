@@ -1155,3 +1155,43 @@ Two useful facts from the trip:
 The files are kept under `assets/board/models/` (6.3 MB the pair) so the
 judgement can be re-run without downloading again. Delete both folders and the
 `CANDIDATES` entries to drop them.
+
+## 3.1 refused: MSAA costs 9.4 ms and only works through TAA (2026-09-13)
+
+Measured live by sweeping `taa.msaaSamples`, camera static, wind stopped, at
+the play camera, 3600x2026. `edge` is mean neighbour-difference in the green
+channel — lower is smoother; `crawl` is mean pixel change between consecutive
+frames.
+
+| | frame | edge | crawl |
+|---|---|---|---|
+| **TAA on, samples 1** | **31.1 ms** | 17.96 | 0.962 |
+| TAA on, samples 2 | **40.5** | 17.66 | 0.696 |
+| TAA on, samples 4 | **40.5** | 17.50 | 0.625 |
+| TAA off, samples 1 | 29.4 | 22.35 | 0 |
+| TAA off, samples 2 | 29.5 | 22.35 | 0 |
+| TAA off, samples 4 | 29.3 | 22.35 | 0 |
+
+**Two samples costs 9.4 ms.** The bar was 2. Refused, and four samples is no
+worse than two, which says the cost is the multisampled target itself and not
+the resolve.
+
+**And I had the mechanism wrong.** I wrote that `taa.msaaSamples` is "the
+modern spelling of `pipeline.samples`". It is not scene MSAA — it sets the
+sample count on the **TAA post-process's** target, so with TAA disabled it does
+*nothing at all*: samples 1, 2 and 4 give an identical 22.35 edge and
+byte-identical frames (`bare_4` against `bare_1` differs by 0.000). MSAA on
+this board only exists through the TAA pass.
+
+What it buys where it does work is small: edge 17.96 to 17.66, and the whole
+frame differs by 0.89 mean out of 255 — barely above the 0.5 TAA noise floor
+recorded above. Crawl does drop meaningfully, 0.962 to 0.696, so it is doing
+something to temporal stability; it is simply not worth nine milliseconds.
+
+**Note for 3.2:** alpha-to-coverage needs samples above 1, and samples above 1
+costs 9.4 ms before A2C does anything. `engine.setAlphaToCoverage(true)` exists
+on the WebGPU engine, but there is no cheap sample count to hang it on, so 3.2
+is blocked behind a cost that already fails on its own.
+
+TAA is also carrying the anti-aliasing here: turning it off *raises* edge
+contrast from 17.96 to 22.35. Whatever replaces it has to beat that.
