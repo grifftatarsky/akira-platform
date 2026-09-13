@@ -1039,3 +1039,50 @@ which is swapchain MSAA over the whole chain and a different mechanism.
 (`Engines/WebGPU/Extensions/engine.alphaToCoverage`), so 3.2 is reachable the
 moment samples go above 1 — and the grass is alpha-tested cut-outs, which is
 exactly what alpha-to-coverage is for.
+
+## 2.5 closed: refused to the asset, with the levers measured (2026-09-13)
+
+The scans cost **4.2 ms** at the play camera, split by swapping the shadow
+caster list and the meshes independently:
+
+| | ms |
+|---|---|
+| everything | 30.5 |
+| scans out of the shadow map | 29.4 (**shadow pass 1.1 ms**) |
+| scans not drawn | 26.9 (**camera pass 3.6 ms**) |
+| neither | 26.3 |
+
+Four levers were tried and measured. None of them is the answer:
+
+**It is not fill.** At a camera where the whole board is 3.75% of the view and
+the scans are a few dozen pixels, they still cost 2.4 ms — sixty per cent of
+their play-camera cost. At the play camera they draw **0.4% of the screen**
+(green 35.58 with, 35.95 without).
+
+**It is not the material.** One-sided lighting 33.0, back-face culling on 32.8,
+against a 32.9 baseline — nothing. `material.freeze()` is **2.4 ms worse**.
+
+**It is only half the triangle count.** Thinning the indices 7× (4,224,480 to
+620,023) recovers 1.9 ms of the 3.6. The other 1.7 stays.
+
+**And thinning destroys the tree.** At 25% kept it has lost most of its leaves;
+at 12% it is a bare skeleton. The leaves *are* the triangles, so any
+hash-thinning of a photogrammetry canopy removes foliage rather than detail.
+Refused on the picture, not on the number.
+
+The asset is the problem. `island_tree_02.gltf` is one node, `..._LOD0`, with
+no LOD chain: **trunk 27,298 triangles, leaves 714,744, branches 330,171** —
+1,072,213 for a 3.4 m plant that covers a few hundred pixels here. The same
+conclusion as the pale rosette cut-outs: the fix belongs in the asset, not the
+renderer.
+
+**What is still worth taking, and is not done:** `shadowProxy` only fires over
+200,000 triangles, and the three searsia parts are 113,405, 77,603 and 27,701 —
+so **all of the scrub still casts at full resolution**. Lowering the threshold
+would take a bite out of the 1.1 ms shadow half. Untested.
+
+A proper LOD chain would need one mesh per plant rather than thin instances,
+because `addLODLevel` picks by distance to the master mesh and all instances of
+a thin-instanced mesh share one. That is 18 meshes instead of 4 — cheap in draw
+calls, but a real change to `plantScans`, and not worth it until there is a
+lower-poly tree to swap in.
