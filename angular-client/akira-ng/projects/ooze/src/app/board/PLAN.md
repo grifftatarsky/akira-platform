@@ -1086,3 +1086,43 @@ because `addLODLevel` picks by distance to the master mesh and all instances of
 a thin-instanced mesh share one. That is 18 meshes instead of 4 — cheap in draw
 calls, but a real change to `plantScans`, and not worth it until there is a
 lower-poly tree to swap in.
+
+## Looking for a lighter tree (2026-09-13)
+
+**Poly Haven has no lower-poly island_tree_02.** Its 1k / 2k / 4k / 8k tiers are
+*texture* resolution only — all four glTF entries share one 40.7 MB geometry
+binary. There is no LOD chain in the file either: a single `island_tree_02_LOD0`
+node.
+
+Every other broadleaf they have is **worse**. Triangle counts read from the
+glTF accessors, and binary sizes from the API where not counted:
+
+| asset | triangles | note |
+|---|---|---|
+| **quiver_tree_02** | **82,074** | 13x lighter than what is on the board |
+| othonna_cerarioides | 118,149 | but that is **seven** separate plants, ~17k each |
+| **quiver_tree_01** | **150,124** | trunk 36,970 + leaf 113,154 |
+| *island_tree_02 (current)* | *1,072,213* | trunk 27,298 + leaves 714,744 + branches 330,171 |
+| island_tree_01 | 1,599,403 | trunk 34,787 + leaves 1,060,032 + branches 504,584 |
+| island_tree_03 | ~2.1M | 79.6 MB binary |
+| jacaranda_tree | ~5.5M | 208 MB |
+| fir_tree_01 | ~12.6M | 478 MB |
+| pine_tree_01 | ~25M | 949 MB |
+
+So within Poly Haven the only light trees are the **quiver trees** — and a
+quiver tree is a desert succulent: smooth pale trunk, dichotomous branching, an
+aloe rosette instead of a canopy. A different plant, not a cheaper version of
+the same one. Worth looking at in the Assets panel before ruling in or out; the
+board's scrub is already a South African shrub, so it is less foreign than it
+sounds.
+
+Off Poly Haven, what CC0 offers at low triangle counts is **stylised** low-poly
+— Sketchfab, Quaternius, CC0Tree and the rest. On a board whose grass is
+photographs and whose scrub is a scan, a faceted cartoon tree is the wrong
+object, so none of those were pursued.
+
+The remaining option that keeps this exact tree is **offline decimation in
+Blender**: QEM on the `branches` primitive alone, which is 330,171 triangles of
+solid twig geometry and is what QEM handles well, leaving the 714,744 leaf-card
+triangles untouched. That is asset work, not renderer work, and it is the only
+route that keeps the silhouette.
