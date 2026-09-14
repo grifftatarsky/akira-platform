@@ -1,0 +1,761 @@
+<meta charset="utf-8">
+<title>Meadow Board Worklist</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F4F6F1;
+    --raised: #FFFFFF;
+    --sunk: #EAEEE5;
+    --ink: #151D19;
+    --ink-soft: #4B584F;
+    --ink-faint: #77857B;
+    --rule: #D4DBCE;
+    --rule-soft: #E4E9DE;
+    --sward: #55802F;
+    --sward-soft: #EDF3E3;
+    --working: #35784F;
+    --watch: #8F6417;
+    --broken: #A5443F;
+    --bar-track: #E2E7DA;
+    --shadow: 0 1px 2px rgba(21, 29, 25, .06), 0 8px 24px -16px rgba(21, 29, 25, .35);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0E1412;
+      --raised: #161E1A;
+      --sunk: #0A100E;
+      --ink: #E7EDE6;
+      --ink-soft: #A3B0A5;
+      --ink-faint: #6F7D72;
+      --rule: #26332C;
+      --rule-soft: #1C2721;
+      --sward: #97C763;
+      --sward-soft: #1A2617;
+      --working: #5FB683;
+      --watch: #D3A249;
+      --broken: #DD817B;
+      --bar-track: #1E2A24;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .9);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #0E1412;
+    --raised: #161E1A;
+    --sunk: #0A100E;
+    --ink: #E7EDE6;
+    --ink-soft: #A3B0A5;
+    --ink-faint: #6F7D72;
+    --rule: #26332C;
+    --rule-soft: #1C2721;
+    --sward: #97C763;
+    --sward-soft: #1A2617;
+    --working: #5FB683;
+    --watch: #D3A249;
+    --broken: #DD817B;
+    --bar-track: #1E2A24;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .9);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 62rem;
+    margin: 0 auto;
+    padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem) 5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2.75rem;
+  }
+
+  h1, h2, h3 { font-family: Fraunces, Georgia, "Times New Roman", serif; font-weight: 600; margin: 0; text-wrap: balance; }
+  h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); line-height: 1.1; letter-spacing: -.015em; }
+  h2 { font-size: 1.3rem; line-height: 1.2; }
+  p { margin: 0; }
+  .prose { max-width: 62ch; color: var(--ink-soft); }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .7rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  header.masthead { display: flex; flex-direction: column; gap: .85rem; }
+  .stamp { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; }
+
+  /* ---- the measurement band ---- */
+  .band {
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    padding: 1.25rem 1.35rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    box-shadow: var(--shadow);
+  }
+  .band-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.5rem; }
+  .band-head .now { font-family: Fraunces, Georgia, serif; font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+  .band-head .aim { color: var(--ink-soft); font-size: .85rem; }
+
+  .frame-bar { display: flex; flex-direction: column; gap: .5rem; }
+  .bar {
+    position: relative;
+    display: flex;
+    height: 30px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--bar-track);
+  }
+  .seg { position: relative; min-width: 2px; }
+  .seg + .seg { box-shadow: inset 1px 0 0 var(--ground); }
+  .target-line {
+    position: absolute;
+    top: -5px;
+    bottom: -5px;
+    width: 2px;
+    background: var(--ink);
+    opacity: .75;
+  }
+  .target-line.frame-line { background: var(--broken); opacity: 1; }
+  .target-line.frame-line .target-flag { color: var(--broken); }
+  .target-flag {
+    position: absolute;
+    bottom: calc(100% + .3rem);
+    left: 1px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: .68rem;
+    line-height: 1.3;
+    color: var(--ink);
+    background: var(--raised);
+    padding: 0 .3rem;
+    border-radius: 3px;
+  }
+  .bar-wrap { position: relative; padding-top: 1.6rem; }
+  .legend { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .74rem; color: var(--ink-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: .38rem; }
+  .swatch { width: .6rem; height: .6rem; border-radius: 2px; flex: none; }
+
+  .figures { display: flex; flex-wrap: wrap; gap: .25rem 2rem; border-top: 1px solid var(--rule-soft); padding-top: .9rem; }
+  .figure { display: flex; flex-direction: column; gap: .05rem; }
+  .figure dt { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); }
+  .figure dd { margin: 0; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+  /* ---- phases ---- */
+  section.phase { display: flex; flex-direction: column; gap: .35rem; }
+  .phase-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem 1rem; padding-bottom: .5rem; }
+  .phase-head .count { margin-left: auto; }
+  .phase-note { max-width: 62ch; color: var(--ink-soft); font-size: .88rem; padding-bottom: .65rem; }
+
+  ul.items { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+  li.item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .15rem .7rem;
+    padding: .85rem .25rem .95rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  li.item.closed .work { color: var(--ink-faint); text-decoration: line-through; text-decoration-thickness: 1px; }
+  li.item.closed .crit { opacity: .5; }
+
+  .tick {
+    grid-row: 1 / span 3;
+    appearance: none;
+    width: 1.1rem; height: 1.1rem;
+    margin: .25rem 0 0;
+    border: 1.5px solid var(--rule);
+    border-radius: 4px;
+    background: var(--ground);
+    cursor: pointer;
+    display: grid;
+    place-content: center;
+    transition: background-color .12s ease, border-color .12s ease;
+  }
+  .tick:hover { border-color: var(--sward); }
+  .tick:checked { background: var(--sward); border-color: var(--sward); }
+  .tick:checked::after {
+    content: "";
+    width: .55rem; height: .3rem;
+    border-left: 2px solid var(--ground);
+    border-bottom: 2px solid var(--ground);
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .tick:focus-visible { outline: 2px solid var(--sward); outline-offset: 2px; }
+
+  .line { display: flex; flex-wrap: wrap; align-items: baseline; gap: .45rem .7rem; }
+  .id {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem;
+    color: var(--sward);
+    background: var(--sward-soft);
+    border-radius: 3px;
+    padding: .05rem .3rem;
+    flex: none;
+  }
+  .work { font-weight: 500; }
+  .work em { font-style: normal; font-weight: 600; }
+  .state {
+    margin-left: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .7rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    flex: none;
+  }
+  .state.done { color: var(--working); }
+  .state.next { color: var(--sward); }
+  .state.refused { color: var(--broken); }
+  .state.setting { color: var(--watch); }
+
+  .crit { display: flex; flex-direction: column; gap: .18rem; margin-top: .4rem; font-size: .82rem; color: var(--ink-soft); }
+  .crit div { padding-left: .65rem; border-left: 2px solid var(--rule); }
+  .crit div.w { border-color: var(--working); }
+  .crit div.n { border-color: var(--watch); }
+  .crit div.b { border-color: var(--broken); }
+  .crit b { font-weight: 600; color: var(--ink); }
+
+  .found { margin-top: .45rem; font-size: .82rem; color: var(--ink-soft); background: var(--sunk); border-radius: 6px; padding: .5rem .65rem; }
+  .found b { color: var(--ink); font-weight: 600; }
+
+  /* ---- lab + rules ---- */
+  .scroller { overflow-x: auto; }
+  table.labs { border-collapse: collapse; width: 100%; font-size: .85rem; min-width: 30rem; }
+  table.labs th { text-align: left; font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; padding: 0 1rem .45rem 0; border-bottom: 1px solid var(--rule); }
+  table.labs td { padding: .65rem 1rem .65rem 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; color: var(--ink-soft); }
+  table.labs td:first-child { color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace; white-space: nowrap; }
+
+  ul.rules { margin: 0; padding-left: 1.1rem; color: var(--ink-soft); font-size: .88rem; display: flex; flex-direction: column; gap: .18rem; max-width: 62ch; }
+  ul.rules li::marker { color: var(--ink-faint); }
+
+  footer.note { color: var(--ink-faint); font-size: .78rem; border-top: 1px solid var(--rule); padding-top: 1rem; display: flex; flex-wrap: wrap; gap: .3rem 1.5rem; }
+
+  .asks { background: var(--raised); border: 1px solid var(--watch); border-radius: 10px;
+    padding: 1.1rem 1.3rem 1.25rem; display: flex; flex-direction: column; gap: .9rem;
+    box-shadow: var(--shadow); }
+  .asks > h2 { display: flex; align-items: baseline; gap: .6rem; }
+  .asks > h2 .count { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .7rem;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--watch); }
+  ul.asklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .85rem; }
+  li.ask { display: flex; flex-direction: column; gap: .35rem;
+    border-top: 1px solid var(--rule-soft); padding-top: .8rem; }
+  li.ask:first-child { border-top: 0; padding-top: 0; }
+  .ask .q { font-weight: 600; }
+  .ask .q .tag { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .7rem;
+    color: var(--sward); background: var(--sward-soft); border-radius: 3px;
+    padding: .05rem .3rem; margin-right: .45rem; }
+  .ask .opts { display: flex; flex-direction: column; gap: .22rem; }
+  .ask .opt { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
+    gap: .2rem .9rem; font-size: .86rem; color: var(--ink-soft); }
+  .ask .opt b { color: var(--ink); font-weight: 500; }
+  .ask .cost { font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums; color: var(--watch); }
+  @media (max-width: 34rem) { .ask .opt { grid-template-columns: 1fr; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="page">
+  <header class="masthead">
+    <div class="stamp">
+      <span class="eyebrow">Babylon meadow board &middot; spring-ooze</span>
+      <span class="eyebrow" id="sync">local only</span>
+    </div>
+    <h1>The board: the list</h1>
+    <p class="prose">
+      What gets crossed off. The measured state and the research live in
+      <span class="mono">BOARD-HANDOFF.md</span>; the rules, the priced table and
+      the traps in <span class="mono">PLAN.md</span>. Anything priced out of this
+      machine&rsquo;s frame is a switch in the board&rsquo;s graphics menu, not a refusal. The order is
+      <strong>look first, then optimize</strong> &mdash; Phase&nbsp;1 before Phase&nbsp;2.
+    </p>
+  </header>
+
+  <div class="band">
+    <div class="band-head">
+      <span class="now" id="nowMs">31.25 ms</span>
+      <span class="aim">at the play camera, maximum plants, <strong>3600 &times; 2026 (7.29&nbsp;MP)</strong>, fresh browser
+        &mdash; <strong>32 fps</strong> against a target of 60 (16.6&nbsp;ms). Read off the board 2026-09-13, grass at 100%, wind 300%, leaf normal 50%. The bars are the GPU passes the HUD reports, which overlap and do not partition the frame.</span>
+    </div>
+
+    <div class="frame-bar">
+      <div class="bar-wrap">
+        <div class="bar" id="bar"></div>
+        <div class="target-line" id="targetLine"><span class="target-flag">16.6 ms &middot; 60 fps</span></div>
+        <div class="target-line frame-line" id="frameLine"><span class="target-flag">measured 21.5</span></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <dl class="figures">
+      <div class="figure"><dt>Plants drawn</dt><dd class="mono">481,740</dd></div>
+      <div class="figure"><dt>Grass</dt><dd class="mono">160,580</dd></div>
+      <div class="figure"><dt>Lattice</dt><dd class="mono">32,116 cells @ 2.03 hf</dd></div>
+      <div class="figure"><dt>Triangles</dt><dd class="mono">14,513,409</dd></div>
+      <div class="figure"><dt>Board</dt><dd class="mono">440 &times; 300 half-feet</dd></div>
+      <div class="figure"><dt>Render</dt><dd class="mono">3600 &times; 2026 &middot; 7.29 MP</dd></div>
+    </dl>
+  </div>
+
+  <section class="asks">
+    <h2>Next up <span class="count" id="askCount"></span></h2>
+    <ul class="asklist" id="asks"></ul>
+  </section>
+
+  <div id="phases"></div>
+
+  <section class="phase">
+    <div class="phase-head"><h2>The lab</h2></div>
+    <p class="phase-note">
+      <span class="mono">/board/lab</span> lists every screen. One technique each, on the
+      smallest scene that exercises it, with the criterion written <em>before</em> the
+      demo was built. A refused screen stays, with its numbers and its date, so the
+      refusal can be re-run when Babylon or the board changes.
+    </p>
+    <div class="scroller">
+      <table class="labs">
+        <thead><tr><th>Screen</th><th>Phase</th><th>Result</th></tr></thead>
+        <tbody id="labRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="phase">
+    <div class="phase-head"><h2>Standing rules</h2></div>
+    <ul class="rules" id="rules"></ul>
+  </section>
+
+  <footer class="note">
+    <span>Updated 2026-09-13.</span>
+    <span>Ticks are shared with everyone who can open this page.</span>
+  </footer>
+</div>
+
+<script>
+  const FRAME = [
+    { name: "scene", ms: 23.56, color: "#4F7A2B" },
+    { name: "shadow sun", ms: 3.71, color: "#3F5E71" },
+    { name: "present", ms: 2.31, color: "#7E7C74" },
+    { name: "temporal aa", ms: 1.56, color: "#6E5C86" },
+    { name: "image processing", ms: 0.95, color: "#8A6B3A" }
+  ];
+  const MEASURED_MS = 31.25;
+
+  const PHASES = [
+    {
+      title: "Phase 0 — instruments and regressions",
+      note: "Closed and audited. Nothing here changed how the board looks; it changed what we are able to say about it — and the audit found three things we were saying wrongly.",
+      items: [
+        { id: "0.1", work: "Per-pass GPU breakdown", state: "done",
+          found: "The 8.1 ms unattributed baseline <b>does not exist</b>. Two instruments were reading <span class=\"mono\">gpuTimeInFrameForMainPass</span>, which with a post chain installed times one full-screen blit. The parts now sum to within 1 ms of the whole." },
+        { id: "0.2", work: "Bald ring: one shared wear fade across sowing, ground bake and shadow proxy", state: "done",
+          found: "Coverage map binned on a 44 &times; 30 grid: 122 thin cells, <b>every one of them on the track</b>. None off it." },
+        { id: "0.3", work: "Absolute density; <em>MAX_PLANTS</em> becomes a ceiling", state: "done",
+          found: "The board was opening at <b>half density while the slider read 100%</b>. 230,937 plants now against 94,503. <span class=\"mono\">swardLattice()</span> is pure and unit-tested. <b>Criterion corrected by the audit:</b> the <em>allocation</em> is decoupled exactly — remove a species and every other species' slots, cap, keep and the lattice are identical — but the drift lottery is deliberately coupled, and that moves placed counts by up to 21%." },
+        { id: "0.4", work: "Lab harness — <em>/board/lab</em> index, shell, A/B switch, wall clock, pixel diff", state: "done",
+          found: "The diff carries a <b>control</b> reading — the same state grabbed twice — because a toggle diff has twice come back all zeros here and been believed. A switch that does nothing now says so." },
+        { id: "0.5", work: "<em>Audit of the above</em> — every claim re-measured", state: "done",
+          found: "Nothing published before the audit survived it. <b>The browser's age and the window's display mattered more than anything in the renderer.</b> A Chrome that had been reloading the board all session leaks WebGPU adapters and runs slower with no error: the same frame read 23.9 ms worn and <b>21.5 ms fresh</b>, and the sward alone 8.57 against 4.88 — so the shape of the breakdown moved, not just its scale. And one run came back at exactly 16.67 ms with every component at zero, which is the 60 Hz refresh: the probe window had landed on a non-Retina display and was rendering a quarter of the pixels. The tools pin the scaling and report the render size now, and the HUD carries the pixel count. Separately: the density slider did <b>not</b> thin uniformly — Yorkshire fog came back at 61% of itself at half density because its slots were rounded down and its lottery saturated at full; rounded up, every species now measures 0.498–0.502. And <span class=\"mono\">splitFrame</span> took one baseline across thirteen seconds, so on a loaded machine the parts summed to 73.6 ms of a 28.7 ms frame; each slice is bracketed now and the run reports its drift." }
+      ]
+    },
+    {
+      title: "Phase 1 — the grass itself",
+      note: "The main complaint, and the reason the order is look-first. Every item gets a lab screen before it touches the meadow.",
+      items: [
+        { id: "1.1", work: "<em>Blade mesh</em> — quadratic-Bezier blade, tapered to a tip, edge normals rotated 0.3 pi", state: "refused",
+          crit: { w: "No visible repetition at the play camera; blades read as rounded, not as flat strips", n: "More than 1.0 ms over cards at equal density" },
+          found: "<b>Removed from the code 2026-09-13.</b> Closed on cost, then deleted outright: <span class=\"mono\">blade-geometry.ts</span>, <span class=\"mono\">lab/blade.ts</span> and this lab's entry are gone. Once the cards were leaned over and given nine a plant, the blade no longer carried the extra fidelity to justify ten frames." },
+        { id: "1.1b", work: "<em>The twist on the card</em> — the reference's 0.3 pi normal rotation on the existing geometry", state: "done",
+          crit: { w: "The sward reads as cupped rather than flat; a tuft has a lit and a shaded side at once", n: "Any measurable cost, or the user cannot see it" },
+          found: "<b>Taken — it is the sward now, and the only one.</b> Decided on the board rather than in the lab: about five frames ahead of cards and far ahead of blades. <span class=\"mono\">EDGE_FAN</span> is <span class=\"mono\">tan(0.3pi)</span> in <span class=\"mono\">foliage-cards.ts</span>, so every card the board draws is twisted and there is no second path. The sward switch, the <span class=\"mono\">grown</span> map, <span class=\"mono\">setShape</span> and the <span class=\"mono\">LeafShape</span> override are gone." },
+        { id: "1.1c", work: "<em>The card's dark bar</em> — one strand in one cut, landing on every plant", state: "done",
+          found: "The bar is a short fat dark diagonal leaf in <b>spray cut 0</b>, and <span class=\"mono\">cuts[(n + placed*3) % 2]</span> is 0 for all three cards, so every plant drew it three times. The sheet already had better material: the <b>blade group is seven distinct clean single blades</b> at 35–60% fill against the sprays' 4%. Grass is five of those plus one spray. Per-angle coverage went 4.6 to 10.9 and the swing 3.2× to 1.38×, for 20 triangles to 40." },
+        { id: "1.1d", work: "<em>The leaf-normal blend</em> — a <b>Leaf normal</b> slider on the shading mix that currently discards every leaf normal", state: "done",
+          crit: { w: "Blades in one clump are lit differently from each other; the field shimmers as the sun moves", n: "The sward loses its even mass, or reads noisy at the play camera" },
+          found: "<b>Settled: 50%.</b> Half the blade's own normal, half the ground's — enough to let a little colour and texture through instead of every blade taking the terrain's shading." },
+        { id: "1.1e", work: "<em>The sward's coverage</em> — you see ground through cards and not through blades", state: "done",
+          crit: { w: "No holes through the sward at a steep camera", n: "Costs more than the blade it replaces" },
+          found: "<b>Not width — an upright quad seen from above is a line.</b> Five near-vertical cards a plant leave gaps between them; a blade is a solid tapered tube and presents area from every direction. Measured as the share of a steep view that is hole or dirt: <b>cards 5.6%, blades 1.2%</b>. Leaning the cards over is the free half of the fix — same triangles, same plants — and 5 to 9 cards buys the rest. Fresh browser, four sowings back to back: 5 upright 5.6% at 27.7 ms; 5 leaned <b>4.3% at 28.3</b>; 7 leaned 2.5% at 30.2; <b>9 leaned 1.8% at 31.9</b>; blades 1.2% at about 50. Raising the plant count half again reached 1.0% at 39.9, untaken. Tinting the terrain green to hide the gaps was refused before it was proposed." },
+        { id: "1.1f", work: "<em>The wind cannot be seen</em> — a <b>Wind</b> slider, and the resting value", state: "done",
+          crit: { w: "Gusts are legible as wind without looking at a graph" },
+          found: "<b>Settled: 300%.</b> Below that it does not read as wind at all. The gust <em>shape</em> was 1.2; this is only its size." },
+        { id: "1.2", work: "<em>The old wind back</em> — front with lulls, three-wave body phased on crosswind, per-plant fast term", state: "done",
+          crit: { w: "Gusts cross the field as patches with visible lulls; no plane-wave carpet; reads as flow from above", n: "More than 0.3 ms — it is vertex-only" },
+          found: "<b>Free, and it moves 2.2x as much as the old wind at the same slider setting.</b> 31.0 ms with the wind stopped, 30.8 blowing. The gust was four sines with the time subtracted from each phase — four plane waves each running along its own axis. It is a travelling <em>pattern</em> now: the field is sampled at <span class=\"mono\">root.xz - downwind * t</span>, so every gust moves downwind together and reads as flow over the field rather than bars crossing it. Lulls are a smoothstep that reaches zero, and a per-plant flutter rides on the local gust. <span class=\"mono\">patchSize</span> and <span class=\"mono\">gustBias</span> are live on the plugin." },
+        { id: "1.3", work: "<em>Blade variety</em> — per-instance hue, height, width, curve and tilt from the clump hash; base→tip colour; AO at the root", state: "done",
+          crit: { w: "Two neighbouring tufts are never obviously the same object", n: "More than 0.3 ms" },
+          found: "<b>Most of it already existed.</b> Hue, curve, azimuth, root ambient occlusion and the base-to-tip ramp were all in the compute pass or the wind plugin. The one thing missing was that <span class=\"mono\">tall</span> and <span class=\"mono\">wide</span> were the same scalar, so every one of the 230,000 plants was a <em>uniform</em> scale of the same 114 triangles. Height over width now runs <b>0.72 to 1.34</b> across the field, read off the matrix buffer; it was exactly 1.000 everywhere before." },
+        { id: "1.4", work: "<em>Mixed sward structure</em> — trodden patches, mown verge, taller unmown drifts", state: "done",
+          crit: { w: "The field has places rather than one texture" },
+          found: "<b>Free, and slightly cheaper.</b> Two octaves of value noise give a stature field — drifts at 1.42 of normal height, mown places at 0.56 — and the grass shortens by up to half as wear climbs toward the track, so the verge is trodden down rather than simply absent. Density follows stature between 0.80 and 1.10. 29.8 ms at the play camera against 31.9." },
+        { id: "1.5", work: "<em>Scanned flora reads pale and scattered</em> — colour dilation under the mask, more than one noise octave for drift", state: "done",
+          crit: { w: "Flora sits in the sward, not on top of it; leaf rims do not drift toward the atlas black with distance" } }
+      ]
+    },
+    {
+      title: "Phase 2 — the frame",
+      note: "Sequenced after Phase 1. The per-piece breakdown above already says which of these is worth doing.",
+      items: [
+        { id: "2.1", work: "<em>Hardware scaling</em> \u2014 in the menu as <em>render scale</em>", state: "setting",
+          crit: { w: "A setting under 16.6 ms the user cannot tell apart at the play camera", n: "Every setting under 16.6 ms is visibly soft" },
+          found: "<b>Five steps, measured, and it is not linear in pixels.</b> 7.29 MP <b>27.9 ms</b> \u00b7 5.27 <b>25.3</b> \u00b7 4.10 <b>23.1</b> \u00b7 2.62 <b>20.9</b> \u00b7 1.82 <b>19.1</b>. A quarter of the pixels buys 31% of the frame \u2014 the vertex work, the culling and the shadow map do not scale with the render target, so the old note that resolution is close to linear does not hold on this build. 1:1 crops at 100 / 75 / 50 say 75% is close to indistinguishable and 50% is visibly mushy, but that call is yours, which is the whole reason it is a setting." },
+        { id: "2.2", work: "<em>Purpose-written grass ShaderMaterial</em> vs PBR", state: "setting",
+          crit: { w: "1.5 ms or more saved, field looks the same or better", n: "Less than 0.5 ms saved" },
+          found: "<b>Passed \u2014 3.2 ms back, and it is the only switch in the menu that returns a frame instead of spending one.</b> <span class=\"mono\">grass-fast.ts</span> swaps the four grass materials off PBR onto a ShaderMaterial that does what the grass needs and nothing else: one texture read, an alpha test, a sun, a bounce, a hemisphere, one GGX highlight. The wind, the leaf-normal blend, the per-plant tint and the base-to-tip ramp are the plugin\u2019s WGSL carried over verbatim, so it is the same field moving the same way. PBR <b>27.9 ms</b>, matched <b>24.5 / 25.0</b>, sheen dropped <b>24.0 / 24.4</b>. <b>The old 2.0 ms ceiling was measuring the wrong thing:</b> it was unlit PBR, which short-circuits the fragment shader and leaves the vertex shader and every varying in place \u2014 and the grass is about 40M vertex invocations a frame. <b>Matching the look took three passes.</b> Diffuse only was right in red and green and missing 40% of the blue, because a green albedo kills blue in diffuse and PBR\u2019s specular is not multiplied by albedo \u2014 confirmed by setting specularIntensity to 0 on the PBR arm, which reproduced the fast arm exactly. A Blinn lobe recovered a third; real GGX with Smith visibility and a Schlick rim closed it to 0.996 / 1.019 / 0.887. The sheen is 1.7 of the 4.8 ms, so it is a select. It cannot receive the shadow map, so it and grass shadows turn each other off. <b>Two traps:</b> ShaderMaterial pushes world0..world3 itself when instances are on, so listing them in options.attributes duplicates shader location 4 \u2014 WebGPU refuses the pipeline <em>as a warning</em> and the board reads a cheerful 60 fps drawing no grass at all; and <span class=\"mono\">half</span> is a WGSL reserved word the linter did not know." },
+        { id: "2.2b", work: "<em>Scanned flora reads pale and scattered</em> \u2014 colour dilation under the mask, more octaves for drift", state: "done",
+          found: "<b>Done, with one part refused to the asset.</b> Dilation was already in the packer. Drift is three octaves now; flora beds 22% of its height into the sward instead of 6% and takes a small lean and roll. Translucency is off everywhere — 2.3's finding, applied. <b>The paleness is the scan:</b> the rosette cut-outs are pale yellow-green in the atlas. A wash on the species takes the pale-leaf area from 5.91% of the view to 4.65% and no further, because the leaf is blown out by direct sun rather than by its albedo — and raising its ground blend makes it <em>worse</em>. A darker source cut belongs in <span class=\"mono\">foliage-pack.mjs</span>." },
+        { id: "2.3", work: "<em>Translucency audit</em> on the sward", state: "refused",
+          crit: { w: "Off is not darker", n: "Off is visibly flatter", b: "On is flatly darker everywhere — the irradiance deleted and not replaced" },
+          found: "<b>Refused in the lab.</b> On costs 0.4 ms (10.1 / 9.7) <em>and</em> is flatly darker and less saturated across the whole patch. Change 8.4 against a control of 0.5, so the switch is real. Turning it off on the board is the next board change." },
+        { id: "2.4", work: "<em>Baked geometry vs thin instances</em> for one patch — the forum's 4× claim", state: "refused",
+          crit: { w: "2 ms or more saved at equal blade count", n: "Less than 0.5 ms, or it breaks the compute placement" },
+          found: "<b>Baking is 18% slower, not four times faster.</b> 112,543 grass plants, the same plants both ways, coverage matched to 0.1% of the view, empty-scene frame subtracted: thin instances <b>6.5 ms</b>, baked <b>7.65</b>. Baking also costs 9.45M vertices and 86 MB of index buffer against an 84-vertex mesh, and gives up the wind, the ground-normal shading, the per-plant tint and the compute placement — all four read the instance matrix columns. <b>Two false results came first and both would have been published:</b> <span class=\"mono\">src.geometry.constructor</span> is a <em>Geometry</em>, not a VertexData, so assigning positions to it and calling applyToMesh is silent and does nothing — the baked arm drew nothing and read exactly the empty baseline, which looked like a 45% win. Every A/B of a draw path reports its own coverage now." },
+        { id: "2.5", work: "<em>Trees and scrub</em> — 4.93 ms, the <em>largest</em> piece and never examined", state: "refused",
+          found: "<b>Closed \u2014 refused to the asset, with every renderer lever measured.</b> 4.2 ms, split 3.6 camera and 1.1 shadow. <b>Not fill:</b> 2.4 ms survives at a camera where the whole board is 3.75% of the view, and they draw 0.4% of the screen. <b>Not the material:</b> one-sided 33.0, culled 32.8 against 32.9; <span class=\"mono\">freeze()</span> is 2.4 ms <em>worse</em>. <b>Only half is triangle count:</b> thinning 7% recovers 1.9 of 3.6 \u2014 and at 25% kept the tree has lost most of its leaves, at 12% it is a skeleton. On a photogrammetry canopy the leaves <em>are</em> the triangles. <span class=\"mono\">island_tree_02.gltf</span> is one LOD0 node: trunk 27,298, leaves 714,744, branches 330,171, for a 3.4 m plant. <b>Still open:</b> shadowProxy fires over 200k triangles and the searsia parts are 113k, 78k and 28k, so all the scrub casts at full resolution. <b>And there is no lighter tree to swap in.</b> Poly Haven\u2019s 1k/2k/4k/8k tiers are texture resolution only \u2014 one 40.7 MB geometry binary for all four \u2014 and every other broadleaf they have is heavier: island_tree_01 1,599,403, island_tree_03 ~2.1M, jacaranda ~5.5M, fir ~12.6M, pine ~25M. The only light ones are the quiver trees, 82,074 and 150,124 triangles, and both were pulled down and judged in the Assets panel: <em>Aloidendron dichotomum</em> is a succulent, a pale pole with aloe rosettes where a canopy should be, and at 1.47 m the smaller would need a 4\u00d7 blow-up. Refused on the look. Off Poly Haven, CC0 at low triangle counts is stylised low-poly, which is the wrong object beside photographed grass." },
+        { id: "2.6", work: "<em>Shadows</em> — 4.03 ms for two cascades at 2048", state: "done",
+          found: "<b>Done \u2014 the proxy is wired in.</b> <span class=\"mono\">shadowProxy()</span> in <span class=\"mono\">standing.ts</span> decimates any caster over 200k triangles: every triangle in the top 3% by area, plus a hashed 30% of the rest, on a shadow-only layer mask. The board's casters went <b>4.93M to 2.75M triangles</b>; the big tree casts 344,691 instead of 1,072,213, across all three of its instances. It returns null rather than a proxy if the instance count does not match, because a caster that draws nothing reads like a win." }
+      ]
+    },
+    {
+      title: "Phase 3 — re-examine the refused list",
+      note: "Closed 2026-09-13, and nothing in it was thrown away. All five were built and measured; every one that works is a switch in the board's graphics menu with its price beside it, off to begin with. A technique this machine cannot afford is not a technique nobody wants.",
+      items: [
+        { id: "3.1", work: "<em>taa.msaaSamples</em> above 1 — the 24 ms figure came from <span class=\"mono\">antialias: true</span> on the engine, which is a different thing", state: "setting",
+          found: "<b>A setting \u2014 +4.6 ms</b> at the play camera over a 28.1 ms frame; the 9.4 below was a different framing. Two samples takes the frame 31.1 to 40.5; four is no worse than two, so the cost is the multisampled target and not the resolve. The bar was 2 ms. <b>And the mechanism is not what I said it was:</b> <span class=\"mono\">taa.msaaSamples</span> sets the sample count on the <em>TAA post-process\u2019s</em> target, not the scene\u2019s \u2014 with TAA off, samples 1, 2 and 4 give a <b>byte-identical frame</b> and an identical 22.35 edge. MSAA on this board exists only through the TAA pass. What it buys where it works is small: edge 17.96 to 17.66, and 0.89 mean out of 255 over the whole frame, barely above the 0.5 TAA noise floor. Crawl does drop 0.962 to 0.696, so it is doing something for temporal stability \u2014 just not nine milliseconds\u2019 worth. TAA is carrying the anti-aliasing here: turning it off <em>raises</em> edge contrast to 22.35." },
+        { id: "3.2", work: "Alpha-to-coverage, once sampleCount is above 1", state: "refused",
+          found: "<b>Not taken \u2014 there is no multisampled target to hang it on.</b> <span class=\"mono\">engine.setAlphaToCoverage(true)</span> does exist on the WebGPU engine, but 3.1 established that the scene pass stays at one sample whatever <span class=\"mono\">msaaSamples</span> says \u2014 that number lives on the TAA post-process\u2019s target. A2C needs the <em>scene\u2019s</em> pass multisampled, and nothing here multisamples it." },
+        { id: "3.3", work: "SSAO2 with the sky mask and an explicit render list on the prepass", state: "setting",
+          found: "<b>A setting \u2014 +8.4 ms reading the ground, +26.9 ms reading the grass too.</b> Forum 63942\u2019s NaN is real: the prepass writes no normal where the sky is, the g-buffer clears to zero, and <span class=\"mono\">normalize(vec3f(0))</span> is NaN in WGSL where WebGL drivers were lenient. Patched into <span class=\"mono\">ShaderStore.ShadersStoreWGSL</span> before the pipeline compiles \u2014 the shader is a dynamic import, so it has to be pulled in and patched by hand first \u2014 as a length test producing a skyMask plus a guarded select normalize, both substitutions asserted so a Babylon upgrade fails loudly instead of silently un-patching. <b>And the excludedMeshes half is answered: it is the whole cost.</b> <span class=\"mono\">GeometryBufferRenderer.renderList</span> set to the 51 terrain, tree and stone meshes takes it from 26.9 ms to 8.4 \u2014 18.5 ms of prepass over 200k grass instances, exactly what the original refusal measured. <b>But the cheap arm is nearly invisible</b>, at 0.65 mean against a 0.5 TAA noise floor, because the grass covers the ground the occlusion darkens. So which meshes feed the buffer is a select in the menu, not a decision." },
+        { id: "3.4", work: "Grass receiving shadows via a lifted proxy", state: "setting",
+          found: "<b>A setting \u2014 +8.3 ms.</b> The acne was never the depth bias. It is the lifted proxy: it stands at grass height by construction, so every blade is underneath a surface that casts and the field shadows itself \u2014 not banding, a blanket, the whole sward going dark and flat. Dropped from the shadow generator while the grass receives, the field takes tree shadows cleanly for the same 8.3 ms and gives up its own shadow on the road. Both are in the menu under <em>casts</em>." },
+        { id: "3.5", work: "God rays with a real sun quad", state: "setting",
+          found: "<b>A setting \u2014 +4.6 ms</b>, and the old 7.2 ms \u201cdrawing nothing\u201d plus the white flood were one omission. <span class=\"mono\">VolumetricLightScatteringPostProcess</span> leaves its occluder target\u2019s renderList null, so it drew the whole scene \u2014 grass included \u2014 every frame, and the sky box was standing in for the light. A sky is not an object: everything is in front of it, so everything is a source. Now a 150-half-foot billboarded disc on a hidden layer, parked 3000 half-feet along the sun from the camera each frame with an unlit material tinted by the sun\u2019s own colour, and the pass given a render list of the disc, the terrain, the trees and the stone at quarter resolution. At a low sun the light bursts through the canopy; at noon there is nothing in front of the sun to throw a shaft." }
+      ]
+    },
+    {
+      title: "Phase 5 — every setting exposed",
+      note: "GRAPHICS.md is the survey: what the meadow draws pass by pass, every knob the board already has, every constant it hardcodes that could be one, and what Babylon 9.26 has that this board does not use \u2014 each claim checked against node_modules and cited by path. Batches A and B of its plan are on the panel; C through G are not started.",
+      items: [
+        { id: "5.1", work: "The capability document \u2014 <span class=\"mono\">GRAPHICS.md</span>", state: "done",
+          found: "Seven ordered batches at the end of it. <b>A</b> the free grade \u00b7 <b>B</b> the knobs that already existed \u00b7 <b>C</b> FSR1 \u00b7 <b>D</b> depth of field measured \u00b7 <b>E</b> snapshot rendering \u00b7 <b>F</b> IBL shadows \u00b7 <b>G</b> depth peeling." },
+        { id: "5.2", work: "<em>Batch A</em> \u2014 the free grade", state: "done",
+          found: "Tone mapping as a choice (none / standard / aces / khr pbr neutral), exposure, contrast, vignette, white balance with temperature and tint, dither, grain, sharpen, chromatic aberration, fxaa, glow layer. None of it is a new pass over the geometry. <b>Stage stops owning the grade:</b> exposure, contrast and vignette were computed in three places and the clock kept overwriting the sliders; they are trims now, and one regrade() applies both." },
+        { id: "5.3", work: "<em>Batch B</em> \u2014 the knobs that already existed as constants", state: "done",
+          found: "Shadow map size, cascades, filter, filter quality, cascade blend, darkness, depth-fitted cascades, taa samples and blend and while-moving, bloom\u2019s four numbers, fog in three modes, ground relief, anisotropy, leaf cut-out, leaf roughness, sky light. No new Babylon surface at all \u2014 every one of these was a number in the source. <b>53 settings in six banks</b>, declared as a table in <span class=\"mono\">graphics.ts</span>, each with its own note on what it does and what it breaks, persisted per key, with a reset. Nothing new is on by default." },
+        { id: "5.4", work: "<em>The sweep</em> \u2014 all 106 reachable knob values, fresh browser", state: "done",
+          found: "<b>One is broken: pcf at low filter quality emits invalid WGSL on Babylon 9.26</b> \u2014 computeShadowWithCSMPCF1 is called with an empty argument where shadowTexture0 should be. Guarded to medium, and the control says why. Everything else compiles, contact hardening and poisson included, and the board never stopped drawing. <b>The instrument nearly missed it:</b> a console wrapper installed inside the page sees none of WebGPU\u2019s validation errors and reported all 53 clean \u2014 they reach the CDP console, not the page\u2019s console object. The sweep marks each knob with a console.log and attributes faults from the raw CDP stream between marks; chrome-probe.mjs gained RAW_LOGS for it. And the board keeps drawing while one material\u2019s pipeline is invalid, so \u201cit still renders\u201d is not a test." },
+        { id: "5.5", work: "<em>Batch C</em> \u2014 FSR1 upscaling", state: "",
+          found: "The one item that makes a bad setting good. Render scale is bilinear today and 50% is visibly mushy; <span class=\"mono\">fsr1RenderingPipeline</span> has scaleFactor and sharpnessStops and is built for exactly this." },
+        { id: "5.6", work: "<em>Batch E</em> \u2014 snapshot rendering", state: "",
+          found: "<span class=\"mono\">engine.snapshotRendering</span>, WebGPU only: records the command bundle once and replays it. The board\u2019s draw list is static between frames \u2014 the compute pass and the uniforms move, not the calls \u2014 so it is worth measuring, and FAST mode forbids changing the number of draws, which the indirect grass may violate." },
+        { id: "5.7", work: "<em>Batch F</em> \u2014 IBL shadows", state: "",
+          found: "<span class=\"mono\">Rendering/IBLShadows</span> voxelises the scene and ray-marches shadows from the environment map \u2014 sky occlusion done properly rather than approximated in screen space. The open question is whether the voxeliser can be given the terrain and trees only, the way SSAO\u2019s g-buffer was." },
+        { id: "5.8", work: "<em>Batch G</em> \u2014 depth peeling", state: "",
+          found: "Order-independent transparency, which would let the foliage alpha-<em>blend</em> instead of alpha-test. The only thing on this list that would change how the field <em>looks</em> rather than how fast it runs, and the answer to the cut-out crunch on every leaf edge. Expensive." }
+      ]
+    },
+    {
+      title: "Phase 4 — the graphics menu",
+      note: "Built 2026-09-13, because a frame this machine cannot spare is not the same as a frame nobody can. Everything Phase 3 measured is a switch in the tools panel with its price beside it, persisted per browser, and only temporal aa is on to begin with.",
+      items: [
+        { id: "4.1", work: "The menu itself \u2014 <em>graphics</em> in the tools panel", state: "done",
+          found: "temporal aa <b>+1.8 ms</b> \u00b7 msaa \u00d72 <b>+4.6</b> \u00b7 ambient occlusion <b>+8.4 / +26.9</b> (reads: ground only \u00b7 grass too) \u00b7 god rays <b>+4.6</b> \u00b7 grass shadows <b>+8.3</b> (casts: trees and stone \u00b7 everything) \u00b7 <b>fast grass \u22123.2</b> (lit: matched \u00b7 no sheen) \u00b7 bloom <b>+1.6</b> \u00b7 render scale 100 / 85 / 75 / 60 / 50%, 27.9 down to 19.1 ms. Measured at 3600 \u00d7 2026, play camera, noon, wind stopped, over a 28.1 ms frame, two passes each. <b>split frame now measures whichever of these are on</b>, so those numbers are one machine\u2019s reading and not the answer. <span class=\"mono\">effects.ts</span> is the new file; taa and bloom moved out of the <em>show</em> row, which is for content, into the menu, which is for quality." },
+        { id: "4.2", work: "Two instrument faults found building it", state: "done",
+          found: "<b>The g-buffer outlives the pipeline.</b> <span class=\"mono\">SSAO2RenderingPipeline.dispose()</span> does not touch <span class=\"mono\">scene.geometryBufferRenderer</span>, which keeps rendering every frame for nothing \u2014 so the first AO reading came back at +4.4 ms because the <em>off</em> arm was still paying for the prepass. <b>And a probe that reaches past the UI measures something the UI does not do:</b> calling <span class=\"mono\">effects.setAoOverGrass(false)</span> directly and then toggling through the component re-applied the component\u2019s own signal, so ground-only was measured as grass-too twice and reported at 26 ms." }
+      ]
+    }
+  ];
+
+  const LAB_ROWS = [
+    ["translucency", "2.3", "Refused 2026-09-12 — 10.1 ms on / 9.7 ms off, and on is darker. Now off on the board."]
+  ];
+
+  const RULES = [
+    "Screenshots have a noise floor: TAA jitters the projection every frame, so two captures of an unchanged board differ by 0.5 mean and 57 max out of 255. Use bab.shot(), which switches the jitter off and returns byte-identical frames.",
+    "Every A/B reports a liveness signal for both arms — covered pixels, triangles, instances. An arm that draws nothing reads exactly like a win, and has three times.",
+    "A candidate asset goes on the Assets panel's candidates shelf with count 0 and is judged from all four stops before anything places it on the board.",
+    "When something is missing from the board, read the instance buffers and the ground field at the missing places before touching a constant. Two guesses in a row were wrong; board-survey.mjs answered it in one run.",
+    "Kill every background task before the turn ends. A probe or watcher left running burns the user's machine for nothing.",
+    "A decision the user makes is crossed off in the same turn they make it. Nothing answered stays in the queue.",
+    "Look at the whole board after every change to the compute pass. A field-scale bug is invisible in a close shot.",
+    "Nothing gets refused. Anything that works becomes a setting — a technique this machine cannot afford is not one nobody wants. Measure it, show it, ship the switch, default it off if the cost matters.",
+    "One subpoint at a time; wait for the yes or no before starting the next.",
+    "Look at one of the thing before judging a field of them.",
+    "No time estimates. Rank by size and value.",
+    "Never say “budget”.",
+    "Do not say something is done — the user decides that.",
+    "American spelling in code.",
+    "Verify with the full build, never compile alone.",
+    "The whole board is the shot; standing-in-the-field numbers are not the target.",
+    "No LOD that removes foliage from the map.",
+    "Experimental branch. Breaking it is fine — never hedge about breakage.",
+    "No subagents. Not once.",
+    "No comments in code; what was tried and failed goes in PLAN.md.",
+    "End every message with what is next."
+  ];
+
+  const ASKS_DONE_NOTE = "Defaults settled 2026-09-13: the board opens on temporal aa only, render scale 100%, fast grass off.";
+  const ASKS = [
+    { id: "5.5", q: "Batch C \u2014 FSR1 upscaling",
+      why: "Render scale is in the menu and measured, but it upscales bilinear: 75% is close to indistinguishable and 50% is visibly mushy. FSR1 is an edge-aware upscaler built for exactly this, and it is a pipeline Babylon already ships.",
+      opts: [
+        ["Take it", "aim: 60\u201375% that reads as 100%", "Measure FSR1 at 60 and 75 against native, 1:1 crops."],
+        ["Leave it", "\u2014", "Render scale stays a blunt instrument."],
+      ] },
+    { id: "5.7", q: "Batch F \u2014 IBL shadows",
+      why: "The big one. Voxelises the scene and ray-marches shadows from the sky, which is what ambient occlusion is a screen-space approximation of. The open question is whether the voxeliser can be handed the terrain and trees only, the way the occlusion g-buffer was \u2014 10M triangles of grass is the whole cost otherwise.",
+      opts: [
+        ["Take it", "unknown, likely large", "Its own lab, criterion written first."],
+        ["Batch E first", "unknown", "Snapshot rendering is cheaper to try and may be the larger win."],
+        ["Leave both", "\u2014", "The menu is already 53 settings deep."],
+      ] },
+    { id: "5.8", q: "Batch G \u2014 depth peeling, so leaves can blend instead of cut out",
+      why: "The only item left that changes how the field looks rather than how fast it runs. Every leaf edge is currently an alpha test \u2014 a hard binary edge \u2014 and order-independent transparency is what would soften it. Expensive, and it touches every foliage material.",
+      opts: [
+        ["Take it", "expensive", "Lab it on one tuft before the meadow."],
+        ["Leave it", "\u2014", "The cut-out crunch is hidden by temporal aa at the play camera."],
+      ] },
+  ];
+
+  const asks = document.getElementById("asks");
+  document.getElementById("askCount").textContent = "nothing waiting on you \u00b7 " + ASKS.length + " queued";
+  for (const ask of ASKS) {
+    const li = document.createElement("li");
+    li.className = "ask";
+    const q = document.createElement("p");
+    q.className = "q";
+    q.innerHTML = '<span class="tag">' + ask.id + '</span>' + ask.q;
+    li.appendChild(q);
+    const why = document.createElement("p");
+    why.className = "prose";
+    why.style.fontSize = ".86rem";
+    why.innerHTML = ask.why;
+    li.appendChild(why);
+    const opts = document.createElement("div");
+    opts.className = "opts";
+    for (const [label, cost, note] of ask.opts) {
+      const row = document.createElement("div");
+      row.className = "opt";
+      row.innerHTML = '<span><b>' + label + '</b> <span class="cost">' + cost
+        + '</span></span><span>' + note + '</span>';
+      opts.appendChild(row);
+    }
+    li.appendChild(opts);
+    asks.appendChild(li);
+  }
+
+  const TARGET_MS = 16.6;
+  const total = FRAME.reduce((sum, part) => sum + part.ms, 0);
+  const span = Math.max(total, MEASURED_MS, TARGET_MS) * 1.06;
+
+  const bar = document.getElementById("bar");
+  const legend = document.getElementById("legend");
+  for (const part of FRAME) {
+    const seg = document.createElement("div");
+    seg.className = "seg";
+    seg.style.flexBasis = (part.ms / span * 100) + "%";
+    seg.style.background = part.color;
+    seg.title = part.name + " " + part.ms + " ms";
+    bar.appendChild(seg);
+
+    const tag = document.createElement("span");
+    const dot = document.createElement("span");
+    dot.className = "swatch";
+    dot.style.background = part.color;
+    tag.appendChild(dot);
+    tag.appendChild(document.createTextNode(part.name + " " + part.ms.toFixed(1)));
+    legend.appendChild(tag);
+  }
+  const rest = document.createElement("div");
+  rest.className = "seg";
+  rest.style.flexBasis = ((span - total) / span * 100) + "%";
+  bar.appendChild(rest);
+  document.getElementById("targetLine").style.left = (TARGET_MS / span * 100) + "%";
+  document.getElementById("frameLine").style.left = (MEASURED_MS / span * 100) + "%";
+  document.getElementById("nowMs").textContent = MEASURED_MS.toFixed(1) + " ms";
+
+  const labRows = document.getElementById("labRows");
+  for (const row of LAB_ROWS) {
+    const tr = document.createElement("tr");
+    for (const cell of row) {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      tr.appendChild(td);
+    }
+    labRows.appendChild(tr);
+  }
+
+  const rules = document.getElementById("rules");
+  for (const rule of RULES) {
+    const li = document.createElement("li");
+    li.textContent = rule;
+    rules.appendChild(li);
+  }
+
+  const ticks = new Map();
+  const phases = document.getElementById("phases");
+
+  function countUp(section) {
+    const boxes = section.querySelectorAll(".tick");
+    let on = 0;
+    boxes.forEach(box => { if (box.checked) on++; });
+    section.querySelector(".count").textContent = on + " of " + boxes.length;
+  }
+
+  for (const phase of PHASES) {
+    const section = document.createElement("section");
+    section.className = "phase";
+
+    const head = document.createElement("div");
+    head.className = "phase-head";
+    const title = document.createElement("h2");
+    title.textContent = phase.title;
+    const count = document.createElement("span");
+    count.className = "eyebrow count";
+    head.appendChild(title);
+    head.appendChild(count);
+    section.appendChild(head);
+
+    if (phase.note) {
+      const note = document.createElement("p");
+      note.className = "phase-note";
+      note.textContent = phase.note;
+      section.appendChild(note);
+    }
+
+    const list = document.createElement("ul");
+    list.className = "items";
+
+    for (const item of phase.items) {
+      const li = document.createElement("li");
+      li.className = "item";
+
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.className = "tick";
+      box.id = "tick-" + item.id;
+      box.setAttribute("aria-label", "Cross off " + item.id);
+      if (item.state === "done" || item.state === "refused" || item.state === "setting") {
+        box.checked = true;
+      }
+      li.appendChild(box);
+      ticks.set(item.id, box);
+
+      const line = document.createElement("div");
+      line.className = "line";
+      const id = document.createElement("span");
+      id.className = "id";
+      id.textContent = item.id;
+      const work = document.createElement("span");
+      work.className = "work";
+      work.innerHTML = item.work;
+      line.appendChild(id);
+      line.appendChild(work);
+      if (item.state) {
+        const state = document.createElement("span");
+        state.className = "state " + item.state;
+        state.textContent = item.state;
+        line.appendChild(state);
+      }
+      li.appendChild(line);
+
+      if (item.crit) {
+        const crit = document.createElement("div");
+        crit.className = "crit";
+        const rows = [["w", "Working", item.crit.w], ["n", "Not helping", item.crit.n], ["b", "Broken", item.crit.b]];
+        for (const [key, label, text] of rows) {
+          if (!text) continue;
+          const row = document.createElement("div");
+          row.className = key;
+          const strong = document.createElement("b");
+          strong.textContent = label;
+          row.appendChild(strong);
+          row.appendChild(document.createTextNode(" — " + text));
+          crit.appendChild(row);
+        }
+        li.appendChild(crit);
+      }
+
+      if (item.found) {
+        const found = document.createElement("div");
+        found.className = "found";
+        found.innerHTML = item.found;
+        li.appendChild(found);
+      }
+
+      const sync = () => {
+        li.classList.toggle("closed", box.checked);
+        countUp(section);
+      };
+      box.addEventListener("change", () => { sync(); save(); });
+      sync();
+      list.appendChild(li);
+    }
+
+    section.appendChild(list);
+    phases.appendChild(section);
+    countUp(section);
+  }
+
+  const LOCAL = "board-plan-ticks";
+  let store = null;
+
+  function fromLocal() {
+    try { return JSON.parse(localStorage.getItem(LOCAL) || "{}"); } catch { return {}; }
+  }
+
+  function apply(state) {
+    for (const [id, box] of ticks) {
+      if (typeof state[id] !== "boolean") continue;
+      box.checked = state[id];
+      box.closest("li").classList.toggle("closed", box.checked);
+    }
+    document.querySelectorAll("section.phase").forEach(section => {
+      if (section.querySelector(".count")) countUp(section);
+    });
+  }
+
+  function collect() {
+    const out = {};
+    for (const [id, box] of ticks) out[id] = box.checked;
+    return out;
+  }
+
+  function save() {
+    const state = collect();
+    try { localStorage.setItem(LOCAL, JSON.stringify(state)); } catch { /* private window */ }
+    if (store) store.set(state).catch(() => { /* read-only viewer */ });
+  }
+
+  apply(fromLocal());
+
+  (async () => {
+    const db = window.claude && await window.claude.use("db");
+    if (!db) return;
+    store = db.doc("state/ticks");
+    document.getElementById("sync").textContent = "shared";
+    store.onSnapshot(
+      snap => { if (snap.exists) apply(snap.data() || {}); },
+      () => { document.getElementById("sync").textContent = "local only"; store = null; }
+    );
+  })();
+</script>

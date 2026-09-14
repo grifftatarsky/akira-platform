@@ -1,6 +1,7 @@
 package com.gpt.oozengine.model.dto.response;
 
 import com.gpt.oozengine.constant.MagicSchool;
+import com.gpt.oozengine.constant.SrdVersion;
 import com.gpt.oozengine.model.Spell;
 import java.util.UUID;
 
@@ -27,7 +28,8 @@ public record SpellResponse(
     String description,
     String atHigherLevels,
     boolean base,
-    UUID overridesId) {
+    UUID overridesId,
+    SrdVersion srdVersion) {
 
   public static SpellResponse from(Spell s) {
     return new SpellResponse(
@@ -47,6 +49,7 @@ public record SpellResponse(
         s.getDescription(),
         s.getAtHigherLevels(),
         s.isBaseContent(),
-        s.getOverridesId());
+        s.getOverridesId(),
+        s.getSrdVersion());
   }
 }

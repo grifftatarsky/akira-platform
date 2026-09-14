@@ -1,0 +1,73 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 026 — record which SRD each base row came from.
+  #
+  # Mirrors the srdVersion field added to CatalogContent, so every catalog
+  # table gets the column and nothing else does: characters and hidden_content
+  # extend BaseEntity rather than CatalogContent and have no edition.
+  #
+  # Stored as the enum name (VARCHAR(16), @Enumerated(STRING)) rather than an
+  # ordinal, so a dump stays readable and adding a version later can't
+  # renumber the existing rows.
+  #
+  # NULL means "not SRD content" — a DM's own creation. Everything seeded so
+  # far came from SRD 5.2, so the backfill is owner_id IS NULL ⇒ SRD_5_2, and
+  # user rows are left NULL. Overrides are the one subtlety: an existing
+  # override is a user row, so it backfills to NULL here, but from now on
+  # AbstractCatalogService copies the base row's version onto an override as it
+  # is written. Backfilling those too would mean guessing at rows a DM has
+  # already edited; leaving them NULL just means they always show.
+  #
+  # No index. The column has two values across a few hundred rows, and the
+  # finder filters editions client-side from a list it already holds — there
+  # is no query to serve. A btree here would be scanned past, not used.
+  # ==========================================================================
+
+  - changeSet:
+      id: 026-add-srd-version
+      author: oozengine
+      changes:
+        - addColumn: {tableName: spells, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: items, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: backgrounds, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: species, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: vocations, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: monsters, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: feats, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: conditions, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: weapon_masteries, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+        - addColumn: {tableName: glossary_entries, columns: [{column: {name: srd_version, type: VARCHAR(16)}}]}
+
+  - changeSet:
+      id: 026-backfill-srd-version
+      author: oozengine
+      changes:
+        - update: {tableName: spells, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: items, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: backgrounds, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: species, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: vocations, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: monsters, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: feats, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: conditions, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: weapon_masteries, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+        - update: {tableName: glossary_entries, where: owner_id IS NULL, columns: [{column: {name: srd_version, value: "SRD_5_2"}}]}
+
+  - changeSet:
+      id: 026-drop-feign-death
+      author: oozengine
+      # Feign Death was seeded by 017 and is in neither SRD. Checked by search
+      # against both PDFs: "Feign" appears zero times in SRD 5.1 and zero times
+      # in SRD 5.2/5.2.1, and 5.1's spell list runs Fear, Feather Fall,
+      # Feeblemind, Find Familiar with nothing between. It is Player's Handbook
+      # content, so it goes the same way as the non-SRD feats and backgrounds
+      # in 025 rather than being relabelled SRD_5_1.
+      changes:
+        - delete:
+            tableName: hidden_content
+            where: >-
+              content_type = 'SPELL' AND base_id IN (
+                SELECT id FROM spells WHERE owner_id IS NULL AND name = 'Feign Death')
+        - delete:
+            tableName: spells
+            where: owner_id IS NULL AND name = 'Feign Death'

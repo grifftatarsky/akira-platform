@@ -1,1 +1,13 @@
-/* You can add global styles to this file, and also import other style files */
+/*
+ * Ooze is served two ways and only one of them used to have styles.
+ *
+ * Inside the host, akira's own src/styles.css @sources this project and emits
+ * its Tailwind. Served standalone on :4201 this file was the stylesheet, and it
+ * was a single comment — so every Tailwind class in ooze was inert, a component
+ * host stayed display:inline, and the board's canvas grew until it drove the
+ * page to 14 000 pixels tall.
+ *
+ * angular.json now points the standalone build at the host's stylesheet, the
+ * way jpss-ui already did, so the two shells render the same. This file stays
+ * for anything genuinely specific to running ooze on its own.
+ */

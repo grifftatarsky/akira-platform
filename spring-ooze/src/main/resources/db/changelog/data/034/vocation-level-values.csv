@@ -1,0 +1,354 @@
+vocation_level_id,ordinal,label,value
+255c50cd-5ff9-5139-ba03-2079e188b8af,0,Rages,2
+255c50cd-5ff9-5139-ba03-2079e188b8af,1,Rage Damage,+2
+255c50cd-5ff9-5139-ba03-2079e188b8af,2,Weapon Mastery,2
+749d7a4f-5671-5c02-8c3d-9148b79b5611,0,Rages,2
+749d7a4f-5671-5c02-8c3d-9148b79b5611,1,Rage Damage,+2
+749d7a4f-5671-5c02-8c3d-9148b79b5611,2,Weapon Mastery,2
+15ba0ca7-4fec-5643-8cf5-cddd9dfae182,0,Rages,3
+15ba0ca7-4fec-5643-8cf5-cddd9dfae182,1,Rage Damage,+2
+15ba0ca7-4fec-5643-8cf5-cddd9dfae182,2,Weapon Mastery,2
+d4ced9ec-f497-5ba9-aa47-3391e7828062,0,Rages,3
+d4ced9ec-f497-5ba9-aa47-3391e7828062,1,Rage Damage,+2
+d4ced9ec-f497-5ba9-aa47-3391e7828062,2,Weapon Mastery,3
+6e67a021-4a5c-58d1-8d89-948f5d7a30b6,0,Rages,3
+6e67a021-4a5c-58d1-8d89-948f5d7a30b6,1,Rage Damage,+2
+6e67a021-4a5c-58d1-8d89-948f5d7a30b6,2,Weapon Mastery,3
+8eccd689-296e-5080-ad2d-ca273bc481e4,0,Rages,4
+8eccd689-296e-5080-ad2d-ca273bc481e4,1,Rage Damage,+2
+8eccd689-296e-5080-ad2d-ca273bc481e4,2,Weapon Mastery,3
+10dfad3c-56aa-5da0-88e9-0e80f48c13cd,0,Rages,4
+10dfad3c-56aa-5da0-88e9-0e80f48c13cd,1,Rage Damage,+2
+10dfad3c-56aa-5da0-88e9-0e80f48c13cd,2,Weapon Mastery,3
+a0056fc5-f6b6-5eef-b00f-4ce4659cfa09,0,Rages,4
+a0056fc5-f6b6-5eef-b00f-4ce4659cfa09,1,Rage Damage,+2
+a0056fc5-f6b6-5eef-b00f-4ce4659cfa09,2,Weapon Mastery,3
+6ec1c637-acd8-59ac-9ee0-71a1c989374c,0,Rages,4
+6ec1c637-acd8-59ac-9ee0-71a1c989374c,1,Rage Damage,+3
+6ec1c637-acd8-59ac-9ee0-71a1c989374c,2,Weapon Mastery,3
+9d23aa18-46e8-5c37-9a6c-04550b842582,0,Rages,4
+9d23aa18-46e8-5c37-9a6c-04550b842582,1,Rage Damage,+3
+9d23aa18-46e8-5c37-9a6c-04550b842582,2,Weapon Mastery,4
+5bcfd41a-6aa7-52e7-bbe8-de1030b3140c,0,Rages,4
+5bcfd41a-6aa7-52e7-bbe8-de1030b3140c,1,Rage Damage,+3
+5bcfd41a-6aa7-52e7-bbe8-de1030b3140c,2,Weapon Mastery,4
+79f2ebec-6d09-5ba2-9262-a567b3a22dfb,0,Rages,5
+79f2ebec-6d09-5ba2-9262-a567b3a22dfb,1,Rage Damage,+3
+79f2ebec-6d09-5ba2-9262-a567b3a22dfb,2,Weapon Mastery,4
+0add218b-2a51-5b97-8520-5041e6941bc7,0,Rages,5
+0add218b-2a51-5b97-8520-5041e6941bc7,1,Rage Damage,+3
+0add218b-2a51-5b97-8520-5041e6941bc7,2,Weapon Mastery,4
+3e3dcff8-caf3-5aaa-a73c-929d264bd0e9,0,Rages,5
+3e3dcff8-caf3-5aaa-a73c-929d264bd0e9,1,Rage Damage,+3
+3e3dcff8-caf3-5aaa-a73c-929d264bd0e9,2,Weapon Mastery,4
+71b70d64-f072-5ed1-8147-12820e6ea7d0,0,Rages,5
+71b70d64-f072-5ed1-8147-12820e6ea7d0,1,Rage Damage,+3
+71b70d64-f072-5ed1-8147-12820e6ea7d0,2,Weapon Mastery,4
+d1627729-f528-59a9-ab6d-919d8b790489,0,Rages,5
+d1627729-f528-59a9-ab6d-919d8b790489,1,Rage Damage,+4
+d1627729-f528-59a9-ab6d-919d8b790489,2,Weapon Mastery,4
+ede0d0d9-4777-53d6-b0da-f4abf68f2dbc,0,Rages,6
+ede0d0d9-4777-53d6-b0da-f4abf68f2dbc,1,Rage Damage,+4
+ede0d0d9-4777-53d6-b0da-f4abf68f2dbc,2,Weapon Mastery,4
+6e7dc327-a056-53d8-8d78-2cc877b9ddd5,0,Rages,6
+6e7dc327-a056-53d8-8d78-2cc877b9ddd5,1,Rage Damage,+4
+6e7dc327-a056-53d8-8d78-2cc877b9ddd5,2,Weapon Mastery,4
+04391b88-52bb-55bd-8fa6-419248c409c1,0,Rages,6
+04391b88-52bb-55bd-8fa6-419248c409c1,1,Rage Damage,+4
+04391b88-52bb-55bd-8fa6-419248c409c1,2,Weapon Mastery,4
+cbdd986c-490b-5e10-8180-b5e83f0dcc42,0,Rages,6
+cbdd986c-490b-5e10-8180-b5e83f0dcc42,1,Rage Damage,+4
+cbdd986c-490b-5e10-8180-b5e83f0dcc42,2,Weapon Mastery,4
+eb39c678-1da1-5e8c-a2aa-c4da3b5e1843,0,Bardic Die,D6
+a0bedbb9-077d-56db-8826-0029319d5aae,0,Bardic Die,D6
+6571c017-16f6-591d-ab3d-5d56f9447ccc,0,Bardic Die,D6
+3ab7fb39-f884-5355-8e88-34994e0c7a26,0,Bardic Die,D6
+9901b34e-d17c-5997-bf0c-fedab7532411,0,Bardic Die,D8
+cb6ee7eb-1757-5803-88ff-25497e6d9dcf,0,Bardic Die,D8
+56a3aa32-e1c9-58ec-ad58-cde5944d1d5c,0,Bardic Die,D8
+f635f5df-0d67-52dd-bc29-480a65375b87,0,Bardic Die,D8
+c2e1bdb4-863b-5379-a36e-e55f2e355f7b,0,Bardic Die,D8
+703f9b13-582c-5f50-907f-d2121456c818,0,Bardic Die,D10
+52381576-54f3-5c95-bfe6-dd94a1e92b7c,0,Bardic Die,D10
+cfa61772-6a64-54ac-85e0-dbcb27b6a6ef,0,Bardic Die,D10
+bc4f2575-b592-552c-b0eb-0e65174788ca,0,Bardic Die,D10
+bc72b009-b21d-5498-ae61-d20c67900b5e,0,Bardic Die,D10
+5b97f45d-8d2f-5163-aae3-06426d21139f,0,Bardic Die,D12
+0861faeb-71e5-5801-8f60-c58b2dab6cac,0,Bardic Die,D12
+25c6189d-c2e6-501a-9fb1-fc1724905e3f,0,Bardic Die,D12
+fbb666d2-58f1-563f-98fa-8a9f50550d84,0,Bardic Die,D12
+c03dba2c-8001-547d-bf33-dfa5004668d6,0,Bardic Die,D12
+0f9aabab-ad06-5728-9848-b650fdad3211,0,Bardic Die,D12
+7aa7e251-4fe3-5cb6-b7f3-deb2399df611,0,Channel Divinity,2
+74dc0bb0-db34-5436-a0ab-818488e79bf7,0,Channel Divinity,2
+438e2436-0acb-5e1e-9d16-890dbafb9a59,0,Channel Divinity,2
+75a54f1d-195a-5cf0-a216-28d2631479de,0,Channel Divinity,2
+aa773698-5e9b-5e23-aaf6-ea18fa5831a4,0,Channel Divinity,3
+59c994eb-fd3b-5dbf-8f38-8cd08d1c35cb,0,Channel Divinity,3
+9536335a-ebe8-567a-adf9-cb1ae2f9da8b,0,Channel Divinity,3
+4d592cb4-c32b-52ae-bb24-bc973b691a1d,0,Channel Divinity,3
+057d9593-c218-5482-ac9f-452c301e52bb,0,Channel Divinity,3
+eeab5684-d859-559a-856f-ca9d526cc197,0,Channel Divinity,3
+9ffbbab9-9bd6-5b43-ad32-339545b281a5,0,Channel Divinity,3
+ee4556d6-34a6-5afd-887a-abcbe8bb40b1,0,Channel Divinity,3
+3c214a13-d53d-5cea-8617-9fe61abfece2,0,Channel Divinity,3
+a4ad2c3e-b21b-5443-b738-51e71502f272,0,Channel Divinity,3
+d43d11eb-9650-5d57-8e8c-016a5e5a5cc0,0,Channel Divinity,3
+e4099e40-84e5-514d-9b44-593bd229def5,0,Channel Divinity,3
+f644e23c-e01c-575a-ac99-f6fa352625d3,0,Channel Divinity,4
+c35caab7-2c95-592b-8d7c-ba0ad24fa335,0,Channel Divinity,4
+a7bc1aa9-7644-5f72-8897-228b3f5362c8,0,Channel Divinity,4
+1dd332ec-6e4a-50c4-b0ff-f0421f5b48bf,0,Wild Shape,2
+82717577-dee8-5ea6-8f1b-436e27c7b6c4,0,Wild Shape,2
+cde1aa54-7fc8-5198-b6ea-d90de4de102f,0,Wild Shape,2
+1ec1b791-b21a-5a77-8691-0d2a2c43ca7c,0,Wild Shape,2
+f5b8d59a-7a1f-543f-aec6-95b31ca7a101,0,Wild Shape,3
+8e71e368-d223-5f62-ba28-82bbb78f020d,0,Wild Shape,3
+76834106-ae8e-5c15-bad6-3cd86ee612b0,0,Wild Shape,3
+4415c846-97d5-5a75-8ec3-e9f4ccff3782,0,Wild Shape,3
+b4cb7c81-ced3-5484-8185-190e3cef7c80,0,Wild Shape,3
+7b4e4ce4-8b65-5c16-b6d7-75b90277b494,0,Wild Shape,3
+4608c87d-ca7b-5d3b-b0be-d286bd40e673,0,Wild Shape,3
+66a9b9a1-8bb5-546c-bae2-ec978e0496f3,0,Wild Shape,3
+03fcd124-f7f1-5589-b9dd-aa9ba4752c67,0,Wild Shape,3
+1ad3dde9-0cf9-53a6-836c-f1a1d4d1f0dd,0,Wild Shape,3
+fe6b2c02-9c45-5617-a281-aac0075c4fc6,0,Wild Shape,3
+b4592be4-5f99-58d8-a9d3-f642dcca50b2,0,Wild Shape,4
+5a0435b8-4ca6-5325-a335-5de3a17dcc0f,0,Wild Shape,4
+975cd75c-d746-5836-bb3a-d88f1673be2b,0,Wild Shape,4
+4992e6ef-505e-59ab-a69f-ea21e71c19ba,0,Wild Shape,4
+d2e65c4a-c1ed-5809-be47-dff841d72c81,0,Second Wind,2
+d2e65c4a-c1ed-5809-be47-dff841d72c81,1,Weapon Mastery,3
+bd52d149-f218-58a1-b52c-664b988bd5f9,0,Second Wind,2
+bd52d149-f218-58a1-b52c-664b988bd5f9,1,Weapon Mastery,3
+37104b5b-24b0-571f-9927-9103ed8f2380,0,Second Wind,2
+37104b5b-24b0-571f-9927-9103ed8f2380,1,Weapon Mastery,3
+018e878c-1c36-5178-97b4-5d22db7d970f,0,Second Wind,3
+018e878c-1c36-5178-97b4-5d22db7d970f,1,Weapon Mastery,4
+5edc1d7d-636b-5c83-89c9-48f942765df5,0,Second Wind,3
+5edc1d7d-636b-5c83-89c9-48f942765df5,1,Weapon Mastery,4
+f0b3d33f-9226-5267-9aca-3942150450ed,0,Second Wind,3
+f0b3d33f-9226-5267-9aca-3942150450ed,1,Weapon Mastery,4
+0524e27a-e1ec-5a2d-a667-993f230ae2aa,0,Second Wind,3
+0524e27a-e1ec-5a2d-a667-993f230ae2aa,1,Weapon Mastery,4
+cecd2ca1-3548-5b86-8dcf-e47c88d47a47,0,Second Wind,3
+cecd2ca1-3548-5b86-8dcf-e47c88d47a47,1,Weapon Mastery,4
+74a665fc-2de9-5f50-af33-5c940903c4ce,0,Second Wind,3
+74a665fc-2de9-5f50-af33-5c940903c4ce,1,Weapon Mastery,4
+929ae5a3-42ad-57d2-866e-ab0d5a2cc4cc,0,Second Wind,4
+929ae5a3-42ad-57d2-866e-ab0d5a2cc4cc,1,Weapon Mastery,5
+2f61ba3f-ab0a-57d4-94fb-f87fda88c2d4,0,Second Wind,4
+2f61ba3f-ab0a-57d4-94fb-f87fda88c2d4,1,Weapon Mastery,5
+0a5171fb-ceaf-5068-8e3e-cf75fddfdec8,0,Second Wind,4
+0a5171fb-ceaf-5068-8e3e-cf75fddfdec8,1,Weapon Mastery,5
+d2f0b404-2180-5496-bf51-9f97ad5752b2,0,Second Wind,4
+d2f0b404-2180-5496-bf51-9f97ad5752b2,1,Weapon Mastery,5
+216960a5-3481-530b-aaf6-ddafc212be40,0,Second Wind,4
+216960a5-3481-530b-aaf6-ddafc212be40,1,Weapon Mastery,5
+a013fdc3-0bc5-5da3-bdc9-a7d324107d5c,0,Second Wind,4
+a013fdc3-0bc5-5da3-bdc9-a7d324107d5c,1,Weapon Mastery,5
+53a9bf1b-89f6-5af9-a797-5fbb1d115570,0,Second Wind,4
+53a9bf1b-89f6-5af9-a797-5fbb1d115570,1,Weapon Mastery,6
+4d388a62-4bdc-5827-ac42-e79d35d0cf04,0,Second Wind,4
+4d388a62-4bdc-5827-ac42-e79d35d0cf04,1,Weapon Mastery,6
+19993d0f-f456-5be8-a73c-b541acc3f6e7,0,Second Wind,4
+19993d0f-f456-5be8-a73c-b541acc3f6e7,1,Weapon Mastery,6
+34208fe9-6060-5a9d-aadf-38e05ee1b9bd,0,Second Wind,4
+34208fe9-6060-5a9d-aadf-38e05ee1b9bd,1,Weapon Mastery,6
+544118a0-b2d3-5617-8272-538bfc2b0ffc,0,Second Wind,4
+544118a0-b2d3-5617-8272-538bfc2b0ffc,1,Weapon Mastery,6
+ac8294f3-bf14-5175-80aa-5e7c508df3f2,0,Martial Arts,1d6
+516d7f1b-ad79-54f8-b366-acf3db34e523,0,Martial Arts,1d6
+516d7f1b-ad79-54f8-b366-acf3db34e523,1,Focus Points,2
+516d7f1b-ad79-54f8-b366-acf3db34e523,2,Unarmored Movement,+10 ft.
+136cee78-0af9-5ca9-b6c1-8ac07283271e,0,Martial Arts,1d6
+136cee78-0af9-5ca9-b6c1-8ac07283271e,1,Focus Points,3
+136cee78-0af9-5ca9-b6c1-8ac07283271e,2,Unarmored Movement,+10 ft.
+042c4ece-4250-58d5-ac26-984444c7c176,0,Martial Arts,1d6
+042c4ece-4250-58d5-ac26-984444c7c176,1,Focus Points,4
+042c4ece-4250-58d5-ac26-984444c7c176,2,Unarmored Movement,+10 ft.
+c42fe27e-8717-50de-b519-dd6d928a2a67,0,Martial Arts,1d8
+c42fe27e-8717-50de-b519-dd6d928a2a67,1,Focus Points,5
+c42fe27e-8717-50de-b519-dd6d928a2a67,2,Unarmored Movement,+10 ft.
+cf8de3a6-71ae-55c8-a9cd-0980e913817b,0,Martial Arts,1d8
+cf8de3a6-71ae-55c8-a9cd-0980e913817b,1,Focus Points,6
+cf8de3a6-71ae-55c8-a9cd-0980e913817b,2,Unarmored Movement,+15 ft.
+9d4f35b1-9a5e-500d-b050-c376fd8ee6f4,0,Martial Arts,1d8
+9d4f35b1-9a5e-500d-b050-c376fd8ee6f4,1,Focus Points,7
+9d4f35b1-9a5e-500d-b050-c376fd8ee6f4,2,Unarmored Movement,+15 ft.
+1c52afd8-0001-510f-a88f-db61ab98669d,0,Martial Arts,1d8
+1c52afd8-0001-510f-a88f-db61ab98669d,1,Focus Points,8
+1c52afd8-0001-510f-a88f-db61ab98669d,2,Unarmored Movement,+15 ft.
+f4c13377-37f1-55e9-877f-0aed7c34f063,0,Martial Arts,1d8
+f4c13377-37f1-55e9-877f-0aed7c34f063,1,Focus Points,9
+f4c13377-37f1-55e9-877f-0aed7c34f063,2,Unarmored Movement,+15 ft.
+62dbc502-6967-5f6d-871a-21245aa2f567,0,Martial Arts,1d8
+62dbc502-6967-5f6d-871a-21245aa2f567,1,Focus Points,10
+62dbc502-6967-5f6d-871a-21245aa2f567,2,Unarmored Movement,+20 ft.
+e57aea1d-2a06-52ba-92b6-69ec17d7713a,0,Martial Arts,1d10
+e57aea1d-2a06-52ba-92b6-69ec17d7713a,1,Focus Points,11
+e57aea1d-2a06-52ba-92b6-69ec17d7713a,2,Unarmored Movement,+20 ft.
+a6d94ef9-c527-57c5-8e1f-4a7042996819,0,Martial Arts,1d10
+a6d94ef9-c527-57c5-8e1f-4a7042996819,1,Focus Points,12
+a6d94ef9-c527-57c5-8e1f-4a7042996819,2,Unarmored Movement,+20 ft.
+31060545-d888-5486-948c-241182a1850f,0,Martial Arts,1d10
+31060545-d888-5486-948c-241182a1850f,1,Focus Points,13
+31060545-d888-5486-948c-241182a1850f,2,Unarmored Movement,+20 ft.
+1ea5470c-7c59-55c5-955d-a067824445be,0,Martial Arts,1d10
+1ea5470c-7c59-55c5-955d-a067824445be,1,Focus Points,14
+1ea5470c-7c59-55c5-955d-a067824445be,2,Unarmored Movement,+25 ft.
+5914230b-a03d-51a9-afeb-62e202a3c65d,0,Martial Arts,1d10
+5914230b-a03d-51a9-afeb-62e202a3c65d,1,Focus Points,15
+5914230b-a03d-51a9-afeb-62e202a3c65d,2,Unarmored Movement,+25 ft.
+1befcffd-33af-51d5-8857-52f06415ef8e,0,Martial Arts,1d10
+1befcffd-33af-51d5-8857-52f06415ef8e,1,Focus Points,16
+1befcffd-33af-51d5-8857-52f06415ef8e,2,Unarmored Movement,+25 ft.
+4658ce8f-e847-57e7-b236-98c5d520a0a9,0,Martial Arts,1d12
+4658ce8f-e847-57e7-b236-98c5d520a0a9,1,Focus Points,17
+4658ce8f-e847-57e7-b236-98c5d520a0a9,2,Unarmored Movement,+25 ft.
+cba2c5ab-76ec-5442-b5e7-99f5827c5390,0,Martial Arts,1d12
+cba2c5ab-76ec-5442-b5e7-99f5827c5390,1,Focus Points,18
+cba2c5ab-76ec-5442-b5e7-99f5827c5390,2,Unarmored Movement,+30 ft.
+9d1622eb-c887-55c0-a7bc-969023749021,0,Martial Arts,1d12
+9d1622eb-c887-55c0-a7bc-969023749021,1,Focus Points,19
+9d1622eb-c887-55c0-a7bc-969023749021,2,Unarmored Movement,+30 ft.
+1a2b1541-0012-5a0d-b735-d51bde44a577,0,Martial Arts,1d12
+1a2b1541-0012-5a0d-b735-d51bde44a577,1,Focus Points,20
+1a2b1541-0012-5a0d-b735-d51bde44a577,2,Unarmored Movement,+30 ft.
+d20c2427-4c34-5832-b5f7-74754b43d3ac,0,Channel Divinity,2
+8a7461ea-0673-5bb9-b48e-7bc8073c803a,0,Channel Divinity,2
+2dbf5c9d-8c92-5145-8e80-32c16c6fdf7f,0,Channel Divinity,2
+cf5af0d5-2fdb-5fdc-bf50-674efbed0d9f,0,Channel Divinity,2
+8f8aae77-afe8-549f-a21e-4662a3d90489,0,Channel Divinity,2
+4b2329df-3f76-5140-a80c-2ab22ce3c8a2,0,Channel Divinity,2
+bb8dab8a-6045-50ce-b036-41d11ea2d0e5,0,Channel Divinity,2
+173f8d37-2ebd-551b-8445-9bdc48095ba0,0,Channel Divinity,2
+83945dd1-acca-576d-a831-32d4ca93b113,0,Channel Divinity,3
+3280f903-0736-56db-b32a-db2729feedb4,0,Channel Divinity,3
+f5bc04a6-1bd1-5a2b-bdf8-51c687bd4d81,0,Channel Divinity,3
+5b391856-c2b4-5130-863e-29de8303417c,0,Channel Divinity,3
+ff1cd6b2-6ad5-56f9-9f67-cf531b2fcf6e,0,Channel Divinity,3
+7aafb6fe-c4a7-51cb-9588-9d7bf10856f8,0,Channel Divinity,3
+bf77994e-c669-59ab-8a36-fbfd16349d84,0,Channel Divinity,3
+1dcf0a06-81c2-57b4-854d-e54d5d7c0347,0,Channel Divinity,3
+c7568d2d-2473-595e-83f5-64d9b3c09071,0,Channel Divinity,3
+57a1b108-8692-5575-b2a4-4c80b9d0e2f1,0,Channel Divinity,3
+a56f85a9-e11e-57f1-a4d6-683ca13d6d86,0,Favored Enemy,2
+21d02c6a-a8cf-54ba-afdd-9013353c7060,0,Favored Enemy,2
+fddaec75-7bf3-5a2e-bf92-d8f036e22ff2,0,Favored Enemy,2
+6f611a7e-3e06-50e6-85dd-94137d462a88,0,Favored Enemy,2
+534ddd99-e748-531b-87a7-c919d08256ef,0,Favored Enemy,3
+756ef38d-1797-5ca2-a56f-3408fed329fc,0,Favored Enemy,3
+b0b7c41e-1471-50c5-b0fa-6b99581c2fd9,0,Favored Enemy,3
+4bfe7243-aa67-5a6a-a484-c91edbd5cfb7,0,Favored Enemy,3
+a76db026-6ef1-54f6-b68f-17baabc51615,0,Favored Enemy,4
+4360fb43-6fc7-528d-bea4-9c72498f317f,0,Favored Enemy,4
+440da70d-dc3c-5e13-9021-b8bcd0495195,0,Favored Enemy,4
+29ffb1e8-a451-51e1-a796-cabb36a785de,0,Favored Enemy,4
+d41a6341-3afd-5fc9-87fc-b76791ca816e,0,Favored Enemy,5
+581d5c25-89d6-5b5e-8671-ee92819caa15,0,Favored Enemy,5
+e3b3dd3b-8559-5c15-a7e8-c81a7e5521f5,0,Favored Enemy,5
+e18b7fa3-c40b-5657-a005-1f6b9c1dba55,0,Favored Enemy,5
+8e00facc-02ec-5632-88af-3ffcb91d5dd6,0,Favored Enemy,6
+e2b9aa26-08e5-538c-98e2-cbd5a211d831,0,Favored Enemy,6
+2581d3b1-dae7-55c7-9dac-f7bdeac3ea19,0,Favored Enemy,6
+91018bfe-8386-57fb-8d24-305cc3804823,0,Favored Enemy,6
+fa2d7ead-9189-587f-b407-aeb81b92638a,0,Sneak Attack,1d6
+9a4de8e7-9883-5120-9b1b-26a2e73f6456,0,Sneak Attack,1d6
+eb28cc7e-e24d-5057-a889-6d2595edb8e3,0,Sneak Attack,2d6
+7f989448-dadd-598d-a0e1-e7225e572279,0,Sneak Attack,2d6
+734b23f5-0a15-5da2-bf2b-e08fdd6dee85,0,Sneak Attack,3d6
+e0f8cfe0-ebe1-52c9-95b0-32d4f3011f88,0,Sneak Attack,3d6
+b0502475-7003-5e13-88a5-b17842f8f2f1,0,Sneak Attack,4d6
+f750ebbb-698f-5207-b020-e6c1730aabc7,0,Sneak Attack,4d6
+f5b27bb5-0632-5ff7-b0bc-95a10b725c58,0,Sneak Attack,5d6
+e472ab0e-aa88-5907-a711-dd249fe7fe47,0,Sneak Attack,5d6
+d230408c-08f5-5b3b-a8b8-1d5ddd84d980,0,Sneak Attack,6d6
+6a61585c-4828-5e90-b3e6-c8c9e10b3dc8,0,Sneak Attack,6d6
+6a9c4d4b-65d6-5b66-9dac-db59be48a12e,0,Sneak Attack,7d6
+ca00acde-2c6b-59cb-bb91-06509166df23,0,Sneak Attack,7d6
+96eb8873-edbd-56ca-91c2-c299f8bb09a3,0,Sneak Attack,8d6
+9728d44a-709f-58f5-ac34-2e4e624fdf1a,0,Sneak Attack,8d6
+26781b7d-956e-5d37-8286-092eb5d621b0,0,Sneak Attack,9d6
+4ce3a541-0467-5dca-83b2-8ffe6fbffb19,0,Sneak Attack,9d6
+49389a5e-f121-5d21-896d-32e9340dc353,0,Sneak Attack,10d6
+7619a2f2-9e03-504e-a04c-17176bf4de25,0,Sneak Attack,10d6
+890a1481-47f5-5d50-8ccc-b8723766c6f7,0,Sorcery Points,2
+e2c3668e-7b22-54e1-8c49-323f5416bb0b,0,Sorcery Points,3
+73221887-bc41-5b6c-9e86-f356bb06bb2a,0,Sorcery Points,4
+f9252cf9-757d-5309-be7a-9822a9a03faf,0,Sorcery Points,5
+e0d78807-a285-5ae2-9f75-77b05a256e6f,0,Sorcery Points,6
+9984dd7d-d8a1-5413-bf7c-7c0e42770a6e,0,Sorcery Points,7
+77c7d1c0-3d7d-5504-9916-5d56912329e5,0,Sorcery Points,8
+dbe39f37-7f03-51fc-8b8a-1a5159ad4979,0,Sorcery Points,9
+8bc0b489-f717-5daa-9333-bf9691a00af5,0,Sorcery Points,10
+ed6f9c91-a6cc-52ce-af2e-5a2857f8c81d,0,Sorcery Points,11
+b946dfa2-99be-59b9-9097-814d6503869d,0,Sorcery Points,12
+b808b410-0eef-5f4e-90bc-2f2dc388ac26,0,Sorcery Points,13
+3b125f44-99ed-575f-9217-a4057da3095a,0,Sorcery Points,14
+d83cbcad-76a6-5942-8740-8b44e3a31a1b,0,Sorcery Points,15
+a6de694e-aae7-5900-9005-4d2edeb2dd69,0,Sorcery Points,16
+7aa2d56c-2749-5878-9154-aa53456bbd29,0,Sorcery Points,17
+46857fb4-9238-52b2-a70e-be0ff6bc3678,0,Sorcery Points,18
+d0da73cf-7758-505d-85b3-2153a6ce57b0,0,Sorcery Points,19
+2c968a36-ecc0-5c02-b587-26ef32940966,0,Sorcery Points,20
+2a7caf50-db26-5eee-aa0d-a24504079797,0,Eldritch Invocations,1
+2a7caf50-db26-5eee-aa0d-a24504079797,1,Spell Slots,1
+2a7caf50-db26-5eee-aa0d-a24504079797,2,Slot Level,1
+aed78afc-b018-561d-b3c3-3131ef0b3691,0,Eldritch Invocations,3
+aed78afc-b018-561d-b3c3-3131ef0b3691,1,Spell Slots,2
+aed78afc-b018-561d-b3c3-3131ef0b3691,2,Slot Level,1
+cb09831c-d328-5c8a-8fd6-36f031e08fe7,0,Eldritch Invocations,3
+cb09831c-d328-5c8a-8fd6-36f031e08fe7,1,Spell Slots,2
+cb09831c-d328-5c8a-8fd6-36f031e08fe7,2,Slot Level,2
+248ac4d8-6feb-5a91-a936-4a937896dbb0,0,Eldritch Invocations,3
+248ac4d8-6feb-5a91-a936-4a937896dbb0,1,Spell Slots,2
+248ac4d8-6feb-5a91-a936-4a937896dbb0,2,Slot Level,2
+bcdad4db-f74b-5e2a-9ca0-5fbdee04130b,0,Eldritch Invocations,5
+bcdad4db-f74b-5e2a-9ca0-5fbdee04130b,1,Spell Slots,2
+bcdad4db-f74b-5e2a-9ca0-5fbdee04130b,2,Slot Level,3
+ff738df9-8aa3-5131-9a35-440c7242cefd,0,Eldritch Invocations,5
+ff738df9-8aa3-5131-9a35-440c7242cefd,1,Spell Slots,2
+ff738df9-8aa3-5131-9a35-440c7242cefd,2,Slot Level,3
+88e2995a-c7f2-5ae5-a09c-e4e8bff81d31,0,Eldritch Invocations,6
+88e2995a-c7f2-5ae5-a09c-e4e8bff81d31,1,Spell Slots,2
+88e2995a-c7f2-5ae5-a09c-e4e8bff81d31,2,Slot Level,4
+2fbb9345-4731-5deb-ae1a-c8bc5fae1335,0,Eldritch Invocations,6
+2fbb9345-4731-5deb-ae1a-c8bc5fae1335,1,Spell Slots,2
+2fbb9345-4731-5deb-ae1a-c8bc5fae1335,2,Slot Level,4
+0c9bf673-54ca-586f-9bcc-663418c336da,0,Eldritch Invocations,7
+0c9bf673-54ca-586f-9bcc-663418c336da,1,Spell Slots,2
+0c9bf673-54ca-586f-9bcc-663418c336da,2,Slot Level,5
+7ebe60b3-6f21-5167-8eac-5d7448fd0c8c,0,Eldritch Invocations,7
+7ebe60b3-6f21-5167-8eac-5d7448fd0c8c,1,Spell Slots,2
+7ebe60b3-6f21-5167-8eac-5d7448fd0c8c,2,Slot Level,5
+5a8518b5-7a04-57d1-b53e-45480906ce0d,0,Eldritch Invocations,7
+5a8518b5-7a04-57d1-b53e-45480906ce0d,1,Spell Slots,3
+5a8518b5-7a04-57d1-b53e-45480906ce0d,2,Slot Level,5
+0f1e5c3b-5e7b-5205-84ef-5c705a657b53,0,Eldritch Invocations,8
+0f1e5c3b-5e7b-5205-84ef-5c705a657b53,1,Spell Slots,3
+0f1e5c3b-5e7b-5205-84ef-5c705a657b53,2,Slot Level,5
+f3b7abd8-da52-5c66-96cf-0986ef061122,0,Eldritch Invocations,8
+f3b7abd8-da52-5c66-96cf-0986ef061122,1,Spell Slots,3
+f3b7abd8-da52-5c66-96cf-0986ef061122,2,Slot Level,5
+53a58ff0-2e47-5760-8ca4-23d040b6f293,0,Eldritch Invocations,8
+53a58ff0-2e47-5760-8ca4-23d040b6f293,1,Spell Slots,3
+53a58ff0-2e47-5760-8ca4-23d040b6f293,2,Slot Level,5
+d0adead9-7e79-53e1-ae5c-edb4ba779203,0,Eldritch Invocations,9
+d0adead9-7e79-53e1-ae5c-edb4ba779203,1,Spell Slots,3
+d0adead9-7e79-53e1-ae5c-edb4ba779203,2,Slot Level,5
+fdaf606c-a1fc-54b0-a6ac-29d146a543b5,0,Eldritch Invocations,9
+fdaf606c-a1fc-54b0-a6ac-29d146a543b5,1,Spell Slots,3
+fdaf606c-a1fc-54b0-a6ac-29d146a543b5,2,Slot Level,5
+aab1c18c-af00-5e29-b016-089894846a9e,0,Eldritch Invocations,9
+aab1c18c-af00-5e29-b016-089894846a9e,1,Spell Slots,4
+aab1c18c-af00-5e29-b016-089894846a9e,2,Slot Level,5
+93152de4-c693-534f-a3f7-bb8e1cd92cac,0,Eldritch Invocations,10
+93152de4-c693-534f-a3f7-bb8e1cd92cac,1,Spell Slots,4
+93152de4-c693-534f-a3f7-bb8e1cd92cac,2,Slot Level,5
+05374b86-5d33-54eb-b9dd-d823e596d585,0,Eldritch Invocations,10
+05374b86-5d33-54eb-b9dd-d823e596d585,1,Spell Slots,4
+05374b86-5d33-54eb-b9dd-d823e596d585,2,Slot Level,5
+7370cf9c-09bc-5696-b1ce-a2af23fa5a37,0,Eldritch Invocations,10
+7370cf9c-09bc-5696-b1ce-a2af23fa5a37,1,Spell Slots,4
+7370cf9c-09bc-5696-b1ce-a2af23fa5a37,2,Slot Level,5

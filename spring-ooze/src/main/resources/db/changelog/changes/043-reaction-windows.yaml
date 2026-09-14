@@ -1,0 +1,26 @@
+databaseChangeLog:
+  # Phase 5: an action that has been declared and has not resolved.
+  #
+  # Persisted rather than held in a method, because the gap between declaring and
+  # resolving is a state a DM sits in — they read the window, think, and come
+  # back. A pending action that only existed inside a call would make the window
+  # a blocking prompt rather than something a client can render and leave.
+
+  - changeSet:
+      id: 043-pending-action
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: battles
+            columns:
+              - column: {name: pending_actor_id, type: UUID}
+              - column: {name: pending_feature_id, type: UUID}
+              - column: {name: pending_feature_name, type: VARCHAR(200)}
+              # The amended list, not necessarily the declared one: a retarget
+              # rewrites this, and resolution reads it rather than the event.
+              - column: {name: pending_target_ids, type: JSONB}
+              - column: {name: pending_declared_at, type: BIGINT}
+              # Shield and Parry raise a defence "against that attack" rather
+              # than for a duration, so it lives on the action and dies with it.
+              - column: {name: pending_armor_class_delta, type: INT}
+              - column: {name: pending_cancelled, type: BOOLEAN}

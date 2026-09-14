@@ -27,7 +27,22 @@ export default withNativeFederation({
     'rxjs/fetch',
     'rxjs/testing',
     'rxjs/webSocket',
-    // Add further packages you don't need at runtime
+
+    // ---- three, bundled rather than shared ------------------------------
+    //
+    // three is a single package with zero runtime dependencies, so on its own
+    // it has none of the diamond that broke the globe (see
+    // jpss-ui/federation.config.mjs). Its *addons* are the trap: everything
+    // under three/addons — OrbitControls, loaders, post-processing — imports
+    // from 'three' itself. Shared, three becomes a self-contained chunk while
+    // any bundled addon gets its own copy, and the two disagree about which
+    // class is which. An OrbitControls that fails `instanceof Camera` is the
+    // same failure as the ShaderAssembler, one step removed, and it appears
+    // only at runtime from a perfectly green build.
+    //
+    // Skipping puts three and its addons through esbuild together, where they
+    // are deduplicated the ordinary way: one three, one set of classes.
+    'three',
   ],
 
   // Please read our FAQ about sharing libs:

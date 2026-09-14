@@ -102,6 +102,15 @@
         "clientRole": false,
         "containerId": "d7cfb752-7e07-4e88-a655-704b68b934cd",
         "attributes": {}
+      },
+      {
+        "id": "c0ffee01-2345-4678-9abc-def012345678",
+        "name": "DUNGEON_MASTER",
+        "description": "Can create, edit, and delete Oozengine compendium content.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "d7cfb752-7e07-4e88-a655-704b68b934cd",
+        "attributes": {}
       }
     ],
     "client": {
@@ -498,7 +507,8 @@
       "requiredActions": [],
       "realmRoles": [
         "default-roles-local-keycloak",
-        "NICE"
+        "NICE",
+        "DUNGEON_MASTER"
       ],
       "notBefore": 0,
       "groups": []

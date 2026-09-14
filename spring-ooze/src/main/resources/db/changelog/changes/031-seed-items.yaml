@@ -1,0 +1,184 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 031 — the SRD 5.2.1 equipment and magic items: 440 rows.
+  #
+  #   38 weapons, 13 armor, 5 ammunition, 25 tools, 82 adventuring gear,
+  #   24 mounts and vehicles, 253 magic items.
+  #
+  # Loaded from CSV for the same reason the bestiary was: at this volume the
+  # inserts would be unreviewable, and a CSV is the same data as a diffable
+  # table. Ids are UUIDv5 of the item's name, so re-deriving the files from the
+  # PDF is byte-identical. NULL is the null placeholder — an empty CSV cell
+  # loads as an empty string, which an enum column cannot map back.
+  #
+  # Three link tables come with it, because the book's cross-references are
+  # relations and not prose: a tool's Craft list, a magic item's base-item
+  # options, and the ammunition a ranged weapon fires.
+  # ==========================================================================
+
+  - changeSet:
+      id: 031-item-columns
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: items
+            columns:
+              # The rarity phrase where the book prints several, e.g. a +1/+2/+3
+              # weapon; rarity_tier is VARIES and this says what it varies over.
+              - column: {name: rarity_note, type: VARCHAR(255)}
+              # What a magic item is applied to, as printed: "Dagger", "Any Light,
+              # Medium, or Heavy", "Shield".
+              - column: {name: applies_to, type: VARCHAR(255)}
+              - column: {name: tool_ability, type: VARCHAR(16)}
+              - column: {name: ammunition_id, type: UUID}
+        # The Weapons and Armor tables are the entry for a Longsword — the book
+        # prints no prose for one, and a generated sentence restating the columns
+        # would be our words, not the book's.
+        - dropNotNullConstraint:
+            tableName: items
+            columnName: description
+            columnDataType: TEXT
+        - createTable:
+            tableName: item_crafts
+            columns:
+              - column: {name: tool_item_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: crafted_item_id, type: UUID, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: item_crafts, columnNames: "tool_item_id, crafted_item_id", constraintName: pk_item_crafts}
+        - addForeignKeyConstraint: {constraintName: fk_item_crafts_tool, baseTableName: item_crafts, baseColumnNames: tool_item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_item_crafts_made, baseTableName: item_crafts, baseColumnNames: crafted_item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: item_base_options
+            columns:
+              - column: {name: item_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: base_item_id, type: UUID, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: item_base_options, columnNames: "item_id, base_item_id", constraintName: pk_item_base_options}
+        - addForeignKeyConstraint: {constraintName: fk_item_base_magic, baseTableName: item_base_options, baseColumnNames: item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_item_base_mundane, baseTableName: item_base_options, baseColumnNames: base_item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - createIndex: {tableName: items, indexName: idx_items_category, columns: [{column: {name: item_category}}]}
+
+  - changeSet:
+      id: 031-clear-seeded-items
+      author: oozengine
+      # 009's five are the book's items written by hand; the import brings the
+      # real ones, under ids derived from their names. The gear links go with
+      # them and are rebuilt below against the full catalog.
+      changes:
+        - sql:
+            sql: |
+              DELETE FROM stat_block_gear WHERE item_id IN (
+                SELECT id FROM items WHERE owner_id IS NULL);
+              DELETE FROM hidden_content WHERE content_type = 'ITEM' AND base_id IN (
+                SELECT id FROM items WHERE owner_id IS NULL);
+              DELETE FROM item_weapon_properties WHERE item_id IN (
+                SELECT id FROM items WHERE owner_id IS NULL);
+              DELETE FROM features WHERE item_id IN (
+                SELECT id FROM items WHERE owner_id IS NULL);
+              UPDATE items SET overrides_id = NULL WHERE overrides_id IN (
+                SELECT id FROM items WHERE owner_id IS NULL);
+              DELETE FROM items WHERE owner_id IS NULL;
+
+  - changeSet:
+      id: 031-load-items
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: items
+            file: db/changelog/data/031/items.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: item_category, type: STRING}
+              - column: {name: rarity_tier, type: STRING}
+              - column: {name: rarity_note, type: STRING}
+              - column: {name: applies_to, type: STRING}
+              - column: {name: attunement, type: BOOLEAN}
+              - column: {name: attunement_note, type: STRING}
+              - column: {name: cost_gp, type: NUMERIC}
+              - column: {name: weight_lb, type: NUMERIC}
+              - column: {name: description, type: STRING}
+              - column: {name: tool_ability, type: STRING}
+              - column: {name: weapon_category, type: STRING}
+              - column: {name: weapon_dice_count, type: NUMERIC}
+              - column: {name: weapon_dice_faces, type: NUMERIC}
+              - column: {name: weapon_dice_bonus, type: NUMERIC}
+              - column: {name: weapon_damage_type, type: STRING}
+              - column: {name: versatile_dice_count, type: NUMERIC}
+              - column: {name: versatile_dice_faces, type: NUMERIC}
+              - column: {name: mastery_id, type: UUID}
+              - column: {name: range_normal_feet, type: NUMERIC}
+              - column: {name: range_long_feet, type: NUMERIC}
+              - column: {name: weapon_reach_feet, type: NUMERIC}
+              - column: {name: ammunition_id, type: UUID}
+              - column: {name: armor_category, type: STRING}
+              - column: {name: base_armor_class, type: NUMERIC}
+              - column: {name: adds_dexterity, type: BOOLEAN}
+              - column: {name: dexterity_cap, type: NUMERIC}
+              - column: {name: strength_requirement, type: NUMERIC}
+              - column: {name: stealth_disadvantage, type: BOOLEAN}
+              - column: {name: armor_class_bonus, type: NUMERIC}
+
+  - changeSet:
+      id: 031-load-item-links
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: item_weapon_properties
+            file: db/changelog/data/031/item-weapon-properties.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: item_id, type: UUID}
+              - column: {name: property, type: STRING}
+        - loadData:
+            tableName: item_crafts
+            file: db/changelog/data/031/item-crafts.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: tool_item_id, type: UUID}
+              - column: {name: crafted_item_id, type: UUID}
+        - loadData:
+            tableName: item_base_options
+            file: db/changelog/data/031/item-base-options.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: item_id, type: UUID}
+              - column: {name: base_item_id, type: UUID}
+
+  - changeSet:
+      id: 031-item-foreign-keys
+      author: oozengine
+      # After the load, not before: ammunition_id points at another row of the
+      # same table, and loadData inserts in file order — a Longbow would arrive
+      # before the Arrows it fires.
+      changes:
+        - addForeignKeyConstraint: {constraintName: fk_items_ammunition, baseTableName: items, baseColumnNames: ammunition_id, referencedTableName: items, referencedColumnNames: id, onDelete: SET NULL}
+
+  - changeSet:
+      id: 031-link-bestiary-gear
+      author: oozengine
+      # 029 staged all 45 Gear lines and could link only the four items that
+      # existed then. The staging table is still there for exactly this moment.
+      # Stat blocks print the plural of what a creature carries ("6 Javelins"),
+      # so the join matches a trailing "s" as well as the name itself.
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO stat_block_gear (stat_block_id, item_id, quantity)
+              SELECT g.stat_block_id, i.id, g.quantity
+              FROM bestiary_gear_staging g
+              JOIN items i ON i.owner_id IS NULL AND (
+                i.name = g.item_name
+                OR (g.item_name LIKE '%s'
+                    AND i.name = left(g.item_name, length(g.item_name) - 1)))
+              WHERE NOT EXISTS (
+                SELECT 1 FROM stat_block_gear e
+                WHERE e.stat_block_id = g.stat_block_id AND e.item_id = i.id);

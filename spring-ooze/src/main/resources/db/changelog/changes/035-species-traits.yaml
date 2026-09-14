@@ -1,0 +1,102 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 035 — the SRD 5.2.1 species descriptions.
+  #
+  # The nine species have been rows since 009, each carrying one feature named
+  # "Dwarf Traits" with the whole entry as prose. The book names them: 33
+  # traits, plus 8 options nested inside two of them.
+  #
+  # A trait's options — the Goliath's six giant ancestries, the Gnome's two
+  # lineages — are features of their own joined to the parent by a CHOICE
+  # component. You pick one, which is exactly what that mode says, and it is
+  # the same shape a Multiattack uses.
+  # ==========================================================================
+
+  - changeSet:
+      id: 035-clear-seeded-species
+      author: oozengine
+      # 009's nine carry the same names; the import brings the book's own text
+      # under ids derived from them. Characters keep their sheet, unlinked.
+      changes:
+        - sql:
+            sql: |
+              UPDATE characters SET species_id = NULL
+              WHERE species_id IN (SELECT id FROM species WHERE owner_id IS NULL);
+              DELETE FROM hidden_content WHERE content_type = 'SPECIES' AND base_id IN (
+                SELECT id FROM species WHERE owner_id IS NULL);
+              DELETE FROM feature_components WHERE feature_id IN (
+                SELECT id FROM features WHERE species_id IN (
+                  SELECT id FROM species WHERE owner_id IS NULL));
+              DELETE FROM features WHERE species_id IN (
+                SELECT id FROM species WHERE owner_id IS NULL);
+              DELETE FROM species_speeds WHERE species_id IN (
+                SELECT id FROM species WHERE owner_id IS NULL);
+              UPDATE species SET overrides_id = NULL WHERE overrides_id IN (
+                SELECT id FROM species WHERE owner_id IS NULL);
+              DELETE FROM species WHERE owner_id IS NULL;
+
+  - changeSet:
+      id: 035-load-species
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: species
+            file: db/changelog/data/035/species.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: size, type: STRING}
+              - column: {name: alternate_size, type: STRING}
+              - column: {name: creature_type, type: STRING}
+              - column: {name: description, type: STRING}
+        - loadData:
+            tableName: species_speeds
+            file: db/changelog/data/035/species-speeds.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: species_id, type: UUID}
+              - column: {name: movement_type, type: STRING}
+              - column: {name: speed_feet, type: NUMERIC}
+        - loadData:
+            tableName: features
+            file: db/changelog/data/035/species-features.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: name, type: STRING}
+              - column: {name: description, type: STRING}
+              - column: {name: ordinal, type: NUMERIC}
+              - column: {name: species_id, type: UUID}
+              - column: {name: activation, type: STRING}
+              - column: {name: uses_reset, type: STRING}
+        - loadData:
+            tableName: feature_components
+            file: db/changelog/data/035/species-trait-options.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: feature_id, type: UUID}
+              - column: {name: references_feature_id, type: UUID}
+              - column: {name: count, type: NUMERIC}
+              - column: {name: optional, type: BOOLEAN}
+              - column: {name: mode, type: STRING}
+              - column: {name: choice_group, type: NUMERIC}
+              - column: {name: ordinal, type: NUMERIC}

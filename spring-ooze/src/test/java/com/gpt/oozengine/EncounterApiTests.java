@@ -1,0 +1,584 @@
+package com.gpt.oozengine;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasItem;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import java.util.UUID;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+
+/**
+ * The encounter API over HTTP.
+ *
+ * <p>Driven through MockMvc rather than the service, because the claims here are
+ * about the wire: that a stranger gets 404 and not 403, that a refused placement
+ * is a client error rather than a 500, and that the board a client draws from
+ * the response matches the one the server will adjudicate.
+ */
+@Import(TestcontainersConfiguration.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+class EncounterApiTests {
+
+  @Autowired private MockMvc mvc;
+  // Constructed rather than injected: this module configures web JSON through
+  // the starter without exposing an ObjectMapper bean to inject.
+  private final ObjectMapper json = new ObjectMapper();
+  @Autowired private EntityManager em;
+
+  private final UUID dm = UUID.randomUUID();
+  private final UUID otherDm = UUID.randomUUID();
+
+  private MockHttpServletRequestBuilder as(UUID user, MockHttpServletRequestBuilder req) {
+    return req.with(jwt()
+            .jwt(j -> j.subject(user.toString()))
+            .authorities(new SimpleGrantedAuthority("MANAGE_CONTENT")))
+        .with(csrf())
+        .contentType(MediaType.APPLICATION_JSON);
+  }
+
+  private UUID statBlockId(String monster) {
+    return em.createQuery(
+            "select m.statBlock.id from Monster m where m.ownerId is null and m.name = :n",
+            UUID.class)
+        .setParameter("n", monster)
+        .getSingleResult();
+  }
+
+  private JsonNode postJson(UUID owner, MockHttpServletRequestBuilder req, String body)
+      throws Exception {
+    var call = as(owner, req);
+    if (body != null) {
+      call = call.content(body);
+    }
+    return json.readTree(mvc.perform(call).andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsString());
+  }
+
+  private JsonNode createEncounter(UUID owner, String body) throws Exception {
+    String out = mvc.perform(as(owner, post("/encounter")).content(body))
+        .andExpect(status().isOk())
+        .andReturn().getResponse().getContentAsString();
+    return json.readTree(out);
+  }
+
+  @Test
+  @DisplayName("A new encounter comes back with a default board, unasked")
+  void createsWithADefaultBoard() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Ambush at the ford"}
+        """);
+
+    // A DM who wants to drop monsters somewhere and think about terrain later
+    // should not have to describe a board first.
+    assertBoard(e, 20, 20, 5);
+    assertThat(e.get("combatants")).isEmpty();
+  }
+
+  @Test
+  @DisplayName("Painting the board stores only the squares that differ")
+  void paintingIsSparse() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The bridge",
+         "map": {"width": 10, "height": 10, "cellFeet": 5,
+                 "cells": [{"x": 3, "y": 3, "terrain": "WALL"},
+                           {"x": 4, "y": 4, "elevationFeet": 10},
+                           {"x": 5, "y": 5}]}}
+        """);
+
+    // Three sent, two stored: the third names no override at all, and sparse
+    // storage exists precisely so that square has no row.
+    assertThat(e.get("map").get("cells")).hasSize(2);
+  }
+
+  @Test
+  @DisplayName("A cell off the edge of the map is rejected, not silently kept")
+  void offBoardCellsAreRejected() throws Exception {
+    mvc.perform(as(dm, post("/encounter")).content("""
+            {"name": "Too small",
+             "map": {"width": 5, "height": 5, "cellFeet": 5,
+                     "cells": [{"x": 9, "y": 0, "terrain": "WALL"}]}}
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("A board wider than the cap is refused by validation")
+  void boardBoundsAreValidated() throws Exception {
+    mvc.perform(as(dm, post("/encounter")).content("""
+            {"name": "Enormous",
+             "map": {"width": 500, "height": 500, "cellFeet": 5, "cells": []}}
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Placing a token returns its footprint and what it is allowed to do")
+  void placementReturnsTheFootprint() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Woods\"}");
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/combatant", id)).content("""
+            {"statBlockId": "%s", "name": "Owlbear", "xHalfFeet": 20, "yHalfFeet": 20}
+            """.formatted(statBlockId("Owlbear"))))
+        .andExpect(status().isOk())
+        // The client draws the board, so it gets the resolved footprint rather
+        // than working it out from a rule the server might not share.
+        .andExpect(jsonPath("$.size").value("LARGE"))
+        .andExpect(jsonPath("$.spaceHalfFeet").value(20))
+        .andExpect(jsonPath("$.disposition").value("ACTIVE"));
+  }
+
+  @Test
+  @DisplayName("A swarm's licence to share a square travels with it")
+  void capabilitiesAreOnTheWire() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Cellar\"}");
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/combatant", id)).content("""
+            {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+            """.formatted(statBlockId("Swarm of Rats"))))
+        .andExpect(status().isOk())
+        // The board needs this before the DM drags something onto the swarm,
+        // not after the server refuses.
+        .andExpect(jsonPath("$.capabilities").value(
+            hasItem("OCCUPY_CREATURE_SPACE")));
+  }
+
+  @Test
+  @DisplayName("Stacking two tokens is a client error, not a server fault")
+  void overlapIsAClientError() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Crowded\"}");
+    String id = e.get("id").asText();
+    String owlbear = """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear"));
+
+    mvc.perform(as(dm, post("/encounter/{id}/combatant", id)).content(owlbear))
+        .andExpect(status().isOk());
+    // A conflict, not a bad request: the body was fine, the board disagreed.
+    mvc.perform(as(dm, post("/encounter/{id}/combatant", id)).content(owlbear))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  @DisplayName("Another DM's encounter is a 404, so the id does not leak")
+  void strangersGetNotFound() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Private\"}");
+    String id = e.get("id").asText();
+
+    // 404 rather than 403: a stranger should not learn the encounter exists.
+    mvc.perform(as(otherDm, get("/encounter/{id}", id)))
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  @DisplayName("A DM without the role cannot reach encounters at all")
+  void playersAreShutOut() throws Exception {
+    // Every route is gated, reads included: an encounter is a plan for a
+    // session and the players are not supposed to see it.
+    mvc.perform(get("/encounter").with(jwt().jwt(j -> j.subject(dm.toString()))))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  @DisplayName("The list gives summaries, not whole boards")
+  void listIsSummaries() throws Exception {
+    createEncounter(dm, """
+        {"name": "One", "map": {"width": 8, "height": 9, "cellFeet": 5,
+         "cells": [{"x": 1, "y": 1, "terrain": "WALL"}]}}
+        """);
+
+    mvc.perform(as(dm, get("/encounter")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.content[0].width").value(8))
+        .andExpect(jsonPath("$.content[0].height").value(9))
+        .andExpect(jsonPath("$.content[0].combatantCount").value(0))
+        // A page of forty full boards to render a list of names is a lot of
+        // board nobody is looking at.
+        .andExpect(jsonPath("$.content[0].map").doesNotExist());
+  }
+
+  @Test
+  @DisplayName("Repainting replaces the canvas rather than patching it")
+  void repaintingReplaces() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Cave", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "cells": [{"x": 1, "y": 1, "terrain": "WALL"},
+                   {"x": 2, "y": 2, "terrain": "WALL"}]}}
+        """);
+    String id = e.get("id").asText();
+
+    // A DM who erases a wall sends a list without it, and a merge would have no
+    // way to tell that from a list that simply did not mention it.
+    mvc.perform(as(dm, put("/encounter/{id}", id)).content("""
+            {"name": "Cave", "map": {"width": 10, "height": 10, "cellFeet": 5,
+             "cells": [{"x": 1, "y": 1, "terrain": "WALL"}]}}
+            """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.cells.length()").value(1));
+  }
+
+  @Test
+  @DisplayName("Furniture survives a round trip through the JSON column")
+  void propsRoundTrip() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The undercroft", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "props": [{"piece": "TABLE", "xHalfFeet": 45, "yHalfFeet": 55, "facingDegrees": 90},
+                   {"piece": "BARREL", "xHalfFeet": 15, "yHalfFeet": 15}]}}
+        """);
+    String id = e.get("id").asText();
+
+    assertThat(e.get("map").get("props")).hasSize(2);
+    // Read back rather than trusted from the write: this is the one column in
+    // the schema that is a serialised object graph, so "it went in" and "it
+    // comes back as the same thing" are genuinely separate claims.
+    mvc.perform(as(dm, get("/encounter/{id}", id)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.props[0].piece").value("TABLE"))
+        .andExpect(jsonPath("$.map.props[0].xHalfFeet").value(45))
+        .andExpect(jsonPath("$.map.props[0].facingDegrees").value(90))
+        // Omitted, and zero rather than absent: standing something on the floor
+        // facing north is the common case and must not need spelling out.
+        .andExpect(jsonPath("$.map.props[1].zHalfFeet").value(0))
+        .andExpect(jsonPath("$.map.props[1].facingDegrees").value(0));
+  }
+
+  @Test
+  @DisplayName("Furnishing replaces the whole room, and leaves the terrain alone")
+  void furnishingReplacesWithoutRepainting() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Barracks", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "cells": [{"x": 1, "y": 1, "terrain": "WALL"}],
+         "props": [{"piece": "BED", "xHalfFeet": 15, "yHalfFeet": 15},
+                   {"piece": "TRUNK", "xHalfFeet": 15, "yHalfFeet": 25}]}}
+        """);
+    String id = e.get("id").asText();
+
+    var after = postJson(dm, put("/encounter/{id}/map/props", id), """
+        [{"piece": "BED", "xHalfFeet": 15, "yHalfFeet": 15}]
+        """);
+
+    // The furniture is replaced wholesale — a client that moves one thing sends
+    // the list — and the painting underneath is untouched, because cover and
+    // difficult terrain are the cell's business and never the barrel's.
+    assertThat(after.get("map").get("props")).hasSize(1);
+    assertThat(after.get("map").get("cells")).hasSize(1);
+  }
+
+  @Test
+  @DisplayName("An empty furniture list clears the room; a null one leaves it alone")
+  void emptyAndAbsentDifferForProps() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Study", "map": {"width": 10, "height": 10, "cellFeet": 5,
+         "props": [{"piece": "SHELVES", "xHalfFeet": 15, "yHalfFeet": 15}]}}
+        """);
+    String id = e.get("id").asText();
+
+    // A DM nudging a wall must not strip the room bare as a side effect, so a
+    // map request with no props at all leaves them standing.
+    mvc.perform(as(dm, put("/encounter/{id}", id)).content("""
+            {"name": "Study", "map": {"width": 10, "height": 10, "cellFeet": 5}}
+            """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.props.length()").value(1));
+
+    mvc.perform(as(dm, put("/encounter/{id}/map/props", id)).content("[]"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.props.length()").value(0));
+  }
+
+  @Test
+  @DisplayName("A prop off the edge of the board is refused, in half-feet not cells")
+  void offBoardPropsAreRejected() throws Exception {
+    // 10 cells of 5 feet is 100 half-feet, so 100 is the first position off it.
+    // Refused rather than clamped, unlike a paint stroke: dragging a rectangle
+    // past the edge is how anybody paints the edge, while a table half off the
+    // map is a bug in whatever produced it.
+    mvc.perform(as(dm, post("/encounter")).content("""
+            {"name": "Small", "map": {"width": 10, "height": 10, "cellFeet": 5,
+             "props": [{"piece": "TABLE", "xHalfFeet": 100, "yHalfFeet": 0}]}}
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("A prop with no piece is a client error, not a null in the column")
+  void propsNeedAPiece() throws Exception {
+    mvc.perform(as(dm, post("/encounter")).content("""
+            {"name": "Nameless", "map": {"width": 10, "height": 10, "cellFeet": 5,
+             "props": [{"xHalfFeet": 15, "yHalfFeet": 15}]}}
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("A whole furnished level is one request, not a hundred")
+  void aWholeLevelCreatesAtOnce() throws Exception {
+    // The size the board's own sample level actually is: 26 by 20 squares, a
+    // few hundred painted, and enough furniture to fill six rooms. Worth
+    // asserting at that scale rather than at three cells, because "From the
+    // sample dungeon" is a single POST of exactly this shape and the caps it
+    // has to clear — 60 squares a side, 400 props — are only interesting near
+    // them.
+    StringBuilder cells = new StringBuilder();
+    for (int y = 0; y < 20; y++) {
+      for (int x = 0; x < 26; x++) {
+        boolean edge = x == 0 || y == 0 || x == 25 || y == 19;
+        if (!edge && (x + y) % 7 != 0) {
+          continue;
+        }
+        if (!cells.isEmpty()) {
+          cells.append(',');
+        }
+        cells.append("{\"x\":").append(x).append(",\"y\":").append(y)
+            .append(edge ? ",\"terrain\":\"WALL\"}" : ",\"light\":\"DARKNESS\"}");
+      }
+    }
+    StringBuilder props = new StringBuilder();
+    String[] pieces = {"BARREL", "TABLE", "CHAIR", "TORCH", "BED", "SHELVES", "CRATE"};
+    for (int i = 0; i < 120; i++) {
+      if (!props.isEmpty()) {
+        props.append(',');
+      }
+      props.append("{\"piece\":\"").append(pieces[i % pieces.length])
+          .append("\",\"xHalfFeet\":").append((i * 17) % 260)
+          .append(",\"yHalfFeet\":").append((i * 23) % 200)
+          .append(",\"facingDegrees\":").append((i % 4) * 90).append('}');
+    }
+
+    var e = createEncounter(dm, """
+        {"name": "The undercroft", "map": {"width": 26, "height": 20, "cellFeet": 5,
+         "defaultTerrain": "FLOOR", "defaultLight": "DIM",
+         "cells": [%s], "props": [%s]}}
+        """.formatted(cells, props));
+
+    String id = e.get("id").asText();
+    assertThat(e.get("map").get("props")).hasSize(120);
+    assertThat(e.get("map").get("cells").size()).isGreaterThan(100);
+
+    // And it comes back the same, which is the claim that matters: the level a
+    // DM sees is the one the server stored, not the one the client sent.
+    var reloaded = postJson(dm, get("/encounter/{id}", id), null);
+    assertThat(reloaded.get("map").get("props")).hasSize(120);
+    assertThat(reloaded.get("map").get("cells").size())
+        .isEqualTo(e.get("map").get("cells").size());
+  }
+
+  @Test
+  @DisplayName("Furniture past the cap is refused rather than truncated")
+  void tooMuchFurnitureIsRefused() throws Exception {
+    StringBuilder props = new StringBuilder();
+    for (int i = 0; i <= 400; i++) {
+      if (!props.isEmpty()) {
+        props.append(',');
+      }
+      props.append("{\"piece\":\"BARREL\",\"xHalfFeet\":10,\"yHalfFeet\":10}");
+    }
+    var e = createEncounter(dm, "{\"name\": \"Warehouse\"}");
+    String id = e.get("id").asText();
+
+    // Unbounded, a client bug becomes a megabyte of barrels loaded on every
+    // board read, and there is no row count to notice it by.
+    mvc.perform(as(dm, put("/encounter/{id}/map/props", id)).content("[" + props + "]"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("A token can be moved, and removed")
+  void moveAndRemove() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Field\"}");
+    String id = e.get("id").asText();
+    String placed = mvc.perform(as(dm, post("/encounter/{id}/combatant", id)).content("""
+            {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+            """.formatted(statBlockId("Owlbear"))))
+        .andReturn().getResponse().getContentAsString();
+    String combatantId = json.readTree(placed).get("id").asText();
+
+    mvc.perform(as(dm, put("/encounter/{id}/combatant/{c}", id, combatantId)).content("""
+            {"statBlockId": "%s", "xHalfFeet": 120, "yHalfFeet": 60, "zHalfFeet": 20}
+            """.formatted(statBlockId("Owlbear"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.xHalfFeet").value(120))
+        // Elevation is the same field whether it is flying or on a balcony.
+        .andExpect(jsonPath("$.zHalfFeet").value(20));
+
+    mvc.perform(as(dm, delete("/encounter/{id}/combatant/{c}", id, combatantId)))
+        .andExpect(status().isNoContent());
+    mvc.perform(as(dm, get("/encounter/{id}", id)))
+        .andExpect(jsonPath("$.combatants.length()").value(0));
+  }
+
+  @Test
+  @DisplayName("A room is outlined in one stroke, not two hundred requests")
+  void paintingAnOutline() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The vault", "map": {"width": 20, "height": 20, "cellFeet": 5, "cells": []}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "OUTLINE", "x1": 2, "y1": 2, "x2": 9, "y2": 9,
+              "brush": {"x": 0, "y": 0, "terrain": "WALL"}}]
+            """))
+        .andExpect(status().isOk())
+        // The ring of an 8x8 is 28 squares. Painting that one request at a time
+        // is what makes a hand-built board unusable.
+        .andExpect(jsonPath("$.map.cells.length()").value(28));
+  }
+
+  @Test
+  @DisplayName("Strokes apply in order, so a doorway can be cut after the wall")
+  void strokesApplyInOrder() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The cell", "map": {"width": 20, "height": 20, "cellFeet": 5, "cells": []}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "OUTLINE", "x1": 0, "y1": 0, "x2": 5, "y2": 5,
+              "brush": {"x": 0, "y": 0, "terrain": "WALL"}},
+             {"shape": "RECTANGLE", "x1": 0, "y1": 2, "x2": 0, "y2": 3, "erase": true}]
+            """))
+        .andExpect(status().isOk())
+        // 20 in the ring, less the two erased for the door.
+        .andExpect(jsonPath("$.map.cells.length()").value(18));
+  }
+
+  @Test
+  @DisplayName("A brush leaves alone what it does not mention")
+  void brushesArePartial() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "The ledge", "map": {"width": 20, "height": 20, "cellFeet": 5, "cells": []}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2,
+              "brush": {"x": 0, "y": 0, "terrain": "RUBBLE"}},
+             {"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2,
+              "brush": {"x": 0, "y": 0, "elevationFeet": 10}}]
+            """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.map.cells.length()").value(4))
+        // Raising the ground across a room must not repaint its terrain.
+        .andExpect(jsonPath("$.map.cells[0].terrain").value("RUBBLE"))
+        .andExpect(jsonPath("$.map.cells[0].elevationFeet").value(10));
+  }
+
+  @Test
+  @DisplayName("Erasing shrinks the board rather than storing empty squares")
+  void erasingRemovesRows() throws Exception {
+    var e = createEncounter(dm, """
+        {"name": "Scratch", "map": {"width": 20, "height": 20, "cellFeet": 5,
+         "cells": [{"x": 1, "y": 1, "terrain": "WALL"}, {"x": 2, "y": 2, "terrain": "WALL"}]}}
+        """);
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "RECTANGLE", "x1": 0, "y1": 0, "x2": 5, "y2": 5, "erase": true}]
+            """))
+        .andExpect(status().isOk())
+        // Sparse storage means an erased square has no row at all, not a row
+        // full of nulls.
+        .andExpect(jsonPath("$.map.cells.length()").value(0));
+  }
+
+  @Test
+  @DisplayName("A stroke that is not an erase needs a brush")
+  void strokeWithoutABrushIsRejected() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Blank\"}");
+    String id = e.get("id").asText();
+
+    mvc.perform(as(dm, post("/encounter/{id}/map/paint", id)).content("""
+            [{"shape": "RECTANGLE", "x1": 1, "y1": 1, "x2": 2, "y2": 2}]
+            """))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
+  @DisplayName("Scaling is stored as a descriptor and shows on the token")
+  void scalingOverHttp() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Tougher\"}");
+    String id = e.get("id").asText();
+    var placed = postJson(dm, post("/encounter/{id}/combatant", id), """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear")));
+    String c = placed.get("id").asText();
+
+    // A request that only toughens does not restate the four things it leaves
+    // alone.
+    mvc.perform(as(dm, put("/encounter/{id}/combatant/{c}/scaling", id, c))
+            .content("{\"hitPointPercent\": 150}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.scaling.hitPointPercent").value(150))
+        .andExpect(jsonPath("$.scaling.damagePercent").value(100))
+        .andExpect(jsonPath("$.scaling.unchanged").value(false))
+        .andExpect(jsonPath("$.overridden").value(false));
+  }
+
+  @Test
+  @DisplayName("Surgery gives a private copy, and reverting takes it away")
+  void overrideOverHttp() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Boss fight\"}");
+    String id = e.get("id").asText();
+    var placed = postJson(dm, post("/encounter/{id}/combatant", id), """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Goblin Warrior")));
+    String c = placed.get("id").asText();
+
+    var mine = postJson(dm, post("/encounter/{id}/combatant/{c}/override", id, c), null);
+    assertThat(mine.get("id").asText()).isNotEqualTo(
+        statBlockId("Goblin Warrior").toString());
+
+    mvc.perform(as(dm, get("/encounter/{id}", id)))
+        .andExpect(jsonPath("$.combatants[0].overridden").value(true));
+
+    mvc.perform(as(dm, delete("/encounter/{id}/combatant/{c}/override", id, c)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.overridden").value(false));
+  }
+
+  @Test
+  @DisplayName("A scaling out of bounds is refused by validation")
+  void scalingIsBounded() throws Exception {
+    var e = createEncounter(dm, "{\"name\": \"Absurd\"}");
+    String id = e.get("id").asText();
+    var placed = postJson(dm, post("/encounter/{id}/combatant", id), """
+        {"statBlockId": "%s", "xHalfFeet": 20, "yHalfFeet": 20}
+        """.formatted(statBlockId("Owlbear")));
+
+    // A thousandfold goblin is a typo, and a creature scaled to nothing is a
+    // bug rather than a corpse.
+    mvc.perform(as(dm, put("/encounter/{id}/combatant/{c}/scaling", id,
+            placed.get("id").asText()))
+            .content("{\"hitPointPercent\": 0}"))
+        .andExpect(status().isBadRequest());
+  }
+
+  private static void assertBoard(JsonNode e, int width, int height, int cellFeet) {
+    var map = e.get("map");
+    assertThat(map.get("width").asInt()).isEqualTo(width);
+    assertThat(map.get("height").asInt()).isEqualTo(height);
+    assertThat(map.get("cellFeet").asInt()).isEqualTo(cellFeet);
+  }
+}

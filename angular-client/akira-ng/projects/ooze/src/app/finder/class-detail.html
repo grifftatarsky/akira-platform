@@ -1,0 +1,92 @@
+<div class="grid gap-4">
+
+  <!-- SUBCLASS -->
+  @for (s of subclasses(); track s.id) {
+    <div class="rounded-md border border-rule bg-bg-subtle p-3">
+      <p class="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">Subclass</p>
+      <p class="text-sm font-semibold text-fg">{{ s.name }}</p>
+      @if (s.description) {
+        <p class="mt-1 whitespace-pre-line text-sm/6 text-fg-muted">{{ s.description }}</p>
+      }
+    </div>
+  }
+
+  <!-- LEVEL TABLE -->
+  @if (levels().length) {
+    <div>
+      <p class="mb-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+        Features by level
+      </p>
+      <!-- Its own scroller: a full caster is fifteen columns wide and the page
+           body must never scroll sideways. -->
+      <div class="overflow-x-auto rounded-md border border-rule">
+        <table class="w-full border-collapse text-left text-xs tabular-nums">
+          <thead class="bg-bg-subtle text-[0.65rem] uppercase tracking-wide text-fg-subtle">
+            <tr>
+              <th class="px-2 py-1.5 font-semibold">Lvl</th>
+              <th class="px-2 py-1.5 font-semibold">PB</th>
+              <th class="min-w-48 px-2 py-1.5 font-semibold">Features</th>
+              @for (c of classColumns(); track c) {
+                <th class="px-2 py-1.5 font-semibold">{{ c }}</th>
+              }
+              @if (hasCantrips()) { <th class="px-2 py-1.5 font-semibold">Cantrips</th> }
+              @if (hasPrepared()) { <th class="px-2 py-1.5 font-semibold">Prepared</th> }
+              @for (s of slotColumns(); track s) {
+                <th class="px-2 py-1.5 text-center font-semibold">{{ s }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of levels(); track row.level) {
+              <tr class="border-t border-rule">
+                <td class="px-2 py-1.5 font-semibold text-fg">{{ row.level }}</td>
+                <td class="px-2 py-1.5 text-fg-muted">+{{ row.proficiencyBonus }}</td>
+                <td class="px-2 py-1.5 text-fg-muted">{{ row.featureSummary || '—' }}</td>
+                @for (c of classColumns(); track c) {
+                  <td class="px-2 py-1.5 text-fg-muted">{{ classValue(row, c) }}</td>
+                }
+                @if (hasCantrips()) {
+                  <td class="px-2 py-1.5 text-fg-muted">{{ row.cantripsKnown ?? '—' }}</td>
+                }
+                @if (hasPrepared()) {
+                  <td class="px-2 py-1.5 text-fg-muted">{{ row.preparedSpells ?? '—' }}</td>
+                }
+                @for (s of slotColumns(); track s) {
+                  <td class="px-2 py-1.5 text-center text-fg-muted">{{ slot(row, s) }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- FEATURES -->
+  @for (group of [{ label: 'Class features', list: classFeatures() },
+                  { label: 'Subclass features', list: subclassFeatures() }]; track group.label) {
+    @if (group.list.length) {
+      <div class="grid gap-3">
+        <p class="text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-fg-subtle">
+          {{ group.label }}
+        </p>
+        @for (f of group.list; track f.id) {
+          <div>
+            <p class="text-sm font-semibold text-fg">
+              <span class="mr-1 rounded border border-rule px-1 py-px align-middle text-[0.6rem] font-medium text-fg-subtle">
+                Level {{ f.vocationLevel }}
+              </span>
+              {{ f.name }}
+              @if (subclassName(f); as sub) {
+                <span class="ml-1 rounded border border-rule bg-bg-subtle px-1 py-px align-middle text-[0.6rem] font-medium text-fg-subtle">{{ sub }}</span>
+              }
+            </p>
+            @if (f.description) {
+              <p class="whitespace-pre-line text-sm/6 text-fg-muted">{{ f.description }}</p>
+            }
+          </div>
+        }
+      </div>
+    }
+  }
+</div>

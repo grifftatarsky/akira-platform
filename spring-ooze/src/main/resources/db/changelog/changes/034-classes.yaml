@@ -1,0 +1,253 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 034 — the SRD 5.2.1 Classes chapter.
+  #
+  #   12 classes with their core traits, 240 level rows, 232 features (174
+  #   class, 58 subclass), 12 subclasses, and the 875 spell/class links the
+  #   eight casters' spell lists carry.
+  #
+  # The vocations table has held twelve name-and-hit-die rows since 009 and
+  # every table hanging off it — levels, subclasses, skill options, spell slots
+  # — has been empty since 027. This fills them from the book.
+  #
+  # spell_vocations is joined on name: the spells were seeded across 006-024
+  # under ids that aren't derivable here, and their names are unique.
+  # ==========================================================================
+
+  - changeSet:
+      id: 034-clear-seeded-vocations
+      author: oozengine
+      # 009's twelve carry a name and a hit die; the import brings the whole
+      # class, under ids derived from its name. Characters are unlinked rather
+      # than deleted — a player's sheet outlives a reimport of the rules.
+      changes:
+        - sql:
+            sql: |
+              UPDATE characters SET vocation_id = NULL, subclass_id = NULL
+              WHERE vocation_id IN (SELECT id FROM vocations WHERE owner_id IS NULL);
+              DELETE FROM hidden_content WHERE content_type = 'VOCATION' AND base_id IN (
+                SELECT id FROM vocations WHERE owner_id IS NULL);
+              DELETE FROM features WHERE vocation_id IN (
+                SELECT id FROM vocations WHERE owner_id IS NULL);
+              DELETE FROM subclasses WHERE vocation_id IN (
+                SELECT id FROM vocations WHERE owner_id IS NULL);
+              UPDATE vocations SET overrides_id = NULL WHERE overrides_id IN (
+                SELECT id FROM vocations WHERE owner_id IS NULL);
+              DELETE FROM vocations WHERE owner_id IS NULL;
+
+  - changeSet:
+      id: 034-vocation-columns
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: vocations
+            columns:
+              # The Rogue's is "Simple weapons and Martial weapons that have the
+              # Finesse or Light property" — a rule about properties, not a list.
+              - column: {name: weapon_proficiencies, type: VARCHAR(255)}
+              - column: {name: tool_proficiencies, type: VARCHAR(255)}
+              - column: {name: starting_equipment, type: TEXT}
+        - addColumn:
+            tableName: vocation_levels
+            columns:
+              # The Class Features cell as printed: "Action Surge (two uses)",
+              # "Subclass feature", "—". The features are rows of their own, but
+              # the cell says which use of an escalating feature a level grants.
+              - column: {name: feature_summary, type: VARCHAR(255)}
+        # The class table's own columns are an ordered list, not a map: a
+        # Barbarian's reads Rages, Rage Damage, Weapon Mastery, and a map comes
+        # back from the database in whatever order it likes.
+        - addColumn:
+            tableName: vocation_level_values
+            columns:
+              - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+        # The old key was (level, label); with an order column the list index
+        # is the identity, and a class could in principle repeat a label.
+        - dropPrimaryKey: {tableName: vocation_level_values, constraintName: pk_vocation_level_values}
+        - addPrimaryKey:
+            tableName: vocation_level_values
+            columnNames: "vocation_level_id, ordinal"
+            constraintName: pk_vocation_level_values
+        - createTable:
+            tableName: vocation_armor_training
+            columns:
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: armor_category, type: VARCHAR(16), constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: vocation_armor_training
+            columnNames: "vocation_id, armor_category"
+            constraintName: pk_vocation_armor_training
+        - addForeignKeyConstraint:
+            constraintName: fk_vocation_armor_training
+            baseTableName: vocation_armor_training
+            baseColumnNames: vocation_id
+            referencedTableName: vocations
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 034-load-vocations
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: vocations
+            file: db/changelog/data/034/vocations.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: hit_die, type: NUMERIC}
+              - column: {name: skill_choices, type: NUMERIC}
+              - column: {name: caster_progression, type: STRING}
+              - column: {name: spellcasting_ability, type: STRING}
+              - column: {name: weapon_proficiencies, type: STRING}
+              - column: {name: tool_proficiencies, type: STRING}
+              - column: {name: starting_equipment, type: STRING}
+        - loadData:
+            tableName: vocation_primary_abilities
+            file: db/changelog/data/034/vocation-primary-abilities.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: ability, type: STRING}
+        - loadData:
+            tableName: vocation_saving_throws
+            file: db/changelog/data/034/vocation-saving-throws.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: ability, type: STRING}
+        - loadData:
+            tableName: vocation_skill_options
+            file: db/changelog/data/034/vocation-skill-options.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: skill, type: STRING}
+        - loadData:
+            tableName: vocation_armor_training
+            file: db/changelog/data/034/vocation-armor-training.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: armor_category, type: STRING}
+        - loadData:
+            tableName: subclasses
+            file: db/changelog/data/034/subclasses.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: description, type: STRING}
+
+  - changeSet:
+      id: 034-load-vocation-levels
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: vocation_levels
+            file: db/changelog/data/034/vocation-levels.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: level, type: NUMERIC}
+              - column: {name: proficiency_bonus, type: NUMERIC}
+              - column: {name: feature_summary, type: STRING}
+              - column: {name: cantrips_known, type: NUMERIC}
+              - column: {name: prepared_spells, type: NUMERIC}
+        - loadData:
+            tableName: vocation_level_spell_slots
+            file: db/changelog/data/034/vocation-level-spell-slots.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: vocation_level_id, type: UUID}
+              - column: {name: slot_level, type: NUMERIC}
+              - column: {name: slots, type: NUMERIC}
+        - loadData:
+            tableName: vocation_level_values
+            file: db/changelog/data/034/vocation-level-values.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: vocation_level_id, type: UUID}
+              - column: {name: ordinal, type: NUMERIC}
+              - column: {name: label, type: STRING}
+              - column: {name: value, type: STRING}
+
+  - changeSet:
+      id: 034-load-vocation-features
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: features
+            file: db/changelog/data/034/vocation-features.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: name, type: STRING}
+              - column: {name: description, type: STRING}
+              - column: {name: ordinal, type: NUMERIC}
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: subclass_id, type: UUID}
+              - column: {name: vocation_level, type: NUMERIC}
+              - column: {name: activation, type: STRING}
+              - column: {name: uses_reset, type: STRING}
+
+  - changeSet:
+      id: 034-link-spell-vocations
+      author: oozengine
+      # Joined on name because the spells were seeded long before this, under
+      # ids the class chapter has no way to derive. Names are unique per table.
+      changes:
+        - createTable:
+            tableName: spell_vocation_staging
+            columns:
+              - column: {name: spell_name, type: VARCHAR(255)}
+              - column: {name: vocation_id, type: UUID}
+        - loadData:
+            tableName: spell_vocation_staging
+            file: db/changelog/data/034/spell-vocations.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            columns:
+              - column: {name: spell_name, type: STRING}
+              - column: {name: vocation_id, type: UUID}
+        - sql:
+            sql: |
+              INSERT INTO spell_vocations (spell_id, vocation_id)
+              SELECT sp.id, st.vocation_id
+              FROM spell_vocation_staging st
+              JOIN spells sp ON sp.owner_id IS NULL AND sp.name = st.spell_name
+              WHERE NOT EXISTS (
+                SELECT 1 FROM spell_vocations e
+                WHERE e.spell_id = sp.id AND e.vocation_id = st.vocation_id);
+        - dropTable: {tableName: spell_vocation_staging}
