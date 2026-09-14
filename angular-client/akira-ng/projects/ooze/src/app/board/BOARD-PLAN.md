@@ -19,13 +19,14 @@ there is not undone by an update here.
 **3600 x 2026 (7.29 MP)**, on a freshly started browser. Target is 60 (16.6 ms).
 The order is **look first, then optimize** — Phase 1 before Phase 2.
 
-**Next:** Phase 3 is closed and nothing in it was thrown away — every technique
-in it is a switch in the board's **graphics menu** with its measured price beside
-it. What is left unstarted is **2.2**, the purpose-written grass
-`ShaderMaterial`, which is the only remaining item that could return a frame
-rather than spend one; **2.1** is in the menu as *render scale* and wants a look
-rather than a measurement; and `shadowProxy`'s 200k threshold still misses all
-three searsia parts, so the scrub casts at full resolution.
+**Next:** Phases 2 and 3 are closed. Everything they measured is a switch in the
+board's **graphics menu** with its price beside it, and **2.2 is the one that
+gives a frame back** — a grass shader written for the grass, 3.2 ms returned,
+in the menu as *fast grass*. **2.1** is in the menu as *render scale*, measured
+across its five steps, and wants your eye rather than another number. What is
+open: whether any of these should be on by default, where render scale starts to
+look soft, and `shadowProxy`'s 200k threshold, which still misses all three
+searsia parts so the scrub casts at full resolution.
 
 > **A frame number without its pixel count and its browser's age is not a
 > measurement.** The audit found both mattering more than anything in the
@@ -127,8 +128,8 @@ difference measurement, not a partition.
 
 | | Work | Working = | Not helping = | State |
 |---|---|---|---|---|
-| 2.1 | **Hardware scaling** lab at 0.5 / 1 / 1.25 / 1.5 | A setting under 16.6 ms the user cannot tell apart at the play camera | Every setting under 16.6 ms is visibly soft | measured, not judged: 0.5 → 19.7 ms, 1 → 11.6, 1.25 → 10.4, 1.5 → 9.9 |
-| 2.2 | **Purpose-written blade `ShaderMaterial`** vs PBR-with-subsurface, with vertex-shader NDC culling (forum 62558) | ≥ 1.5 ms saved, field looks the same or better | < 0.5 ms saved | |
+| 2.1 | **Hardware scaling** | A setting under 16.6 ms the user cannot tell apart at the play camera | Every setting under 16.6 ms is visibly soft | **in the menu 2026-09-13 as *render scale*, five steps, measured.** 7.29 MP → 27.9 ms · 5.27 → 25.3 · 4.10 → 23.1 · 2.62 → 20.9 · 1.82 → 19.1. **Not linear in pixels:** a quarter of the pixels buys 31% of the frame, because the vertex work, the culling and the shadow map do not scale with resolution. 1:1 crops say 75% is close to indistinguishable and 50% is visibly mushy — but that call is the user's |
+| 2.2 | **Purpose-written grass `ShaderMaterial`** vs PBR | ≥ 1.5 ms saved, field looks the same or better | < 0.5 ms saved | **passed 2026-09-13 — 3.2 ms back, and it is in the menu as *fast grass*.** `grass-fast.ts`: one texture read, an alpha test, a sun, a bounce, a hemisphere and one GGX highlight, with the wind and the shading blend carried over verbatim from the plugin. 27.9 ms → 24.5/25.0 matched, 24.0/24.4 with the sheen dropped. The old 2.0 ms ceiling was measured as *unlit PBR*, which keeps PBR's vertex shader — and about 40M vertex invocations a frame on the grass is where most of the saving is. NDC culling untried and probably pointless: compaction already removed 52% of instances for no gain. It cannot receive the shadow map, so it and grass shadows turn each other off |
 | 2.3 | **Translucency audit** | Off is not darker | Off is visibly flatter | **done — refused.** Lab says on costs 0.4 ms *and* is flatly darker. Turning it off on the board is the next board change |
 | 2.4 | **Baked geometry vs thin instances** for one patch (forum 46756's 4× claim) | ≥ 2 ms saved at equal blade count | < 0.5 ms, or it breaks the compute placement | **refused 2026-09-13 — baking is 18% *slower*.** 112,543 grass plants, coverage matched to 0.1% of the view, empty-scene baseline subtracted: instanced **6.5 ms**, baked **7.65**. The forum's 4× does not reproduce here. Baking also costs 9.45M vertices and 86 MB of index buffer against an 84-vertex mesh, and gives up the wind, the ground-normal shading, the per-plant tint and the compute placement, all of which read the instance matrix |
 | 2.5 | **Trees and scrub** — 4.93 ms, the *largest* piece and never examined | No visible difference at the play camera | < 2 ms saved | **closed 2026-09-13 — refused to the asset.** 4.2 ms split 3.6 camera / 1.1 shadow. Not fill (2.4 ms survives at a camera where the board is 3.75% of the view; they draw 0.4% of the screen). Not the material (one-sided, culled: nothing; `freeze()` is 2.4 ms *worse*). Only half is triangle count — thinning 7× recovers 1.9 of 3.6 — **and it strips the trees bare**, because on a photogrammetry canopy the leaves *are* the triangles. `island_tree_02` is trunk 27,298 + leaves 714,744 + branches 330,171, one LOD0 node, for a 3.4 m plant. Open and untested: `shadowProxy`'s 200k threshold misses all three searsia parts, so the scrub still casts at full resolution |
@@ -172,17 +173,19 @@ with**.
 | ambient occlusion | +8.4 / +26.9 ms | *reads*: ground only · grass too |
 | god rays | +4.6 ms | — |
 | grass shadows | +8.3 ms | *casts*: trees and stone · everything |
+| **fast grass** | **−3.2 ms** | *lit*: matched · no sheen |
 | bloom | +1.6 ms | — |
-| render scale | — | 100 / 85 / 75 / 60 / 50% |
+| render scale | 27.9 → 19.1 ms | 100 / 85 / 75 / 60 / 50% |
 
 Measured at 3600 × 2026, play camera, noon, wind stopped, over a 28.1 ms frame,
 two passes each, on a freshly started browser. **`split frame` now measures
 whichever of these are on**, so the numbers above are one machine's reading and
 not the answer.
 
-`effects.ts` holds SSAO2, the god rays and the grass-shadow wiring; `stage.ts`
-gained `setMsaa` and `setRenderScale`; `taa` and `bloom` moved out of the *show*
-row, which is for content, into the menu, which is for quality.
+`effects.ts` holds SSAO2, the god rays and the grass-shadow wiring;
+`grass-fast.ts` holds the grass shader; `stage.ts` gained `setMsaa` and
+`setRenderScale`; `taa` and `bloom` moved out of the *show* row, which is for
+content, into the menu, which is for quality.
 
 ---
 

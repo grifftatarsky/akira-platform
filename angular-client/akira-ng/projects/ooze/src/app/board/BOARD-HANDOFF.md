@@ -498,7 +498,7 @@ Sequenced *after* 0.1, because 0.1 says which of these is worth doing.
 | # | Work | Working = | Not helping = |
 |---|---|---|---|
 | 2.1 | **Hardware scaling** lab at 1.0 / 1.25 / 1.5 / 2.0. | A setting exists that is under 16.6 ms and the user cannot tell it apart at the play camera | Every setting under 16.6 ms is visibly soft |
-| 2.2 | **Purpose-written blade `ShaderMaterial`** vs PBR-with-subsurface, with **vertex-shader NDC culling** (forum 62558's approach). | ≥ 1.5 ms saved with the field looking the same or better | < 0.5 ms saved |
+| 2.2 | **Purpose-written grass `ShaderMaterial`** vs PBR. | ≥ 1.5 ms saved with the field looking the same or better | < 0.5 ms saved | **passed 2026-09-13 — 3.2 ms back**, in the menu as *fast grass*. `grass-fast.ts`. NDC culling untried: compaction already removed 52% of instances for no gain |
 | 2.3 | **Translucency audit**: A/B `subSurface` off on the sward. | Off is not darker (it deletes 55% of diffuse irradiance) — and is cheaper | Off is visibly flatter |
 | 2.4 | **Baked geometry vs thin instances** for one patch (forum 46756's 4× claim). | ≥ 2 ms saved at equal blade count | < 0.5 ms, or it breaks the compute placement |
 | 2.5 | **Terrain pass**: whatever 0.1 attributes to it — chunk count, texture count, CSM sample cost. | — | — |
@@ -531,6 +531,7 @@ projects/ooze/src/app/board/
   bab/
     stage.ts           engine, scene, camera, sun, sky, CSM, TAA, grade, toggles
     effects.ts         SSAO2 with the sky mask, god rays, grass shadows
+    grass-fast.ts      the purpose-written grass ShaderMaterial (2.2)
     meadow.ts          the sward: WGSL compute placement → thin instances → indirect draw
     blade-wind.ts      MaterialPluginBase WGSL injection: wind, per-plant shading
     foliage-cards.ts   cardGeometry(): cards/heads/stems from the cut-out sheet

@@ -102,7 +102,7 @@ stays out is what does not work or gains nothing.
 | **Fitting cards to the silhouette** | neutral | Kept — it is free and honest — but discarded fragments are cheap, because the cutout runs before the lighting. |
 | **Level of detail, thinning** | — | See the rules. |
 | **Volumetric light scattering** | **+4.6 ms** | Superseded 2026-09-13 — **a setting now**. The 7.2 ms and the white flood were both one bug: the occluder pass had no render list, so it drew the whole scene including the sky, and the sky was standing in for the light. A real sun disc plus a render list of the disc, the terrain, the trees and the stone throws actual shafts for 4.6. |
-| **A cheaper meadow material** | ceiling **2.0 ms** | Unlit is only 2.0 ms below the real thing now that image-based lighting and fog are gone; those were the gap the old 3 ms estimate measured. None of PBR's own cheap switches move it either. |
+| **A cheaper meadow material** | **−3.2 ms, taken** | Superseded 2026-09-13 — **it is in the menu as *fast grass***. The 2.0 ms ceiling was measured as `unlit` PBR, which short-circuits PBR's *fragment* shader while its vertex shader and every varying stay; a purpose-written `ShaderMaterial` beats it, and most of the win is the roughly 40M vertex invocations a frame the grass costs. |
 
 **The pattern:** anything that adds a second pass over the meadow loses, and
 anything that removes instances gains nothing. What this board pays for is
@@ -1304,3 +1304,80 @@ followed by `bab.look('ao', true)` measured "grass too" twice and reported
 ground-only as costing 26 ms. The board exposes `bab.aoGrass()` and
 `bab.grassSelf()` now, which go through the component. **A probe that reaches
 past the UI into the implementation measures something the UI does not do.**
+
+
+## 2.2 taken: a grass shader written for the grass (2026-09-13)
+
+3.2 ms back against a bar of 1.5. `grass-fast.ts` swaps the four grass materials
+off PBR onto a `ShaderMaterial`: one texture read, an alpha test, a sun, a
+bounce, a hemisphere, one GGX highlight, nothing else. The wind, the leaf-normal
+blend, the per-plant tint and the base-to-tip ramp are `blade-wind.ts`'s WGSL
+carried over verbatim, so the geometry and the motion are the same field.
+
+3600 x 2026, play camera, noon, wind stopped, fresh browser, each arm bracketed
+between fresh off-readings, two passes:
+
+| | ms | saved |
+|---|---|---|
+| PBR | 27.9 | — |
+| fast, matched | 24.5 / 25.0 | 3.0 / 3.4 |
+| fast, no sheen | 24.0 / 24.4 | 3.6 / 4.0 |
+
+**The old 2.0 ms ceiling was measuring the wrong thing.** It was `unlit = true`
+on the PBR material, which short-circuits the *fragment* shader and leaves the
+vertex shader, every varying and the whole uniform block in place. The grass is
+about 40M vertex invocations a frame, and that is where most of this is.
+
+### Matching the look took three passes and the instrument found each gap
+
+Diffuse only was right in red and green and **missing 40% of the blue** —
+0.971 / 1.025 / **0.609** against PBR over the grass band. The cause is
+specular: a green albedo kills blue in the diffuse term, and PBR's specular is
+not multiplied by albedo, so a blue sky's highlight is where blue reaches a
+green field. Confirmed rather than assumed — `specularIntensity = 0` on the
+*PBR* arm took its blue from 12.6 to 7.3, against the fast arm's 7.7.
+
+A normalized Blinn lobe at `pow(NdotH, 20)` recovered a third of it (blue ratio
+0.703): GGX at roughness 0.55 has far longer tails than Blinn. The real thing —
+Trowbridge-Reitz with Smith visibility and a Schlick rim, Babylon's own
+constants — closed it to **0.996 / 1.019 / 0.887**, mean difference 6.85 of 255
+against a 0.5 TAA noise floor. The last 11% of blue is most likely Babylon's
+`geometricRoughnessFactor`, which raises roughness from the normal's screen
+derivative and broadens the lobe further on grass; not chased.
+
+The sheen is 1.7 ms of the 4.8, so it is a select: *matched* or *no sheen*.
+
+### Two traps
+
+**`ShaderMaterial` pushes `world0..world3` itself.** `isReady` calls
+`PushAttributesForInstances` when instances are on, so listing them in
+`options.attributes` as well registers them twice — shader location 4 is used
+twice, WebGPU refuses the pipeline **as a warning**, and the board reads a
+cheerful 60 fps drawing no grass at all. Same shape as the `patch` reserved-word
+incident: a warning that means nothing rendered. Declare only
+`position, normal, uv, color` and let Babylon add the rest.
+
+**`half` is a WGSL reserved word** and `wgsl-lint` did not know it. It knows
+now, along with `abstract`, `async`, `auto`, `await`, `become`, `fallthrough`
+and `handle`.
+
+**It cannot receive the shadow map**, so fast grass and grass shadows turn each
+other off rather than one of them silently doing nothing.
+
+## 2.1 in the menu: render scale is not linear in pixels (2026-09-13)
+
+Five steps, same camera, PBR grass, over the same frame:
+
+| scale | pixels | MP | frame |
+|---|---|---|---|
+| 100% | 3600 x 2026 | 7.29 | 27.9 ms |
+| 85% | 3060 x 1722 | 5.27 | 25.3 |
+| 75% | 2700 x 1519 | 4.10 | 23.1 |
+| 60% | 2160 x 1215 | 2.62 | 20.9 |
+| 50% | 1800 x 1013 | 1.82 | 19.1 |
+
+**A quarter of the pixels buys 31% of the frame.** The old note that resolution
+"is close to linear" does not hold on this build: the vertex work, the culling
+and the shadow map do not scale with the render target. 1:1 crops at 100 / 75 /
+50 say 75% is close to indistinguishable and 50% is visibly mushy — but that is
+the user's call, which is the whole reason it is a setting.
