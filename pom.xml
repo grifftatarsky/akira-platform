@@ -31,7 +31,7 @@
     <spring-addons.version>9.1.5</spring-addons.version>
     <keycloak.version>26.0.12</keycloak.version>
     <commons-io.version>2.22.0</commons-io.version>
-    <springdoc.version>3.1.0</springdoc.version>
+    <springdoc.version>3.1.1</springdoc.version>
   </properties>
 
   <dependencyManagement>
