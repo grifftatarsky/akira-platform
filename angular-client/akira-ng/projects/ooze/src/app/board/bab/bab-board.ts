@@ -13,6 +13,7 @@ import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
 import { Effects } from './effects';
+import { type FastGrass, fastGrass } from './grass-fast';
 import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
   CANDIDATES, FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora,
@@ -58,7 +59,7 @@ function dayLabel(day: number): string {
 type Part = 'meadow' | 'flora' | 'trees' | 'stones' | 'terrain' | 'shadows'
   | 'relief' | 'sky' | 'dome' | 'grade';
 
-type Look = 'taa' | 'msaa' | 'ao' | 'rays' | 'grassShade' | 'bloom';
+type Look = 'taa' | 'msaa' | 'ao' | 'rays' | 'grassShade' | 'bloom' | 'fast';
 import { type Meadow, sowMeadow } from './meadow';
 import { type Asset, PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -187,9 +188,21 @@ import { type Terrain, buildTerrain } from './terrain';
                     <span class="ml-auto shrink-0 tabular-nums"
                       [class.text-fg-whisper]="feature.cost === 'free'">{{ feature.cost }}</span>
                   </label>
+                  @if (feature.key === 'fast') {
+                    <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
+                      title="Matched carries the GGX highlight PBR puts on the grass — it is where the sky's blue reaches the field, and it is 1.7 of the 4.8 ms this material saves. No sheen drops it: the field goes a little greener and a little flatter, and the saving nearly doubles.">
+                      lit
+                      <select [value]="fastSheen() ? 'match' : 'flat'"
+                        (change)="setFastSheen($any($event.target).value === 'match')"
+                        class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
+                        <option value="match" [selected]="fastSheen()">matched</option>
+                        <option value="flat" [selected]="!fastSheen()">no sheen</option>
+                      </select>
+                    </label>
+                  }
                   @if (feature.key === 'grassShade') {
                     <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
-                      title="What is allowed to cast onto the grass. Trees and stone gives the field the tree shadows and nothing else. Everything adds the lifted proxy that stands at grass height, which is what puts the field's own shadow on the road — and what darkens the whole sward, because the proxy shadows the blades standing under it.">
+                      title="What is allowed to cast onto the grass. Needs the PBR grass, so turning this on turns fast grass off. Trees and stone gives the field the tree shadows and nothing else. Everything adds the lifted proxy that stands at grass height, which is what puts the field's own shadow on the road — and what darkens the whole sward, because the proxy shadows the blades standing under it.">
                       casts
                       <select [value]="grassFromSelf() ? 'all' : 'solid'"
                         (change)="setGrassFromSelf($any($event.target).value === 'all')"
@@ -585,6 +598,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       note: 'Lets the grass receive the shadow map, so tree shadows fall across the field instead of stopping at the ground under it. The proxy that stands at grass height is what used to make this unusable — left casting, it shadows every blade underneath it and the whole field goes dark. Casts: trees and stone drops it while the grass is receiving, which costs the field its own shadow on the road.',
     },
     {
+      key: 'fast', label: 'fast grass', cost: '\u22123.2 ms',
+      note: 'Swaps the grass off PBR onto a shader written for it: one texture read, an alpha test, a sun, a bounce, a hemisphere and one GGX highlight, and nothing else. The wind, the leaf-normal blend, the per-plant tint and the base-to-tip ramp all carry over unchanged, and it is the only switch here that gives a frame back rather than spending one. It cannot receive the shadow map, so it and grass shadows turn each other off.',
+    },
+    {
       key: 'bloom', label: 'bloom', cost: '+1.6 ms',
       note: 'Light spilling around bright edges. Nothing on a midday meadow is bright enough to bloom — measured, everything sits under 0.4 luminance. It is here for torches and fire.',
     },
@@ -596,6 +613,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     ao: read('ooze.board.look.ao', false),
     rays: read('ooze.board.look.rays', false),
     grassShade: read('ooze.board.look.grassShade', false),
+    fast: read('ooze.board.look.fast', false),
     bloom: read('ooze.board.look.bloom', false),
   });
 
@@ -605,14 +623,26 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   protected readonly grassFromSelf = signal(read('ooze.board.grassFromSelf', false));
 
+  protected readonly fastSheen = signal(read('ooze.board.fastSheen', true));
+
   protected readonly scales: readonly number[] = [100, 85, 75, 60, 50];
 
   private effects: Effects | null = null;
+  private quick: FastGrass | null = null;
 
   protected setLook(key: Look, want: boolean): void {
     this.look.update(was => ({ ...was, [key]: want }));
     write(`ooze.board.look.${key}`, want);
     this.applyLook(key, want);
+    if (!want) {
+      return;
+    }
+    if (key === 'fast' && this.look().grassShade) {
+      this.setLook('grassShade', false);
+    }
+    if (key === 'grassShade' && this.look().fast) {
+      this.setLook('fast', false);
+    }
   }
 
   private applyLook(key: Look, want: boolean): void {
@@ -638,6 +668,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         this.effects?.setGrassFromSelf(this.grassFromSelf());
         this.effects?.setGrassShadows(want);
         break;
+      case 'fast':
+        this.quick?.sheen(this.fastSheen());
+        this.quick?.on(want);
+        break;
       case 'bloom':
         stage.setBloom(want);
         break;
@@ -654,6 +688,12 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     this.grassFromSelf.set(on);
     write('ooze.board.grassFromSelf', on);
     this.effects?.setGrassFromSelf(on);
+  }
+
+  protected setFastSheen(on: boolean): void {
+    this.fastSheen.set(on);
+    write('ooze.board.fastSheen', on);
+    this.quick?.sheen(on);
   }
 
   protected setScale(percent: number): void {
@@ -788,6 +828,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
       const effects = new Effects(stage);
       this.effects = effects;
+      this.quick = fastGrass(this.meadow!, sheet, stage);
       effects.standing(
         [...this.terrain.chunks, ...this.stones],
         (this.meadow?.sown ?? []).map(sown => sown.mesh),
@@ -816,7 +857,9 @@ export class BabBoard implements AfterViewInit, OnDestroy {
         look: (key: Look, want: boolean): void => this.setLook(key, want),
         scale: (percent: number): void => this.setScale(percent),
         aoGrass: (want: boolean): void => this.setAoOverGrass(want),
+        quick: this.quick,
         grassSelf: (want: boolean): void => this.setGrassFromSelf(want),
+        sheen: (want: boolean): void => this.setFastSheen(want),
         get meadow(): Meadow | null { return board.meadow; },
         cost: (): FrameCost | null => this.stats?.read() ?? null,
         sow: sowMeadow,
@@ -1019,6 +1062,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     window.clearInterval(this.ticker);
     this.stats?.dispose();
     this.observer?.disconnect();
+    this.quick?.dispose();
     this.effects?.dispose();
     this.stones.forEach(stone => stone.dispose());
     this.proxies.forEach(proxy => proxy.dispose());

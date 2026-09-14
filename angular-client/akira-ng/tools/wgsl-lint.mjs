@@ -35,6 +35,7 @@ const BUILTINS = new Set([
 // creation as a *warning* — the material still answers isReady(), and the field
 // simply has no grass in it. `patch` cost a full probe run.
 const RESERVED = new Set([
+  'abstract', 'async', 'auto', 'await', 'become', 'fallthrough', 'half', 'handle',
   'active', 'alignas', 'alignof', 'as', 'asm', 'bf16', 'binding_array', 'cast',
   'catch', 'class', 'co_await', 'co_return', 'co_yield', 'coherent',
   'column_major', 'common', 'compile', 'compile_fragment', 'concept',
