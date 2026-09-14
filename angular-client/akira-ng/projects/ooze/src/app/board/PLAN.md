@@ -1381,3 +1381,53 @@ Five steps, same camera, PBR grass, over the same frame:
 and the shadow map do not scale with the render target. 1:1 crops at 100 / 75 /
 50 say 75% is close to indistinguishable and 50% is visibly mushy — but that is
 the user's call, which is the whole reason it is a setting.
+
+
+## Phase 5: the capability survey, and the 53 settings it produced (2026-09-13)
+
+`GRAPHICS.md` is the document — what the meadow draws pass by pass, what it
+already exposes, what it hardcodes, and what Babylon 9.26 has that it does not
+use, every claim cited by path in `node_modules`. Batches A and B of its plan
+are on the panel.
+
+### The one broken setting, and how it was caught
+
+**`pcf` at low filter quality emits invalid WGSL on Babylon 9.26.** The
+generated call is
+
+```
+computeShadowWithCSMPCF1(index0,vPositionFromLight0[index0],vDepthMetric0[index0],,shadowTexture0Sampler,...)
+```
+
+— an empty argument where `shadowTexture0` should be, from
+`lightFragment`'s `#if defined(SHADOWLOWQUALITY{X})` branch. Every other filter
+and quality pair compiles, contact hardening and poisson included. It is guarded
+to medium and the control says why.
+
+**The board keeps drawing while this is true.** One material's pipeline is
+invalid; the triangle count does not move. So "it still renders" is not a test.
+
+### The instrument, which nearly missed it
+
+A `console.warn` / `console.error` / `console.log` wrapper installed **inside the
+page** saw none of it and reported all 53 settings clean. WebGPU uncaptured
+errors reach the **CDP** console and not the page's console object.
+
+What works: the sweep emits `console.log('KNOBMARK key=value')` before each
+change, and faults are attributed from the raw CDP stream to the marker above
+them. `chrome-probe.mjs` gained `RAW_LOGS=<file>` to dump that stream in order.
+106 knob values swept on a fresh browser, triangle count read after each: one
+fault, and it was this one.
+
+**Two console traps in one project now.** The `patch` reserved word was a
+warning that meant nothing rendered; this is a warning that means one material
+does not. Neither reaches `isReady()`, and neither reaches a page-side console
+hook.
+
+### Stage stops owning the grade
+
+`exposure`, `contrast` and `vignette` were computed in three places — the
+constructor, `setClock` and `setGrade` — and the menu needed to write all three.
+They are `exposureTrim`, `contrastTrim` and `vignetteTrim` now, and one
+`regrade()` applies the clock and the trims together, so the time-of-day slider
+and the exposure slider stop overwriting each other.

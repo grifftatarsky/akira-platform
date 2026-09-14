@@ -519,6 +519,14 @@ is not refused — it is a setting, defaulted off.
 
 ---
 
+## 5b. The capability survey
+
+`GRAPHICS.md` (2026-09-13) is what this renderer does pass by pass, every knob
+it exposes, every constant it hardcodes that could be one, and what Babylon 9.26
+has that it does not use — each claim cited by its path in `node_modules`. Read
+it before proposing a graphics feature; the answer to "does Babylon have X" is
+probably already in it.
+
 ## 6. Repo map for the board
 
 ```
@@ -532,6 +540,7 @@ projects/ooze/src/app/board/
     stage.ts           engine, scene, camera, sun, sky, CSM, TAA, grade, toggles
     effects.ts         SSAO2 with the sky mask, god rays, grass shadows
     grass-fast.ts      the purpose-written grass ShaderMaterial (2.2)
+    graphics.ts        the 53-setting menu: the knob table and its applier
     meadow.ts          the sward: WGSL compute placement → thin instances → indirect draw
     blade-wind.ts      MaterialPluginBase WGSL injection: wind, per-plant shading
     foliage-cards.ts   cardGeometry(): cards/heads/stems from the cut-out sheet

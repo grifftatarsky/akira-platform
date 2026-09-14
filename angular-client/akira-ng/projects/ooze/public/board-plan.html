@@ -452,6 +452,28 @@
       ]
     },
     {
+      title: "Phase 5 — every setting exposed",
+      note: "GRAPHICS.md is the survey: what the meadow draws pass by pass, every knob the board already has, every constant it hardcodes that could be one, and what Babylon 9.26 has that this board does not use \u2014 each claim checked against node_modules and cited by path. Batches A and B of its plan are on the panel; C through G are not started.",
+      items: [
+        { id: "5.1", work: "The capability document \u2014 <span class=\"mono\">GRAPHICS.md</span>", state: "done",
+          found: "Seven ordered batches at the end of it. <b>A</b> the free grade \u00b7 <b>B</b> the knobs that already existed \u00b7 <b>C</b> FSR1 \u00b7 <b>D</b> depth of field measured \u00b7 <b>E</b> snapshot rendering \u00b7 <b>F</b> IBL shadows \u00b7 <b>G</b> depth peeling." },
+        { id: "5.2", work: "<em>Batch A</em> \u2014 the free grade", state: "done",
+          found: "Tone mapping as a choice (none / standard / aces / khr pbr neutral), exposure, contrast, vignette, white balance with temperature and tint, dither, grain, sharpen, chromatic aberration, fxaa, glow layer. None of it is a new pass over the geometry. <b>Stage stops owning the grade:</b> exposure, contrast and vignette were computed in three places and the clock kept overwriting the sliders; they are trims now, and one regrade() applies both." },
+        { id: "5.3", work: "<em>Batch B</em> \u2014 the knobs that already existed as constants", state: "done",
+          found: "Shadow map size, cascades, filter, filter quality, cascade blend, darkness, depth-fitted cascades, taa samples and blend and while-moving, bloom\u2019s four numbers, fog in three modes, ground relief, anisotropy, leaf cut-out, leaf roughness, sky light. No new Babylon surface at all \u2014 every one of these was a number in the source. <b>53 settings in six banks</b>, declared as a table in <span class=\"mono\">graphics.ts</span>, each with its own note on what it does and what it breaks, persisted per key, with a reset. Nothing new is on by default." },
+        { id: "5.4", work: "<em>The sweep</em> \u2014 all 106 reachable knob values, fresh browser", state: "done",
+          found: "<b>One is broken: pcf at low filter quality emits invalid WGSL on Babylon 9.26</b> \u2014 computeShadowWithCSMPCF1 is called with an empty argument where shadowTexture0 should be. Guarded to medium, and the control says why. Everything else compiles, contact hardening and poisson included, and the board never stopped drawing. <b>The instrument nearly missed it:</b> a console wrapper installed inside the page sees none of WebGPU\u2019s validation errors and reported all 53 clean \u2014 they reach the CDP console, not the page\u2019s console object. The sweep marks each knob with a console.log and attributes faults from the raw CDP stream between marks; chrome-probe.mjs gained RAW_LOGS for it. And the board keeps drawing while one material\u2019s pipeline is invalid, so \u201cit still renders\u201d is not a test." },
+        { id: "5.5", work: "<em>Batch C</em> \u2014 FSR1 upscaling", state: "",
+          found: "The one item that makes a bad setting good. Render scale is bilinear today and 50% is visibly mushy; <span class=\"mono\">fsr1RenderingPipeline</span> has scaleFactor and sharpnessStops and is built for exactly this." },
+        { id: "5.6", work: "<em>Batch E</em> \u2014 snapshot rendering", state: "",
+          found: "<span class=\"mono\">engine.snapshotRendering</span>, WebGPU only: records the command bundle once and replays it. The board\u2019s draw list is static between frames \u2014 the compute pass and the uniforms move, not the calls \u2014 so it is worth measuring, and FAST mode forbids changing the number of draws, which the indirect grass may violate." },
+        { id: "5.7", work: "<em>Batch F</em> \u2014 IBL shadows", state: "",
+          found: "<span class=\"mono\">Rendering/IBLShadows</span> voxelises the scene and ray-marches shadows from the environment map \u2014 sky occlusion done properly rather than approximated in screen space. The open question is whether the voxeliser can be given the terrain and trees only, the way SSAO\u2019s g-buffer was." },
+        { id: "5.8", work: "<em>Batch G</em> \u2014 depth peeling", state: "",
+          found: "Order-independent transparency, which would let the foliage alpha-<em>blend</em> instead of alpha-test. The only thing on this list that would change how the field <em>looks</em> rather than how fast it runs, and the answer to the cut-out crunch on every leaf edge. Expensive." }
+      ]
+    },
+    {
       title: "Phase 4 — the graphics menu",
       note: "Built 2026-09-13, because a frame this machine cannot spare is not the same as a frame nobody can. Everything Phase 3 measured is a switch in the tools panel with its price beside it, persisted per browser, and only temporal aa is on to begin with.",
       items: [
@@ -491,32 +513,28 @@
     "End every message with what is next."
   ];
 
+  const ASKS_DONE_NOTE = "Defaults settled 2026-09-13: the board opens on temporal aa only, render scale 100%, fast grass off.";
   const ASKS = [
-    { id: "4.1", q: "Which of the graphics switches should the board open with",
-      why: "All of them are off but temporal aa, because every one costs more than this machine can spare at maximum plants. On a card that can afford them the defaults are yours to set \u2014 and the per-browser store already remembers whatever you pick in the panel.",
+    { id: "5.5", q: "Batch C \u2014 FSR1 upscaling",
+      why: "Render scale is in the menu and measured, but it upscales bilinear: 75% is close to indistinguishable and 50% is visibly mushy. FSR1 is an edge-aware upscaler built for exactly this, and it is a pipeline Babylon already ships.",
       opts: [
-        ["Leave it as it is", "28.1 ms", "Temporal aa only. Anything else is opt-in per browser."],
-        ["God rays on", "+4.6 ms", "The cheapest of the three and the only one that changes the picture at a low sun rather than a close one."],
-        ["Grass shadows on, trees and stone", "+8.3 ms", "Tree shadows fall across the field instead of stopping at the ground under it. Costs the field its own shadow on the road."],
-        ["Ambient occlusion on, grass too", "+26.9 ms", "The one that changes the sward most and the one that costs a whole frame."],
+        ["Take it", "aim: 60\u201375% that reads as 100%", "Measure FSR1 at 60 and 75 against native, 1:1 crops."],
+        ["Leave it", "\u2014", "Render scale stays a blunt instrument."],
       ] },
-    { id: "2.1", q: "Render scale \u2014 which step, if any, is acceptable to look at",
-      why: "It is in the menu now at 100 / 85 / 75 / 60 / 50%. Measured long ago: halving each axis took 19.7 ms to 11.6. This one was always a judgement, not a measurement \u2014 the question is the step at which you can see it.",
+    { id: "5.7", q: "Batch F \u2014 IBL shadows",
+      why: "The big one. Voxelises the scene and ray-marches shadows from the sky, which is what ambient occlusion is a screen-space approximation of. The open question is whether the voxeliser can be handed the terrain and trees only, the way the occlusion g-buffer was \u2014 10M triangles of grass is the whole cost otherwise.",
       opts: [
-        ["100% and leave it", "\u2014", "The board is sharp and 47 fps at maximum plants."],
-        ["Find the step", "up to half the frame", "Open the menu, walk it down, and say where it starts to soften."],
+        ["Take it", "unknown, likely large", "Its own lab, criterion written first."],
+        ["Batch E first", "unknown", "Snapshot rendering is cheaper to try and may be the larger win."],
+        ["Leave both", "\u2014", "The menu is already 53 settings deep."],
       ] },
-    { id: "2.2", q: "Fast grass \u2014 should the board open on it",
-      why: "It gives 3.2 ms back and matches PBR to 0.996 / 1.019 / 0.887 per channel over the grass band. The only thing it gives up is receiving the shadow map, which the board does not do by default anyway. It is off to begin with only because everything in the menu is.",
+    { id: "5.8", q: "Batch G \u2014 depth peeling, so leaves can blend instead of cut out",
+      why: "The only item left that changes how the field looks rather than how fast it runs. Every leaf edge is currently an alpha test \u2014 a hard binary edge \u2014 and order-independent transparency is what would soften it. Expensive, and it touches every foliage material.",
       opts: [
-        ["On, matched", "\u22123.2 ms", "The default sub-choice. Keeps the GGX highlight, which is where the sky\u2019s blue reaches the field."],
-        ["On, no sheen", "\u22123.8 ms", "Drops the highlight: greener, flatter, and nearly twice the saving."],
-        ["Leave it off", "\u2014", "PBR stays, and grass shadows stays available."],
+        ["Take it", "expensive", "Lab it on one tuft before the meadow."],
+        ["Leave it", "\u2014", "The cut-out crunch is hidden by temporal aa at the play camera."],
       ] },
   ];
-
-
-
 
   const asks = document.getElementById("asks");
   document.getElementById("askCount").textContent = "nothing waiting on you \u00b7 " + ASKS.length + " queued";

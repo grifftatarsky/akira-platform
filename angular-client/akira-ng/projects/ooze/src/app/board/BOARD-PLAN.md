@@ -19,7 +19,13 @@ there is not undone by an update here.
 **3600 x 2026 (7.29 MP)**, on a freshly started browser. Target is 60 (16.6 ms).
 The order is **look first, then optimize** — Phase 1 before Phase 2.
 
-**Next:** Phases 2 and 3 are closed. Everything they measured is a switch in the
+**Next:** Phase 5 — `GRAPHICS.md` is the survey of what this renderer does and
+what Babylon 9.26 still has. Batches A and B of it are in the menu (53 settings);
+**C is FSR1**, the only thing that makes render scale good rather than merely
+cheap, then D depth of field properly measured, E snapshot rendering, F IBL
+shadows, G depth peeling.
+
+Phases 2 and 3 are closed. Everything they measured is a switch in the
 board's **graphics menu** with its price beside it, and **2.2 is the one that
 gives a frame back** — a grass shader written for the grass, 3.2 ms returned,
 in the menu as *fast grass*. **2.1** is in the menu as *render scale*, measured
@@ -166,6 +172,11 @@ frame nobody can. Everything Phase 3 measured is a switch in the tools panel wit
 its price beside it, persisted per browser, and **only temporal aa is on to begin
 with**.
 
+Superseded 2026-09-13 by **Phase 5**: the menu is now 53 settings in six banks,
+built from a declarative table in `graphics.ts`. The switches below are the ones
+with a measured price; the rest are dials and picks on things the board used to
+hardcode. See `GRAPHICS.md`.
+
 | switch | cost | sub-choice |
 |---|---|---|
 | temporal aa | +1.8 ms | — |
@@ -306,3 +317,34 @@ now.
 - No subagents. Not once.
 - No comments in code; what was tried and failed goes in `PLAN.md`.
 - End every message with what is next.
+
+
+---
+
+## Phase 5 — every setting exposed
+
+`GRAPHICS.md` is the document: what the meadow draws pass by pass, every knob
+the board already has, every constant it hardcodes that could be one, and what
+Babylon 9.26 has that this board does not use — each checked against
+`node_modules` and cited by path.
+
+| | Work | State |
+|---|---|---|
+| 5.1 | **The capability document** | **done 2026-09-13** — `GRAPHICS.md` |
+| 5.2 | **Batch A, the free grade** — tone mapping choice, exposure, contrast, vignette, white balance, dither, grain, sharpen, chromatic aberration, fxaa, glow | **done** — none of it is a new pass over the geometry |
+| 5.3 | **Batch B, the knobs that already existed** — shadow map size, cascades, filter, filter quality, cascade blend, darkness, depth-fitted cascades, taa samples and blend, bloom's four numbers, fog, relief, anisotropy, leaf cut-out, leaf roughness, sky light | **done** — no new Babylon surface at all. **One is broken:** pcf at low quality emits invalid WGSL on 9.26 (`computeShadowWithCSMPCF1` called with an empty argument), guarded to medium, and the control says so |
+| 5.4 | **Batch C — FSR1** (`fsr1RenderingPipeline`: `scaleFactor`, `sharpnessStops`) | **not started.** The one item that makes a bad setting good: render scale is bilinear today and 50% is visibly mushy |
+| 5.5 | **Batch D — depth of field measured** | in the menu, unmeasured. It wants a depth pass; measure that once and camera motion blur becomes cheap too |
+| 5.6 | **Batch E — snapshot rendering** (`engine.snapshotRendering`, WebGPU only) | **not started.** Possibly the largest win left, and the most likely to break the indirect grass |
+| 5.7 | **Batch F — IBL shadows** (`Rendering/IBLShadows`) | **not started.** Sky occlusion done properly rather than approximated in screen space. Open question: can the voxeliser be given the terrain and trees only, the way SSAO's g-buffer was |
+| 5.8 | **Batch G — depth peeling** (`Rendering/depthPeelingRenderer`) | **not started.** The only thing here that would change how the foliage *looks* rather than how fast it runs — alpha-blended leaves instead of the cut-out crunch |
+
+### The instrument this needed
+
+A `console.warn` wrapper installed **in the page** sees none of WebGPU's
+validation errors and reported all 53 settings clean. They reach the **CDP**
+console and not the page's console object. The sweep marks each knob with a
+`console.log` and attributes faults from the raw CDP stream between marks;
+`chrome-probe.mjs` has `RAW_LOGS` for that. Without it, `pcf` + low quality
+would have shipped, because the board keeps drawing while one material's
+pipeline is invalid.
