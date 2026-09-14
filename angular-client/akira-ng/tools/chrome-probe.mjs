@@ -59,6 +59,11 @@ if (script && script !== 'null') {
   console.log(JSON.stringify(res.result?.result?.value ?? res.result, null, 2));
 }
 
+if (process.env.RAW_LOGS) {
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(process.env.RAW_LOGS, logs.join('\n'));
+  console.error(`[probe] ${logs.length} console lines -> ${process.env.RAW_LOGS}`);
+}
 if (process.env.SHOW_LOGS) {
   const root = logs.filter(l => /Error while parsing|error:|Unable to compile|exception|ReferenceError|TypeError/i.test(l));
   const seen = new Set();

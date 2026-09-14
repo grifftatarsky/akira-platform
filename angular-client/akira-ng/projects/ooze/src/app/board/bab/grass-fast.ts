@@ -172,6 +172,7 @@ export interface FastGrass {
   readonly materials: readonly ShaderMaterial[];
   on(want: boolean): void;
   sheen(want: boolean): void;
+  cutoff(at: number): void;
   wearing(): boolean;
   dispose(): void;
 }
@@ -181,6 +182,7 @@ export function fastGrass(meadow: Meadow, sheet: FoliageSheet, stage: Stage): Fa
   const grown = new Map<Sown, Material>();
   const fast: ShaderMaterial[] = [];
 
+  const washes: Vector4[] = [];
   for (const sown of meadow.sown) {
     const material = new ShaderMaterial(
       `fast-${sown.plant.id}`, scene,
@@ -201,7 +203,9 @@ export function fastGrass(meadow: Meadow, sheet: FoliageSheet, stage: Stage): Fa
     material.backFaceCulling = false;
     material.setTexture('sheet', sheet.texture);
     const wash = sown.plant.wash ?? [1, 1, 1];
-    material.setVector4('wash', new Vector4(wash[0], wash[1], wash[2], 0.28));
+    const tint = new Vector4(wash[0], wash[1], wash[2], 0.28);
+    material.setVector4('wash', tint);
+    washes.push(tint);
     grown.set(sown, sown.mesh.material!);
     fast.push(material);
   }
@@ -275,6 +279,12 @@ export function fastGrass(meadow: Meadow, sheet: FoliageSheet, stage: Stage): Fa
   return {
     materials: fast,
     wearing: (): boolean => worn,
+    cutoff(at: number): void {
+      washes.forEach((tint, index) => {
+        tint.w = at;
+        fast[index].setVector4('wash', tint);
+      });
+    },
     sheen(want: boolean): void {
       glossy = want;
       if (worn) {

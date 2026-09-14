@@ -49,10 +49,15 @@ export class Stage {
 
   private recomputing = false;
 
-  private readonly taa: TAARenderingPipeline;
-  private bloom: DefaultRenderingPipeline | null = null;
+  readonly taa: TAARenderingPipeline;
+  bloom: DefaultRenderingPipeline | null = null;
   private day = 196;
   private hour = 13;
+  private elevation = 60;
+
+  exposureTrim = 1;
+  contrastTrim = 1;
+  vignetteTrim = 1;
 
   private pan: PanMap | null = null;
 
@@ -193,9 +198,19 @@ export class Stage {
     image.toneMappingEnabled = true;
 
     image.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_KHR_PBR_NEUTRAL;
-    image.contrast = look.contrast ?? 1;
-    image.vignetteEnabled = (look.vignette ?? 0) > 0;
-    image.vignetteWeight = (look.vignette ?? 0) * 4;
+    this.regrade();
+  }
+
+  regrade(): void {
+    const image = this.scene.imageProcessingConfiguration;
+    const look = this.look;
+    image.contrast = (this.graded ? (look.contrast ?? 1) : 1) * this.contrastTrim;
+    const weight = (look.vignette ?? 0) * 4 * this.vignetteTrim;
+    image.vignetteWeight = weight;
+    image.vignetteEnabled = this.graded && weight > 0;
+    image.exposure = (this.graded
+      ? (look.exposure ?? 1) * Math.pow(eyeExposure(this.elevation), 0.45)
+      : 1) * this.exposureTrim;
   }
 
   static async open(
@@ -254,6 +269,7 @@ export class Stage {
     const { elevation, azimuth } = sunPosition(
       hour, this.look.latitude ?? 37.5, this.day,
     );
+    this.elevation = elevation;
     const flat = Math.cos(elevation * RAD);
 
     const east = flat * Math.sin(azimuth * RAD);
@@ -296,9 +312,7 @@ export class Stage {
 
     this.ambient.intensity = 0.12 + 0.2 * Math.max(0, up);
 
-    this.scene.imageProcessingConfiguration.exposure = this.graded
-      ? (this.look.exposure ?? 1) * Math.pow(eyeExposure(elevation), 0.45)
-      : 1;
+    this.regrade();
 
     this.scene.fogColor = Color3.Lerp(
       new Color3(0.64, 0.72, 0.82), new Color3(0.58, 0.45, 0.37), dusk,
@@ -385,11 +399,7 @@ export class Stage {
 
   setGrade(on: boolean): void {
     this.graded = on;
-    const image = this.scene.imageProcessingConfiguration;
-    image.toneMappingEnabled = on;
-    image.contrast = on ? (this.look.contrast ?? 1) : 1;
-    image.vignetteEnabled = on && (this.look.vignette ?? 0) > 0;
-
+    this.scene.imageProcessingConfiguration.toneMappingEnabled = on;
     this.setClock(this.hour);
   }
 

@@ -13,6 +13,7 @@ import { assetUrl } from './assets';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/loaders/glTF/2.0';
 import { Effects } from './effects';
+import { BANKS, DEFAULTS, Graphics, type Setting } from './graphics';
 import { type FastGrass, fastGrass } from './grass-fast';
 import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
@@ -38,12 +39,26 @@ function write(key: string, value: boolean | number): void {
   }
 }
 
-function readNumber(key: string, fallback: number): number {
+function loadKnobs(): Record<string, Setting> {
+  const now: Record<string, Setting> = { ...DEFAULTS };
+  for (const key of Object.keys(DEFAULTS)) {
+    try {
+      const saved = localStorage.getItem(`ooze.board.gfx.${key}`);
+      if (saved !== null) {
+        now[key] = JSON.parse(saved) as Setting;
+      }
+    } catch {
+
+    }
+  }
+  return now;
+}
+
+function writeKnob(key: string, value: Setting): void {
   try {
-    const saved = Number(localStorage.getItem(key));
-    return Number.isFinite(saved) && saved > 0 ? saved : fallback;
+    localStorage.setItem(`ooze.board.gfx.${key}`, JSON.stringify(value));
   } catch {
-    return fallback;
+
   }
 }
 
@@ -59,7 +74,6 @@ function dayLabel(day: number): string {
 type Part = 'meadow' | 'flora' | 'trees' | 'stones' | 'terrain' | 'shadows'
   | 'relief' | 'sky' | 'dome' | 'grade';
 
-type Look = 'taa' | 'msaa' | 'ao' | 'rays' | 'grassShade' | 'bloom' | 'fast';
 import { type Meadow, sowMeadow } from './meadow';
 import { type Asset, PlantPreview } from './plant-preview';
 import { type Plant, MEADOW, plantTriangles } from './species';
@@ -167,71 +181,72 @@ import { type Terrain, buildTerrain } from './terrain';
               </div>
 
               <div class="flex flex-col gap-1 border-t border-rule pt-2 font-mono text-[0.65rem] text-fg-subtle">
-                <div class="flex items-center gap-2">
-                  <span class="uppercase tracking-widest">graphics</span>
-                  <label class="ml-auto flex items-center gap-1" title="Renders at a fraction of the canvas and scales up. The cheapest way to buy back a whole frame on a slower machine.">
-                    render scale
-                    <select [value]="scale()"
-                      (change)="setScale(+$any($event.target).value)"
-                      class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
-                      @for (step of scales; track step) {
-                        <option [value]="step" [selected]="scale() === step">{{ step }}%</option>
-                      }
-                    </select>
-                  </label>
-                </div>
-                @for (feature of looks; track feature.key) {
-                  <label class="flex items-baseline gap-1.5" [title]="feature.note">
-                    <input type="checkbox" class="self-center" [checked]="look()[feature.key]"
-                      (change)="setLook(feature.key, $any($event.target).checked)" />
-                    <span class="text-fg">{{ feature.label }}</span>
-                    <span class="ml-auto shrink-0 tabular-nums"
-                      [class.text-fg-whisper]="feature.cost === 'free'">{{ feature.cost }}</span>
-                  </label>
-                  @if (feature.key === 'fast') {
-                    <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
-                      title="Matched carries the GGX highlight PBR puts on the grass — it is where the sky's blue reaches the field, and it is 1.7 of the 4.8 ms this material saves. No sheen drops it: the field goes a little greener and a little flatter, and the saving nearly doubles.">
-                      lit
-                      <select [value]="fastSheen() ? 'match' : 'flat'"
-                        (change)="setFastSheen($any($event.target).value === 'match')"
-                        class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
-                        <option value="match" [selected]="fastSheen()">matched</option>
-                        <option value="flat" [selected]="!fastSheen()">no sheen</option>
-                      </select>
-                    </label>
-                  }
-                  @if (feature.key === 'grassShade') {
-                    <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
-                      title="What is allowed to cast onto the grass. Needs the PBR grass, so turning this on turns fast grass off. Trees and stone gives the field the tree shadows and nothing else. Everything adds the lifted proxy that stands at grass height, which is what puts the field's own shadow on the road — and what darkens the whole sward, because the proxy shadows the blades standing under it.">
-                      casts
-                      <select [value]="grassFromSelf() ? 'all' : 'solid'"
-                        (change)="setGrassFromSelf($any($event.target).value === 'all')"
-                        class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
-                        <option value="solid" [selected]="!grassFromSelf()">trees and stone</option>
-                        <option value="all" [selected]="grassFromSelf()">everything</option>
-                      </select>
-                    </label>
-                  }
-                  @if (feature.key === 'ao') {
-                    <label class="-mt-0.5 flex items-center gap-1 pl-5 text-fg-muted"
-                      title="What goes into the depth and normal buffer the occlusion is read from. Ground only leaves the grass out: it is nearly free and nearly invisible, because the grass covers the ground it darkens. Grass too is what actually looks like occlusion, and it is the whole cost.">
-                      reads
-                      <select [value]="aoOverGrass() ? 'all' : 'solid'"
-                        (change)="setAoOverGrass($any($event.target).value === 'all')"
-                        class="rounded border border-rule bg-bg px-1 py-0.5 text-fg">
-                        <option value="solid" [selected]="!aoOverGrass()">ground only</option>
-                        <option value="all" [selected]="aoOverGrass()">grass too</option>
-                      </select>
-                    </label>
-                  }
+                <button type="button" (click)="toggleGraphics()"
+                  class="flex items-center gap-2 text-left uppercase tracking-widest hover:text-fg">
+                  <span>graphics</span>
+                  <span class="text-fg-muted normal-case tracking-normal">{{ knobCount() }}</span>
+                  <span class="ml-auto">{{ gfxOpen() ? '\u2013' : '+' }}</span>
+                </button>
+                @if (gfxOpen()) {
+                  <div class="flex max-h-[52vh] flex-col gap-2 overflow-y-auto pr-1">
+                    @for (bank of banks; track bank.title) {
+                      <div class="flex flex-col gap-1">
+                        <p class="mt-1 uppercase tracking-widest text-accent">{{ bank.title }}</p>
+                        <p class="text-[0.6rem] leading-snug text-fg-muted">{{ bank.note }}</p>
+                        @for (knob of bank.knobs; track knob.key) {
+                          @switch (knob.kind) {
+                            @case ('switch') {
+                              <label class="flex items-baseline gap-1.5" [title]="knob.note">
+                                <input type="checkbox" class="self-center"
+                                  [checked]="$any(gfx()[knob.key])"
+                                  (change)="setKnob(knob.key, $any($event.target).checked)" />
+                                <span class="text-fg">{{ knob.label }}</span>
+                                @if (knob.cost) {
+                                  <span class="ml-auto shrink-0 tabular-nums">{{ knob.cost }}</span>
+                                }
+                              </label>
+                            }
+                            @case ('pick') {
+                              <label class="flex items-center gap-1 pl-5 text-fg-muted" [title]="knob.note">
+                                {{ knob.label }}
+                                <select [value]="gfx()[knob.key]"
+                                  (change)="setKnob(knob.key, $any($event.target).value)"
+                                  class="ml-auto rounded border border-rule bg-bg px-1 py-0.5 text-fg">
+                                  @for (option of $any(knob).options; track option.value) {
+                                    <option [value]="option.value"
+                                      [selected]="gfx()[knob.key] === option.value">{{ option.label }}</option>
+                                  }
+                                </select>
+                              </label>
+                            }
+                            @case ('dial') {
+                              <label class="flex items-center gap-1 pl-5 text-fg-muted" [title]="knob.note">
+                                {{ knob.label }}
+                                <input type="range" class="ml-auto w-24"
+                                  [min]="$any(knob).min" [max]="$any(knob).max" [step]="$any(knob).step"
+                                  [value]="gfx()[knob.key]"
+                                  (input)="setKnob(knob.key, $any($event.target).valueAsNumber)" />
+                                <span class="w-10 shrink-0 text-right tabular-nums text-fg">{{ gfx()[knob.key] }}{{ $any(knob).unit }}</span>
+                              </label>
+                            }
+                          }
+                        }
+                      </div>
+                    }
+                    <div class="flex items-center gap-2 border-t border-rule pt-1">
+                      <button type="button" (click)="resetKnobs()"
+                        class="rounded border border-rule px-1.5 py-0.5 hover:border-accent">reset all</button>
+                      <span class="text-fg-muted">back to the shipped board</span>
+                    </div>
+                  </div>
+                  <p class="text-[0.6rem] leading-snug text-fg-muted">
+                    Hover a name for what it does and what it breaks. Costs are what
+                    this one machine read at 3600 &times; 2026 over a 27.9 ms frame,
+                    at the play camera with the wind stopped &mdash; press
+                    <span class="text-fg-subtle">split frame</span> below to measure
+                    your own.
+                  </p>
                 }
-                <p class="text-[0.6rem] leading-snug text-fg-muted">
-                  Hover a name for what it does and what it breaks. Costs are what
-                  this one machine read at 3600 &times; 2026 over a 28.1 ms frame,
-                  at the play camera with the wind stopped &mdash; press
-                  <span class="text-fg-subtle">split frame</span> below to measure
-                  your own. Only temporal aa is on to begin with.
-                </p>
               </div>
 
               <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[0.65rem] text-fg-subtle">
@@ -574,132 +589,50 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
   protected readonly on = signal<Partial<Record<Part, boolean>>>({});
 
-  protected readonly looks: readonly {
-    key: Look; label: string; cost: string; note: string;
-  }[] = [
-    {
-      key: 'taa', label: 'temporal aa', cost: '+1.8 ms',
-      note: 'Averages sixteen sub-pixel jittered frames. It is what keeps the grass from crawling, and it is the only anti-aliasing on the board. Off, edge contrast rises from 17.9 to 22.4.',
-    },
-    {
-      key: 'msaa', label: 'msaa ×2', cost: '+4.6 ms',
-      note: 'Multisampling on the temporal resolve target. It needs temporal aa on — with it off this does nothing at all. Four samples cost the same as two, so the price is the multisampled target, not the resolve.',
-    },
-    {
-      key: 'ao', label: 'ambient occlusion', cost: '+8.4 / +26.9 ms',
-      note: 'Contact darkening where geometry meets geometry — under trunks, around stones, between the blades. Read from a half-resolution depth and normal buffer. Leaving the grass out of that buffer takes it from 26.9 ms to 8.4 — and takes most of what you can see with it, because the grass covers the ground being darkened.',
-    },
-    {
-      key: 'rays', label: 'god rays', cost: '+4.6 ms',
-      note: 'Shafts of light from a real sun disc, scattered around whatever stands in front of it. The occluder pass draws the disc, the terrain, the trees and the stone at quarter resolution and nothing else. Worth turning on at a low sun; near noon there is nothing in front of the sun to throw a shaft.',
-    },
-    {
-      key: 'grassShade', label: 'grass shadows', cost: '+8.3 ms',
-      note: 'Lets the grass receive the shadow map, so tree shadows fall across the field instead of stopping at the ground under it. The proxy that stands at grass height is what used to make this unusable — left casting, it shadows every blade underneath it and the whole field goes dark. Casts: trees and stone drops it while the grass is receiving, which costs the field its own shadow on the road.',
-    },
-    {
-      key: 'fast', label: 'fast grass', cost: '\u22123.2 ms',
-      note: 'Swaps the grass off PBR onto a shader written for it: one texture read, an alpha test, a sun, a bounce, a hemisphere and one GGX highlight, and nothing else. The wind, the leaf-normal blend, the per-plant tint and the base-to-tip ramp all carry over unchanged, and it is the only switch here that gives a frame back rather than spending one. It cannot receive the shadow map, so it and grass shadows turn each other off.',
-    },
-    {
-      key: 'bloom', label: 'bloom', cost: '+1.6 ms',
-      note: 'Light spilling around bright edges. Nothing on a midday meadow is bright enough to bloom — measured, everything sits under 0.4 luminance. It is here for torches and fire.',
-    },
-  ];
-
-  protected readonly look = signal<Record<Look, boolean>>({
-    taa: read('ooze.board.look.taa', true),
-    msaa: read('ooze.board.look.msaa', false),
-    ao: read('ooze.board.look.ao', false),
-    rays: read('ooze.board.look.rays', false),
-    grassShade: read('ooze.board.look.grassShade', false),
-    fast: read('ooze.board.look.fast', false),
-    bloom: read('ooze.board.look.bloom', false),
-  });
-
-  protected readonly scale = signal(readNumber('ooze.board.scale', 100));
-
-  protected readonly aoOverGrass = signal(read('ooze.board.aoOverGrass', true));
-
-  protected readonly grassFromSelf = signal(read('ooze.board.grassFromSelf', false));
-
-  protected readonly fastSheen = signal(read('ooze.board.fastSheen', true));
-
-  protected readonly scales: readonly number[] = [100, 85, 75, 60, 50];
+  protected readonly banks = BANKS;
+  protected readonly gfx = signal<Record<string, Setting>>(loadKnobs());
+  protected readonly gfxOpen = signal(read('ooze.board.gfxOpen', false));
 
   private effects: Effects | null = null;
   private quick: FastGrass | null = null;
+  private graphics: Graphics | null = null;
 
-  protected setLook(key: Look, want: boolean): void {
-    this.look.update(was => ({ ...was, [key]: want }));
-    write(`ooze.board.look.${key}`, want);
-    this.applyLook(key, want);
-    if (!want) {
+  protected knobCount(): string {
+    const now = this.gfx();
+    let moved = 0;
+    for (const key of Object.keys(DEFAULTS)) {
+      if (now[key] !== DEFAULTS[key]) {
+        moved += 1;
+      }
+    }
+    const total = Object.keys(DEFAULTS).length;
+    return moved ? `${moved} of ${total} moved` : `${total} settings`;
+  }
+
+  protected toggleGraphics(): void {
+    this.gfxOpen.update(open => !open);
+    write('ooze.board.gfxOpen', this.gfxOpen());
+  }
+
+  protected setKnob(key: string, value: Setting): void {
+    this.gfx.update(was => ({ ...was, [key]: value }));
+    writeKnob(key, value);
+    this.graphics?.apply(key, value, this.gfx());
+    if (value !== true) {
       return;
     }
-    if (key === 'fast' && this.look().grassShade) {
-      this.setLook('grassShade', false);
+    if (key === 'fast' && this.gfx()['grassShade'] === true) {
+      this.setKnob('grassShade', false);
     }
-    if (key === 'grassShade' && this.look().fast) {
-      this.setLook('fast', false);
-    }
-  }
-
-  private applyLook(key: Look, want: boolean): void {
-    const stage = this.stage;
-    if (!stage) {
-      return;
-    }
-    switch (key) {
-      case 'taa':
-        stage.setResolve(want);
-        break;
-      case 'msaa':
-        stage.setMsaa(want ? 2 : 1);
-        break;
-      case 'ao':
-        this.effects?.setAoOverGrass(this.aoOverGrass());
-        void this.effects?.setAmbientOcclusion(want);
-        break;
-      case 'rays':
-        this.effects?.setGodRays(want);
-        break;
-      case 'grassShade':
-        this.effects?.setGrassFromSelf(this.grassFromSelf());
-        this.effects?.setGrassShadows(want);
-        break;
-      case 'fast':
-        this.quick?.sheen(this.fastSheen());
-        this.quick?.on(want);
-        break;
-      case 'bloom':
-        stage.setBloom(want);
-        break;
+    if (key === 'grassShade' && this.gfx()['fast'] === true) {
+      this.setKnob('fast', false);
     }
   }
 
-  protected setAoOverGrass(on: boolean): void {
-    this.aoOverGrass.set(on);
-    write('ooze.board.aoOverGrass', on);
-    this.effects?.setAoOverGrass(on);
-  }
-
-  protected setGrassFromSelf(on: boolean): void {
-    this.grassFromSelf.set(on);
-    write('ooze.board.grassFromSelf', on);
-    this.effects?.setGrassFromSelf(on);
-  }
-
-  protected setFastSheen(on: boolean): void {
-    this.fastSheen.set(on);
-    write('ooze.board.fastSheen', on);
-    this.quick?.sheen(on);
-  }
-
-  protected setScale(percent: number): void {
-    this.scale.set(percent);
-    write('ooze.board.scale', percent);
-    this.stage?.setRenderScale(percent / 100);
+  protected resetKnobs(): void {
+    for (const key of Object.keys(DEFAULTS)) {
+      this.setKnob(key, DEFAULTS[key]);
+    }
   }
 
   protected readonly leafNormal = signal(50);
@@ -828,17 +761,19 @@ export class BabBoard implements AfterViewInit, OnDestroy {
 
       const effects = new Effects(stage);
       this.effects = effects;
-      this.quick = fastGrass(this.meadow!, sheet, stage);
+      const quick = fastGrass(this.meadow!, sheet, stage);
+      this.quick = quick;
       effects.standing(
         [...this.terrain.chunks, ...this.stones],
         (this.meadow?.sown ?? []).map(sown => sown.mesh),
         this.terrain.grassProxy,
       );
-      for (const feature of this.looks) {
-        this.applyLook(feature.key, this.look()[feature.key]);
-      }
-      if (this.scale() !== 100) {
-        stage.setRenderScale(this.scale() / 100);
+      this.graphics = new Graphics({
+        stage, effects, quick, meadow: this.meadow!, terrain: this.terrain,
+      });
+      const now = this.gfx();
+      for (const key of Object.keys(DEFAULTS)) {
+        this.graphics.apply(key, now[key], now);
       }
 
       stage.scene.onBeforeRenderObservable.add(() => {
@@ -854,12 +789,10 @@ export class BabBoard implements AfterViewInit, OnDestroy {
       const board = this;
       (globalThis as unknown as Record<string, unknown>)['bab'] = {
         stage, terrain: this.terrain, field, effects,
-        look: (key: Look, want: boolean): void => this.setLook(key, want),
-        scale: (percent: number): void => this.setScale(percent),
-        aoGrass: (want: boolean): void => this.setAoOverGrass(want),
-        quick: this.quick,
-        grassSelf: (want: boolean): void => this.setGrassFromSelf(want),
-        sheen: (want: boolean): void => this.setFastSheen(want),
+        knob: (key: string, value: Setting): void => this.setKnob(key, value),
+        banks: BANKS,
+        knobs: (): Record<string, Setting> => this.gfx(),
+        quick,
         get meadow(): Meadow | null { return board.meadow; },
         cost: (): FrameCost | null => this.stats?.read() ?? null,
         sow: sowMeadow,
@@ -959,11 +892,13 @@ export class BabBoard implements AfterViewInit, OnDestroy {
             name: part.label,
             set: (want: boolean): void => this.toggle(part.key, want),
           })),
-        ...this.looks
-          .filter(feature => this.look()[feature.key])
-          .map(feature => ({
-            name: feature.label,
-            set: (want: boolean): void => this.applyLook(feature.key, want),
+        ...this.banks
+          .flatMap(bank => bank.knobs)
+          .filter(knob => knob.kind === 'switch' && this.gfx()[knob.key] === true)
+          .map(knob => ({
+            name: knob.label,
+            set: (want: boolean): void =>
+              this.graphics?.apply(knob.key, want, this.gfx()),
           })),
       ]));
     } finally {
