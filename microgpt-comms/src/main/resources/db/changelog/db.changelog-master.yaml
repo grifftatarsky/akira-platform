@@ -1,0 +1,7 @@
+databaseChangeLog:
+  # Master changelog. Changesets live in db/changelog/changes/ and are included
+  # in deterministic order. Each file has stable ids and must NEVER be modified
+  # after being applied to a shared environment — new schema goes in new files.
+  - include:
+      file: db/changelog/changes/001-abuse-reports.yaml
+      relativeToChangelogFile: false

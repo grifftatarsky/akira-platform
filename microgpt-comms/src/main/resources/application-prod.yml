@@ -1,0 +1,11 @@
+reverse-proxy-uri: ${reverse-proxy-scheme}://${reverse-proxy-container-name}
+
+# API documentation ################################################################################
+# Off in production, as in every other service here: `/v3/api-docs` answered 200
+# to anyone who could reach the port. A path that does not exist cannot be
+# exposed by a routing mistake.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
