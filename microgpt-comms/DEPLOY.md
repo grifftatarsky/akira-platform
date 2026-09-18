@@ -17,8 +17,14 @@ rebuild, and today the same thing is done by hand.
 
 Run this on the server. Pick a real password first and use the same one in step 2.
 
+`$POSTGRES_USER` lives inside the container, not on your shell. Left to the host
+it expands to nothing, psql falls back to the OS user of the exec — `root` — and
+the server says `role "root" does not exist`. `sh -c` with single quotes hands the
+expansion to the container, which is the same thing the compose healthcheck does
+with `$$POSTGRES_USER`.
+
 ```bash
-docker exec -i pgsql psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<'SQL'
+docker exec -i pgsql sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER"' <<'SQL'
 CREATE DATABASE "cms-db";
 CREATE ROLE "cms_user" LOGIN PASSWORD 'PUT_A_REAL_PASSWORD_HERE';
 ALTER DATABASE "cms-db" OWNER TO "cms_user";
@@ -29,7 +35,7 @@ SQL
 Then the schema ownership, so Liquibase can create tables when the service boots:
 
 ```bash
-docker exec -i pgsql psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" -d "cms-db" <<'SQL'
+docker exec -i pgsql sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d cms-db' <<'SQL'
 ALTER SCHEMA public OWNER TO "cms_user";
 GRANT USAGE, CREATE ON SCHEMA public TO "cms_user";
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES    IN SCHEMA public TO "cms_user";
@@ -40,7 +46,7 @@ SQL
 Check it took:
 
 ```bash
-docker exec -i pgsql psql --username "$POSTGRES_USER" -c '\l' | grep cms-db
+docker exec -i pgsql sh -c 'psql -U "$POSTGRES_USER" -lqt' | grep cms-db
 ```
 
 Liquibase creates `abuse_report`, `contact_message` and their indexes on first
@@ -133,7 +139,7 @@ Check it came up, and that Liquibase ran:
 
 ```bash
 curl -s localhost:7088/actuator/health/readiness
-docker exec -i pgsql psql --username "$POSTGRES_USER" -d cms-db -c '\dt'
+docker exec -i pgsql sh -c 'psql -U "$POSTGRES_USER" -d cms-db -c "\\dt"'
 ```
 
 ---
