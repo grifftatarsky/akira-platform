@@ -1,11 +1,18 @@
 package com.gpt.comms.report.dto;
 
+import com.gpt.comms.report.model.AbuseReport;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 /**
- * The form beside the uploaded file.
+ * The form beside the pasted report.
+ *
+ * <p>There is no description field here, and that is deliberate: the reporter's
+ * own account of what happened is written in the app, on the screen where they
+ * can still see the message, and it travels inside the report they paste. A
+ * second box on this page would collect a second account of the same event and
+ * nothing would say which one was meant.
  *
  * <p>Every contact field is optional on its own and {@link #hasAContact()} is
  * what the service requires: a report nobody can be reached about cannot be
@@ -16,9 +23,7 @@ import jakarta.validation.constraints.Size;
  * email address would turn a safety form into an account.
  */
 public record ReportSubmission(
-    @NotBlank(message = "Say what happened, in your own words.")
-        @Size(max = 8_000, message = "That description is longer than this form accepts.")
-        String description,
+    @NotNull(message = "Choose what kind of thing this is.") AbuseReport.Category category,
     @Size(max = 200) String name,
     @Email(message = "That email address does not look right.") @Size(max = 320) String email,
     @Size(max = 60) String phone,
@@ -33,8 +38,7 @@ public record ReportSubmission(
   }
 
   public ReportSubmission trimmed() {
-    return new ReportSubmission(
-        trim(description), trim(name), trim(email), trim(phone), trim(address));
+    return new ReportSubmission(category, trim(name), trim(email), trim(phone), trim(address));
   }
 
   private static String trim(String value) {

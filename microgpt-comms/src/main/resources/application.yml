@@ -26,6 +26,11 @@ comms:
     # mail *from*, which for most relays means one on the same domain and often
     # the same address the credentials belong to.
     from: ${CMS_REPORT_FROM:no-reply@outpostmessaging.com}
+  message:
+    # Where anything that is not a report is sent. Kept separate from the abuse
+    # address so the two queues do not share an inbox — a question about the App
+    # Store listing must not sit among things people were sent.
+    to: ${CMS_MESSAGE_TO:info@outpostmessaging.com}
   # Named in the notification so a reader knows which form it came from.
   site-url: ${CMS_SITE_URL:https://outpostmessaging.com/report}
 # Spring Properties ################################################################################
@@ -46,8 +51,9 @@ spring:
   threads:
     virtual:
       enabled: true
-  # A report is about a kilobyte. The cap is small on purpose: it is the first
-  # thing a misdirected photo hits, and the parser is the second.
+  # A report is about a kilobyte and is pasted rather than attached, so there is
+  # no file input to hand a photograph to. The cap is small anyway: it is what a
+  # direct POST hits first, and the parser is what it hits second.
   servlet:
     multipart:
       max-file-size: ${CMS_MAX_UPLOAD:256KB}
@@ -118,6 +124,10 @@ com:
             # The form is served from the marketing site, which is a different
             # origin from the API. Only that origin may post, and only POST.
             - path: /reports
+              allowed-origin-patterns: ${CMS_ALLOWED_ORIGINS:https://outpostmessaging.com,http://localhost:5173}
+              allowed-methods: POST
+              allowed-headers: "*"
+            - path: /messages
               allowed-origin-patterns: ${CMS_ALLOWED_ORIGINS:https://outpostmessaging.com,http://localhost:5173}
               allowed-methods: POST
               allowed-headers: "*"

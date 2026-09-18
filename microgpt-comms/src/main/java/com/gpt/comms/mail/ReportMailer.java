@@ -77,7 +77,8 @@ public class ReportMailer {
   }
 
   private String subject(AbuseReport report) {
-    return "Abuse report: %s from %s".formatted(spoken(report), report.getSenderShortCode());
+    return "Abuse report [%s]: %s from %s"
+        .formatted(report.getCategory().slug(), spoken(report), report.getSenderShortCode());
   }
 
   private String spoken(AbuseReport report) {
@@ -90,9 +91,10 @@ public class ReportMailer {
     out.append("A report came in through the form at ").append(siteUrl).append(".\n\n");
     out.append("Reference: ").append(report.getId()).append('\n');
     out.append("Received: ").append(STAMP.format(report.getCreatedAt())).append(" UTC\n");
+    out.append("Category: ").append(report.getCategory().slug()).append('\n');
 
     out.append("\n── What the reporter wrote ──────────────────────────────\n\n");
-    out.append(report.getReporterDescription().strip()).append('\n');
+    out.append(report.getAppDescription().strip()).append('\n');
 
     out.append("\n── How to reach them ───────────────────────────────────\n\n");
     line(out, "Name", report.getContactName());
@@ -110,10 +112,6 @@ public class ReportMailer {
     line(out, "Reported in the app", STAMP.format(report.getReportedAt()) + " UTC");
     line(out, "App version", report.getAppVersion());
 
-    if (!report.getAppDescription().isBlank()) {
-      out.append("\nWhat they told the app:\n\n").append(report.getAppDescription().strip()).append('\n');
-    }
-
     out.append("\n────────────────────────────────────────────────────────\n\n");
     out.append(
         """
@@ -123,8 +121,9 @@ public class ReportMailer {
         the form.
 
         The report is stored under the reference above. If it is passed to an \
-        authority, mark it FILED and it is kept a year. If it comes to nothing, \
-        mark it CLOSED and delete it.
+        authority, mark it FILED and it is kept a year — 18 U.S.C. 2258A(h) makes \
+        that a year and not a choice for anything reported to the CyberTipline. \
+        If it comes to nothing, mark it CLOSED and delete it.
         """);
 
     return out.toString();

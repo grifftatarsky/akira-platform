@@ -30,7 +30,7 @@ public class AbuseReportService {
    * not roll back a report somebody took the trouble to make.
    */
   @Transactional
-  public ReportReceipt accept(byte[] uploaded, ReportSubmission form) {
+  public ReportReceipt accept(String pasted, ReportSubmission form) {
     ReportSubmission submission = form.trimmed();
 
     if (!submission.hasAContact()) {
@@ -42,13 +42,14 @@ public class AbuseReportService {
 
     ParsedReport parsed;
     try {
-      parsed = parser.parse(uploaded);
+      parsed = parser.parse(pasted.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     } catch (ReportParser.NotAReport refused) {
-      log.info("comms: refused an upload — {}", refused.getMessage());
+      log.info("comms: refused a paste — {}", refused.getMessage());
       throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, refused.getMessage());
     }
 
     AbuseReport report = new AbuseReport();
+    report.setCategory(submission.category());
     report.setAppDescription(parsed.description());
     report.setKind(
         parsed.kind() == ParsedReport.Kind.PHOTO ? AbuseReport.Kind.PHOTO : AbuseReport.Kind.TEXT);
@@ -61,7 +62,6 @@ public class AbuseReportService {
     report.setAppVersion(parsed.appVersion());
     report.setRawReport(parsed.raw());
 
-    report.setReporterDescription(submission.description());
     report.setContactName(submission.name());
     report.setContactEmail(submission.email());
     report.setContactPhone(submission.phone());

@@ -69,6 +69,30 @@ services:
     networks:
       - gpt-network
 
+  # Weekly note saying whether the nightly dumps actually happened. The failure
+  # mode being guarded is silence: pg-backup sleeps 24h at a time, so a broken
+  # backup and a working one look identical until somebody goes looking. This
+  # mails what a dump cannot leak — names, sizes and checksums — and never the
+  # dump, which carries every role password and every abuse report on the box.
+  pg-backup-report:
+    container_name: pg-backup-report
+    image: python:3.13-alpine
+    env_file:
+      - .env
+    environment:
+      BACKUP_DIR: /backups
+      BACKUP_STALE_HOURS: ${BACKUP_STALE_HOURS:-26}
+      BACKUP_REPORT_WEEKDAY: ${BACKUP_REPORT_WEEKDAY:-0}
+      BACKUP_REPORT_HOUR: ${BACKUP_REPORT_HOUR:-8}
+      TZ: ${BACKUP_TZ:-America/New_York}
+    volumes:
+      - ${BACKUP_SCRIPT_DIR:-./backup}:/opt/backup:ro
+      - ./backups:/backups:ro
+    entrypoint: [ "python3", "/opt/backup/pg-backup-report.py", "loop" ]
+    restart: unless-stopped
+    networks:
+      - gpt-network
+
   keycloak:
     container_name: keycloak
     image: keycloak/keycloak:26.7

@@ -38,6 +38,62 @@ public class AbuseReport extends BaseEntity {
     PHOTO
   }
 
+  /**
+   * What the reporter said this is, and the only thing that decides where it goes.
+   *
+   * <p>The slugs are the values the form posts and they are published on
+   * /resources beside the route each one takes, so the routing is knowable before
+   * a report is sent rather than after. {@link #heldByLaw()} marks the one
+   * category where deleting on handling is not ours to choose.
+   */
+  public enum Category {
+    CHILD_SEXUAL("child-sexual", true),
+    THREAT("threat", false),
+    SELF_HARM("self-harm", false),
+    HARASSMENT("harassment", false),
+    INTIMATE_IMAGES("intimate-images", false),
+    FRAUD("fraud", false),
+    HATE("hate", false),
+    OTHER("other", false);
+
+    private final String slug;
+    private final boolean heldByLaw;
+
+    Category(String slug, boolean heldByLaw) {
+      this.slug = slug;
+      this.heldByLaw = heldByLaw;
+    }
+
+    public String slug() {
+      return slug;
+    }
+
+    /**
+     * Whether a copy has to outlive its handling.
+     *
+     * <p>18 U.S.C. 2258A(h), as amended by the REPORT Act in 2024: a provider
+     * that makes a CyberTipline report preserves the report and its contents for
+     * one year. It was ninety days before that amendment, and the site says a
+     * year because that is what the law now says.
+     */
+    public boolean heldByLaw() {
+      return heldByLaw;
+    }
+
+    public static Category of(String raw) {
+      if (raw == null) {
+        return null;
+      }
+      String wanted = raw.strip();
+      for (Category candidate : values()) {
+        if (candidate.slug.equalsIgnoreCase(wanted) || candidate.name().equalsIgnoreCase(wanted)) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+  }
+
   public enum Status {
     /** Received, nobody has looked yet. */
     NEW,
@@ -46,6 +102,10 @@ public class AbuseReport extends BaseEntity {
     /** Passed to an authority. Kept a year from the filing. */
     FILED
   }
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 32)
+  private Category category;
 
   // ---- What the app said, parsed out of the uploaded report ----
 
@@ -82,9 +142,6 @@ public class AbuseReport extends BaseEntity {
   private String rawReport;
 
   // ---- What the person filling in the form said ----
-
-  @Column(name = "reporter_description", nullable = false, length = 8_000)
-  private String reporterDescription;
 
   @Column(name = "contact_name", length = 200)
   private String contactName;

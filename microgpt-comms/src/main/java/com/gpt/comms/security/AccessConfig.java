@@ -21,6 +21,10 @@ public class AccessConfig {
   @Bean
   ResourceServerExpressionInterceptUrlRegistryPostProcessor authorizePostProcessor() {
     return registry ->
-        registry.requestMatchers(HttpMethod.POST, "/reports").permitAll().anyRequest().authenticated();
+        registry
+            .requestMatchers(HttpMethod.POST, "/reports", "/messages")
+            .permitAll()
+            .anyRequest()
+            .authenticated();
   }
 }
