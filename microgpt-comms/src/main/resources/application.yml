@@ -31,8 +31,17 @@ comms:
     # address so the two queues do not share an inbox — a question about the App
     # Store listing must not sit among things people were sent.
     to: ${CMS_MESSAGE_TO:info@outpostmessaging.com}
+  reply:
+    # ---- FILL IN ON THE SERVER ----------------------------------------------
+    # The sender on the one mail that goes to a person who reported something.
+    # It must be an address the relay will send FROM and that nobody watches:
+    # this service is the only route in, and a reply landing in an unread
+    # mailbox would be a promise broken quietly.
+    from: ${CMS_REPLY_FROM:no-reply@outpostmessaging.com}
   # Named in the notification so a reader knows which form it came from.
   site-url: ${CMS_SITE_URL:https://outpostmessaging.com/report}
+  # Where somebody is sent for the things they can do without us.
+  after-url: ${CMS_AFTER_URL:https://outpostmessaging.com/after}
 # Spring Properties ################################################################################
 spring:
   mvc:

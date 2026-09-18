@@ -1,0 +1,129 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 003 — handling, and what is left after a report is deleted.
+  #
+  # handled_record is the reason the site can say "our copy is deleted" without
+  # also having to say "and we have forgotten this ever happened". It carries
+  # the category, the outcome, the times and nothing else: no description, no
+  # fingerprint, no message id, no way to reach anybody. Its id column is the
+  # report's own id, so a reference the reporter kept still resolves after the
+  # report itself is gone.
+  #
+  # hold_until is the statutory hold. 18 U.S.C. 2258A(h), as amended by the
+  # REPORT Act in 2024: a provider that files with the CyberTipline preserves
+  # the report for a year. Only the child-sexual category sets it, and the
+  # delete path refuses to run while it stands.
+  # ==========================================================================
+  - changeSet:
+      id: 003-abuse-report-handling
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          columnExists:
+            tableName: abuse_report
+            columnName: hold_until
+      changes:
+        - addColumn:
+            tableName: abuse_report
+            columns:
+              - column:
+                  name: wants_reply
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: filed_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: referred_to
+                  type: VARCHAR(200)
+              - column:
+                  name: hold_until
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: replied_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+  - changeSet:
+      id: 003-handled-record-create
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          tableExists:
+            tableName: handled_record
+      changes:
+        - createTable:
+            tableName: handled_record
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              # The report's own id. Unique, so one report cannot be handled twice.
+              - column:
+                  name: report_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_handled_record_report
+              - column:
+                  name: category
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: outcome
+                  type: VARCHAR(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: referred_to
+                  type: VARCHAR(200)
+              - column:
+                  name: received_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: handled_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              # Null while a copy is still held — under law, or because a reply did not send.
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: reporter_told
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: handled_record
+            indexName: idx_handled_record_handled_at
+            columns:
+              - column:
+                  name: handled_at

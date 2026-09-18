@@ -161,6 +161,30 @@ public class AbuseReport extends BaseEntity {
   @Column(nullable = false, length = 16)
   private Status status = Status.NEW;
 
+  /** Whether the reporter asked to hear back. Default on when an address was given. */
+  @Column(name = "wants_reply", nullable = false)
+  private boolean wantsReply = true;
+
+  /** When this was passed to an authority, and who to. Null on a report that went nowhere. */
+  @Column(name = "filed_at")
+  private Instant filedAt;
+
+  @Column(name = "referred_to", length = 200)
+  private String referredTo;
+
+  /**
+   * The earliest this may be deleted.
+   *
+   * <p>Only set for a category {@link Category#heldByLaw()} marks. Everything else is deleted the
+   * moment it is handled, so a null here means "no reason to keep it".
+   */
+  @Column(name = "hold_until")
+  private Instant holdUntil;
+
+  /** When the reporter was told what happened. Null means they were not, or could not be. */
+  @Column(name = "replied_at")
+  private Instant repliedAt;
+
   @Column(name = "notified_at")
   private Instant notifiedAt;
 }

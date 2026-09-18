@@ -27,7 +27,19 @@ public record ReportSubmission(
     @Size(max = 200) String name,
     @Email(message = "That email address does not look right.") @Size(max = 320) String email,
     @Size(max = 60) String phone,
-    @Size(max = 500) String address) {
+    @Size(max = 500) String address,
+    Boolean wantsReply) {
+
+  /**
+   * On unless they said otherwise.
+   *
+   * <p>A missing checkbox posts nothing at all, which is indistinguishable from an unchecked one —
+   * so the form posts an explicit value and this reads a null as the default rather than as "no".
+   * Getting that backwards would silently stop telling people what happened to their report.
+   */
+  public boolean repliesWanted() {
+    return wantsReply == null || wantsReply;
+  }
 
   public boolean hasAContact() {
     return notBlank(name) || notBlank(email) || notBlank(phone) || notBlank(address);
@@ -38,7 +50,8 @@ public record ReportSubmission(
   }
 
   public ReportSubmission trimmed() {
-    return new ReportSubmission(category, trim(name), trim(email), trim(phone), trim(address));
+    return new ReportSubmission(
+        category, trim(name), trim(email), trim(phone), trim(address), wantsReply);
   }
 
   private static String trim(String value) {

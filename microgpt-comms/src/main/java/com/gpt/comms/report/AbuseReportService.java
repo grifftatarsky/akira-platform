@@ -50,6 +50,7 @@ public class AbuseReportService {
 
     AbuseReport report = new AbuseReport();
     report.setCategory(submission.category());
+    report.setWantsReply(submission.repliesWanted());
     report.setAppDescription(parsed.description());
     report.setKind(
         parsed.kind() == ParsedReport.Kind.PHOTO ? AbuseReport.Kind.PHOTO : AbuseReport.Kind.TEXT);

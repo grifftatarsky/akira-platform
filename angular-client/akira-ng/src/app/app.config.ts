@@ -11,7 +11,7 @@ import { routes } from './app.routes';
 import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { httpErrorInterceptor } from './common/http/http-error.interceptor';
 import { environment } from '../environments/environment';
-import { API_BASE_URL } from './app.tokens';
+import { API_BASE_URL, COMMS_BASE_URL } from './app.tokens';
 import { OozeShellBridge } from './shell/ooze-shell-bridge';
 
 export const appConfig: ApplicationConfig = {
@@ -23,6 +23,10 @@ export const appConfig: ApplicationConfig = {
     {
       provide: API_BASE_URL,
       useValue: `${environment.apiBaseUrl}${environment.bffPath}/api`,
+    },
+    {
+      provide: COMMS_BASE_URL,
+      useValue: `${environment.apiBaseUrl}${environment.bffPath}${environment.commsPath}`,
     },
     // Eagerly construct the federation bridge so the shell auth API is on
     // globalThis before the ooze remote ever loads.
