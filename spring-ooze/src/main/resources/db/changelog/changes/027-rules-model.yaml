@@ -1,0 +1,650 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 027 — the rules model.
+  #
+  # Turns the compendium from a set of reference pages into a machine-readable
+  # model of SRD 5.2: stat blocks with structured defences and senses, features
+  # with an action economy, and effects that name a damage type and a condition
+  # row rather than describing them in a sentence.
+  #
+  # Three shapes carry the whole thing:
+  #
+  #   stat_blocks   what fights — shared by monsters and characters, so an
+  #                 encounter references one kind of thing
+  #   features      one named capability, owned by exactly one of six parents,
+  #                 with an activation, a range and a way of landing
+  #   effects       what a feature does on each branch of its resolution,
+  #                 mirroring the book's own Hit / Failure / Success labels
+  #
+  # Every legacy column is migrated before it is dropped, in
+  # 027-migrate-* below. Nothing is discarded: prose that has no structured
+  # home becomes a passive feature rather than being deleted.
+  # ==========================================================================
+
+  # ---------- mechanics ----------
+  - changeSet:
+      id: 027-features-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: features
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: name, type: VARCHAR(255), constraints: {nullable: false}}
+              - column: {name: description, type: TEXT}
+              - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              # owner — exactly one, see ck_features_single_owner
+              - column: {name: stat_block_id, type: UUID}
+              - column: {name: item_id, type: UUID}
+              - column: {name: spell_id, type: UUID}
+              - column: {name: species_id, type: UUID}
+              - column: {name: feat_id, type: UUID}
+              - column: {name: vocation_id, type: UUID}
+              - column: {name: subclass_id, type: UUID}
+              - column: {name: vocation_level, type: INT}
+              # when
+              - column: {name: activation, type: VARCHAR(24), defaultValue: "ACTION", constraints: {nullable: false}}
+              - column: {name: legendary_cost, type: INT}
+              - column: {name: activation_time, type: INT}
+              - column: {name: activation_unit, type: VARCHAR(16)}
+              - column: {name: trigger_text, type: TEXT}
+              - column: {name: ritual, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+              # how often
+              - column: {name: uses_reset, type: VARCHAR(16), defaultValue: "AT_WILL", constraints: {nullable: false}}
+              - column: {name: uses_max, type: INT}
+              - column: {name: recharge_min, type: INT}
+              - column: {name: recharge_max, type: INT}
+              # reach
+              - column: {name: range_type, type: VARCHAR(16)}
+              - column: {name: target_kind, type: VARCHAR(24)}
+              - column: {name: target_count, type: INT}
+              - column: {name: target_filter, type: TEXT}
+              - column: {name: area_shape, type: VARCHAR(16)}
+              - column: {name: area_size_feet, type: INT}
+              - column: {name: area_height_feet, type: INT}
+        - createIndex: {tableName: features, indexName: idx_features_stat_block, columns: [{column: {name: stat_block_id}}]}
+        - createIndex: {tableName: features, indexName: idx_features_item, columns: [{column: {name: item_id}}]}
+        - createIndex: {tableName: features, indexName: idx_features_spell, columns: [{column: {name: spell_id}}]}
+        - createIndex: {tableName: features, indexName: idx_features_vocation, columns: [{column: {name: vocation_id}}, {column: {name: vocation_level}}]}
+
+  - changeSet:
+      id: 027-features-single-owner-check
+      author: oozengine
+      # The invariant that makes nullable owner columns safe instead of sloppy:
+      # a feature belongs to exactly one thing, and the database says so.
+      changes:
+        - sql:
+            sql: >-
+              ALTER TABLE features ADD CONSTRAINT ck_features_single_owner CHECK (
+                (CASE WHEN stat_block_id IS NULL THEN 0 ELSE 1 END)
+              + (CASE WHEN item_id       IS NULL THEN 0 ELSE 1 END)
+              + (CASE WHEN spell_id      IS NULL THEN 0 ELSE 1 END)
+              + (CASE WHEN species_id    IS NULL THEN 0 ELSE 1 END)
+              + (CASE WHEN feat_id       IS NULL THEN 0 ELSE 1 END)
+              + (CASE WHEN vocation_id   IS NULL THEN 0 ELSE 1 END) = 1)
+            rollback: ALTER TABLE features DROP CONSTRAINT ck_features_single_owner
+
+  - changeSet:
+      id: 027-feature-steps-create
+      author: oozengine
+      # One roll the book asks for. A feature can ask for two — the Cockatrice
+      # bites, and only on a hit does its victim make a Constitution save — so
+      # the roll is a row under the feature rather than columns on it.
+      changes:
+        - createTable:
+            tableName: feature_steps
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: step_trigger, type: VARCHAR(24), defaultValue: "ALWAYS", constraints: {nullable: false}}
+              - column: {name: target_filter, type: TEXT}
+              - column: {name: delivery, type: VARCHAR(20), defaultValue: "AUTOMATIC", constraints: {nullable: false}}
+              - column: {name: attack_kind, type: VARCHAR(20)}
+              - column: {name: attack_bonus, type: INT}
+              - column: {name: attack_bonus_source, type: VARCHAR(24)}
+              - column: {name: reach_feet, type: INT}
+              - column: {name: range_feet, type: INT}
+              - column: {name: range_long_feet, type: INT}
+              - column: {name: save_ability, type: VARCHAR(16)}
+              - column: {name: save_dc, type: INT}
+              - column: {name: save_dc_source, type: VARCHAR(24)}
+        - addForeignKeyConstraint:
+            constraintName: fk_feature_steps_feature
+            baseTableName: feature_steps
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            tableName: feature_steps
+            indexName: idx_feature_steps_feature
+            columns: [{column: {name: feature_id}}, {column: {name: ordinal}}]
+
+  - changeSet:
+      id: 027-effects-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: effects
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: step_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: outcome, type: VARCHAR(20), defaultValue: "ALWAYS", constraints: {nullable: false}}
+              - column: {name: kind, type: VARCHAR(28), constraints: {nullable: false}}
+              - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: dice_count, type: INT}
+              - column: {name: dice_faces, type: INT}
+              - column: {name: dice_bonus, type: INT}
+              - column: {name: dice_average, type: INT}
+              - column: {name: damage_type, type: VARCHAR(16)}
+              - column: {name: half_damage, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+              - column: {name: condition_id, type: UUID}
+              - column: {name: escape_dc, type: INT}
+              - column: {name: repeat_save_ability, type: VARCHAR(16)}
+              - column: {name: duration_amount, type: INT}
+              - column: {name: duration_unit, type: VARCHAR(16)}
+              - column: {name: movement_type, type: VARCHAR(16)}
+              - column: {name: movement_feet, type: INT}
+              - column: {name: notes, type: TEXT}
+        - addForeignKeyConstraint:
+            constraintName: fk_effects_step
+            baseTableName: effects
+            baseColumnNames: step_id
+            referencedTableName: feature_steps
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            constraintName: fk_effects_condition
+            baseTableName: effects
+            baseColumnNames: condition_id
+            referencedTableName: conditions
+            referencedColumnNames: id
+            onDelete: SET NULL
+        - createIndex: {tableName: effects, indexName: idx_effects_step, columns: [{column: {name: step_id}}]}
+
+  - changeSet:
+      id: 027-feature-components-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: feature_components
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: references_feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: count, type: INT, defaultValueNumeric: 1, constraints: {nullable: false}}
+              - column: {name: optional, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+              # Half the book's Multiattacks are a choice, a replacement or an
+              # alternative rather than a fixed list. Without the mode, "three
+              # attacks, using Shortsword or Light Crossbow in any combination"
+              # stores the same rows as three of each — which is six attacks.
+              - column: {name: mode, type: VARCHAR(16), defaultValue: "FIXED", constraints: {nullable: false}}
+              - column: {name: choice_group, type: INT}
+              - column: {name: ordinal, type: INT, defaultValueNumeric: 0, constraints: {nullable: false}}
+        - addForeignKeyConstraint:
+            constraintName: fk_feature_components_owner
+            baseTableName: feature_components
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            constraintName: fk_feature_components_target
+            baseTableName: feature_components
+            baseColumnNames: references_feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  # ---------- stat blocks ----------
+  - changeSet:
+      id: 027-stat-blocks-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: stat_blocks
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: size, type: VARCHAR(16)}
+              - column: {name: creature_type, type: VARCHAR(24)}
+              - column: {name: creature_subtype, type: VARCHAR(255)}
+              - column: {name: alignment, type: VARCHAR(24)}
+              - column: {name: armor_class, type: INT}
+              - column: {name: armor_class_note, type: VARCHAR(255)}
+              - column: {name: initiative_bonus, type: INT}
+              - column: {name: hp_average, type: INT}
+              - column: {name: hp_dice_count, type: INT}
+              - column: {name: hp_dice_faces, type: INT}
+              - column: {name: hp_dice_bonus, type: INT}
+              - column: {name: can_hover, type: BOOLEAN, defaultValueBoolean: false, constraints: {nullable: false}}
+              - column: {name: score_strength, type: INT}
+              - column: {name: score_dexterity, type: INT}
+              - column: {name: score_constitution, type: INT}
+              - column: {name: score_intelligence, type: INT}
+              - column: {name: score_wisdom, type: INT}
+              - column: {name: score_charisma, type: INT}
+              - column: {name: passive_perception, type: INT}
+              - column: {name: languages, type: TEXT}
+              - column: {name: telepathy_feet, type: INT}
+              - column: {name: challenge_rating, type: "NUMERIC(5,3)"}
+              - column: {name: experience_points, type: INT}
+              - column: {name: proficiency_bonus, type: INT}
+              - column: {name: spellcasting_ability, type: VARCHAR(16)}
+              - column: {name: spell_save_dc, type: INT}
+              - column: {name: spell_attack_bonus, type: INT}
+              - column: {name: legendary_action_uses, type: INT}
+        - addForeignKeyConstraint:
+            constraintName: fk_features_stat_block
+            baseTableName: features
+            baseColumnNames: stat_block_id
+            referencedTableName: stat_blocks
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 027-stat-block-collections
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: stat_block_speeds
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: movement_type, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: speed_feet, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: stat_block_speeds, columnNames: "stat_block_id, movement_type", constraintName: pk_stat_block_speeds}
+        - createTable:
+            tableName: stat_block_saves
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ability, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: bonus, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: stat_block_saves, columnNames: "stat_block_id, ability", constraintName: pk_stat_block_saves}
+        - createTable:
+            tableName: stat_block_skills
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: skill, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: bonus, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: stat_block_skills, columnNames: "stat_block_id, skill", constraintName: pk_stat_block_skills}
+        - createTable:
+            tableName: stat_block_senses
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: sense_type, type: VARCHAR(20), constraints: {nullable: false}}
+              - column: {name: range_feet, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: stat_block_senses, columnNames: "stat_block_id, sense_type", constraintName: pk_stat_block_senses}
+        - createTable:
+            tableName: stat_block_damage_responses
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: damage_type, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: response, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: qualifier, type: VARCHAR(255)}
+        - createTable:
+            tableName: stat_block_condition_immunities
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: condition_id, type: UUID, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: stat_block_condition_immunities, columnNames: "stat_block_id, condition_id", constraintName: pk_stat_block_condition_immunities}
+        - createTable:
+            tableName: stat_block_gear
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: item_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: quantity, type: INT, defaultValueNumeric: 1, constraints: {nullable: false}}
+        - createTable:
+            tableName: stat_block_spells
+            columns:
+              - column: {name: stat_block_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: spell_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: spell_level, type: INT, constraints: {nullable: false}}
+              - column: {name: uses_reset, type: VARCHAR(16), defaultValue: "AT_WILL", constraints: {nullable: false}}
+              - column: {name: uses_max, type: INT}
+
+  - changeSet:
+      id: 027-stat-block-collection-keys
+      author: oozengine
+      changes:
+        - addForeignKeyConstraint: {constraintName: fk_sb_speeds, baseTableName: stat_block_speeds, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_saves, baseTableName: stat_block_saves, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_skills, baseTableName: stat_block_skills, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_senses, baseTableName: stat_block_senses, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_damage, baseTableName: stat_block_damage_responses, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_cond_imm_sb, baseTableName: stat_block_condition_immunities, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_cond_imm_cond, baseTableName: stat_block_condition_immunities, baseColumnNames: condition_id, referencedTableName: conditions, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_gear_sb, baseTableName: stat_block_gear, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_gear_item, baseTableName: stat_block_gear, baseColumnNames: item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_spells_sb, baseTableName: stat_block_spells, baseColumnNames: stat_block_id, referencedTableName: stat_blocks, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_sb_spells_spell, baseTableName: stat_block_spells, baseColumnNames: spell_id, referencedTableName: spells, referencedColumnNames: id, onDelete: CASCADE}
+
+  # ---------- class structure ----------
+  - changeSet:
+      id: 027-class-structure-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: subclasses
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: owner_id, type: UUID}
+              - column: {name: overrides_id, type: UUID}
+              - column: {name: srd_version, type: VARCHAR(16)}
+              - column: {name: name, type: VARCHAR(255), constraints: {nullable: false}}
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: description, type: TEXT}
+        - addForeignKeyConstraint: {constraintName: fk_subclasses_vocation, baseTableName: subclasses, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_subclasses_overrides, baseTableName: subclasses, baseColumnNames: overrides_id, referencedTableName: subclasses, referencedColumnNames: id, onDelete: SET NULL}
+        - createTable:
+            tableName: vocation_levels
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: level, type: INT, constraints: {nullable: false}}
+              - column: {name: proficiency_bonus, type: INT, constraints: {nullable: false}}
+              - column: {name: cantrips_known, type: INT}
+              - column: {name: prepared_spells, type: INT}
+        - addForeignKeyConstraint: {constraintName: fk_vocation_levels_vocation, baseTableName: vocation_levels, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+        - addUniqueConstraint: {tableName: vocation_levels, columnNames: "vocation_id, level", constraintName: uq_vocation_level}
+        - createTable:
+            tableName: vocation_level_spell_slots
+            columns:
+              - column: {name: vocation_level_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: slot_level, type: INT, constraints: {nullable: false}}
+              - column: {name: slots, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: vocation_level_spell_slots, columnNames: "vocation_level_id, slot_level", constraintName: pk_vocation_level_spell_slots}
+        - addForeignKeyConstraint: {constraintName: fk_vls_level, baseTableName: vocation_level_spell_slots, baseColumnNames: vocation_level_id, referencedTableName: vocation_levels, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: vocation_level_values
+            columns:
+              - column: {name: vocation_level_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: label, type: VARCHAR(64), constraints: {nullable: false}}
+              - column: {name: value, type: VARCHAR(32), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: vocation_level_values, columnNames: "vocation_level_id, label", constraintName: pk_vocation_level_values}
+        - addForeignKeyConstraint: {constraintName: fk_vlv_level, baseTableName: vocation_level_values, baseColumnNames: vocation_level_id, referencedTableName: vocation_levels, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_features_vocation, baseTableName: features, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_features_subclass, baseTableName: features, baseColumnNames: subclass_id, referencedTableName: subclasses, referencedColumnNames: id, onDelete: CASCADE}
+
+  # ---------- element collections on existing content ----------
+  - changeSet:
+      id: 027-content-collections-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: species_speeds
+            columns:
+              - column: {name: species_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: movement_type, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: speed_feet, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: species_speeds, columnNames: "species_id, movement_type", constraintName: pk_species_speeds}
+        - addForeignKeyConstraint: {constraintName: fk_species_speeds, baseTableName: species_speeds, baseColumnNames: species_id, referencedTableName: species, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_features_species, baseTableName: features, baseColumnNames: species_id, referencedTableName: species, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_features_item, baseTableName: features, baseColumnNames: item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_features_spell, baseTableName: features, baseColumnNames: spell_id, referencedTableName: spells, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_features_feat, baseTableName: features, baseColumnNames: feat_id, referencedTableName: feats, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: background_abilities
+            columns:
+              - column: {name: background_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ability, type: VARCHAR(16), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: background_abilities, columnNames: "background_id, ability", constraintName: pk_background_abilities}
+        - addForeignKeyConstraint: {constraintName: fk_background_abilities, baseTableName: background_abilities, baseColumnNames: background_id, referencedTableName: backgrounds, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: background_skills
+            columns:
+              - column: {name: background_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: skill, type: VARCHAR(24), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: background_skills, columnNames: "background_id, skill", constraintName: pk_background_skills}
+        - addForeignKeyConstraint: {constraintName: fk_background_skills, baseTableName: background_skills, baseColumnNames: background_id, referencedTableName: backgrounds, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: vocation_primary_abilities
+            columns:
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ability, type: VARCHAR(16), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: vocation_primary_abilities, columnNames: "vocation_id, ability", constraintName: pk_vocation_primary_abilities}
+        - addForeignKeyConstraint: {constraintName: fk_vocation_primary_abilities, baseTableName: vocation_primary_abilities, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: vocation_saving_throws
+            columns:
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ability, type: VARCHAR(16), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: vocation_saving_throws, columnNames: "vocation_id, ability", constraintName: pk_vocation_saving_throws}
+        - addForeignKeyConstraint: {constraintName: fk_vocation_saving_throws, baseTableName: vocation_saving_throws, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: vocation_skill_options
+            columns:
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: skill, type: VARCHAR(24), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: vocation_skill_options, columnNames: "vocation_id, skill", constraintName: pk_vocation_skill_options}
+        - addForeignKeyConstraint: {constraintName: fk_vocation_skill_options, baseTableName: vocation_skill_options, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: item_weapon_properties
+            columns:
+              - column: {name: item_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: property, type: VARCHAR(20), constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: item_weapon_properties, columnNames: "item_id, property", constraintName: pk_item_weapon_properties}
+        - addForeignKeyConstraint: {constraintName: fk_item_weapon_properties, baseTableName: item_weapon_properties, baseColumnNames: item_id, referencedTableName: items, referencedColumnNames: id, onDelete: CASCADE}
+        - createTable:
+            tableName: spell_vocations
+            columns:
+              - column: {name: spell_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: vocation_id, type: UUID, constraints: {nullable: false}}
+        - addPrimaryKey: {tableName: spell_vocations, columnNames: "spell_id, vocation_id", constraintName: pk_spell_vocations}
+        - addForeignKeyConstraint: {constraintName: fk_spell_vocations_spell, baseTableName: spell_vocations, baseColumnNames: spell_id, referencedTableName: spells, referencedColumnNames: id, onDelete: CASCADE}
+        - addForeignKeyConstraint: {constraintName: fk_spell_vocations_vocation, baseTableName: spell_vocations, baseColumnNames: vocation_id, referencedTableName: vocations, referencedColumnNames: id, onDelete: CASCADE}
+
+  - changeSet:
+      id: 027-riders
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: riders
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: effect_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: target, type: VARCHAR(24), constraints: {nullable: false}}
+              - column: {name: mode, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: amount, type: INT}
+              - column: {name: dice_count, type: INT}
+              - column: {name: dice_faces, type: INT}
+              - column: {name: dice_bonus, type: INT}
+              - column: {name: dice_average, type: INT}
+              - column: {name: ability, type: VARCHAR(16)}
+              - column: {name: damage_type, type: VARCHAR(16)}
+              - column: {name: gate, type: TEXT}
+              - column: {name: duration_amount, type: INT}
+              - column: {name: duration_unit, type: VARCHAR(16)}
+              - column: {name: removed_by, type: VARCHAR(64)}
+              - column: {name: destroyed_at, type: INT}
+        - addForeignKeyConstraint:
+            constraintName: fk_riders_effect
+            baseTableName: riders
+            baseColumnNames: effect_id
+            referencedTableName: effects
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: ix_riders_effect
+            tableName: riders
+            columns: [{column: {name: effect_id}}]
+
+  - changeSet:
+      id: 027-summon-columns
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: effects
+            columns:
+              - column: {name: summon_stat_block_id, type: UUID}
+              - column: {name: summon_count, type: INT}
+              - column: {name: summon_max_controlled, type: INT}
+        - addForeignKeyConstraint:
+            constraintName: fk_effects_summon_stat_block
+            baseTableName: effects
+            baseColumnNames: summon_stat_block_id
+            referencedTableName: stat_blocks
+            referencedColumnNames: id
+            onDelete: SET NULL
+
+  - changeSet:
+      id: 027-shape-options
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: shape_options
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: ordinal, type: INT, constraints: {nullable: false}}
+              - column: {name: name, type: VARCHAR(128), constraints: {nullable: false}}
+              - column: {name: size, type: VARCHAR(16)}
+              - column: {name: true_form, type: BOOLEAN, constraints: {nullable: false}, defaultValueBoolean: false}
+        - addForeignKeyConstraint:
+            constraintName: fk_shape_options_feature
+            baseTableName: shape_options
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createTable:
+            tableName: shape_option_speeds
+            columns:
+              - column: {name: shape_option_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: movement_type, type: VARCHAR(16), constraints: {nullable: false}}
+              - column: {name: speed_feet, type: INT, constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: shape_option_speeds
+            columnNames: shape_option_id, movement_type
+            constraintName: pk_shape_option_speeds
+        - addForeignKeyConstraint:
+            constraintName: fk_shape_option_speeds_option
+            baseTableName: shape_option_speeds
+            baseColumnNames: shape_option_id
+            referencedTableName: shape_options
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+  - changeSet:
+      id: 027-component-targets
+      author: oozengine
+      # "makes one Rend attack", "casts Wall of Ice" and "takes the Disengage
+      # action" are the same sentence with a different object, so they become one
+      # mechanism. references_feature_id loses its NOT NULL to make room.
+      changes:
+        - addColumn:
+            tableName: feature_components
+            columns:
+              - column: {name: references_spell_id, type: UUID}
+              - column: {name: spell_level, type: INT}
+              - column: {name: references_action_id, type: UUID}
+        - dropNotNullConstraint:
+            tableName: feature_components
+            columnName: references_feature_id
+            columnDataType: UUID
+        - addForeignKeyConstraint:
+            constraintName: fk_components_spell
+            baseTableName: feature_components
+            baseColumnNames: references_spell_id
+            referencedTableName: spells
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            constraintName: fk_components_action
+            baseTableName: feature_components
+            baseColumnNames: references_action_id
+            referencedTableName: glossary_entries
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - sql:
+            comment: Exactly one target, so a component always resolves to something.
+            sql: >-
+              ALTER TABLE feature_components ADD CONSTRAINT ck_components_single_target
+              CHECK (num_nonnulls(references_feature_id, references_spell_id,
+              references_action_id) = 1)
+
+  - changeSet:
+      id: 027-unique-behavior
+      author: oozengine
+      changes:
+        - addColumn:
+            tableName: stat_blocks
+            columns:
+              - column: {name: unique_behavior, type: VARCHAR(48)}
+              - column: {name: unique_data, type: JSONB}
+
+  - changeSet:
+      id: 027-feature-capabilities
+      author: oozengine
+      # The third thing a passive can be. A rider modifies a roll and a trigger
+      # fires on an event; Amphibious, Spider Climb, Flyby and Swarm do neither —
+      # they change what the rules permit, and the engine has to ask before it
+      # refuses a move or charges double for one. 189 traits had no form at all.
+      changes:
+        - createTable:
+            tableName: feature_capabilities
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: feature_id, type: UUID, constraints: {nullable: false}}
+              - column: {name: capability, type: VARCHAR(48), constraints: {nullable: false}}
+              - column: {name: amount, type: INT}
+              - column: {name: second_amount, type: INT}
+              - column: {name: duration_unit, type: VARCHAR(16)}
+              - column: {name: damage_type, type: VARCHAR(16)}
+              - column: {name: notes, type: TEXT}
+        - addForeignKeyConstraint:
+            constraintName: fk_feature_capabilities_feature
+            baseTableName: feature_capabilities
+            baseColumnNames: feature_id
+            referencedTableName: features
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            indexName: ix_feature_capabilities_feature
+            tableName: feature_capabilities
+            columns: [{column: {name: feature_id}}]
+
+  - changeSet:
+      id: 027-feature-triggers
+      author: oozengine
+      # trigger_text already carried the book's words, which is enough for a DM
+      # and useless to the engine. A simulator true to the table has to fire
+      # Undead Fortitude at 0 Hit Points rather than wait to be asked.
+      changes:
+        - addColumn:
+            tableName: features
+            columns:
+              - column: {name: trigger_event, type: VARCHAR(40)}
+              - column: {name: trigger_damage_type, type: VARCHAR(16)}
+              - column: {name: trigger_threshold, type: INT}
+              - column: {name: aura_size_feet, type: INT}
+

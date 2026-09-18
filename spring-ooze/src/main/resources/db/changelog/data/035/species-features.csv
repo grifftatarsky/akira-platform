@@ -1,0 +1,96 @@
+id,created_at,updated_at,version,name,description,ordinal,species_id,activation,uses_reset
+39ea7b54-b710-51b6-a6da-b7e6ae3def20,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Draconic Ancestry,"Your lineage stems from a dragon progenitor. Choose the kind of dragon from the Draconic Ancestors table. Your choice affects your Breath Weapon and Damage Resistance traits as well as your appearance.
+
+Draconic Ancestors
+Dragon Damage Type  Dragon Damage Type
+Black  Acid  Gold  Fire
+Blue  Lightning  Green  Poison
+Brass  Fire  Red  Fire
+Bronze  Lightning  Silver  Cold
+Copper Acid  White  Cold",0,ecf72c94-a349-5077-a4bd-e4944db27ee1,PASSIVE,AT_WILL
+60201f49-585d-5ffd-a01f-e41559242e28,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Breath Weapon,"When you take the Attack action on your turn, you can replace one of your attacks with an exhalation of magical energy in either a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time). Each creature in that area must make a Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry trait. On a successful save, a creature takes half as much damage. This damage increases by 1d10 when you reach character levels 5 (2d10), 11 (3d10), and 17 (4d10).
+
+You can use this Breath Weapon a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.",1,ecf72c94-a349-5077-a4bd-e4944db27ee1,PASSIVE,AT_WILL
+615421ef-43a4-5c5e-8720-5a768bfb9cc0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Damage Resistance,You have Resistance to the damage type determined by your Draconic Ancestry trait.,2,ecf72c94-a349-5077-a4bd-e4944db27ee1,PASSIVE,AT_WILL
+c47531e7-32e1-583a-a0b8-e27945472250,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Darkvision,You have Darkvision with a range of 60 feet.,3,ecf72c94-a349-5077-a4bd-e4944db27ee1,PASSIVE,AT_WILL
+d5efe40b-6633-50b0-9a0b-ef45c8b6d9a0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Draconic Flight,"When you reach character level 5, you can channel draconic magic to give yourself temporary flight. As a Bonus Action, you sprout spectral wings on your back that last for 10 minutes or until you retract the wings (no action required) or have the Incapacitated condition. During that time, you have a Fly Speed equal to your Speed. Your wings appear to be made of the same energy as your Breath Weapon. Once you use this trait, you can't use it again until you finish a Long Rest.",4,ecf72c94-a349-5077-a4bd-e4944db27ee1,PASSIVE,AT_WILL
+8eaa7534-7d84-5d79-98a6-eaee0138cc16,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Darkvision,You have Darkvision with a range of 120 feet.,0,60461515-cfab-58d6-a4ac-264177d9547f,PASSIVE,AT_WILL
+5b31f082-64b4-5a8e-8dac-f564cfeb3440,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Dwarven Resilience,You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition.,1,60461515-cfab-58d6-a4ac-264177d9547f,PASSIVE,AT_WILL
+1961eba5-6050-515f-9b9e-64ff046439e6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Dwarven Toughness,"Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level.",2,60461515-cfab-58d6-a4ac-264177d9547f,PASSIVE,AT_WILL
+131fa209-39fc-5967-a144-b3e0b505b7ab,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Stonecunning,"As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked.
+
+You can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest.",3,60461515-cfab-58d6-a4ac-264177d9547f,PASSIVE,AT_WILL
+49795da6-9536-5f78-a42e-f48a5626fbbf,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Darkvision,You have Darkvision with a range of 60 feet.,0,e95d33ab-3708-516c-ad08-253a4a5b8124,PASSIVE,AT_WILL
+2e8107d4-0b64-50b7-bfad-64306885042a,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Elven Lineage,"You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.
+
+When you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.
+
+Elven Lineages
+Lineage  Level 1
+Drow  The range of your Darkvision increases to 120 feet.
+You also know the Dancing Lights cantrip.
+High Elf  You know the Prestidigitation cantrip. Whenever you finish
+a Long Rest, you can replace that cantrip with a different
+cantrip from the Wizard spell list.
+Wood Elf  Your Speed increases to 35 feet. You also know the
+Druidcraft cantrip.
+
+Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage).",1,e95d33ab-3708-516c-ad08-253a4a5b8124,PASSIVE,AT_WILL
+18544d56-1ee0-57ba-b1e6-f5699b27489c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fey Ancestry,You have Advantage on saving throws you make to avoid or end the Charmed condition.,2,e95d33ab-3708-516c-ad08-253a4a5b8124,PASSIVE,AT_WILL
+216aa01d-746e-5dc4-824b-b285433389e5,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Keen Senses,"You have proficiency in the Insight, Perception, or Survival skill.",3,e95d33ab-3708-516c-ad08-253a4a5b8124,PASSIVE,AT_WILL
+4fdfb4fe-ef28-5e94-af2e-8a16b02d854b,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Trance,"You don't need to sleep, and magic can't put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness.",4,e95d33ab-3708-516c-ad08-253a4a5b8124,PASSIVE,AT_WILL
+f61168fb-9dc4-51c7-b484-927e8242f1a0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Darkvision,You have Darkvision with a range of 60 feet.,0,87b611e6-2b0f-51d0-af85-cf1635d32c54,PASSIVE,AT_WILL
+6c9a4c1e-04b0-5e30-9f57-da6ab7ce9d24,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Gnomish Cunning,"You have Advantage on Intelligence, Wisdom, and Charisma saving throws.",1,87b611e6-2b0f-51d0-af85-cf1635d32c54,PASSIVE,AT_WILL
+c0a0240a-d5dc-590b-b9a3-6ef6fe9622db,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Gnomish Lineage,"You are part of a lineage that grants you supernatural abilities. Choose one of the following options; whichever one you choose, Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage):",2,87b611e6-2b0f-51d0-af85-cf1635d32c54,PASSIVE,AT_WILL
+7c367fb9-90fb-5a7a-95ad-06c3b0c760eb,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Forest Gnome,"You know the Minor Illusion cantrip. You also always have the Speak with Animals spell prepared. You can cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest. You can also use any spell slots you have to cast the spell.",3,87b611e6-2b0f-51d0-af85-cf1635d32c54,PASSIVE,AT_WILL
+616461b3-58fa-580f-91a1-0740de495c40,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Rock Gnome,"You know the Mending and Prestidigitation cantrips. In addition, you can spend 10 minutes casting Prestidigitation to create a Tiny clockwork device (AC 5, 1 HP), such as a toy, fire starter, or music box. When you create the device, you determine its function by choosing one effect from Prestidigitation; the device produces that
+
+Level 3  Level 5
+Faerie Fire  Darkness
+Detect Magic  Misty Step
+Longstrider  Pass without Trace
+
+effect whenever you or another creature takes a Bonus Action to activate it with a touch. If the chosen effect has options within it, you choose one of those options for the device when you create it. For example, if you choose the spell's ignite-extinguish effect, you determine whether the device ignites or extinguishes fire; the device doesn't do both. You can have three such devices in existence at a time, and each falls apart 8 hours after its creation or when you dismantle it with a touch as a Utilize action.",4,87b611e6-2b0f-51d0-af85-cf1635d32c54,PASSIVE,AT_WILL
+1d51f6ba-7fe8-536e-932e-7f6a6acade43,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Giant Ancestry,"You are descended from Giants. Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest:",0,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+65f96c49-7b90-56ad-a70f-a6a9b951fbe9,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Cloud's Jaunt (Cloud Giant),"As a Bonus Action, you magically teleport up to 30 feet to an unoccupied space you can see.",1,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+392e2edc-af5f-5bbf-9ffc-e585527968d3,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fire's Burn (Fire Giant),"When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target.",2,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+bc11f3f1-cf1e-5174-9c82-fa8968c89508,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Frost's Chill (Frost Giant),"When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.",3,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+edd33071-9c23-514d-a316-1b57f36ee633,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Hill's Tumble (Hill Giant),"When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition.",4,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+34a6b7a5-8e25-5526-8639-1119dab809d2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Stone's Endurance (Stone Giant),"When you take damage, you can take a Reaction to roll 1d12. Add your Constitution modifier to the number rolled and reduce the damage by that total.",5,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+5fe6a9f3-9970-5bbe-b8ea-27d53cac94c0,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Storm's Thunder (Storm Giant),"When you take damage from a creature within 60 feet of you, you can take a Reaction to deal 1d8 Thunder damage to that creature.",6,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+2477dc04-2289-5856-bef1-e3ff9c8cbf36,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Large Form,"Starting at character level 5, you can change your size to Large as a Bonus Action if you're in a big enough space. This transformation lasts for 10 minutes or until you end it (no action required). For that duration, you have Advantage on Strength checks, and your Speed increases by 10 feet. Once you use this trait, you can't use it again until you finish a Long Rest.",7,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+f121f54e-a5fa-5d89-bf9c-16c22e546387,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Powerful Build,You have Advantage on any ability check you make to end the Grappled condition. You also count as one size larger when determining your carrying capacity.,8,10f4d4db-6b37-5570-9229-de6c87c90443,PASSIVE,AT_WILL
+40113994-1923-56c2-afcf-e5a46ddc87f2,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Brave,You have Advantage on saving throws you make to avoid or end the Frightened condition.,0,769c62ed-651d-5c93-8929-5e38ce3dcd00,PASSIVE,AT_WILL
+45084358-87b6-5c87-be5a-a7beedc26737,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Halfling Nimbleness,"You can move through the space of any creature that is a size larger than you, but you can't stop in the same space.",1,769c62ed-651d-5c93-8929-5e38ce3dcd00,PASSIVE,AT_WILL
+68221516-8949-5f76-8dce-ff1631b2e4a6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Luck,"When you roll a 1 on the d20 of a D20 Test, you can reroll the die, and you must use the new roll.",2,769c62ed-651d-5c93-8929-5e38ce3dcd00,PASSIVE,AT_WILL
+18aa67c2-014e-5910-b3bd-6438b9c95af4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Naturally Stealthy,You can take the Hide action even when you are obscured only by a creature that is at least one size larger than you.,3,769c62ed-651d-5c93-8929-5e38ce3dcd00,PASSIVE,AT_WILL
+56e163dd-6fb3-5c0c-884f-93d12a049ef4,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Resourceful,You gain Heroic Inspiration whenever you finish a Long Rest.,0,bf67d206-2116-5382-a835-6ae482947762,PASSIVE,AT_WILL
+d158110a-561a-5ea7-99fa-75d36bfcbd3c,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Skillful,You gain proficiency in one skill of your choice.,1,bf67d206-2116-5382-a835-6ae482947762,PASSIVE,AT_WILL
+5d4c7f83-27be-5f6f-8e69-fbef47e8e4a9,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Versatile,"You gain an Origin feat of your choice (see ""Feats""). Skilled is recommended.
+
+Fiendish Legacies
+Legacy  Level 1
+Abyssal  You have Resistance to Poison damage.
+You also know the Poison Spray cantrip.
+Chthonic  You have Resistance to Necrotic damage.
+You also know the Chill Touch cantrip.
+Infernal  You have Resistance to Fire damage.
+You also know the Fire Bolt cantrip.",2,bf67d206-2116-5382-a835-6ae482947762,PASSIVE,AT_WILL
+d7c4faaa-feb4-58e6-8499-f25d69299612,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Adrenaline Rush,"You can take the Dash action as a Bonus Action. When you do so, you gain a number of Temporary Hit Points equal to your Proficiency Bonus.
+
+You can use this trait a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Short or Long Rest.",0,428d148f-f852-5e35-8114-3886db35d58a,PASSIVE,AT_WILL
+de1e81e9-3db7-5047-a9d8-030a347b3fad,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Darkvision,You have Darkvision with a range of 120 feet.,1,428d148f-f852-5e35-8114-3886db35d58a,PASSIVE,AT_WILL
+cf06f6e6-6085-563b-92b2-f4c759dfe850,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Relentless Endurance,"When you are reduced to 0 Hit Points but not killed outright, you can drop to 1 Hit Point instead. Once you use this trait, you can't do so again until you finish a Long Rest.",2,428d148f-f852-5e35-8114-3886db35d58a,PASSIVE,AT_WILL
+16d91e49-6ae4-5dfc-a5ff-23a1f5412311,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Darkvision,You have Darkvision with a range of 60 feet.,0,858efbc0-7b97-57fc-a8f1-4fbdbc3f2675,PASSIVE,AT_WILL
+0308995a-bb02-5cb2-9b59-5f9855d245e6,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Fiendish Legacy,"You are the recipient of a legacy that grants you supernatural abilities. Choose a legacy from the Fiendish Legacies table. You gain the level 1 benefit of the chosen legacy.
+
+When you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.
+
+Intelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the legacy).",1,858efbc0-7b97-57fc-a8f1-4fbdbc3f2675,PASSIVE,AT_WILL
+859f24da-a50c-588f-8601-5df0c76d4606,2026-09-08T00:00:00,2026-09-08T00:00:00,0,Otherworldly Presence,"You know the Thaumaturgy cantrip. When you cast it with this trait, the spell uses the same spellcasting ability you use for your Fiendish Legacy trait.
+
+Level 3  Level 5
+Ray of Sickness  Hold Person
+False Life  Ray of Enfeeblement
+Hellish Rebuke  Darkness
+Feats",2,858efbc0-7b97-57fc-a8f1-4fbdbc3f2675,PASSIVE,AT_WILL

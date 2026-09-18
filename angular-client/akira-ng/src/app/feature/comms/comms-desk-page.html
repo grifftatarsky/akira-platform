@@ -1,0 +1,167 @@
+<div class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-10 pb-24 text-fg">
+  <!-- HERO -->
+  <div class="mt-4">
+    <div aria-hidden="true"
+         class="flex h-14 items-end px-2 font-mono text-xs whitespace-pre text-fg-whisper max-sm:px-4 sm:h-20">
+      <span>Read in the order they arrived.</span>
+    </div>
+    <div
+      class="relative before:absolute before:top-0 before:h-px before:w-[200vw] before:bg-rule before:-left-[100vw] after:absolute after:bottom-0 after:h-px after:w-[200vw] after:bg-rule after:-left-[100vw]">
+      <h1 class="px-2 text-4xl tracking-tighter text-balance max-lg:font-medium max-sm:px-4 sm:text-5xl lg:text-6xl">
+        Desk
+      </h1>
+    </div>
+  </div>
+
+  <div class="min-w-0 px-2 max-sm:px-4">
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-1 rounded-md border border-rule p-1">
+        <button type="button"
+                class="rounded px-3 py-1.5 text-xs font-semibold transition"
+                [class]="tab() === 'reports' ? 'bg-bg-subtle text-fg' : 'text-fg-muted hover:text-fg'"
+                (click)="show('reports')">
+          Reports
+          @if (waitingReports().length) {
+            <span class="ml-1.5 text-danger">{{ waitingReports().length }}</span>
+          }
+        </button>
+        <button type="button"
+                class="rounded px-3 py-1.5 text-xs font-semibold transition"
+                [class]="tab() === 'messages' ? 'bg-bg-subtle text-fg' : 'text-fg-muted hover:text-fg'"
+                (click)="show('messages')">
+          Messages
+          @if (waitingMessages().length) {
+            <span class="ml-1.5 text-fg">{{ waitingMessages().length }}</span>
+          }
+        </button>
+      </div>
+      <button type="button"
+              class="inline-flex items-center gap-1.5 rounded-md border border-rule px-3 py-1.5 text-xs font-semibold text-fg transition hover:bg-bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+              [disabled]="loading()"
+              (click)="load()">
+        ↻ Refresh
+      </button>
+    </div>
+
+    @if (error()) {
+      <p class="mb-4 rounded-md border border-danger bg-danger-subtle px-3 py-2 text-sm text-danger" role="alert">
+        {{ error() }}
+      </p>
+    }
+
+    @if (loading()) {
+      <p class="py-8 text-center text-sm text-fg-muted">Loading…</p>
+    }
+
+    @if (dueNow()) {
+      <p class="mb-4 rounded-md border border-rule px-3 py-2 text-sm text-fg">
+        {{ dueNow() }} held {{ dueNow() === 1 ? 'report has' : 'reports have' }} passed the end of the
+        statutory year and can be released.
+      </p>
+    }
+
+    <!-- REPORTS -->
+    @if (tab() === 'reports') {
+      @if (waitingReports().length) {
+        <h2 class="mb-2 font-mono text-xs tracking-wide text-fg-whisper uppercase">Waiting</h2>
+        <ul class="mb-8 divide-y divide-rule border-y border-rule">
+          @for (row of waitingReports(); track row.id) {
+            <li>
+              <a [routerLink]="['/desk/reports', row.id]"
+                 class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 py-3 transition hover:bg-bg-subtle">
+                @if (row.category === heldByLaw) {
+                  <span class="rounded bg-danger-subtle px-1.5 py-0.5 font-mono text-[10px] font-semibold tracking-wide text-danger uppercase">
+                    Mandatory
+                  </span>
+                }
+                <span class="min-w-0 flex-1 text-sm text-fg">{{ categoryLabels[row.category] }}</span>
+                <span class="font-mono text-xs text-fg-muted">{{ row.senderShortCode }}</span>
+                <span class="font-mono text-xs text-fg-whisper">{{ waiting(row.receivedAt) }}</span>
+                @if (!row.hasContact) {
+                  <span class="text-xs text-danger">no contact</span>
+                } @else if (!row.wantsReply) {
+                  <span class="text-xs text-fg-whisper">no reply wanted</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      } @else if (!loading()) {
+        <p class="border-y border-rule py-10 text-center text-sm text-fg-muted">
+          Nothing waiting. That is the good state.
+        </p>
+      }
+
+      @if (heldReports().length) {
+        <h2 class="mb-2 font-mono text-xs tracking-wide text-fg-whisper uppercase">Held under law</h2>
+        <ul class="mb-8 divide-y divide-rule border-y border-rule">
+          @for (row of heldReports(); track row.id) {
+            <li>
+              <a [routerLink]="['/desk/reports', row.id]"
+                 class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 py-3 transition hover:bg-bg-subtle">
+                <span class="min-w-0 flex-1 text-sm text-fg">{{ categoryLabels[row.category] }}</span>
+                <span class="text-xs text-fg-muted">
+                  {{ row.releasable ? 'due for release' : 'until ' + whenever(row.holdUntil) }}
+                </span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+
+      @if (settledReports().length) {
+        <h2 class="mb-2 font-mono text-xs tracking-wide text-fg-whisper uppercase">Done</h2>
+        <ul class="divide-y divide-rule border-y border-rule">
+          @for (row of settledReports(); track row.id) {
+            <li class="flex flex-wrap items-baseline gap-x-3 px-1 py-3">
+              <span class="min-w-0 flex-1 text-sm text-fg-muted">{{ categoryLabels[row.category] }}</span>
+              <span class="text-xs text-fg-whisper">{{ statusLabels[row.status] }}</span>
+            </li>
+          }
+        </ul>
+      }
+    }
+
+    <!-- MESSAGES -->
+    @if (tab() === 'messages') {
+      @if (waitingMessages().length) {
+        <h2 class="mb-2 font-mono text-xs tracking-wide text-fg-whisper uppercase">Waiting</h2>
+        <ul class="mb-8 divide-y divide-rule border-y border-rule">
+          @for (row of waitingMessages(); track row.id) {
+            <li>
+              <a [routerLink]="['/desk/messages', row.id]"
+                 class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1 py-3 transition hover:bg-bg-subtle">
+                <span class="font-mono text-[10px] tracking-wide text-fg-whisper uppercase">
+                  {{ productLabels[row.product] }}
+                </span>
+                <span class="min-w-0 flex-1 text-sm text-fg">{{ row.title }}</span>
+                <span class="text-xs text-fg-muted">{{ row.category }}</span>
+                <span class="font-mono text-xs text-fg-whisper">{{ waiting(row.receivedAt) }}</span>
+                @if (!row.canReply) {
+                  <span class="text-xs text-fg-whisper">no address</span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      } @else if (!loading()) {
+        <p class="border-y border-rule py-10 text-center text-sm text-fg-muted">Nothing waiting.</p>
+      }
+
+      @if (settledMessages().length) {
+        <h2 class="mb-2 font-mono text-xs tracking-wide text-fg-whisper uppercase">Done</h2>
+        <ul class="divide-y divide-rule border-y border-rule">
+          @for (row of settledMessages(); track row.id) {
+            <li>
+              <a [routerLink]="['/desk/messages', row.id]"
+                 class="flex flex-wrap items-baseline gap-x-3 px-1 py-3 transition hover:bg-bg-subtle">
+                <span class="min-w-0 flex-1 text-sm text-fg-muted">{{ row.title }}</span>
+                <span class="text-xs text-fg-whisper">{{ row.status }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      }
+    }
+  </div>
+</div>

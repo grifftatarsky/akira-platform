@@ -1,0 +1,62 @@
+<div class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8 pb-24 text-fg">
+  <div class="mt-6 min-w-0 px-2 max-sm:px-4">
+    <a routerLink="/desk" class="font-mono text-xs text-fg-muted transition hover:text-fg">← Desk</a>
+
+    @if (loading()) {
+      <p class="py-10 text-sm text-fg-muted">Loading…</p>
+    }
+
+    @if (error()) {
+      <p class="mt-4 rounded-md border border-danger bg-danger-subtle px-3 py-2 text-sm text-danger" role="alert">
+        {{ error() }}
+      </p>
+    }
+
+    @let m = message();
+    @if (m) {
+      <p class="mt-4 font-mono text-xs tracking-wide text-fg-whisper uppercase">
+        {{ productLabels[m.product] }} · {{ m.category }}
+      </p>
+      <h1 class="mt-2 text-3xl tracking-tighter text-balance sm:text-4xl">{{ m.title }}</h1>
+
+      <p class="mt-6 max-w-prose text-sm whitespace-pre-wrap text-fg">{{ m.description }}</p>
+
+      <dl class="mt-8 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-1.5 text-sm">
+        <dt class="text-fg-muted">Received</dt><dd>{{ whenever(m.receivedAt) }}</dd>
+        <dt class="text-fg-muted">Reply to</dt>
+        <dd>
+          @if (m.contactEmail) {
+            <a [href]="'mailto:' + m.contactEmail" class="break-all text-accent underline-offset-4 hover:underline">
+              {{ m.contactEmail }}
+            </a>
+          } @else {
+            <span class="text-fg-muted">Nothing given, which was their choice. There is no way to answer this one.</span>
+          }
+        </dd>
+      </dl>
+
+      @if (closed()) {
+        <p class="mt-8 rounded-md border border-rule bg-bg-subtle px-4 py-3 text-sm text-fg">
+          Marked done. <a routerLink="/desk" class="text-accent underline-offset-4 hover:underline">Back to the queue.</a>
+        </p>
+      } @else if (m.status === 'NEW') {
+        <div class="mt-8 flex flex-wrap gap-3 border-t border-rule pt-6">
+          <button type="button"
+                  class="rounded-md bg-fg px-5 py-2.5 text-sm font-semibold text-bg transition hover:opacity-90 disabled:opacity-50"
+                  [disabled]="saving()"
+                  (click)="close(true)">
+            Answered
+          </button>
+          <button type="button"
+                  class="rounded-md border border-rule px-5 py-2.5 text-sm font-semibold text-fg transition hover:bg-bg-subtle disabled:opacity-50"
+                  [disabled]="saving()"
+                  (click)="close(false)">
+            Closed without a reply
+          </button>
+        </div>
+      } @else {
+        <p class="mt-8 border-t border-rule pt-6 text-sm text-fg-muted">This one is already dealt with.</p>
+      }
+    }
+  </div>
+</div>

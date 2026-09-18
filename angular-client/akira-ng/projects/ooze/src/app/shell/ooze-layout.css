@@ -30,3 +30,10 @@
     padding-right: 22rem;
   }
 }
+
+/* A page that asked for the whole viewport gets it: no rail to clear, and
+ * nothing reserved on either side. The rail is not rendered at all on these
+ * pages, so this padding would be clearing empty space. */
+.ooze-content--full {
+  padding-right: 0;
+}

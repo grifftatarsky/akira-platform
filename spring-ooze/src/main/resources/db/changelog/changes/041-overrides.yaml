@@ -1,0 +1,65 @@
+databaseChangeLog:
+  # Phase 2: a DM's changes to a creature, without touching the compendium.
+  #
+  # Two mechanisms, because they are two different things. Scaling is a
+  # descriptor — "half again as tough" — that stays legible and re-tunable and
+  # is applied when a fight starts. A private stat block is genuine surgery, a
+  # deep clone owned by the token that carries it.
+
+  - changeSet:
+      id: 041-combatant-scaling
+      author: oozengine
+      # Percentages and deltas, all integers: a multiplier of 1.5 invites a
+      # float into a system that has worked to avoid them, and 150 says the same
+      # thing exactly. 100 means "the book".
+      changes:
+        - addColumn:
+            tableName: combatants
+            columns:
+              - column: {name: hit_point_percent, type: INT, constraints: {nullable: false}, defaultValueNumeric: 100}
+              - column: {name: armor_class_delta, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: damage_percent, type: INT, constraints: {nullable: false}, defaultValueNumeric: 100}
+              - column: {name: attack_bonus_delta, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+              - column: {name: save_dc_delta, type: INT, constraints: {nullable: false}, defaultValueNumeric: 0}
+        - sql:
+            comment: >-
+              A creature scaled to nothing is a bug, not a corpse; and a
+              thousandfold goblin is a typo. Bounds make both fail at the write.
+            sql: >-
+              ALTER TABLE combatants ADD CONSTRAINT ck_combatants_scaling
+              CHECK (hit_point_percent BETWEEN 1 AND 1000
+                     AND damage_percent BETWEEN 1 AND 1000)
+
+  - changeSet:
+      id: 041-combatant-private-stat-block
+      author: oozengine
+      # Kept beside stat_block_id rather than replacing it, so the base is still
+      # there to say what this was cloned from and to diff against.
+      changes:
+        - addColumn:
+            tableName: combatants
+            columns:
+              - column: {name: private_stat_block_id, type: UUID}
+        - addForeignKeyConstraint:
+            constraintName: fk_combatants_private_stat_block
+            baseTableName: combatants
+            baseColumnNames: private_stat_block_id
+            referencedTableName: stat_blocks
+            referencedColumnNames: id
+        - addUniqueConstraint:
+            constraintName: uq_combatants_private_stat_block
+            tableName: combatants
+            columnNames: private_stat_block_id
+
+  - changeSet:
+      id: 041-character-base-stat-block
+      author: oozengine
+      # An NPC wraps a monster the way a character wraps a species. Provenance
+      # only — a bare id, so the base can be re-imported without dragging this
+      # along. It answers "what was this?", which a DM asks and the engine never
+      # does.
+      changes:
+        - addColumn:
+            tableName: characters
+            columns:
+              - column: {name: base_stat_block_id, type: UUID}

@@ -14,5 +14,6 @@ public enum ContentType {
   FEAT,
   CONDITION,
   WEAPON_MASTERY,
-  GLOSSARY
+  GLOSSARY,
+  TRAP
 }

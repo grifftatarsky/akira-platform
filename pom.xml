@@ -21,6 +21,7 @@
     <module>spring-ooze</module>
     <module>spring-decks</module>
     <module>jpss-resource</module>
+    <module>microgpt-comms</module>
   </modules>
 
   <properties>

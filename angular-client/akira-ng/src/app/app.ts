@@ -3,6 +3,8 @@ import {
   Component,
   DestroyRef,
   HostListener,
+  Signal,
+  computed,
   effect,
   inject,
   signal,
@@ -14,7 +16,7 @@ import { Title } from '@angular/platform-browser';
 import { Auth } from './auth/auth';
 import { UserService } from './auth/user.service';
 import { filter, map, Observable } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { User } from './auth/user.model';
 import { ToastContainerComponent } from './common/notification/toast-container.component';
 import { NotificationBellComponent } from './common/notification/notification-bell.component';
@@ -173,7 +175,7 @@ export class App {
 
   // region Mobile Menu
 
-  protected readonly navLinks: readonly NavLink[] = [
+  private readonly baseNavLinks: readonly NavLink[] = [
     { label: 'Docs', href: '/docs' },
     { label: 'Dashboard', href: '/dashboard' },
     { label: 'Shelves', href: '/shelves' },
@@ -181,6 +183,20 @@ export class App {
     { label: 'Activity', href: '/activity' },
     { label: 'Blog', href: '/blog' },
   ];
+
+  /**
+   * The abuse desk, shown only to the one account that can open it.
+   *
+   * Everyone else would get a link that 403s, and a link into somebody else's
+   * abuse reports is not a thing to advertise to a realm full of card players.
+   */
+  private readonly user: Signal<User | undefined> = toSignal(this.userService.valueChanges);
+
+  protected readonly navLinks: Signal<readonly NavLink[]> = computed(() =>
+    this.user()?.hasAuthority('COMMS_DESK')
+      ? [...this.baseNavLinks, { label: 'Desk', href: '/desk' }]
+      : this.baseNavLinks,
+  );
 
   /** Federated micro-frontends, grouped under one desktop dropdown. */
   protected readonly gamesMenu: NavGroup = {

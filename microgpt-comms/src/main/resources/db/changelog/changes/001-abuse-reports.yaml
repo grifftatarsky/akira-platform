@@ -1,0 +1,174 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 001 — abuse reports.
+  #
+  # One row per report received through the form on outpostmessaging.com. The
+  # columns divide into three: what the app's own report said (parsed, and
+  # verified before anything was written), what the person filling in the form
+  # said, and how the report is being handled.
+  #
+  # There is no column for the reported material and there never will be. The
+  # app's report names a message by its hash and carries none of its content,
+  # and the intake refuses any upload that is not that report — so this table
+  # holds an account of an event, not the thing complained about.
+  # ==========================================================================
+  - changeSet:
+      id: 001-abuse-report-create
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          tableExists:
+            tableName: abuse_report
+      changes:
+        - createTable:
+            tableName: abuse_report
+            columns:
+              # BaseEntity columns
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              # What the app reported
+              - column:
+                  name: app_description
+                  type: VARCHAR(8000)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: kind
+                  type: VARCHAR(16)
+                  constraints:
+                    nullable: false
+              # SHA-256 of the sender's identifier, as hex. Not an identity: it
+              # is one-way, and the developer holds nothing to reverse it with.
+              - column:
+                  name: sender_fingerprint
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sender_short_code
+                  type: VARCHAR(6)
+                  constraints:
+                    nullable: false
+              # Chosen by the sender and unverified. Stored because it is what a
+              # reporter will recognise, and labelled everywhere as unverified.
+              - column:
+                  name: sender_display_name
+                  type: VARCHAR(200)
+              - column:
+                  name: message_id
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sent_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: reported_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: app_version
+                  type: VARCHAR(60)
+                  constraints:
+                    nullable: false
+              # The verified text, kept whole, so a report passed to an authority
+              # can be produced exactly as it was received.
+              - column:
+                  name: raw_report
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              # What the reporter wrote
+              - column:
+                  name: reporter_description
+                  type: VARCHAR(8000)
+                  constraints:
+                    nullable: false
+              # All four are nullable and the service requires at least one. The
+              # database cannot express "one of these four" without a check
+              # constraint that would have to be rewritten every time the set
+              # changes, and the rule belongs where the sentence explaining it to
+              # the reporter lives.
+              - column:
+                  name: contact_name
+                  type: VARCHAR(200)
+              - column:
+                  name: contact_email
+                  type: VARCHAR(320)
+              - column:
+                  name: contact_phone
+                  type: VARCHAR(60)
+              - column:
+                  name: contact_address
+                  type: VARCHAR(500)
+              # Handling
+              - column:
+                  name: status
+                  type: VARCHAR(16)
+                  defaultValue: NEW
+                  constraints:
+                    nullable: false
+              # Null until a notification actually went out, which is what makes
+              # a report that arrived while the mail server was down findable.
+              - column:
+                  name: notified_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+  - changeSet:
+      id: 001-abuse-report-created-at-index
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          indexExists:
+            indexName: idx_abuse_report_created_at
+      changes:
+        # Newest first is the only ordering anybody working through these wants.
+        - createIndex:
+            tableName: abuse_report
+            indexName: idx_abuse_report_created_at
+            columns:
+              - column:
+                  name: created_at
+                  descending: true
+
+  - changeSet:
+      id: 001-abuse-report-status-index
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          indexExists:
+            indexName: idx_abuse_report_status
+      changes:
+        # "What is still NEW", and "what is FILED and therefore owed a year".
+        - createIndex:
+            tableName: abuse_report
+            indexName: idx_abuse_report_status
+            columns:
+              - column:
+                  name: status

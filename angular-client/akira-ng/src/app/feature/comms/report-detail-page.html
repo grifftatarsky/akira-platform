@@ -1,0 +1,209 @@
+<div class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8 pb-24 text-fg">
+  <div class="mt-6 min-w-0 px-2 max-sm:px-4">
+    <a routerLink="/desk" class="font-mono text-xs text-fg-muted transition hover:text-fg">← Desk</a>
+
+    @if (loading()) {
+      <p class="py-10 text-sm text-fg-muted">Loading…</p>
+    }
+
+    @if (error()) {
+      <p class="mt-4 rounded-md border border-danger bg-danger-subtle px-3 py-2 text-sm text-danger" role="alert">
+        {{ error() }}
+      </p>
+    }
+
+    @let handled = result();
+    @if (handled) {
+      <div class="mt-6 rounded-md border border-rule bg-bg-subtle px-4 py-4">
+        <p class="text-sm font-semibold text-fg">Done.</p>
+        <p class="mt-2 text-sm text-fg-muted">{{ handled.whatHappened }}</p>
+        <a routerLink="/desk" class="mt-4 inline-block font-mono text-xs text-fg-muted transition hover:text-fg">
+          ← Back to the queue
+        </a>
+      </div>
+    }
+
+    @let r = report();
+    @if (r && !handled) {
+      <h1 class="mt-4 text-3xl tracking-tighter text-balance sm:text-4xl">
+        {{ categoryLabels[r.category] }}
+      </h1>
+
+      @if (r.category === heldByLaw) {
+        <p class="mt-4 rounded-md border border-danger bg-danger-subtle px-3 py-2 text-sm text-danger">
+          Reporting this is required of you, not optional, and the clock started when it was read.
+          The copy is held for a year after the filing and cannot be deleted before then.
+        </p>
+      }
+
+      <!-- WHAT THEY SAID -->
+      <section class="mt-8">
+        <h2 class="font-mono text-xs tracking-wide text-fg-whisper uppercase">In their words</h2>
+        <p class="mt-3 max-w-prose text-sm whitespace-pre-wrap text-fg">{{ r.description }}</p>
+      </section>
+
+      <!-- THE FACTS -->
+      <section class="mt-8">
+        <h2 class="font-mono text-xs tracking-wide text-fg-whisper uppercase">What the app proved</h2>
+        <dl class="mt-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-1.5 text-sm">
+          <dt class="text-fg-muted">Sender</dt>
+          <dd class="font-mono text-xs break-all">{{ r.senderShortCode }}
+            @if (r.senderDisplayName) {
+              <span class="font-sans text-fg-muted"> · “{{ r.senderDisplayName }}”, chosen by them, unverified</span>
+            }
+          </dd>
+          <dt class="text-fg-muted">Fingerprint</dt>
+          <dd class="font-mono text-xs break-all">{{ r.senderFingerprint }}</dd>
+          <dt class="text-fg-muted">Message</dt>
+          <dd class="font-mono text-xs break-all">{{ r.messageId }}</dd>
+          <dt class="text-fg-muted">Sent</dt>
+          <dd>{{ whenever(r.sentAt) }}</dd>
+          <dt class="text-fg-muted">Reported</dt>
+          <dd>{{ whenever(r.reportedAt) }}</dd>
+          <dt class="text-fg-muted">Received here</dt>
+          <dd>{{ whenever(r.receivedAt) }}</dd>
+          <dt class="text-fg-muted">What it was</dt>
+          <dd>{{ r.kind === 'PHOTO' ? 'A photo' : 'Words' }}</dd>
+          <dt class="text-fg-muted">App version</dt>
+          <dd class="font-mono text-xs">{{ r.appVersion }}</dd>
+        </dl>
+        <p class="mt-3 max-w-prose text-xs text-fg-muted">
+          There is no copy of the message here and there cannot be. It is sealed on the device that
+          sent it, and the fingerprint only means something while it still exists on the reporter's
+          phone — which is why the first thing to say to them is not to delete the conversation.
+        </p>
+      </section>
+
+      <!-- HOW TO REACH THEM -->
+      <section class="mt-8">
+        <h2 class="font-mono text-xs tracking-wide text-fg-whisper uppercase">How to reach them</h2>
+        <dl class="mt-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-1.5 text-sm">
+          @if (r.contactName) { <dt class="text-fg-muted">Name</dt><dd>{{ r.contactName }}</dd> }
+          @if (r.contactEmail) { <dt class="text-fg-muted">Email</dt><dd class="break-all">{{ r.contactEmail }}</dd> }
+          @if (r.contactPhone) { <dt class="text-fg-muted">Phone</dt><dd>{{ r.contactPhone }}</dd> }
+          @if (r.contactAddress) { <dt class="text-fg-muted">Address</dt><dd class="whitespace-pre-wrap">{{ r.contactAddress }}</dd> }
+        </dl>
+        @if (!r.wantsReply) {
+          <p class="mt-3 text-sm text-fg-muted">
+            They asked not to hear back. Nothing is sent, and the copy is deleted as soon as this is
+            handled.
+          </p>
+        }
+      </section>
+
+      <!-- THE STEPS -->
+      @let g = guide();
+      @if (g) {
+        <section class="mt-10 border-t border-rule pt-6">
+          <h2 class="font-mono text-xs tracking-wide text-fg-whisper uppercase">What to do, in order</h2>
+          <ol class="mt-4 space-y-5">
+            @for (step of g.steps; track step.name; let i = $index) {
+              <li class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-3">
+                <span class="font-mono text-xs text-fg-whisper">{{ i + 1 }}</span>
+                <div>
+                  @if (step.href) {
+                    <a [href]="step.href" target="_blank" rel="noreferrer"
+                       class="text-sm font-semibold text-accent underline-offset-4 hover:underline">
+                      {{ step.name }}
+                    </a>
+                  } @else {
+                    <span class="text-sm font-semibold text-fg">{{ step.name }}</span>
+                  }
+                  <p class="mt-1 max-w-prose text-sm text-fg-muted">{{ step.note }}</p>
+                </div>
+              </li>
+            }
+          </ol>
+          <p class="mt-5 text-xs text-fg-muted">{{ g.retention }}</p>
+        </section>
+      }
+
+      <!-- THE ACTION -->
+      @if (isOpen()) {
+        <section class="mt-10 border-t border-rule pt-6">
+          <h2 class="font-mono text-xs tracking-wide text-fg-whisper uppercase">Say what was done</h2>
+
+          <div class="mt-4 flex flex-col gap-3">
+            <label class="flex items-start gap-2.5 text-sm">
+              <input type="radio" name="outcome" value="REFERRED" class="mt-1"
+                     [(ngModel)]="outcome" [ngModelOptions]="{ standalone: true }">
+              <span>
+                <span class="font-semibold">Passed to an authority.</span>
+                <span class="text-fg-muted"> The reporter is told who, by name.</span>
+              </span>
+            </label>
+            <label class="flex items-start gap-2.5 text-sm">
+              <input type="radio" name="outcome" value="NO_ACTION" class="mt-1"
+                     [(ngModel)]="outcome" [ngModelOptions]="{ standalone: true }">
+              <span>
+                <span class="font-semibold">Nothing to pass on.</span>
+                <span class="text-fg-muted"> Read and answered, no referral.</span>
+              </span>
+            </label>
+          </div>
+
+          @if (outcome === 'REFERRED') {
+            <label class="mt-4 block max-w-md">
+              <span class="text-sm text-fg-muted">Referred to</span>
+              <input type="text" maxlength="200" placeholder="NCMEC CyberTipline"
+                     class="mt-1.5 w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm text-fg"
+                     [(ngModel)]="referredTo" [ngModelOptions]="{ standalone: true }">
+            </label>
+          }
+
+          <p class="mt-5 max-w-prose text-sm text-fg-muted">
+            @if (r.category === heldByLaw) {
+              The copy is kept for a year from today. The reporter is told it was referred and that
+              the contents of that filing cannot be discussed.
+            } @else if (willTell()) {
+              The reporter is emailed first, and the copy is deleted only once that mail has gone. If
+              it fails to send, nothing is deleted.
+            } @else {
+              There is nobody to tell, so the copy is deleted immediately. What stays is a line
+              saying a report of this kind arrived and what was done.
+            }
+          </p>
+
+          <button type="button"
+                  class="mt-5 inline-flex items-center gap-2 rounded-md bg-fg px-5 py-2.5 text-sm font-semibold text-bg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  [disabled]="saving()"
+                  (click)="handle()">
+            {{ saving() ? 'Saving…' : 'Mark it handled' }}
+          </button>
+        </section>
+      } @else {
+        <section class="mt-10 border-t border-rule pt-6">
+          <h2 class="font-mono text-xs tracking-wide text-fg-whisper uppercase">Already handled</h2>
+          <dl class="mt-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-1.5 text-sm">
+            <dt class="text-fg-muted">Outcome</dt><dd>{{ statusLabels[r.status] }}</dd>
+            @if (r.referredTo) { <dt class="text-fg-muted">Referred to</dt><dd>{{ r.referredTo }}</dd> }
+            @if (r.filedAt) { <dt class="text-fg-muted">Filed</dt><dd>{{ whenever(r.filedAt) }}</dd> }
+            @if (r.repliedAt) { <dt class="text-fg-muted">Reporter told</dt><dd>{{ whenever(r.repliedAt) }}</dd> }
+            @if (r.holdUntil) { <dt class="text-fg-muted">Held until</dt><dd>{{ whenever(r.holdUntil) }}</dd> }
+          </dl>
+
+          @if (r.holdUntil && r.releasable) {
+            <p class="mt-4 max-w-prose text-sm text-fg-muted">
+              The year is up. Releasing deletes the copy and stamps the record; the record of it
+              stays.
+            </p>
+            <button type="button"
+                    class="mt-4 inline-flex items-center gap-2 rounded-md border border-rule px-5 py-2.5 text-sm font-semibold text-fg transition hover:bg-bg-subtle disabled:opacity-50"
+                    [disabled]="saving()"
+                    (click)="release()">
+              {{ saving() ? 'Deleting…' : 'Release and delete' }}
+            </button>
+          }
+        </section>
+      }
+
+      <!-- THE REPORT AS RECEIVED -->
+      <details class="mt-10 border-t border-rule pt-6">
+        <summary class="cursor-pointer font-mono text-xs tracking-wide text-fg-whisper uppercase">
+          The report as it was pasted
+        </summary>
+        <pre class="mt-4 overflow-x-auto rounded-md border border-rule bg-bg-subtle p-4 font-mono text-xs whitespace-pre-wrap text-fg">{{ r.raw }}</pre>
+      </details>
+    }
+  </div>
+</div>

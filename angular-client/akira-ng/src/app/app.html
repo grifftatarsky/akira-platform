@@ -17,7 +17,7 @@
 
       <!-- HEADER MENU (DESKTOP) -->
       <div class="flex items-center gap-6 max-md:hidden">
-        @for (link of navLinks; track link.href) {
+        @for (link of navLinks(); track link.href) {
           <a class="text-sm text-fg hover:text-accent transition-colors"
              [routerLink]="link.href">
             {{ link.label }}
@@ -288,7 +288,7 @@
         <p class="sr-only" [attr.id]="mobileMenuId + '-title'">Main navigation</p>
         <nav class="grid grid-cols-1 gap-1 px-4 pt-6 pb-3 sm:px-6"
              aria-label="Mobile navigation">
-          @for (link of navLinks; track link.href) {
+          @for (link of navLinks(); track link.href) {
             <a
               class="rounded-md py-2 text-lg font-medium text-fg hover:bg-bg-subtle"
               [routerLink]="link.href" (click)="closeMobileMenu()">

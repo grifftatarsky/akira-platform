@@ -1,0 +1,31 @@
+databaseChangeLog:
+  # Deliberately late. A component can point at a feature, a spell or one of the
+  # twelve standard actions, and the three become available at different times:
+  # features are seeded in 029, spells across 006-024, but the glossary rows that
+  # carry the standard actions only arrive in 033. Resolving inside 029 silently
+  # dropped all 26 action components, because the join found an empty table and
+  # the "exactly one target" filter then rejected the row.
+  #
+  # So the staged rows outlive 029 and are resolved once everything they can
+  # point at exists.
+
+  - changeSet:
+      id: 038-resolve-component-targets
+      author: oozengine
+      changes:
+        - sql:
+            sql: |
+              INSERT INTO feature_components (id, created_at, updated_at, version, feature_id,
+                                              references_feature_id, references_spell_id,
+                                              spell_level, references_action_id,
+                                              count, optional, mode, choice_group, ordinal)
+              SELECT c.id, c.created_at, c.updated_at, c.version, c.feature_id,
+                     c.references_feature_id, sp.id, c.spell_level, g.id,
+                     c.count, c.optional, c.mode, c.choice_group, c.ordinal
+              FROM feature_component_staging c
+              LEFT JOIN spells sp
+                     ON sp.owner_id IS NULL AND sp.name = c.references_spell_name
+              LEFT JOIN glossary_entries g
+                     ON g.owner_id IS NULL AND g.name = c.references_action_name
+              WHERE num_nonnulls(c.references_feature_id, sp.id, g.id) = 1;
+        - dropTable: {tableName: feature_component_staging}

@@ -1,0 +1,136 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 002 — a category on every report, and a second table for everything else.
+  #
+  # The category is the reporter's own answer and it is the only thing that
+  # decides where a report is taken. It is published on /resources beside the
+  # route each one leads to, so the answer is knowable before a report is sent
+  # rather than after.
+  #
+  # reporter_description goes: the reporter's account of what happened is
+  # written in the app, on the screen where they can still see the message, and
+  # it arrives inside the report they paste. Two boxes asking the same question
+  # collected two answers and nothing said which one was meant.
+  #
+  # contact_message is a separate table rather than a column on abuse_report,
+  # because the two are read in different orders, answered by different means
+  # and kept for different lengths of time.
+  # ==========================================================================
+  - changeSet:
+      id: 002-abuse-report-category
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          columnExists:
+            tableName: abuse_report
+            columnName: category
+      changes:
+        - addColumn:
+            tableName: abuse_report
+            columns:
+              - column:
+                  name: category
+                  type: VARCHAR(32)
+                  defaultValue: OTHER
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: abuse_report
+            indexName: idx_abuse_report_category
+            columns:
+              - column:
+                  name: category
+
+  - changeSet:
+      id: 002-abuse-report-drop-reporter-description
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        columnExists:
+          tableName: abuse_report
+          columnName: reporter_description
+      changes:
+        - dropColumn:
+            tableName: abuse_report
+            columnName: reporter_description
+
+  - changeSet:
+      id: 002-contact-message-create
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          tableExists:
+            tableName: contact_message
+      changes:
+        - createTable:
+            tableName: contact_message
+            columns:
+              # BaseEntity columns
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              # What was sent
+              - column:
+                  name: product
+                  type: VARCHAR(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: category
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(8000)
+                  constraints:
+                    nullable: false
+              # Optional, and optional on purpose: no address means no answer,
+              # which is a choice the sender is allowed to make.
+              - column:
+                  name: contact_email
+                  type: VARCHAR(320)
+              # Handling
+              - column:
+                  name: status
+                  type: VARCHAR(16)
+                  defaultValue: NEW
+                  constraints:
+                    nullable: false
+              - column:
+                  name: notified_at
+                  type: TIMESTAMP WITH TIME ZONE
+        - createIndex:
+            tableName: contact_message
+            indexName: idx_contact_message_status
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: created_at

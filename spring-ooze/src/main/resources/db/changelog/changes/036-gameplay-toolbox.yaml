@@ -1,0 +1,114 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 036 — the catalog-shaped parts of the SRD 5.2.1 Gameplay Toolbox.
+  #
+  # Most of that chapter is procedure — budgeting an encounter, building a
+  # background — which is not catalog content and is not imported. Four things
+  # in it are entries a DM looks up:
+  #
+  #   14 sample poisons, priced per dose, which are items;
+  #    8 example traps, each with a severity, a trigger and a duration;
+  #    3 magical contagions and 9 environmental effects, which are named rules
+  #      with prose and join the glossary under categories of their own rather
+  #      than taking a table apiece for three rows.
+  #
+  # Traps get a table because a trap is the third thing that can act in an
+  # encounter, and the simulator will ask it what it asks a creature: when do
+  # you go off, who do you hit, what do they roll.
+  # ==========================================================================
+
+  - changeSet:
+      id: 036-traps-create
+      author: oozengine
+      changes:
+        - createTable:
+            tableName: traps
+            columns:
+              - column: {name: id, type: UUID, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: {nullable: false}}
+              - column: {name: version, type: BIGINT, defaultValueNumeric: 0, constraints: {nullable: false}}
+              - column: {name: owner_id, type: UUID}
+              - column: {name: overrides_id, type: UUID}
+              - column: {name: srd_version, type: VARCHAR(16)}
+              - column: {name: name, type: VARCHAR(255), constraints: {nullable: false}}
+              - column: {name: severity, type: VARCHAR(16)}
+              - column: {name: level_band, type: VARCHAR(16)}
+              # Rolling Stone is "Deadly Trap (Levels 11-16) or Nuisance Trap
+              # (Levels 17-20)", and the second half is a rule one severity and
+              # one band cannot hold.
+              - column: {name: severity_note, type: VARCHAR(255)}
+              - column: {name: trigger, type: TEXT}
+              - column: {name: duration, type: VARCHAR(255)}
+              - column: {name: description, type: TEXT, constraints: {nullable: false}}
+        - addForeignKeyConstraint:
+            constraintName: fk_traps_overrides
+            baseTableName: traps
+            baseColumnNames: overrides_id
+            referencedTableName: traps
+            referencedColumnNames: id
+            onDelete: SET NULL
+        - createIndex: {tableName: traps, indexName: idx_traps_owner, columns: [{column: {name: owner_id}}]}
+        - createIndex: {tableName: traps, indexName: idx_traps_name, columns: [{column: {name: name}}]}
+        - addColumn:
+            tableName: items
+            columns:
+              # How a poison is delivered — contact, ingested, inhaled, injury —
+              # which is the whole of what separates one from another.
+              - column: {name: poison_type, type: VARCHAR(16)}
+
+  - changeSet:
+      id: 036-load-toolbox
+      author: oozengine
+      changes:
+        - loadData:
+            tableName: traps
+            file: db/changelog/data/036/traps.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: severity, type: STRING}
+              - column: {name: level_band, type: STRING}
+              - column: {name: severity_note, type: STRING}
+              - column: {name: trigger, type: STRING}
+              - column: {name: duration, type: STRING}
+              - column: {name: description, type: STRING}
+        - loadData:
+            tableName: items
+            file: db/changelog/data/036/poisons.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: item_category, type: STRING}
+              - column: {name: cost_gp, type: NUMERIC}
+              - column: {name: poison_type, type: STRING}
+              - column: {name: description, type: STRING}
+        - loadData:
+            tableName: glossary_entries
+            file: db/changelog/data/036/toolbox-reference.csv
+            relativeToChangelogFile: false
+            usePreparedStatements: true
+            nullPlaceholder: "NULL"
+            columns:
+              - column: {name: id, type: UUID}
+              - column: {name: created_at, type: DATE}
+              - column: {name: updated_at, type: DATE}
+              - column: {name: version, type: NUMERIC}
+              - column: {name: srd_version, type: STRING}
+              - column: {name: name, type: STRING}
+              - column: {name: category, type: STRING}
+              - column: {name: description, type: STRING}

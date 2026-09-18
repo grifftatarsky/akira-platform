@@ -1,25 +1,22 @@
 package com.gpt.oozengine.service;
 
 import com.gpt.oozengine.constant.ContentType;
+import com.gpt.oozengine.constant.rules.MovementType;
 import com.gpt.oozengine.model.Species;
 import com.gpt.oozengine.model.dto.request.SpeciesRequest;
 import com.gpt.oozengine.model.dto.response.SpeciesResponse;
 import com.gpt.oozengine.repository.CatalogRepository;
 import com.gpt.oozengine.repository.HiddenContentRepository;
 import com.gpt.oozengine.repository.SpeciesRepository;
-import java.util.Comparator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class SpeciesService extends AbstractCatalogService<Species, SpeciesRequest, SpeciesResponse> {
 
   private final SpeciesRepository species;
   private final HiddenContentRepository hidden;
-
-  public SpeciesService(SpeciesRepository species, HiddenContentRepository hidden) {
-    this.species = species;
-    this.hidden = hidden;
-  }
 
   @Override
   protected CatalogRepository<Species> repo() {
@@ -42,18 +39,17 @@ public class SpeciesService extends AbstractCatalogService<Species, SpeciesReque
   }
 
   @Override
-  protected Comparator<Species> listOrder() {
-    return Comparator.comparing(Species::getName, String.CASE_INSENSITIVE_ORDER);
-  }
-
-  @Override
   protected void apply(SpeciesRequest r, Species s) {
     s.setName(r.name());
     s.setSize(r.size());
-    s.setSpeed(r.speed());
+    s.setAlternateSize(r.alternateSize());
     s.setCreatureType(r.creatureType());
-    s.setTraits(r.traits());
     s.setDescription(r.description());
+    if (r.walkSpeed() == null || r.walkSpeed() <= 0) {
+      s.getSpeeds().remove(MovementType.WALK);
+    } else {
+      s.getSpeeds().put(MovementType.WALK, r.walkSpeed());
+    }
   }
 
   @Override

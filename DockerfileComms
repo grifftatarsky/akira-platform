@@ -1,0 +1,29 @@
+FROM maven:3.9.16-eclipse-temurin-26-alpine AS build
+
+WORKDIR /app
+
+COPY pom.xml /tmp/pom.xml
+RUN mvn -f /tmp/pom.xml install -N
+
+COPY ./microgpt-comms/pom.xml ./pom.xml
+RUN mvn dependency:go-offline
+
+COPY ./microgpt-comms/src ./src
+
+RUN mvn clean package -DskipTests
+
+FROM eclipse-temurin:26-jre-alpine
+
+RUN addgroup -S bonk-docker && adduser -S -G bonk-docker veto
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar /app/runner.jar
+
+RUN chown -R veto:bonk-docker /app
+
+EXPOSE 7088
+
+USER veto
+
+ENTRYPOINT ["java", "-jar", "/app/runner.jar"]

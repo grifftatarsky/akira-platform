@@ -7,20 +7,16 @@ import com.gpt.oozengine.model.dto.response.ConditionResponse;
 import com.gpt.oozengine.repository.CatalogRepository;
 import com.gpt.oozengine.repository.ConditionRepository;
 import com.gpt.oozengine.repository.HiddenContentRepository;
-import java.util.Comparator;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class ConditionService
     extends AbstractCatalogService<Condition, ConditionRequest, ConditionResponse> {
 
   private final ConditionRepository conditions;
   private final HiddenContentRepository hidden;
-
-  public ConditionService(ConditionRepository conditions, HiddenContentRepository hidden) {
-    this.conditions = conditions;
-    this.hidden = hidden;
-  }
 
   @Override
   protected CatalogRepository<Condition> repo() {
@@ -43,13 +39,9 @@ public class ConditionService
   }
 
   @Override
-  protected Comparator<Condition> listOrder() {
-    return Comparator.comparing(Condition::getName, String.CASE_INSENSITIVE_ORDER);
-  }
-
-  @Override
   protected void apply(ConditionRequest r, Condition c) {
     c.setName(r.name());
+    c.setCode(r.code());
     c.setDescription(r.description());
   }
 

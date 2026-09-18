@@ -1,0 +1,156 @@
+# Base #############################################################################################
+cms-scheme: ${SCHEME_CMS:http}
+cms-container-name: ${CONTAINER_NAME_CMS:localhost}
+cms-prefix: ${PREFIX_CMS:/cms}
+# Reverse Proxy ####################################################################################
+reverse-proxy-scheme: ${SCHEME_REVERSE_PROXY:http}
+reverse-proxy-port: ${PORT_REVERSE_PROXY:7080}
+reverse-proxy-container-name: ${CONTAINER_NAME_REVERSE_PROXY:localhost}
+reverse-proxy-uri: ${reverse-proxy-scheme}://${reverse-proxy-container-name}:${reverse-proxy-port}
+# Authorization Server #############################################################################
+auth-server-prefix: ${PREFIX_AUTH:/auth}
+auth-server-issuer: ${AUTH_ISSUER:/realms/local-keycloak}
+auth-server-jwk-set: ${AUTH_JWK_SET:/protocol/openid-connect/certs}
+issuer: ${reverse-proxy-uri}${auth-server-prefix}${auth-server-issuer}
+jwk-set: ${issuer}${auth-server-jwk-set}
+# Server Properties ################################################################################
+server:
+  port: ${PORT_CMS:7088}
+# Comms ############################################################################################
+comms:
+  report:
+    # ---- FILL IN ON THE SERVER ----------------------------------------------
+    # Where a verified report is sent. This is the abuse mailbox.
+    to: ${CMS_REPORT_TO:abuse@outpostmessaging.com}
+    # The envelope sender. It has to be an address the SMTP relay will accept
+    # mail *from*, which for most relays means one on the same domain and often
+    # the same address the credentials belong to.
+    from: ${CMS_REPORT_FROM:no-reply@outpostmessaging.com}
+  message:
+    # Where anything that is not a report is sent. Kept separate from the abuse
+    # address so the two queues do not share an inbox — a question about the App
+    # Store listing must not sit among things people were sent.
+    to: ${CMS_MESSAGE_TO:info@outpostmessaging.com}
+  reply:
+    # ---- FILL IN ON THE SERVER ----------------------------------------------
+    # The sender on the one mail that goes to a person who reported something.
+    # It must be an address the relay will send FROM and that nobody watches:
+    # this service is the only route in, and a reply landing in an unread
+    # mailbox would be a promise broken quietly.
+    from: ${CMS_REPLY_FROM:no-reply@outpostmessaging.com}
+  # Named in the notification so a reader knows which form it came from.
+  site-url: ${CMS_SITE_URL:https://outpostmessaging.com/report}
+  # Where somebody is sent for the things they can do without us.
+  after-url: ${CMS_AFTER_URL:https://outpostmessaging.com/after}
+# Spring Properties ################################################################################
+spring:
+  mvc:
+    # RFC 7807, as in the other services. Without it a ResponseStatusException
+    # renders as {status, error, path} and the reason is dropped — and here every
+    # reason is a sentence written for whoever is filling in the form: what was
+    # wrong with the file, or that a way to reach them is missing.
+    problemdetails:
+      enabled: true
+  application:
+    name: microGPT Comms
+  devtools:
+    add-properties: ${DEV_TOOLS_ADD_PROPS:false}
+    livereload:
+      enabled: ${DEV_TOOLS_LIVE_RELOAD:false}
+  threads:
+    virtual:
+      enabled: true
+  # A report is about a kilobyte and is pasted rather than attached, so there is
+  # no file input to hand a photograph to. The cap is small anyway: it is what a
+  # direct POST hits first, and the parser is what it hits second.
+  servlet:
+    multipart:
+      max-file-size: ${CMS_MAX_UPLOAD:256KB}
+      max-request-size: ${CMS_MAX_REQUEST:512KB}
+  datasource:
+    # Defaults match init-db.sh / .env so the module boots against the shared
+    # Postgres without exported env vars. Tests override this via the
+    # Testcontainers @ServiceConnection, so these values are unused there.
+    url: ${CMS_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cms-db}
+    username: ${CMS_DATASOURCE_USERNAME:cms_user}
+    password: ${CMS_DATASOURCE_PASSWORD:cms_password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      # Liquibase owns schema migrations; Hibernate only validates that the JPA
+      # entities match the Liquibase-managed schema at startup.
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.yaml
+    default-schema: public
+  # ---- FILL IN ON THE SERVER ------------------------------------------------
+  # SMTP. Nothing here has a usable default on purpose: a silent fallback to
+  # localhost:25 would look configured and send nothing. If the host is unset the
+  # service still starts and still stores reports — it logs that the notification
+  # did not send, and `notified_at` stays null on the row.
+  mail:
+    host: ${CMS_SMTP_HOST:}
+    port: ${CMS_SMTP_PORT:587}
+    username: ${CMS_SMTP_USERNAME:}
+    password: ${CMS_SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${CMS_SMTP_AUTH:true}
+          starttls:
+            enable: ${CMS_SMTP_STARTTLS:true}
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+# Spring OIDC Properties ###########################################################################
+com:
+  c4-soft:
+    springaddons:
+      oidc:
+        ops:
+          - iss: ${issuer}
+            username-claim: ${AUTH_USERNAME_CLAIM_JSON:$.preferred_username}
+            authorities:
+              - path: ${AUTH_AUTHORITIES_JSON:$.realm_access.roles}
+            aud: ${AUTH_AUDIENCE:}
+        resourceserver:
+          permit-all:
+            - /swagger-ui*/**
+            - /v3/api-docs*/**
+            - /actuator/health/readiness
+            - /actuator/health/liveness
+            # Spring forwards an unhandled exception to /error, and that forward
+            # goes through the filter chain again. Without this every server-side
+            # fault reaches the client as 401 instead of the 500 it actually is.
+            - /error
+          # POST /reports is NOT listed here: permit-all takes plain path
+          # patterns and would open every verb on the path. It is granted
+          # per-method in security/AccessConfig.
+          cors:
+            # The form is served from the marketing site, which is a different
+            # origin from the API. Only that origin may post, and only POST.
+            - path: /reports
+              allowed-origin-patterns: ${CMS_ALLOWED_ORIGINS:https://outpostmessaging.com,http://localhost:5173}
+              allowed-methods: POST
+              allowed-headers: "*"
+            - path: /messages
+              allowed-origin-patterns: ${CMS_ALLOWED_ORIGINS:https://outpostmessaging.com,http://localhost:5173}
+              allowed-methods: POST
+              allowed-headers: "*"
+# Log Levels #######################################################################################
+logging:
+  level:
+    org:
+      keycloak: INFO
+# Actuator #########################################################################################
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

@@ -29,6 +29,13 @@ dck-port: ${PORT_DECKS:7086}
 dck-scheme: ${SCHEME_DECKS:http}
 dck-container-name: ${CONTAINER_NAME_DECKS:localhost}
 dck-prefix: ${PREFIX_DECKS:/dck}
+# Comms Server ####################################################################################
+# The abuse and contact desk. Its public intake is on outpostmessaging.com and never comes through
+# here; this route is only the desk, which is one signed-in person reading what arrived.
+cms-port: ${PORT_CMS:7088}
+cms-scheme: ${SCHEME_CMS:http}
+cms-container-name: ${CONTAINER_NAME_CMS:localhost}
+cms-prefix: ${PREFIX_CMS:/cms}
 # Sticker Server ###################################################################################
 jps-port: ${PORT_JPS:7087}
 jps-scheme: ${SCHEME_JPS:http}
@@ -104,6 +111,15 @@ spring:
                 - TokenRelay=
                 - SaveSession
                 - StripPrefix=1
+            - id: cms
+              uri: ${cms-scheme}://${cms-container-name}:${cms-port}
+              predicates:
+                - Path=${cms-prefix}/**
+              filters:
+                - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+                - TokenRelay=
+                - SaveSession
+                - StripPrefix=1
             - id: jps
               uri: ${jps-scheme}://${jps-container-name}:${jps-port}
               predicates:
@@ -130,6 +146,7 @@ com:
             - ${ooz-prefix}/**
             - ${dck-prefix}/**
             - ${jps-prefix}/**
+            - ${cms-prefix}/**
             - /login/**
             - /oauth2/**
             - /logout
@@ -138,6 +155,7 @@ com:
             - ${ooz-prefix}/**
             - ${dck-prefix}/**
             - ${jps-prefix}/**
+            - ${cms-prefix}/**
             - /login/**
             - /oauth2/**
           # Guards against open redirect on post_login_success_uri /
