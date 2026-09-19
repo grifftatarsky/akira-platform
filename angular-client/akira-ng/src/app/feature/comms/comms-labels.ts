@@ -1,4 +1,5 @@
 import {
+  BlogTag,
   MessageProduct,
   ReportCategory,
   ReportStatus,
@@ -57,3 +58,19 @@ export function waiting(iso: string): string {
   if (hours < 24) return `${Math.floor(hours)}h`;
   return `${Math.floor(hours / 24)}d`;
 }
+
+/** The blog's tags as the site names them. The order is the site's filter order. */
+export const BLOG_TAGS: readonly { readonly slug: BlogTag; readonly label: string }[] = [
+  { slug: 'release-notes', label: 'Release notes' },
+  { slug: 'roadmap', label: 'Roadmap' },
+  { slug: 'articles', label: 'Articles' },
+  { slug: 'security', label: 'Security' },
+  { slug: 'outpost', label: 'Outpost' },
+  { slug: 'bullet', label: 'bullet' },
+];
+
+export const BLOG_TAG_LABELS: Record<BlogTag, string> = Object.fromEntries(
+  BLOG_TAGS.map((t) => [t.slug, t.label]),
+) as Record<BlogTag, string>;
+
+export const SITE_BLOG_URL = 'https://outpostmessaging.com/blog';

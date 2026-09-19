@@ -93,3 +93,30 @@ export interface CategoryGuide {
   readonly retention: string;
   readonly steps: readonly GuideStep[];
 }
+
+export type BlogTag = 'release-notes' | 'roadmap' | 'articles' | 'security' | 'outpost' | 'bullet';
+
+export interface DeskPostRow {
+  readonly id: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly byline: string;
+  readonly tags: readonly BlogTag[];
+  readonly publishedAt: string | null;
+  readonly updatedAt: string;
+}
+
+export interface DeskPost extends DeskPostRow {
+  readonly summary: string | null;
+  readonly body: string;
+  readonly version: number;
+}
+
+export interface PostDraft {
+  readonly title: string;
+  readonly byline: string;
+  readonly summary: string | null;
+  readonly tags: readonly BlogTag[];
+  readonly slug: string | null;
+  readonly body: string;
+}

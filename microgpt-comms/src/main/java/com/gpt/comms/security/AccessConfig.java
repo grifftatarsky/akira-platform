@@ -6,7 +6,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 
 /**
- * Posting a report needs no account; everything else needs one.
+ * Posting a report needs no account, and neither does reading the blog; everything
+ * else needs one.
  *
  * <p>Reading is the other half of it. Everything under {@code /desk} carries what
  * somebody was sent and how to reach them, so being signed in is not enough —
@@ -29,6 +30,8 @@ public class AccessConfig {
     return registry ->
         registry
             .requestMatchers(HttpMethod.POST, "/reports", "/messages")
+            .permitAll()
+            .requestMatchers(HttpMethod.GET, "/blog/**")
             .permitAll()
             .requestMatchers("/desk/**")
             .hasAuthority("COMMS_DESK")

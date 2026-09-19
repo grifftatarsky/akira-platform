@@ -140,6 +140,11 @@ com:
               allowed-origin-patterns: ${CMS_ALLOWED_ORIGINS:https://outpostmessaging.com,http://localhost:5173}
               allowed-methods: POST
               allowed-headers: "*"
+            # The blog is read from the same site, and only read.
+            - path: /blog/**
+              allowed-origin-patterns: ${CMS_ALLOWED_ORIGINS:https://outpostmessaging.com,http://localhost:5173}
+              allowed-methods: GET
+              allowed-headers: "*"
 # Log Levels #######################################################################################
 logging:
   level:

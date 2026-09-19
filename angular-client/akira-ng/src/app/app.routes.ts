@@ -18,6 +18,7 @@ import { OozeUnavailable } from './feature/ooze/ooze-unavailable';
 import { PresidentUnavailable } from './feature/president/president-unavailable';
 import { JpssUnavailable } from './feature/jpss/jpss-unavailable';
 import { CommsDeskPage } from './feature/comms/comms-desk-page';
+import { PostEditorPage } from './feature/comms/post-editor-page';
 import { ReportDetailPage } from './feature/comms/report-detail-page';
 import { MessageDetailPage } from './feature/comms/message-detail-page';
 import { authGuard } from './auth/auth.guard';
@@ -41,6 +42,7 @@ export const routes: Routes = [
   { path: 'desk', component: CommsDeskPage, canActivate: [authGuard, commsDeskGuard], data: { title: 'Desk' } },
   { path: 'desk/reports/:id', component: ReportDetailPage, canActivate: [authGuard, commsDeskGuard], data: { title: 'Report' } },
   { path: 'desk/messages/:id', component: MessageDetailPage, canActivate: [authGuard, commsDeskGuard], data: { title: 'Message' } },
+  { path: 'desk/posts/:id', component: PostEditorPage, canActivate: [authGuard, commsDeskGuard], data: { title: 'Post' } },
   { path: 'docs', component: DocsPage, data: { title: 'Docs' } },
   { path: 'about', component: AboutPage, data: { title: 'About' } },
   {

@@ -10,10 +10,12 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { CommsHttpService } from '../../common/http/comms-http.service';
 import {
+  DeskPostRow,
   MessageRow,
   ReportRow,
 } from '../../model/response/comms-response.model';
 import {
+  BLOG_TAG_LABELS,
   CATEGORY_LABELS,
   HELD_BY_LAW,
   PRODUCT_LABELS,
@@ -22,7 +24,7 @@ import {
   whenever,
 } from './comms-labels';
 
-type Tab = 'reports' | 'messages';
+type Tab = 'reports' | 'messages' | 'posts';
 
 @Component({
   selector: 'app-comms-desk-page',
@@ -37,6 +39,7 @@ export class CommsDeskPage implements OnInit {
   protected readonly tab = signal<Tab>('reports');
   protected readonly reports = signal<ReportRow[]>([]);
   protected readonly messages = signal<MessageRow[]>([]);
+  protected readonly posts = signal<DeskPostRow[]>([]);
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -44,6 +47,7 @@ export class CommsDeskPage implements OnInit {
   protected readonly statusLabels = STATUS_LABELS;
   protected readonly productLabels = PRODUCT_LABELS;
   protected readonly heldByLaw = HELD_BY_LAW;
+  protected readonly tagLabels = BLOG_TAG_LABELS;
   protected readonly whenever = whenever;
   protected readonly waiting = waiting;
 
@@ -72,12 +76,26 @@ export class CommsDeskPage implements OnInit {
     this.messages().filter((m) => m.status !== 'NEW'),
   );
 
+  protected readonly drafts = computed(() =>
+    this.posts().filter((p) => p.publishedAt === null),
+  );
+
+  protected readonly published = computed(() =>
+    this.posts()
+      .filter((p) => p.publishedAt !== null)
+      .sort((a, b) => (b.publishedAt ?? '').localeCompare(a.publishedAt ?? '')),
+  );
+
   protected readonly dueNow = computed(() =>
     this.heldReports().filter((r) => r.releasable).length,
   );
 
   ngOnInit(): void {
     void this.load();
+  }
+
+  protected tagList(row: DeskPostRow): string {
+    return row.tags.map((t) => this.tagLabels[t]).join(', ');
   }
 
   protected show(tab: Tab): void {
@@ -88,12 +106,14 @@ export class CommsDeskPage implements OnInit {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const [reports, messages] = await Promise.all([
+      const [reports, messages, posts] = await Promise.all([
         firstValueFrom(this.comms.listReports()),
         firstValueFrom(this.comms.listMessages()),
+        firstValueFrom(this.comms.listPosts()),
       ]);
       this.reports.set(reports ?? []);
       this.messages.set(messages ?? []);
+      this.posts.set(posts ?? []);
     } catch {
       this.error.set(
         'The desk could not be reached. Either the comms service is down or this account does not carry COMMS_DESK.',

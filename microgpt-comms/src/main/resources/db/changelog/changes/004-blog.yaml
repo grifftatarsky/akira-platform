@@ -1,0 +1,100 @@
+databaseChangeLog:
+  # ==========================================================================
+  # 004 — the blog on outpostmessaging.com.
+  #
+  # Written at the desk, read by anybody. A post with no published_at is a
+  # draft and never leaves the desk. Tags are a fixed list whose slugs the site
+  # also holds (src/data/blog.ts); BlogTagTest pins this side of it.
+  # ==========================================================================
+  - changeSet:
+      id: 004-blog-post-create
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          tableExists:
+            tableName: blog_post
+      changes:
+        - createTable:
+            tableName: blog_post
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: slug
+                  type: VARCHAR(120)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_blog_post_slug
+              - column:
+                  name: title
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: byline
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: summary
+                  type: VARCHAR(400)
+              - column:
+                  name: body
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: published_at
+                  type: TIMESTAMP WITH TIME ZONE
+
+  - changeSet:
+      id: 004-blog-post-tag-create
+      author: comms
+      preConditions:
+        onFail: MARK_RAN
+        not:
+          tableExists:
+            tableName: blog_post_tag
+      changes:
+        - createTable:
+            tableName: blog_post_tag
+            columns:
+              - column:
+                  name: post_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_blog_post_tag_post
+                    references: blog_post(id)
+                    deleteCascade: true
+              - column:
+                  name: tag
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: blog_post_tag
+            columnNames: post_id, tag
+            constraintName: pk_blog_post_tag

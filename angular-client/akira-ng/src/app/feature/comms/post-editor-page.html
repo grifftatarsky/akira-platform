@@ -1,0 +1,156 @@
+<div class="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-10 pb-24 text-fg">
+  <!-- HERO -->
+  <div class="mt-4">
+    <div aria-hidden="true"
+         class="flex h-14 items-end px-2 font-mono text-xs whitespace-pre text-fg-whisper max-sm:px-4 sm:h-20">
+      <span>{{ isPublished() ? 'On the site since ' + whenever(post()?.publishedAt ?? null) + '.' : 'A draft. Nobody can see it.' }}</span>
+    </div>
+    <div
+      class="relative before:absolute before:top-0 before:h-px before:w-[200vw] before:bg-rule before:-left-[100vw] after:absolute after:bottom-0 after:h-px after:w-[200vw] after:bg-rule after:-left-[100vw]">
+      <h1 class="px-2 text-4xl tracking-tighter text-balance max-lg:font-medium max-sm:px-4 sm:text-5xl lg:text-6xl">
+        {{ post() ? 'Edit post' : 'New post' }}
+      </h1>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <p class="px-2 py-8 text-center text-sm text-fg-muted max-sm:px-4">Loading…</p>
+  } @else {
+    <form class="grid min-w-0 grid-cols-1 gap-6 px-2 max-sm:px-4" [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <a routerLink="/desk" class="text-xs text-fg-muted hover:text-fg">← Desk</a>
+
+      @if (error()) {
+        <p class="rounded-md border border-danger bg-danger-subtle px-3 py-2 text-sm text-danger" role="alert">
+          {{ error() }}
+        </p>
+      }
+      @if (notice()) {
+        <p class="rounded-md border border-rule px-3 py-2 text-sm text-fg" role="status">
+          {{ notice() }}
+          @if (siteUrl(); as url) {
+            <a [href]="url" target="_blank" rel="noopener" class="ml-1 underline underline-offset-2">View on the site</a>
+          }
+        </p>
+      }
+
+      <!-- TITLE -->
+      <div>
+        <label for="post-title" class="block text-xs font-semibold uppercase tracking-[0.15em] text-fg-subtle">
+          Title
+        </label>
+        <input id="post-title" type="text" formControlName="title" autocomplete="off" maxlength="200"
+               class="mt-2 w-full rounded-md border border-rule bg-bg-subtle px-3 py-2 text-base text-fg placeholder:text-fg-whisper focus:border-accent-ring focus:outline-none"
+               placeholder="What this post is about" />
+      </div>
+
+      <!-- BYLINE -->
+      <div>
+        <label for="post-byline" class="block text-xs font-semibold uppercase tracking-[0.15em] text-fg-subtle">
+          Byline
+        </label>
+        <input id="post-byline" type="text" formControlName="byline" autocomplete="off" maxlength="100"
+               class="mt-2 w-full rounded-md border border-rule bg-bg-subtle px-3 py-2 text-sm text-fg placeholder:text-fg-whisper focus:border-accent-ring focus:outline-none sm:max-w-sm"
+               placeholder="The name the post is signed with" />
+      </div>
+
+      <!-- TAGS -->
+      <fieldset>
+        <legend class="block text-xs font-semibold uppercase tracking-[0.15em] text-fg-subtle">Tags</legend>
+        <div class="mt-2 flex flex-wrap gap-2">
+          @for (tag of tags; track tag.slug) {
+            <button type="button"
+                    class="rounded-full border px-3 py-1 text-xs font-semibold transition"
+                    [class]="chosen().has(tag.slug) ? 'border-accent bg-accent text-accent-fg' : 'border-rule text-fg-muted hover:text-fg'"
+                    [attr.aria-pressed]="chosen().has(tag.slug)"
+                    (click)="toggle(tag.slug)">
+              {{ tag.label }}
+            </button>
+          }
+        </div>
+      </fieldset>
+
+      <!-- SUMMARY -->
+      <div>
+        <label for="post-summary" class="block text-xs font-semibold uppercase tracking-[0.15em] text-fg-subtle">
+          Summary
+        </label>
+        <textarea id="post-summary" formControlName="summary" rows="2" maxlength="400"
+                  class="mt-2 w-full rounded-md border border-rule bg-bg-subtle px-3 py-2 text-sm text-fg placeholder:text-fg-whisper focus:border-accent-ring focus:outline-none"
+                  placeholder="One or two sentences for the list. Optional."></textarea>
+      </div>
+
+      <!-- SLUG -->
+      <div>
+        <label for="post-slug" class="block text-xs font-semibold uppercase tracking-[0.15em] text-fg-subtle">
+          Address
+        </label>
+        <div class="mt-2 flex min-w-0 items-center rounded-md border border-rule bg-bg-subtle focus-within:border-accent-ring">
+          <span class="shrink-0 pl-3 font-mono text-xs text-fg-whisper max-sm:hidden">/blog/</span>
+          <input id="post-slug" type="text" formControlName="slug" autocomplete="off" maxlength="120"
+                 class="min-w-0 flex-1 bg-transparent px-3 py-2 font-mono text-xs text-fg placeholder:text-fg-whisper focus:outline-none sm:pl-0.5"
+                 placeholder="made from the title" />
+        </div>
+        <p class="mt-1.5 text-xs text-fg-subtle">
+          {{ isPublished() ? 'Published, so retitling keeps this address. Change it here only on purpose.' : 'Follows the title until the post is published.' }}
+        </p>
+      </div>
+
+      <!-- BODY -->
+      <div>
+        <span class="block text-xs font-semibold uppercase tracking-[0.15em] text-fg-subtle">Body</span>
+        <div class="mt-2">
+          <app-markdown-editor formControlName="body" />
+        </div>
+      </div>
+
+      <!-- ACTIONS -->
+      <div class="flex flex-wrap items-center gap-2 border-t border-rule pt-6">
+        @if (post()) {
+          @if (confirmingDelete()) {
+            <span class="text-sm text-danger">Delete for good?</span>
+            <button type="button"
+                    class="rounded-md border border-danger px-3 py-1.5 text-sm font-semibold text-danger transition hover:bg-danger-subtle disabled:opacity-50"
+                    [disabled]="saving()" (click)="remove()">
+              Delete
+            </button>
+            <button type="button"
+                    class="rounded-md border border-rule px-3 py-1.5 text-sm font-semibold text-fg transition hover:bg-bg-subtle"
+                    (click)="confirmingDelete.set(false)">
+              Keep
+            </button>
+          } @else {
+            <button type="button"
+                    class="rounded-md px-3 py-1.5 text-sm font-semibold text-danger transition hover:bg-danger-subtle"
+                    [disabled]="saving()" (click)="confirmingDelete.set(true)">
+              Delete…
+            </button>
+          }
+        }
+        <span class="flex-1"></span>
+        @if (isPublished()) {
+          <button type="button"
+                  class="rounded-md border border-rule px-3 py-1.5 text-sm font-semibold text-fg transition hover:bg-bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                  [disabled]="saving()" (click)="unpublish()">
+            Unpublish
+          </button>
+          <button type="submit"
+                  class="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-fg transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  [disabled]="saving() || form.invalid || form.pristine">
+            {{ saving() ? 'Saving…' : 'Update' }}
+          </button>
+        } @else {
+          <button type="submit"
+                  class="rounded-md border border-rule px-3 py-1.5 text-sm font-semibold text-fg transition hover:bg-bg-subtle disabled:cursor-not-allowed disabled:opacity-50"
+                  [disabled]="saving() || form.invalid">
+            {{ saving() ? 'Saving…' : 'Save draft' }}
+          </button>
+          <button type="button"
+                  class="rounded-md bg-accent px-3 py-1.5 text-sm font-semibold text-accent-fg transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  [disabled]="saving() || form.invalid" (click)="publish()">
+            Publish
+          </button>
+        }
+      </div>
+    </form>
+  }
+</div>
