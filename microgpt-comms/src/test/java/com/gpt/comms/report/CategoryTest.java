@@ -77,6 +77,7 @@ class CategoryTest {
               "security",
               "privacy",
               "legal",
+              "mistaken-ban",
               "other");
       assertThat(Arrays.stream(ContactMessage.Product.values()).map(ContactMessage.Product::slug))
           .containsExactly("outpost", "bullet", "site");

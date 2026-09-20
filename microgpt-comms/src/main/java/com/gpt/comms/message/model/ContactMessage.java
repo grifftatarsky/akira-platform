@@ -68,6 +68,7 @@ public class ContactMessage extends BaseEntity {
     SECURITY("security"),
     PRIVACY("privacy"),
     LEGAL("legal"),
+    MISTAKEN_BAN("mistaken-ban"),
     OTHER("other");
 
     private final String slug;
