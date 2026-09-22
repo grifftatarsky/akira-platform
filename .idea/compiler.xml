@@ -13,18 +13,22 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <processorPath useClasspath="false">
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.48/lombok-1.18.48.jar" />
         </processorPath>
         <module name="spring-ooze" />
+        <module name="jpss-resource" />
         <module name="spring-bff" />
         <module name="spring-resource" />
         <module name="spring-decks" />
+        <module name="microgpt-comms" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="SpringBonk" options="" />
+      <module name="jpss-resource" options="-parameters" />
+      <module name="microgpt-comms" options="-parameters" />
       <module name="spring-bff" options="-parameters" />
       <module name="spring-decks" options="-parameters" />
       <module name="spring-ooze" options="-parameters" />

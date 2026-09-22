@@ -36,32 +36,21 @@ import tools.jackson.databind.json.JsonMapper;
 @Component
 @RequiredArgsConstructor
 public class OpenLibraryClient {
+  // region Static
   public static final String USER_AGENT =
       "AKIRA Ranked Choice Book Club Tool (grifftatarsky@gmail.com)";
 
   private static final String WORKS_BASE = "https://openlibrary.org/works/";
-
-  /**
-   * Open Library work keys are {@code OL}, digits, {@code W} — nothing else.
-   * The key is concatenated into the request path, so anything that doesn't
-   * match this is refused rather than fetched: a value containing {@code ../},
-   * {@code ?} or {@code #} would otherwise steer the request at a different
-   * path on openlibrary.org. The host is a constant, so this was never
-   * server-side request forgery, but the path is ours to control and shouldn't
-   * be caller-supplied.
-   */
   private static final Pattern WORK_KEY = Pattern.compile("^OL[0-9]+W$");
+  // endregion
 
+  // region DI
   private final JsonMapper objectMapper = JsonMapper.builder().build();
-  private RestClient restClient;
-
-  @PostConstruct
-  void init() {
-    this.restClient = RestClient.builder()
-        .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
-        .defaultHeader(HttpHeaders.ACCEPT, "application/json")
-        .build();
-  }
+  private final RestClient restClient = RestClient.builder()
+      .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
+      .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+      .build();;
+  // endregion
 
   /**
    * Fetch the description for a work by its Open Library key.
