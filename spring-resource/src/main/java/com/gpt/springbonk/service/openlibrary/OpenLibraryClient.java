@@ -1,10 +1,8 @@
 package com.gpt.springbonk.service.openlibrary;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import jakarta.annotation.PostConstruct;
 import java.util.Optional;
 import java.util.regex.Pattern;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -34,7 +32,6 @@ import tools.jackson.databind.json.JsonMapper;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class OpenLibraryClient {
   // region Static
   public static final String USER_AGENT =
@@ -45,11 +42,22 @@ public class OpenLibraryClient {
   // endregion
 
   // region DI
-  private final JsonMapper objectMapper = JsonMapper.builder().build();
-  private final RestClient restClient = RestClient.builder()
-      .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
-      .defaultHeader(HttpHeaders.ACCEPT, "application/json")
-      .build();;
+  private final JsonMapper objectMapper;
+  private final RestClient restClient;
+
+  public OpenLibraryClient() {
+    this(
+        JsonMapper.builder().build(),
+        RestClient.builder()
+            .defaultHeader(HttpHeaders.USER_AGENT, USER_AGENT)
+            .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+            .build());
+  }
+
+  OpenLibraryClient(JsonMapper objectMapper, RestClient restClient) {
+    this.objectMapper = objectMapper;
+    this.restClient = restClient;
+  }
   // endregion
 
   /**

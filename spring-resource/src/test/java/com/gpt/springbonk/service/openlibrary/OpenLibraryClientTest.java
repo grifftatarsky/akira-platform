@@ -1,22 +1,37 @@
 package com.gpt.springbonk.service.openlibrary;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import java.util.Optional;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The work key is concatenated into the outbound request path, so these cover
  * the guard that keeps a caller-supplied value from steering that path. No
- * network is involved: every case here is rejected before a request is built,
- * which is exactly the property under test.
+ * network is involved: malformed cases are rejected before a request is built,
+ * while valid cases use a mocked response.
  */
 class OpenLibraryClientTest {
 
-  private final OpenLibraryClient client = new OpenLibraryClient();
+  private MockRestServiceServer server;
+  private OpenLibraryClient client;
+
+  @BeforeEach
+  void setUp() {
+    RestClient.Builder restClientBuilder = RestClient.builder()
+        .baseUrl("https://openlibrary.org");
+    server = MockRestServiceServer.bindTo(restClientBuilder).build();
+    client = new OpenLibraryClient(JsonMapper.builder().build(), restClientBuilder.build());
+  }
 
   @ParameterizedTest
   @DisplayName("refuses keys that could change the request path")
@@ -47,20 +62,21 @@ class OpenLibraryClientTest {
 
   /**
    * Well-formed keys must survive normalization and reach the request stage.
-   * The client is uninitialized here — {@code init()} never ran — so a genuine
-   * attempt throws NPE rather than returning empty. That distinction is the
-   * assertion: rejected input returns empty, accepted input tries to fetch.
+   * The request is mocked so the test does not depend on the live Open Library
+   * API or on the availability of a particular work record.
    */
   @ParameterizedTest
   @DisplayName("accepts well-formed work keys in each supported shape")
   @ValueSource(strings = {"OL45804W", "/works/OL45804W", "works/OL45804W", "OL1W"})
   void acceptsWellFormedKeys(String key) {
-    Optional<String> result;
-    try {
-      result = client.fetchWorkDescription(key);
-    } catch (NullPointerException expected) {
-      return; // got past the guard and tried to use the RestClient
-    }
-    assertThat(result).isEmpty();
+    server.expect(requestTo("https://openlibrary.org/works/OL45804W.json"))
+        .andRespond(withSuccess(
+            "{\"description\":{\"value\":\"A test description\"}}",
+            MediaType.APPLICATION_JSON));
+
+    assertThat(client.fetchWorkDescription(key))
+        .contains("A test description");
+
+    server.verify();
   }
 }
