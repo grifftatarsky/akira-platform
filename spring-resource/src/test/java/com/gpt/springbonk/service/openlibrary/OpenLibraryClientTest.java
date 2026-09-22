@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -60,6 +63,14 @@ class OpenLibraryClientTest {
     assertThat(client.fetchWorkDescription("   ")).isEmpty();
   }
 
+  private static Stream<Arguments> wellFormedWorkKeys() {
+    return Stream.of(
+        Arguments.of("OL45804W", "https://openlibrary.org/works/OL45804W.json"),
+        Arguments.of("/works/OL45804W", "https://openlibrary.org/works/OL45804W.json"),
+        Arguments.of("works/OL45804W", "https://openlibrary.org/works/OL45804W.json"),
+        Arguments.of("OL1W", "https://openlibrary.org/works/OL1W.json"));
+  }
+
   /**
    * Well-formed keys must survive normalization and reach the request stage.
    * The request is mocked so the test does not depend on the live Open Library
@@ -67,9 +78,9 @@ class OpenLibraryClientTest {
    */
   @ParameterizedTest
   @DisplayName("accepts well-formed work keys in each supported shape")
-  @ValueSource(strings = {"OL45804W", "/works/OL45804W", "works/OL45804W", "OL1W"})
-  void acceptsWellFormedKeys(String key) {
-    server.expect(requestTo("https://openlibrary.org/works/OL45804W.json"))
+  @MethodSource("wellFormedWorkKeys")
+  void acceptsWellFormedKeys(String key, String expectedUri) {
+    server.expect(requestTo(expectedUri))
         .andRespond(withSuccess(
             "{\"description\":{\"value\":\"A test description\"}}",
             MediaType.APPLICATION_JSON));
