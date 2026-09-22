@@ -44,6 +44,8 @@ jobs:
       # working Docker daemon, so this needs no extra setup — it is just the
       # slowest part of the job (first run pulls the postgres image).
       - name: Build and test
+        env:
+          MAVEN_OPTS: -XX:+EnableDynamicAgentLoading
         run: ./mvnw -B -ntp verify
 
   # ── Angular workspace: host + ooze/president/jpss-ui federated remotes ────
