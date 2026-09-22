@@ -27,5 +27,5 @@ public record BattleMapRequest(
     @Min(1) @Max(20) int cellFeet,
     TerrainKind defaultTerrain,
     LightLevel defaultLight,
-    @Valid List<MapCellRequest> cells,
-    @Valid List<MapPropRequest> props) {}
+    @Valid List<@Valid MapCellRequest> cells,
+    @Valid List<@Valid MapPropRequest> props) {}
