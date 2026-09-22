@@ -5,6 +5,7 @@ import com.gpt.comms.blog.dto.BlogDtos.PostDraft;
 import com.gpt.comms.blog.model.BlogPost;
 import com.gpt.comms.blog.model.BlogTag;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -46,7 +47,7 @@ public class BlogService {
   public DeskPost publish(UUID id) {
     BlogPost post = find(id);
     if (post.getPublishedAt() == null) {
-      post.setPublishedAt(Instant.now());
+      post.setPublishedAt(Instant.now().truncatedTo(ChronoUnit.MICROS));
     }
     return DeskPost.of(post);
   }
