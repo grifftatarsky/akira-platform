@@ -5,23 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 
-/**
- * Posting a report needs no account, and neither does reading the blog; everything
- * else needs one.
- *
- * <p>Reading is the other half of it. Everything under {@code /desk} carries what
- * somebody was sent and how to reach them, so being signed in is not enough —
- * it takes the {@code COMMS_DESK} realm role, granted to one person. Any other
- * account in the realm gets a 403, which is the point: the realm has users who
- * are here for a card game.
- *
- * <p>This is the inverse of the sticker wall, where reading is public and writing
- * is not. Somebody reporting abuse is very often somebody who wants less to do
- * with this app rather than more, and requiring them to sign in first would be a
- * barrier in front of the one screen that must not have any. The path is granted
- * per-method rather than through {@code permit-all}, which takes plain patterns
- * and would open the path to every verb.
- */
+/** Public and protected HTTP access rules for comms. */
 @Configuration
 public class AccessConfig {
 
@@ -31,7 +15,7 @@ public class AccessConfig {
         registry
             .requestMatchers(HttpMethod.POST, "/reports", "/messages")
             .permitAll()
-            .requestMatchers(HttpMethod.GET, "/blog/**")
+            .requestMatchers(HttpMethod.GET, "/blog/**", "/share/**", "/shareimg/**")
             .permitAll()
             .requestMatchers("/desk/**")
             .hasAuthority("COMMS_DESK")
