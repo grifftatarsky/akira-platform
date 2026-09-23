@@ -159,3 +159,5 @@ management:
       group:
         readiness:
           include: readinessState,db
+app:
+  public-origin: ${OUTPOST_URL:http://example.com}
