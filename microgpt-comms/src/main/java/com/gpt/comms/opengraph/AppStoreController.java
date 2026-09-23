@@ -9,7 +9,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
+
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,14 +28,12 @@ public class AppStoreController {
   private static final String IMAGE_PATH = "/shareimg/bullet.png";
   // endregion
 
+  @Value("${app.public-origin:https://localhost}")
+  private String publicOrigin;
+
   @GetMapping(path = "/bullet/appstore", produces = MediaType.TEXT_HTML_VALUE)
-  public ResponseEntity<String> sharePage(
-      @RequestHeader(value = "X-Forwarded-Proto", required = false)
-      String forwardedProto,
-      @RequestHeader(value = "Host", required = false)
-      String host
-  ) {
-    String origin = origin(forwardedProto, host);
+  public ResponseEntity<String> sharePage() {
+    String origin = sanitizePublicOrigin(publicOrigin);
     String imageUrl = origin + IMAGE_PATH;
 
     // region HTML String
@@ -86,39 +84,20 @@ public class AppStoreController {
     return new ClassPathResource("shareimg/bullet.png");
   }
 
-  private static String origin(String forwardedProto, String host) {
-    String scheme = sanitizeScheme(firstHeaderValue(forwardedProto, "https"));
-    String forwardedHost = sanitizeHost(firstHeaderValue(host, "localhost"));
-    return scheme + "://" + forwardedHost;
-  }
+  private static String sanitizePublicOrigin(String configuredOrigin) {
+    if (configuredOrigin == null || configuredOrigin.isBlank()) {
+      return "https://localhost";
+    }
 
-  private static String firstHeaderValue(String value, String fallback) {
-    if (value == null || value.isBlank()) {
-      return fallback;
+    String trimmed = configuredOrigin.trim();
+    if (trimmed.endsWith("/")) {
+      trimmed = trimmed.substring(0, trimmed.length() - 1);
     }
-    return value.split(",", 2)[0].trim();
-  }
 
-  private static String sanitizeScheme(String scheme) {
-    if (scheme == null) {
-      return "https";
+    if (trimmed.matches("^https?://[a-z0-9.-]+(?::\\d{1,5})?$")) {
+      return trimmed;
     }
-    String normalized = scheme.trim().toLowerCase();
-    if ("http".equals(normalized) || "https".equals(normalized)) {
-      return normalized;
-    }
-    return "https";
-  }
-
-  private static String sanitizeHost(String host) {
-    if (host == null) {
-      return "localhost";
-    }
-    String normalized = host.trim().toLowerCase();
-    if (normalized.matches("^[a-z0-9.-]+(?::\\d{1,5})?$")) {
-      return normalized;
-    }
-    return "localhost";
+    return "https://localhost";
   }
 
   private static String escape(String value) {
