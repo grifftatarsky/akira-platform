@@ -18,8 +18,8 @@
         <module name="spring-ooze" />
         <module name="jpss-resource" />
         <module name="spring-bff" />
-        <module name="spring-resource" />
         <module name="spring-decks" />
+        <module name="spring-resource" />
         <module name="microgpt-comms" />
       </profile>
     </annotationProcessing>
