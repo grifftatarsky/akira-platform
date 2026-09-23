@@ -187,7 +187,7 @@ public final class Battlefield {
     // the threshold would make the same slope difficult on one board and not on
     // another. Over a 5-foot square, two feet of rise is 21.8 degrees and does
     // it; one foot is 11.3 and does not.
-    return rise * 100_000 >= 36_397L * map.getCellFeet();
+    return rise * 100_000L >= 36_397L * map.getCellFeet();
   }
 
   /**

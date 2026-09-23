@@ -446,8 +446,8 @@ public final class PresidentEngine {
       }
       return;
     }
-    int next = ring.get(0);
-    if (topOwner != null && state.getPlayers().get(next).getId().equals(topOwner)) {
+    int next = ring.getFirst();
+    if (state.getPlayers().get(next).getId().equals(topOwner)) {
       endTrick(next, events);
       checkRoundOver(events);
     } else {
