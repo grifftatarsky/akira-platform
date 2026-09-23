@@ -74,8 +74,8 @@ public class AppStoreController {
   }
 
   private static String origin(String forwardedProto, String host) {
-    String scheme = firstHeaderValue(forwardedProto, "https");
-    String forwardedHost = firstHeaderValue(host, "localhost");
+    String scheme = sanitizeScheme(firstHeaderValue(forwardedProto, "https"));
+    String forwardedHost = sanitizeHost(firstHeaderValue(host, "localhost"));
     return scheme + "://" + forwardedHost;
   }
 
@@ -84,6 +84,28 @@ public class AppStoreController {
       return fallback;
     }
     return value.split(",", 2)[0].trim();
+  }
+
+  private static String sanitizeScheme(String scheme) {
+    if (scheme == null) {
+      return "https";
+    }
+    String normalized = scheme.trim().toLowerCase();
+    if ("http".equals(normalized) || "https".equals(normalized)) {
+      return normalized;
+    }
+    return "https";
+  }
+
+  private static String sanitizeHost(String host) {
+    if (host == null) {
+      return "localhost";
+    }
+    String normalized = host.trim().toLowerCase();
+    if (normalized.matches("^[a-z0-9.-]+(?::\\d{1,5})?$")) {
+      return normalized;
+    }
+    return "localhost";
   }
 
   private static String escape(String value) {
