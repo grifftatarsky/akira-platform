@@ -3,6 +3,7 @@ package com.gpt.comms.opengraph;
 import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -13,24 +14,33 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Server-rendered metadata for links shared from the app. */
+// TODO: Security scan this shit...
 @RestController
 @RequestMapping("/share")
 @RequiredArgsConstructor
 public class AppStoreController {
 
+  // TODO: Make a service. This is really just so I can get this out of the door.
+
+  // region Static
   private static final String TITLE = "•bullet | App Store";
   private static final String DESCRIPTION = "A quiet list from Outpost";
   private static final String IMAGE_PATH = "/shareimg/bullet.png";
-
-  @Value("${BULLET_APP_STORE_LINK}")
-  private String appStoreLink;
+  // endregion
 
   @GetMapping(path = "/bullet/appstore", produces = MediaType.TEXT_HTML_VALUE)
   public ResponseEntity<String> sharePage(
-      @RequestHeader(value = "X-Forwarded-Proto", required = false) String forwardedProto,
-      @RequestHeader(value = "Host", required = false) String host) {
+      @RequestHeader(value = "X-Forwarded-Proto", required = false)
+      String forwardedProto,
+      @RequestHeader(value = "Host", required = false)
+      String host
+  ) {
     String origin = origin(forwardedProto, host);
     String imageUrl = origin + IMAGE_PATH;
+
+    // region HTML String
+    // ew hardcode. I'm tired. TODO
+    String appStoreLink = "https://apps.apple.com/us/app/bullet/id6812961777";
     String html =
         """
         <!doctype html>
@@ -62,10 +72,13 @@ public class AppStoreController {
                 escape(appStoreLink),
                 escape(appStoreLink),
                 escape(TITLE));
+    // endregion
 
     return ResponseEntity.ok()
-        .contentType(new MediaType(MediaType.TEXT_HTML, StandardCharsets.UTF_8))
-        .body(html);
+        .contentType(new MediaType(
+            MediaType.TEXT_HTML,
+            StandardCharsets.UTF_8
+        )).body(html);
   }
 
   @GetMapping(path = "/../shareimg/bullet.png", produces = MediaType.IMAGE_PNG_VALUE)
