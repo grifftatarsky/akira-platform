@@ -134,6 +134,20 @@ Read these before touching the relevant area.
   `@angular-architects/native-federation:build`, which only wraps; the real
   Angular options live in the `esbuild` target. `assets` on `build` is silently
   ignored.
+- **Ooze shares an explicit list, not `shareAll`.** `shareAll` relies on
+  `ignoreUnusedDeps`, whose scan re-parses Babylon once per deep import and took
+  14.5 s of a 27 s build. `SHARED` in `projects/ooze/federation.config.mjs`
+  replaces it, and the config refuses to load if ooze imports an `@angular/*` or
+  `rxjs` entry point the list does not name. Add it there; do not go back to
+  `shareAll`.
+- **The Babylon inspector is development-only.** `bab/inspector.ts` is swapped
+  for `inspector.prod.ts` in the production build, because bundling it (React,
+  Fluent UI, five node editors) tripled ooze's build time and memory. A lazy
+  `import()` does not avoid that — esbuild still bundles everything behind it.
+- **A bare `@babylonjs/core/...` import can be a no-op.** esbuild honours
+  Babylon's `sideEffects` list, and in v9 most of the old side-effect modules
+  are pure (registration moved into the class modules). An `ignored-bare-import`
+  warning means the import did nothing; delete it.
 - **maplibre-gl is held at 6.6.0; 6.8.0 leaves the globe stuck on "Loading the
   globe…".** `onStyleData` never reaches `ready.set(true)`, so the canvas stays
   hidden. Isolated by building deck/luma 9.4.0 stable twice against maplibre

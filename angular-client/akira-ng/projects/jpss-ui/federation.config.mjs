@@ -7,6 +7,11 @@ export default withNativeFederation({
     './routes': './projects/jpss-ui/src/app/jpss.routes.ts',
   },
 
+  // Every tsconfig path is a shared mapping unless this says otherwise, and the
+  // only one, @ooze/contract, belongs to the host and ooze. Left at the default,
+  // every build of this remote warns that no shared mapping is reachable.
+  sharedMappings: [],
+
   shared: {
     ...shareAll(
       { singleton: true, strictVersion: true, requiredVersion: 'auto', build: 'package' },

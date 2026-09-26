@@ -4,7 +4,6 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import type { Scene } from '@babylonjs/core/scene';
-import '@babylonjs/core/Materials/material.detailMapConfiguration';
 import type { SplatGround } from '../board-assets';
 import { type GroundField, groundAt, heightAt } from '../ground-field';
 import { assetUrl } from './assets';

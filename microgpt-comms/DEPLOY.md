@@ -126,6 +126,33 @@ The request cap is 256 KB, well under nginx's own 1 MB default, so
 `client_max_body_size` needs nothing. That is deliberate: a report is about a
 kilobyte, and there is no file input on either form to hand a photograph to.
 
+### A blog post's link preview
+
+A crawler reading `/blog/<slug>` does not run the page, so nginx builds the
+post's `<head>` for it. outpost-site's build writes `blog-post.html`, the site's
+shell with an SSI include where the head goes; this service answers the include
+at `GET /blog/posts/<slug>/head`. Add inside the same `server` block, beside
+`location /`:
+
+```nginx
+# A blog post: the site's shell, with the post's own <head> from comms.
+location ~ ^/blog/(?<post>[a-z0-9-]+)$ {
+    ssi on;
+    ssi_silent_errors on;
+    try_files /blog-post.html =404;
+    add_header Cache-Control "no-cache" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+}
+```
+
+A draft or an unknown slug answers 404 with no body, and so does nothing when
+the service is down; either way the shell's own blog head is used and the page
+still loads. The slug pattern is `BlogSlugs`'s, so no other address reaches the
+include. `OUTPOST_URL` has to be `https://outpostmessaging.com`, or the canonical
+and image addresses name the wrong host.
+
 ---
 
 ## 4. Build and run

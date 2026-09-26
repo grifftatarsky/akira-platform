@@ -15,6 +15,7 @@ import '@babylonjs/loaders/glTF/2.0';
 import { Effects } from './effects';
 import { BANKS, DEFAULTS, Graphics, type Setting } from './graphics';
 import { type FastGrass, fastGrass } from './grass-fast';
+import { inspectorAvailable, toggleInspector } from './inspector';
 import { cardGeometry, type FoliageSheet, loadFoliage } from './foliage-cards';
 import {
   CANDIDATES, FIELDSTONE, GROUND_FLORA, STANDING, plantScans, scatterFlora,
@@ -260,10 +261,12 @@ import { type Terrain, buildTerrain } from './terrain';
                   class="rounded border border-rule px-1.5 py-0.5 hover:border-accent disabled:opacity-50">
                   {{ splitting() ? 'measuring…' : 'split frame' }}
                 </button>
-                <button type="button" (click)="inspect()"
-                  class="rounded border border-rule px-1.5 py-0.5 hover:border-accent">
-                  inspector
-                </button>
+                @if (inspectable) {
+                  <button type="button" (click)="inspect()"
+                    class="rounded border border-rule px-1.5 py-0.5 hover:border-accent">
+                    inspector
+                  </button>
+                }
                 @for (slice of slices(); track slice.name) {
                   <span class="tabular-nums">
                     {{ slice.name }}
@@ -562,6 +565,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
   protected readonly flat = signal(false);
   protected readonly splitting = signal(false);
   protected readonly slices = signal<readonly Slice[]>([]);
+  protected readonly inspectable = inspectorAvailable;
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private stage: Stage | null = null;
@@ -850,12 +854,7 @@ export class BabBoard implements AfterViewInit, OnDestroy {
     if (!scene) {
       return;
     }
-    await import('@babylonjs/inspector');
-    if (scene.debugLayer.isVisible()) {
-      scene.debugLayer.hide();
-    } else {
-      await scene.debugLayer.show({ embedMode: true, overlay: true });
-    }
+    await toggleInspector(scene);
   }
 
   protected setFlat(on: boolean): void {

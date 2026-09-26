@@ -205,7 +205,13 @@
                   "maximumError": "8kB"
                 }
               ],
-              "outputHashing": "all"
+              "outputHashing": "all",
+              "fileReplacements": [
+                {
+                  "replace": "projects/ooze/src/app/board/bab/inspector.ts",
+                  "with": "projects/ooze/src/app/board/bab/inspector.prod.ts"
+                }
+              ]
             },
             "development": {
               "optimization": false,
@@ -451,6 +457,9 @@
             ],
             "polyfills": [
               "es-module-shims"
+            ],
+            "allowedCommonJsDependencies": [
+              "earcut"
             ]
           },
           "configurations": {

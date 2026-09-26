@@ -73,7 +73,7 @@ public class AppStoreController {
         .body(html);
   }
 
-  private static String sanitizePublicOrigin(String configuredOrigin) {
+  static String sanitizePublicOrigin(String configuredOrigin) {
     if (configuredOrigin == null || configuredOrigin.isBlank()) {
       return "https://localhost";
     }
@@ -87,7 +87,7 @@ public class AppStoreController {
     return "https://localhost";
   }
 
-  private static String escape(String value) {
+  static String escape(String value) {
     return value.replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")

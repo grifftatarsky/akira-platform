@@ -34,6 +34,7 @@
     "@angular/platform-browser": "^22.0.0",
     "@angular/router": "^22.0.0",
     "@babylonjs/core": "^9.26.0",
+    "@babylonjs/loaders": "^9.26.2",
     "@babylonjs/materials": "^9.26.0",
     "@deck.gl/core": "^9.4.0",
     "@deck.gl/layers": "^9.4.0",

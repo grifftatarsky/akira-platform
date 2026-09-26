@@ -7,8 +7,6 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { SplatGround } from '../board-assets';
 import type { GroundField } from '../ground-field';
 import { grassColor, GRASS_FADE_FROM, GRASS_FADE_TO } from './species';
-
-import '@babylonjs/core/Materials/Textures/Procedurals/proceduralTextureSceneComponent';
 import { assetUrl } from './assets';
 
 const BAKE_TEXELS_PER_HALF_FOOT = 4;
