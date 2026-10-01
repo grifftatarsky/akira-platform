@@ -76,7 +76,7 @@ services:
   # dump, which carries every role password and every abuse report on the box.
   pg-backup-report:
     container_name: pg-backup-report
-    image: python:3.13-alpine
+    image: python:3.14-alpine
     env_file:
       - .env
     environment:
@@ -138,7 +138,7 @@ services:
 
   # Health check this?
   nginx:
-    image: nginx:1.31.5
+    image: nginx:1.31.6
     container_name: nginx
     ports:
       - "7080:7080"
