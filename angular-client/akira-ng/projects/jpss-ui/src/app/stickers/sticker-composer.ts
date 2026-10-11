@@ -1,16 +1,18 @@
 import { JpssButton } from '../shared/button';
-import { PhotoLocationPrompt } from './photo-location-prompt';
 import {
+  afterRenderEffect,
   ChangeDetectionStrategy,
   Component,
   computed,
   DestroyRef,
   effect,
+  ElementRef,
   inject,
   input,
   output,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { StickerService, describe } from './sticker.service';
 import type { Coordinate, Sticker } from './sticker.models';
@@ -35,7 +37,7 @@ const MAX_PLACE = 80;
  * inside.
  */
 @Component({
-  imports: [JpssButton, PhotoLocationPrompt],
+  imports: [JpssButton],
   selector: 'jpss-sticker-composer',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'contents' },
@@ -43,6 +45,33 @@ const MAX_PLACE = 80;
     <form
       class="pointer-events-auto flex min-h-0 flex-1 flex-col overflow-hidden"
       (submit)="submit($event)">
+      <!-- PICK BAR — the form's stand-in while the globe is waiting for a tap.
+           On a phone this form is a sheet over 78% of the map, so leaving it up
+           while somebody is trying to pick a spot covers the only thing they
+           are looking at. Shown below the md breakpoint only; above it the form
+           is a rail beside the map and never in the way, so nothing moves. -->
+      @if (picking()) {
+        <div class="flex items-center gap-3 px-3.5 py-2.5 md:hidden">
+          <p class="min-w-0 flex-1 text-xs leading-snug text-fg-muted">
+            @if (coordinate(); as spot) {
+              <span class="block font-mono tabular-nums text-fg">{{ formatCoordinate(spot) }}</span>
+              Tap the globe to move it.
+            } @else {
+              Tap the globe to place {{ editing() ? 'it' : 'your sticker' }}.
+            }
+          </p>
+          <button
+            type="button"
+            jpssButton="primary"
+            class="shrink-0"
+            #donePicked
+            (click)="donePicking.emit()">
+            Done
+          </button>
+        </div>
+      }
+
+      <div [class]="bodyClass()">
       <header
         class="flex shrink-0 items-center justify-between gap-2 border-b border-rule px-3.5 py-2.5">
         <h2 class="text-sm font-semibold text-fg">
@@ -126,7 +155,7 @@ const MAX_PLACE = 80;
               "
               [attr.aria-pressed]="picking()"
               (click)="requestPick.emit()">
-              {{ picking() ? 'Click the globe…' : 'Pick on map' }}
+              {{ picking() ? 'Click the globe…' : coordinate() ? 'Move the pin' : 'Pick on map' }}
             </button>
             <button
               type="button"
@@ -177,13 +206,6 @@ const MAX_PLACE = 80;
         </div>
       </div>
 
-      @if (photoLocation(); as spot) {
-        <jpss-photo-location-prompt
-          [spot]="spot"
-          (accept)="acceptPhotoLocation($event)"
-          (dismiss)="dismissPhotoLocation()" />
-      }
-
       <div class="flex shrink-0 items-center gap-2 border-t border-rule px-3.5 py-2.5">
         <button
           type="submit"
@@ -199,12 +221,14 @@ const MAX_PLACE = 80;
           Cancel
         </button>
       </div>
+      </div>
     </form>
   `,
 })
 export class StickerComposer {
   private readonly service = inject(StickerService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly donePicked = viewChild<ElementRef<HTMLButtonElement>>('donePicked');
 
   /** The sticker being edited, or null when placing a new one. */
   readonly editing = input<Sticker | null>(null);
@@ -214,7 +238,21 @@ export class StickerComposer {
   readonly picking = input(false);
 
   readonly requestPick = output<void>();
+  /** The phone pick bar's way back to the form; the parent clears `picking`. */
+  readonly donePicking = output<void>();
   readonly locate = output<Coordinate>();
+  /**
+   * A coordinate found in the chosen photo's EXIF, or null when the photo
+   * changed and the offer is stale.
+   *
+   * Raised rather than answered here: the dialog that asks about it is
+   * `position: fixed`, and this form lives inside a panel with a
+   * `backdrop-filter` — which makes that panel the containing block for fixed
+   * descendants and clips them to it. The parent renders the dialog outside the
+   * panel, the same reason the full-screen photo viewer is not a child of the
+   * sidebar either.
+   */
+  readonly photoLocation = output<Coordinate | null>();
   readonly saved = output<Sticker>();
   readonly cancel = output<void>();
 
@@ -231,8 +269,21 @@ export class StickerComposer {
   protected readonly locating = signal(false);
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
-  /** A coordinate found in the chosen photo's EXIF, pending the user's answer. */
-  protected readonly photoLocation = signal<Coordinate | null>(null);
+
+  /**
+   * The form's own box, hidden on a phone while the globe is waiting for a tap
+   * — the pick bar above takes its place.
+   *
+   * A class rather than an `@if`, so stepping aside does not tear down the form
+   * and lose the photo and caption already in it. A media query rather than a
+   * measured viewport, because the sheet it is reacting to is itself a media
+   * query in jpss-page.css and two sources of truth would drift.
+   */
+  protected readonly bodyClass = computed(() =>
+    this.picking()
+      ? 'hidden min-h-0 flex-1 flex-col overflow-hidden md:flex'
+      : 'flex min-h-0 flex-1 flex-col overflow-hidden',
+  );
 
   protected readonly canSubmit = computed(() => {
     if (this.busy()) return false;
@@ -258,6 +309,15 @@ export class StickerComposer {
         this.setFile(null);
         this.error.set(null);
       });
+    });
+
+    // Where the keyboard goes when the form steps aside. The button that
+    // started pick mode is inside the part that just became display:none, so
+    // without this focus falls back to the body and the sheet has nothing in
+    // it that was ever focused. A no-op above the md breakpoint, where the
+    // button below is itself display:none and the form never moved.
+    afterRenderEffect(() => {
+      if (this.picking()) this.donePicked()?.nativeElement.focus();
     });
 
     this.destroyRef.onDestroy(() => this.releasePreview());
@@ -305,7 +365,7 @@ export class StickerComposer {
     this.file.set(file);
     this.fileName.set(file?.name ?? '');
     this.previewUrl.set(file ? URL.createObjectURL(file) : null);
-    this.photoLocation.set(null);
+    this.photoLocation.emit(null);
     if (file) void this.offerPhotoLocation(file);
   }
 
@@ -324,19 +384,9 @@ export class StickerComposer {
   private async offerPhotoLocation(file: File): Promise<void> {
     const found = await readExifLocation(file);
     if (found && this.file() === file) {
-      this.photoLocation.set(found);
+      this.photoLocation.emit(found);
     }
   }
-
-  protected acceptPhotoLocation(spot: Coordinate): void {
-    this.photoLocation.set(null);
-    this.locate.emit(spot);
-  }
-
-  protected dismissPhotoLocation(): void {
-    this.photoLocation.set(null);
-  }
-
 
   protected readonly formatCoordinate = formatCoordinate;
 

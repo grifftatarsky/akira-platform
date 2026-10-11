@@ -391,6 +391,11 @@ export class Globe {
     });
   }
 
+  /** Where the camera is now, for callers that want to fly in without pulling back out. */
+  zoom(): number {
+    return this.map?.getZoom() ?? 0;
+  }
+
   /**
    * Defocuses the basemap for the duration of a camera flight, so the detail
    * that streams in at the far end resolves into focus instead of popping in

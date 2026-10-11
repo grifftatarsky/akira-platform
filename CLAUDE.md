@@ -197,6 +197,21 @@ Read these before touching the relevant area.
   instead — that means "the style is parsed", which is the actual question.
 - MapLibre `Marker`: `setLngLat()` **before** `addTo()`, or `addTo` throws and
   orphans the element at the origin.
+- **A camera `offset` is only expressible while the globe is bigger than it.**
+  `offset` says where the target lands relative to the map's centre, and on a
+  sphere no rotation puts a surface point further from the disc's centre than
+  its radius. At the resting zoom the whole earth is a ~308px disc on a phone,
+  so asking for −317px to clear the bottom sheet is unsolvable: MapLibre
+  answers by slamming the camera at the pole and past `minZoom`. Anything that
+  has to clear a panel must zoom in as it moves (`PLACE_ZOOM`), never just
+  re-aim the view that is already on screen.
+- **A `position: fixed` overlay inside `.jpss-sidebar` is sized to the sidebar.**
+  Its `backdrop-filter` makes it the containing block for fixed descendants
+  (Filter Effects 2), and its `overflow: hidden` clips what is left — measured
+  at 375×812: a `fixed; inset: 0` child comes back 375×630 at y=182. Both the
+  photo viewer and the EXIF location prompt are mounted by `jpss-page` for this
+  reason. A modal rendered from the composer or the sidebar has to be raised to
+  the page.
 
 ### Spring / auth
 

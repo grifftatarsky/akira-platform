@@ -10,9 +10,12 @@ import { formatCoordinate, type Coordinate } from './sticker.models';
  * always a photo taken there — and silently moving a pin they had already
  * placed would be worse than not offering at all.
  *
- * Its own component so the composer is not also a dialog. Positioned fixed, so
- * it sits over the whole stage rather than being clipped by the bottom sheet
- * the composer lives in on a phone.
+ * Its own component so the composer is not also a dialog — and mounted by the
+ * page, not by the composer. `position: fixed` is not enough on its own here:
+ * the sidebar the composer lives in has a `backdrop-filter`, which makes it the
+ * containing block for fixed descendants, so inside it this sized itself to the
+ * panel and the panel's `overflow: hidden` clipped the rest. On a phone that is
+ * a modal rendered inside the bottom sheet it is trying to cover.
  */
 @Component({
   selector: 'jpss-photo-location-prompt',

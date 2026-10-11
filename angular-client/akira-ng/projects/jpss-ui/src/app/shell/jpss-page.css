@@ -132,7 +132,12 @@
     left: var(--jpss-safe-left, 0px);
     right: var(--jpss-safe-right, 0px);
     width: auto;
-    max-height: 78dvh;
+    /* A share of the stage rather than of the viewport, so the page can work out
+       exactly how much map is left above it — see SHEET_MAX_FRACTION in
+       jpss-page.ts, which the camera offset is derived from. Under the host
+       header `78dvh` and `78%` differ by the header's height, and that
+       difference is the whole free band on a short screen. */
+    max-height: 78%;
     border-left: 0;
     border-top: 1px solid var(--color-rule);
     /* Rounded top and a grabber, so it reads as a sheet over the map rather

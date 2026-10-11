@@ -2,11 +2,13 @@ import { stickerLabel } from '../stickers/sticker.models';
 import { PhotoViewer } from '../stickers/photo-viewer';
 import { GalleryView } from '../stickers/gallery-view';
 import { RequestStickersPrompt } from '../stickers/request-stickers-prompt';
+import { PhotoLocationPrompt } from '../stickers/photo-location-prompt';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
+  ElementRef,
   inject,
   signal,
   viewChild,
@@ -39,6 +41,9 @@ const SIDEBAR_WIDTH = 380;
 /** Below this the sidebar is a bottom sheet, so the camera offset goes vertical. */
 const SIDEBAR_BREAKPOINT = 768;
 
+/** How much of the stage the bottom sheet may cover — `max-height` in jpss-page.css. */
+const SHEET_MAX_FRACTION = 0.78;
+
 interface Toast {
   readonly tone: 'info' | 'error';
   readonly message: string;
@@ -55,7 +60,16 @@ interface Toast {
 @Component({
   selector: 'jpss-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Globe, MenuBar, StickerSidebar, StickerComposer, PhotoViewer, GalleryView, RequestStickersPrompt],
+  imports: [
+    Globe,
+    MenuBar,
+    StickerSidebar,
+    StickerComposer,
+    PhotoViewer,
+    PhotoLocationPrompt,
+    GalleryView,
+    RequestStickersPrompt,
+  ],
   templateUrl: './jpss-page.html',
   styleUrl: './jpss-page.css',
 })
@@ -69,6 +83,8 @@ export class JpssPage {
 
   protected readonly stickers = inject(StickerService);
   private readonly globe = viewChild.required(Globe);
+  /** The map's own box, which is what the camera offsets below are measured in. */
+  private readonly stage = viewChild.required<ElementRef<HTMLElement>>('stage');
 
   // region map state
 
@@ -94,6 +110,8 @@ export class JpssPage {
   /** Where the composer's sticker will land. Held here because the globe sets it. */
   protected readonly pending = signal<Coordinate | null>(null);
   protected readonly picking = signal(false);
+  /** The EXIF offer from the composer's current photo; the dialog is rendered here. */
+  protected readonly photoLocation = signal<Coordinate | null>(null);
   protected readonly toast = signal<Toast | null>(null);
 
   private toastTimer = 0;
@@ -195,7 +213,13 @@ export class JpssPage {
   protected onGlobeClick(event: GlobeClick): void {
     if (this.picking()) {
       this.pending.set({ longitude: event.longitude, latitude: event.latitude });
-      this.picking.set(false);
+      // Pick mode ends on the click only while the form is standing beside the
+      // map and can show the result. On a phone it is not: the form has stepped
+      // aside for a pick bar so the globe is reachable at all, and dropping out
+      // of pick mode would slide the sheet back over the pin to say where the
+      // pin is. Staying in it means a spot can be nudged across several taps,
+      // and the bar's Done button is the way back.
+      if (!this.sheetMode()) this.picking.set(false);
       return;
     }
 
@@ -272,17 +296,31 @@ export class JpssPage {
     this.dismiss();
   }
 
+  /** Whether the sidebar is a bottom sheet rather than a rail — the `md` breakpoint. */
+  private sheetMode(): boolean {
+    return typeof window !== 'undefined' && window.innerWidth < SIDEBAR_BREAKPOINT;
+  }
+
   /**
-   * Keeps the point the camera flies to inside the half of the stage the sidebar
-   * is not covering. MapLibre reads this as a pixel offset from centre, so on a
-   * phone — where the sidebar is a bottom sheet — it has to move up instead of
-   * across.
+   * Keeps the point the camera flies to inside the part of the stage the sidebar
+   * is not covering.
+   *
+   * MapLibre reads `offset` as where the target lands *relative to the centre of
+   * the map*, so clearing a bottom sheet means moving up by more than half the
+   * stage, not by a token amount. A flat −18% of the window put the target at
+   * 32% of the height, under a sheet whose top edge is at 22% — so every
+   * sticker opened on a phone flew to a pin hidden behind the panel describing
+   * it. Aiming at the middle of the band above the sheet cannot land under it.
+   *
+   * It uses the sheet's `max-height` rather than the panel's measured height
+   * because the first flight is dispatched before the panel has rendered; the
+   * cap is the safe assumption, since a shorter sheet only leaves more room.
    */
   private sidebarOffset(): [number, number] {
-    if (typeof window === 'undefined') return [0, 0];
-    return window.innerWidth < SIDEBAR_BREAKPOINT
-      ? [0, -Math.round(window.innerHeight * 0.18)]
-      : [-SIDEBAR_WIDTH / 2, 0];
+    if (!this.sheetMode()) return [-SIDEBAR_WIDTH / 2, 0];
+    const height = this.stage().nativeElement.clientHeight;
+    const free = height * (1 - SHEET_MAX_FRACTION);
+    return [0, Math.round(free / 2 - height / 2)];
   }
 
   // endregion
@@ -309,12 +347,41 @@ export class JpssPage {
     this.composer.set(null);
     this.pending.set(null);
     this.picking.set(false);
+    this.photoLocation.set(null);
   }
 
-  protected onLocate(spot: Coordinate): void {
+  /**
+   * The phone pick bar's Done: back to the form, with the spot kept in frame.
+   *
+   * Lands the same way "Use my location" and the EXIF offer do, so all three
+   * ways of setting a spot end with the camera holding it above the sheet. It
+   * has to fly in rather than just shift the view, because the offset that
+   * clears the sheet is only expressible once the globe is larger than the
+   * screen: at the resting zoom the whole earth is a 308px disc, and no
+   * rotation puts a point on it 317px above its own centre. MapLibre answers
+   * that by slamming the camera at the pole, which is what it did here.
+   *
+   * The zoom only ever goes in, so somebody who zoomed to street level to put
+   * the pin on the right building keeps the view they picked it in.
+   */
+  protected finishPicking(): void {
+    const spot = this.pending();
+    if (!spot) {
+      this.picking.set(false);
+      return;
+    }
+    this.onLocate(spot, Math.max(this.globe().zoom(), PLACE_ZOOM));
+  }
+
+  protected onLocate(spot: Coordinate, zoom = PLACE_ZOOM): void {
     this.pending.set(spot);
     this.picking.set(false);
-    this.globe().flyTo({ kind: 'center', ...spot, zoom: PLACE_ZOOM, offset: this.sidebarOffset() });
+    this.globe().flyTo({ kind: 'center', ...spot, zoom, offset: this.sidebarOffset() });
+  }
+
+  protected acceptPhotoLocation(spot: Coordinate): void {
+    this.photoLocation.set(null);
+    this.onLocate(spot);
   }
 
   protected onSaved(sticker: Sticker): void {

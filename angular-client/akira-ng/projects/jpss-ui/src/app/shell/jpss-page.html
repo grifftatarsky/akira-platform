@@ -1,4 +1,4 @@
-<div class="jpss-stage" [class.jpss-stage--sidebar]="sidebarOpen()">
+<div class="jpss-stage" [class.jpss-stage--sidebar]="sidebarOpen()" #stage>
   <jpss-globe
     #globe
     [layers]="layers()"
@@ -48,7 +48,7 @@
           <span class="tabular-nums">{{ count() }}</span>
           <span>{{ count() === 1 ? 'sticker' : 'stickers' }}</span>
           @if (picking()) {
-            <span class="text-accent">· click a spot</span>
+            <span class="text-accent">· pick a spot</span>
           }
         }
       </div>
@@ -114,7 +114,9 @@
           [coordinate]="pending()"
           [picking]="picking()"
           (requestPick)="picking.set(true)"
+          (donePicking)="finishPicking()"
           (locate)="onLocate($event)"
+          (photoLocation)="photoLocation.set($event)"
           (saved)="onSaved($event)"
           (cancel)="closeComposer()" />
       } @else if (selected(); as sticker) {
@@ -139,6 +141,17 @@
     <jpss-request-stickers-prompt
       [username]="username()"
       (close)="requestingStickers.set(false)" />
+  }
+
+  <!-- "This photo remembers where it was taken". Outside the sidebar for the
+       same reason as the viewer below — it is a dialog over the whole stage, and
+       inside the panel the backdrop-filter would size it to the panel and the
+       overflow would clip what was left. -->
+  @if (photoLocation(); as spot) {
+    <jpss-photo-location-prompt
+      [spot]="spot"
+      (accept)="acceptPhotoLocation($event)"
+      (dismiss)="photoLocation.set(null)" />
   }
 
   <!-- Full screen photo. A sibling of the sidebar rather than a child of it:
