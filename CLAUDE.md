@@ -148,14 +148,20 @@ Read these before touching the relevant area.
   Babylon's `sideEffects` list, and in v9 most of the old side-effect modules
   are pure (registration moved into the class modules). An `ignored-bare-import`
   warning means the import did nothing; delete it.
-- **maplibre-gl is held at 6.6.0; 6.8.0 leaves the globe stuck on "Loading the
-  globe…".** `onStyleData` never reaches `ready.set(true)`, so the canvas stays
-  hidden. Isolated by building deck/luma 9.4.0 stable twice against maplibre
-  6.6.0 (ready) and 6.8.0 (stuck) with nothing else changed, so it is maplibre,
-  not deck. The lockfile is the only thing holding it — `package.json` still
-  says `^6.6.0` — so a dependabot bump of it needs the globe eyeballed before
-  merge, not just a green build. Not in `ignore`, because that would suppress
-  its security updates too.
+- **A maplibre-gl bump needs the globe looked at, not just a green build.** It
+  was once held at 6.6.0 because 6.8.0 left the globe stuck on "Loading the
+  globe…" — `onStyleData` never reached `ready.set(true)` and the canvas stayed
+  hidden. That hold is over: 6.10.0, 6.11.2, 6.13.0 and 6.14.0 were each served
+  and watched reach `ready`, a parsed style and loaded tiles, and the lockfile
+  is on 6.14.0. The rule survives the hold, because none of that shows up in a
+  build. Not in `ignore`, which would suppress its security updates too.
+- **Delete `.angular` before judging a globe after an Angular bump.** A cache
+  left from the previous Angular version serves a mixed bundle: the globe
+  renders black on "Loading the globe…" and the console throws
+  `Invalid LngLat object: (NaN, NaN)` out of `defaultConstrain`. That is
+  indistinguishable from the 6.8.0 failure above and it is not maplibre — the
+  same version renders perfectly once the cache is gone. It cost an afternoon
+  of bisecting maplibre versions that were never broken.
 - **The globe stack is on stable `^9.4.0` and must stay in lockstep.**
   `@deck.gl/*` and `@luma.gl/*` peer-depend on `~9.4.0` of each other, so a
   partial bump is unresolvable; dependabot's `deckgl` group exists to keep them

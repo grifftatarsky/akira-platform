@@ -44,7 +44,7 @@
     "@stomp/stompjs": "^7.3.0",
     "@tailwindcss/postcss": "^4.1.13",
     "es-module-shims": "^2.8.0",
-    "maplibre-gl": "^6.6.0",
+    "maplibre-gl": "^6.14.0",
     "marked": "^18.0.4",
     "postcss": "^8.5.6",
     "rxjs": "~7.8.0",
@@ -61,7 +61,7 @@
     "@types/three": "^0.186.0",
     "@webgpu/types": "^0.1.70",
     "baseline-browser-mapping": "^2.10.34",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.1.2",
     "typescript": "~6.0.3",
     "vitest": "^5.0.0"
   }
