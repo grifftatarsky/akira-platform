@@ -59,9 +59,16 @@ const WELL_TALLEST = 4 / 5;
         <!-- The thumbnail the globe never needed sits behind the full image,
              blurred, so the panel is never briefly empty on a slow connection.
              Aspect ratio comes from the stored dimensions, so nothing reflows
-             when the photo lands. -->
+             when the photo lands.
+
+             The w-full is not redundant with being a block. An aspect-ratio on
+             a box whose width is auto lets the *height* cap drive the width
+             back down to match the ratio, so a portrait photo under the 34dvh
+             cap came out 221px wide in a 375px panel — a tall slab against a
+             black gutter. A definite width means the cap only ever trims the
+             height, and the object-cover below takes the crop, centred. -->
         <div
-          class="relative max-h-[34dvh] bg-bg-sunk bg-cover bg-center sm:max-h-[26rem]"
+          class="relative w-full max-h-[34dvh] bg-bg-sunk bg-cover bg-center sm:max-h-[26rem]"
           [style.aspect-ratio]="aspectRatio()"
           [style.background-image]="placeholder()">
           <div class="absolute inset-0 backdrop-blur-xl"></div>

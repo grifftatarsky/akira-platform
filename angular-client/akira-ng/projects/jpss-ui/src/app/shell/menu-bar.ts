@@ -11,7 +11,7 @@ import {
   signal,
 } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { BASEMAPS } from '../map/basemap';
+import { BASEMAPS, basemapById } from '../map/basemap';
 import { LAYER_GROUPS } from '../map/layer-groups';
 import type { GroupVisibility, LayerGroupId } from '../map/layer-groups';
 import type { Sticker } from '../stickers/sticker.models';
@@ -236,50 +236,100 @@ import type { Sticker } from '../stickers/sticker.models';
               </div>
             }
 
-            <!-- BASEMAP -->
-            <div class="border-t border-rule p-2.5">
-              <label class="block">
-                <span class="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-fg-subtle">
-                  Basemap
-                </span>
-                <select
-                  class="mt-1.5 min-h-11 w-full rounded-md border border-rule bg-bg-subtle px-2 py-1.5 text-base text-fg sm:min-h-0 sm:text-sm"
-                  [value]="basemap()"
-                  (change)="onBasemap($event)">
-                  @for (option of basemaps; track option.id) {
-                    <option [value]="option.id">
-                      {{ option.name }}{{ option.note ? ' — ' + option.note : '' }}
-                    </option>
-                  }
-                </select>
-              </label>
-            </div>
+            <!-- MAP CONTROLS — folded away, and opening it is its own decision.
+                 Six basemaps and six detail toggles is most of this menu's
+                 height, and they are the part nobody came here for: the row
+                 says which basemap is on, which is the only one of the twelve
+                 worth seeing without asking. -->
+            <div class="border-t border-rule p-1.5">
+              <button
+                type="button"
+                class="flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-fg transition-colors hover:bg-bg-subtle sm:min-h-0"
+                [attr.aria-expanded]="mapOpen()"
+                [attr.aria-controls]="mapPanelId"
+                (click)="mapOpen.set(!mapOpen())">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" class="size-4 text-fg-muted" aria-hidden="true">
+                  <path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3-6-3zM9 4v13M15 7v13" />
+                </svg>
+                <span class="flex-1">Map controls</span>
+                <span class="shrink-0 text-[0.7rem] text-fg-subtle">{{ basemapName() }}</span>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round"
+                     class="size-3.5 shrink-0 text-fg-subtle transition-transform"
+                     [class.rotate-180]="mapOpen()" aria-hidden="true">
+                  <path d="m4 6 4 4 4-4" />
+                </svg>
+              </button>
 
-            <!-- MAP DETAIL -->
-            <div class="border-t border-rule p-2.5">
-              <p class="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-fg-subtle">
-                Map detail
-              </p>
-              <div class="mt-1.5 grid gap-0.5">
-                @for (group of groups; track group.id) {
-                  <label
-                    class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md px-1 py-1 text-sm transition-colors hover:bg-bg-subtle sm:min-h-0"
-                    [class.cursor-default]="!countOf(group.id)"
-                    [class.opacity-50]="!countOf(group.id)"
-                    [title]="group.hint">
-                    <input
-                      type="checkbox"
-                      class="size-4 accent-accent sm:size-3.5"
-                      [checked]="visibility()[group.id]"
-                      [disabled]="!countOf(group.id)"
-                      (change)="toggleGroup.emit(group.id)" />
-                    <span class="flex-1 text-fg">{{ group.name }}</span>
-                    <span class="text-[0.7rem] tabular-nums text-fg-subtle">
-                      {{ countOf(group.id) || 'none' }}
-                    </span>
-                  </label>
-                }
-              </div>
+              @if (mapOpen()) {
+                <div class="px-1 pb-1 pt-1.5" [attr.id]="mapPanelId">
+                  <!-- BASEMAP — a list rather than a <select>, so the note that
+                       says what each one is for can be its own quiet line. In
+                       an option element it had to be glued onto the name with a
+                       dash, which read as part of the name. -->
+                  <p class="px-1 text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-fg-subtle">
+                    Basemap
+                  </p>
+                  <div class="mt-1 grid gap-0.5" role="radiogroup" aria-label="Basemap">
+                    @for (option of basemaps; track option.id) {
+                      <button
+                        type="button"
+                        role="radio"
+                        class="flex min-h-11 w-full items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-bg-subtle sm:min-h-0"
+                        [class.bg-accent-subtle]="basemap() === option.id"
+                        [attr.aria-checked]="basemap() === option.id"
+                        (click)="basemapChange.emit(option.id)">
+                        <span
+                          class="grid size-4 shrink-0 place-items-center rounded-full border transition-colors sm:size-3.5"
+                          [class]="
+                            basemap() === option.id
+                              ? 'border-accent bg-accent'
+                              : 'border-rule-strong'
+                          "
+                          aria-hidden="true">
+                          @if (basemap() === option.id) {
+                            <span class="size-1.5 rounded-full bg-accent-fg"></span>
+                          }
+                        </span>
+                        <span class="min-w-0 flex-1">
+                          <span class="block text-sm leading-snug text-fg">{{ option.name }}</span>
+                          @if (option.note) {
+                            <span class="block text-[0.7rem] leading-snug text-fg-subtle">
+                              {{ option.note }}
+                            </span>
+                          }
+                        </span>
+                      </button>
+                    }
+                  </div>
+
+                  <!-- MAP DETAIL -->
+                  <p class="mt-3 px-1 text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-fg-subtle">
+                    Map detail
+                  </p>
+                  <div class="mt-1 grid gap-0.5">
+                    @for (group of groups; track group.id) {
+                      <label
+                        class="flex min-h-11 cursor-pointer items-center gap-2.5 rounded-md px-1.5 py-1 text-sm transition-colors hover:bg-bg-subtle sm:min-h-0"
+                        [class.cursor-default]="!countOf(group.id)"
+                        [class.opacity-50]="!countOf(group.id)"
+                        [title]="group.hint">
+                        <input
+                          type="checkbox"
+                          class="size-4 accent-accent sm:size-3.5"
+                          [checked]="visibility()[group.id]"
+                          [disabled]="!countOf(group.id)"
+                          (change)="toggleGroup.emit(group.id)" />
+                        <span class="flex-1 text-fg">{{ group.name }}</span>
+                        <span class="text-[0.7rem] tabular-nums text-fg-subtle">
+                          {{ countOf(group.id) || 'none' }}
+                        </span>
+                      </label>
+                    }
+                  </div>
+                </div>
+              }
             </div>
 
             <!-- ACCOUNT -->
@@ -330,9 +380,14 @@ export class MenuBar {
   protected readonly basemaps = BASEMAPS;
   protected readonly groups = LAYER_GROUPS;
   protected readonly panelId = 'jpss-tools-menu';
+  protected readonly mapPanelId = 'jpss-map-controls';
   protected readonly open = signal(false);
+  /** Whether the map controls are unfolded. Sticky for the session, not stored. */
+  protected readonly mapOpen = signal(false);
 
   protected readonly signedIn = computed(() => this.username() !== null);
+  /** Shown on the folded row, so the one setting worth seeing is not hidden. */
+  protected readonly basemapName = computed(() => basemapById(this.basemap()).name);
 
   protected toggle(): void {
     this.open.update(open => !open);
@@ -355,10 +410,6 @@ export class MenuBar {
 
   protected countOf(group: LayerGroupId): number {
     return this.groupSizes()[group] ?? 0;
-  }
-
-  protected onBasemap(event: Event): void {
-    this.basemapChange.emit((event.target as HTMLSelectElement).value);
   }
 
   @HostListener('document:keydown.escape')
