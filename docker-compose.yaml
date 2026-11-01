@@ -138,7 +138,7 @@ services:
 
   # Health check this?
   nginx:
-    image: nginx:1.31.6
+    image: nginx:1.31.7
     container_name: nginx
     ports:
       - "7080:7080"
