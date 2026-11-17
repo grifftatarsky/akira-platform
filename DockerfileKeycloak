@@ -1,0 +1,25 @@
+FROM keycloak/keycloak:26.8 AS keycloak
+
+# The upstream image runs Red Hat's OpenJDK 21 RPM on UBI, and UBI still ships
+# 21.0.13.0.9, which is open to CVE-2026-114938 (Java4Shell). Keycloak is a
+# plain JVM app under /opt/keycloak, so it runs on Corretto 21 instead, where
+# 21.0.13.1.2 carries the fix. The version floor fails the build rather than
+# ship an unpatched JVM. Drop this file once the upstream image is rebuilt.
+FROM amazoncorretto:21-alpine
+
+# kc.sh is a bash script; Alpine ships only busybox sh.
+RUN apk add --no-cache --upgrade 'amazon-corretto-21>=21.0.13.1.2-r0' bash
+
+# Upstream runs as uid 1000 and writes under /opt/keycloak/data at startup.
+COPY --from=keycloak --chown=1000:0 /opt/keycloak /opt/keycloak
+
+# Copied from the upstream image. KC_RUN_IN_CONTAINER makes Keycloak bind
+# 0.0.0.0 rather than localhost, without which nothing outside can reach it.
+ENV LANG=en_US.UTF-8 \
+    KC_RUN_IN_CONTAINER=true
+
+USER 1000
+
+EXPOSE 8080 9000
+
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh"]

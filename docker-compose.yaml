@@ -95,7 +95,10 @@ services:
 
   keycloak:
     container_name: keycloak
-    image: keycloak/keycloak:26.8
+    # Upstream Keycloak on a patched JVM; DockerfileKeycloak says why.
+    build:
+      context: .
+      dockerfile: DockerfileKeycloak
     command:
       - start-dev
       - --import-realm
