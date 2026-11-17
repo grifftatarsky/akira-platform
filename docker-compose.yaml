@@ -12,7 +12,7 @@ networks:
 services:
   postgres:
     container_name: pgsql
-    image: postgres:18.6
+    image: postgres:18.7
     ports:
       - "5432:5432"
     env_file:
@@ -36,7 +36,7 @@ services:
   # two versions must be bumped together.
   pg-backup:
     container_name: pg-backup
-    image: postgres:18.6
+    image: postgres:18.7
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +76,7 @@ services:
   # dump, which carries every role password and every abuse report on the box.
   pg-backup-report:
     container_name: pg-backup-report
-    image: python:3.14-alpine
+    image: python:3.15-alpine
     env_file:
       - .env
     environment:
@@ -95,7 +95,7 @@ services:
 
   keycloak:
     container_name: keycloak
-    image: keycloak/keycloak:26.7
+    image: keycloak/keycloak:26.8
     command:
       - start-dev
       - --import-realm
@@ -138,7 +138,7 @@ services:
 
   # Health check this?
   nginx:
-    image: nginx:1.31.6
+    image: nginx:1.31.8
     container_name: nginx
     ports:
       - "7080:7080"

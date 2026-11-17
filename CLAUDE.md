@@ -151,9 +151,9 @@ Read these before touching the relevant area.
 - **A maplibre-gl bump needs the globe looked at, not just a green build.** It
   was once held at 6.6.0 because 6.8.0 left the globe stuck on "Loading the
   globe…" — `onStyleData` never reached `ready.set(true)` and the canvas stayed
-  hidden. That hold is over: 6.10.0, 6.11.2, 6.13.0 and 6.14.0 were each served
-  and watched reach `ready`, a parsed style and loaded tiles, and the lockfile
-  is on 6.14.0. The rule survives the hold, because none of that shows up in a
+  hidden. That hold is over: 6.10.0, 6.11.2, 6.13.0, 6.14.0 and 6.19.0 were
+  each served and watched reach `ready`, a parsed style and loaded tiles, and
+  the lockfile is on 6.19.0. The rule survives the hold, because none of that shows up in a
   build. Not in `ignore`, which would suppress its security updates too.
 - **Delete `.angular` before judging a globe after an Angular bump.** A cache
   left from the previous Angular version serves a mixed bundle: the globe
