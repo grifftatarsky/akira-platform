@@ -17,8 +17,8 @@ nginx.
 | Ad-hoc DB backup | `docker exec pg-backup /usr/local/bin/pg-backup.sh once` |
 | Restore a backup | `./backup/pg-restore.sh [file]` (stop Keycloak + services first) |
 
-Java 26 is required and is often not the default JVM:
-`JAVA_HOME=$(/usr/libexec/java_home -v 26) ./mvnw ...`
+Java 27 is required and is often not the default JVM:
+`JAVA_HOME=$(/usr/libexec/java_home -v 27) ./mvnw ...`
 
 ## The Babylon board (spring-ooze)
 

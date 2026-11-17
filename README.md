@@ -81,7 +81,7 @@ resolve the name and every route into it falls back to "unavailable".
 
 ### Running it locally
 
-Prerequisites: JDK 26, Node (see `.nvmrc`), Docker.
+Prerequisites: JDK 27, Node (see `.nvmrc`), Docker.
 
 Start the infrastructure (Postgres, Keycloak, Nginx):
 
@@ -92,7 +92,7 @@ docker compose up -d
 Build and test the Maven reactor:
 
 ```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) ./mvnw verify
+JAVA_HOME=$(/usr/libexec/java_home -v 27) ./mvnw verify
 ```
 
 Build and test the frontend:
@@ -199,7 +199,7 @@ credentials from the running Postgres container, so there is no `.env` to find.
 
 ### CI & Security
 
-- **`ci.yml`** — builds and tests the Maven reactor on JDK 26 (Testcontainers-backed slices
+- **`ci.yml`** — builds and tests the Maven reactor on JDK 27 (Testcontainers-backed slices
   included), then builds all three Angular projects and runs the frontend suites.
 - **`codeql.yml`** — CodeQL code scanning for `java-kotlin` (built via Maven), for
   `javascript-typescript`, and for the workflow files themselves. Runs on push, PR, and weekly.
@@ -231,7 +231,7 @@ parent POM.
 
 ### Patterns & Approach
 
-- **Module of the platform reactor** — builds from the shared parent POM (Spring Boot 4 / Java 26),
+- **Module of the platform reactor** — builds from the shared parent POM (Spring Boot 4 / Java 27),
   inheriting dependency and plugin management rather than a standalone Spring Boot parent.
 - **Secured resource server behind the BFF** — validates Keycloak-issued JWTs via spring-addons; the
   BFF routes `/ooz/**` with token relay, so the Angular client never handles tokens directly.
