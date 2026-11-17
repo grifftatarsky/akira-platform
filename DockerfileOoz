@@ -1,4 +1,4 @@
-FROM maven:3-eclipse-temurin-26-alpine AS build
+FROM maven:3-amazoncorretto-27-alpine AS build
 
 WORKDIR /app
 
@@ -12,7 +12,13 @@ COPY ./spring-ooze/src ./src
 
 RUN mvn clean package -DskipTests
 
-FROM eclipse-temurin:26-jre-alpine
+FROM amazoncorretto:27-alpine
+
+# CVE-2026-114938 (Java4Shell) is fixed in Corretto 27.0.1.1.4, but the Docker
+# Hub image still ships 27.0.1.0.11. The image already trusts Corretto's apk
+# repo, so take the fixed package from there. The version floor fails the build
+# rather than ship an unpatched JVM, and is a no-op once the base catches up.
+RUN apk add --no-cache --upgrade 'amazon-corretto-27>=27.0.1.1.4-r0'
 
 RUN addgroup -S bonk-docker && adduser -S -G bonk-docker veto
 

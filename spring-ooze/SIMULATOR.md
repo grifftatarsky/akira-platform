@@ -148,7 +148,7 @@ turns "the tracker must not reach into the map" from a good intention into a
 failing test.
 
 The rest of the modern-Boot surface that actually buys something here:
-`spring.threads.virtual.enabled` (Boot 4 on Java 26), `jsonb` + GIN on the event
+`spring.threads.virtual.enabled` (Boot 4 on Java 27), `jsonb` + GIN on the event
 payload, `@Version` on Battle plus a row lock so two concurrent `advance()` calls
 serialise instead of interleaving, and SSE to push state to watchers.
 

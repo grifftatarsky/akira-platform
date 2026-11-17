@@ -158,7 +158,7 @@ and image addresses name the wrong host.
 ## 4. Build and run
 
 ```bash
-JAVA_HOME=$(/usr/libexec/java_home -v 26) ./mvnw -B -ntp -pl microgpt-comms -am verify
+JAVA_HOME=$(/usr/libexec/java_home -v 27) ./mvnw -B -ntp -pl microgpt-comms -am verify
 docker build -f DockerfileComms -t microgpt-comms .
 ```
 
