@@ -123,7 +123,7 @@ roles are gone.
 Take one immediately, outside the schedule:
 
 ```bash
-docker exec pg-backup /usr/local/bin/pg-backup.sh once
+docker exec pg-backup /opt/backup/pg-backup.sh once
 ```
 
 Restore the newest backup (or pass a specific file). The dump is `--clean

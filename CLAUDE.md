@@ -14,7 +14,7 @@ nginx.
 | Frontend tests | `npx ng test akira-ng --watch=false` (also `president`) |
 | Local stack | `docker compose up -d` (postgres, keycloak, nginx only) |
 | Spring services | Run the jars yourself; they are **not** in compose locally |
-| Ad-hoc DB backup | `docker exec pg-backup /usr/local/bin/pg-backup.sh once` |
+| Ad-hoc DB backup | `docker exec pg-backup /opt/backup/pg-backup.sh once` |
 | Restore a backup | `./backup/pg-restore.sh [file]` (stop Keycloak + services first) |
 
 Java 27 is required and is often not the default JVM:
@@ -238,6 +238,12 @@ Read these before touching the relevant area.
 
 ### Database / deploy
 
+- **Production does not use this repo's `docker-compose.yaml`.** The Pi runs
+  the compose file, nginx config and secrets scripts from the private
+  `akira-image` repo, checked out at `~/akira`, with this repo cloned into
+  `~/akira/repository/SpringBonk`. A compose or nginx change here reaches prod
+  only if it is made there too. Service images are built by the `Images`
+  workflow (arm64, pushed to GHCR), not on the Pi.
 - **Backups are `pg_dumpall`, not per-database `pg_dump`.** The `pg-backup`
   sidecar dumps the whole cluster to `./backups` at local midnight and keeps 3.
   Cluster-wide because the dump then also carries `CREATE ROLE` with passwords —
