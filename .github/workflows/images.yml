@@ -1,8 +1,9 @@
 name: Images
 
-# Builds the service images for the Pi (linux/arm64) on GitHub's arm64
-# runners and pushes them to GHCR, so the server pulls instead of building.
-# A build on the Pi took about seven minutes of SD-card I/O.
+# Builds the service images and akira-web (nginx with the Angular builds) for
+# the Pi (linux/arm64) on GitHub's arm64 runners and pushes them to GHCR, so
+# the server pulls instead of building. A build on the Pi took about seven
+# minutes of SD-card I/O for the services alone.
 
 on:
   push:
@@ -37,6 +38,7 @@ jobs:
           - { image: akira-jpss,     dockerfile: DockerfileJpss }
           - { image: akira-comms,    dockerfile: DockerfileComms }
           - { image: akira-keycloak, dockerfile: DockerfileKeycloak }
+          - { image: akira-web,      dockerfile: DockerfileWeb }
     steps:
       - uses: actions/checkout@v7
 

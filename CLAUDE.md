@@ -242,8 +242,10 @@ Read these before touching the relevant area.
   the compose file, nginx config and secrets scripts from the private
   `akira-image` repo, checked out at `~/akira`, with this repo cloned into
   `~/akira/repository/SpringBonk`. A compose or nginx change here reaches prod
-  only if it is made there too. Service images are built by the `Images`
-  workflow (arm64, pushed to GHCR), not on the Pi.
+  only if it is made there too. Service images and `akira-web` (nginx plus
+  the four Angular builds, `DockerfileWeb`) are built by the `Images`
+  workflow (arm64, pushed to GHCR), not on the Pi. A frontend change reaches
+  prod by merging to main, waiting for that run, then deploying.
 - **Backups are `pg_dumpall`, not per-database `pg_dump`.** The `pg-backup`
   sidecar dumps the whole cluster to `./backups` at local midnight and keeps 3.
   Cluster-wide because the dump then also carries `CREATE ROLE` with passwords —
