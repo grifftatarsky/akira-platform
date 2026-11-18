@@ -1,0 +1,11 @@
+# Build context for every Dockerfile* here is the repo root. Without this,
+# DockerfileWeb would send node_modules and old builds into the image, and the
+# Java builds would upload the Angular workspace for nothing.
+**/node_modules
+**/.angular
+**/dist
+**/target
+.git
+.idea
+logs
+backups

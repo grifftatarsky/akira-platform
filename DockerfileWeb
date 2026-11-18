@@ -1,0 +1,28 @@
+# akira-web: the Angular host and its three remotes (ooze, president, jpss-ui),
+# served by nginx. Built by the Images workflow and pulled by the server as
+# ghcr.io/grifftatarsky/akira-web, tagged with the same commit as the service
+# images so frontend and backend versions always match.
+#
+# The site config is not baked in: the server mounts its own nginx/conf from
+# the akira-image repo, along with TLS certs and outpost-site's build.
+
+# The output is plain files, identical on any architecture, so the build runs
+# on the builder's native platform. slim, not alpine: some of Angular's
+# optional native build dependencies only ship glibc binaries.
+FROM --platform=$BUILDPLATFORM node:24-slim AS build
+ENV CI=true NG_CLI_ANALYTICS=false NODE_OPTIONS=--max-old-space-size=4096
+WORKDIR /src
+COPY angular-client/akira-ng/package.json angular-client/akira-ng/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY angular-client/akira-ng/ ./
+# Host first: its stylesheet @sources every remote and emits their Tailwind.
+RUN npx ng build akira-ng \
+ && npx ng build ooze \
+ && npx ng build president \
+ && npx ng build jpss-ui
+
+FROM nginx:1.31.8
+COPY --from=build /src/dist/akira-ng/browser  /usr/share/nginx/html
+COPY --from=build /src/dist/ooze/browser      /usr/share/nginx/remotes/ooze
+COPY --from=build /src/dist/president/browser /usr/share/nginx/remotes/president
+COPY --from=build /src/dist/jpss-ui/browser   /usr/share/nginx/remotes/jpss-ui
