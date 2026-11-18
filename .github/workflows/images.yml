@@ -1,0 +1,70 @@
+name: Images
+
+# Builds the service images for the Pi (linux/arm64) on GitHub's arm64
+# runners and pushes them to GHCR, so the server pulls instead of building.
+# A build on the Pi took about seven minutes of SD-card I/O.
+
+on:
+  push:
+    branches: [main]
+  # Pull requests build without pushing, so a broken Dockerfile shows up
+  # before merge rather than on the Pi.
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { image: akira-resource, dockerfile: DockerfileResource }
+          - { image: akira-bff,      dockerfile: DockerfileBFF }
+          - { image: akira-ooze,     dockerfile: DockerfileOoz }
+          - { image: akira-decks,    dockerfile: DockerfileDecks }
+          - { image: akira-jpss,     dockerfile: DockerfileJpss }
+          - { image: akira-comms,    dockerfile: DockerfileComms }
+          - { image: akira-keycloak, dockerfile: DockerfileKeycloak }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # :main moves with every push; :sha-<short> pins a build for rollback.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
+          tags: |
+            type=raw,value=main
+            type=sha,prefix=sha-
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max

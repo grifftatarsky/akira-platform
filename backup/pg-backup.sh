@@ -11,6 +11,10 @@
 #   ./backup/pg-backup.sh loop   # backup at every local midnight (default)
 set -euo pipefail
 
+# Dumps carry every role's password and every row, so only the owner may read
+# them. The container runs as root and would otherwise write them 0644.
+umask 077
+
 PGHOST="${PGHOST:-pgsql}"
 PGPORT="${PGPORT:-5432}"
 PGUSER="${PGUSER:-${POSTGRES_USER:-admin}}"
