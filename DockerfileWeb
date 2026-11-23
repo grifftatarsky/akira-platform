@@ -9,7 +9,7 @@
 # The output is plain files, identical on any architecture, so the build runs
 # on the builder's native platform. slim, not alpine: some of Angular's
 # optional native build dependencies only ship glibc binaries.
-FROM --platform=$BUILDPLATFORM node:24-slim AS build
+FROM --platform=$BUILDPLATFORM node:26-slim AS build
 ENV CI=true NG_CLI_ANALYTICS=false NODE_OPTIONS=--max-old-space-size=4096
 WORKDIR /src
 COPY angular-client/akira-ng/package.json angular-client/akira-ng/package-lock.json ./
@@ -21,7 +21,7 @@ RUN npx ng build akira-ng \
  && npx ng build president \
  && npx ng build jpss-ui
 
-FROM nginx:1.31.8
+FROM nginx:1.31.9
 COPY --from=build /src/dist/akira-ng/browser  /usr/share/nginx/html
 COPY --from=build /src/dist/ooze/browser      /usr/share/nginx/remotes/ooze
 COPY --from=build /src/dist/president/browser /usr/share/nginx/remotes/president
